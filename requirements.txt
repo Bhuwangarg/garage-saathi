@@ -1,0 +1,2 @@
+# Garage Saathi sync/GPS server uses only the Python standard library.
+# (No third-party packages required.)

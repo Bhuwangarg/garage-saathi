@@ -1,0 +1,17 @@
+# Render.com Blueprint — one-click deploy of the Garage Saathi backend.
+# Usage: push this repo to GitHub → render.com → New → Blueprint → pick the repo.
+# Render builds the Dockerfile, gives you an HTTPS URL, and persists /data.
+services:
+  - type: web
+    name: garage-saathi-sync
+    runtime: docker
+    plan: free
+    region: singapore            # closest Render region to Jaipur
+    healthCheckPath: /health
+    envVars:
+      - key: GPS_INGEST_TOKEN     # set the value (the real token) in the dashboard
+        sync: false
+    disk:
+      name: data
+      mountPath: /data           # SQLite DB + uploaded photos persist here
+      sizeGB: 1

@@ -1,0 +1,42 @@
+{
+  "engine-oil": {
+    "file": "assets/parts/engine-oil.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:LUBTROL_JSE_EDGE_5W-40_Motor_Oil_4L_Bottle.jpg",
+    "license": "CC BY-SA 4.0"
+  },
+  "clutch-plate": {
+    "file": "assets/parts/clutch-plate.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Clutch_disc.JPG",
+    "license": "CC BY-SA 3.0"
+  },
+  "wiper-blade": {
+    "file": "assets/parts/wiper-blade.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Car_windshield_wiper_displayed.jpg",
+    "license": "CC BY 2.0"
+  },
+  "tyre": {
+    "file": "assets/parts/tyre.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Kamaz_truck_tyre_change.jpg",
+    "license": "CC BY-SA 2.0"
+  },
+  "bus": {
+    "file": "assets/parts/bus.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:A_deluxe_City_bus_in_Chennai_from_Tata_Motors.jpg",
+    "license": "CC BY-SA 3.0"
+  },
+  "brake-pad": {
+    "file": "assets/parts/brake-pad.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:BremsbelagBB7.jpg",
+    "license": "CC BY-SA 3.0"
+  },
+  "oil-filter": {
+    "file": "assets/parts/oil-filter.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Oil_filter_wrench_001B.jpg",
+    "license": "CC BY-SA 3.0"
+  },
+  "air-filter": {
+    "file": "assets/parts/air-filter.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Filtro_aria_K%26N.JPG",
+    "license": "Public domain"
+  }
+}

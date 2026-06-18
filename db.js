@@ -1,0 +1,198 @@
+/* Garage Saathi — local-first data layer (IndexedDB).
+ * Designed offline-first: everything is stored on the device and works with no
+ * network. Each record carries an `updatedAt` so a future cloud-sync layer can
+ * merge devices later (Phase 2) without changing any of the screens.
+ */
+
+const DB_NAME = 'garage-saathi';
+const DB_VERSION = 1;
+
+const STORES = {
+  users: 'id',
+  buses: 'id',
+  parts: 'id',
+  jobcards: 'id',
+  ledger: 'id',      // stock movement ledger (in/out) — the anti-pilferage trail
+  attendance: 'id',
+  purchases: 'id',
+  meta: 'key',
+};
+
+let _db = null;
+
+function openDB() {
+  if (_db) return Promise.resolve(_db);
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    req.onupgradeneeded = (e) => {
+      const db = e.target.result;
+      for (const [name, keyPath] of Object.entries(STORES)) {
+        if (!db.objectStoreNames.contains(name)) {
+          db.createObjectStore(name, { keyPath });
+        }
+      }
+    };
+    req.onsuccess = () => { _db = req.result; resolve(_db); };
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function tx(store, mode = 'readonly') {
+  return openDB().then((db) => db.transaction(store, mode).objectStore(store));
+}
+
+const DB = {
+  async all(store) {
+    const os = await tx(store);
+    return new Promise((res, rej) => {
+      const r = os.getAll();
+      r.onsuccess = () => res(r.result || []);
+      r.onerror = () => rej(r.error);
+    });
+  },
+  async get(store, id) {
+    const os = await tx(store);
+    return new Promise((res, rej) => {
+      const r = os.get(id);
+      r.onsuccess = () => res(r.result || null);
+      r.onerror = () => rej(r.error);
+    });
+  },
+  // Local write: stamps updatedAt and notifies the sync engine (outbox).
+  async put(store, obj) {
+    obj.updatedAt = Date.now();
+    await this._write(store, obj);
+    if (typeof DB.onChange === 'function') DB.onChange(store, obj.id);
+    return obj;
+  },
+  // Remote write: applies a record from the server AS-IS (keeps its updatedAt,
+  // does NOT re-notify the outbox) so sync never echoes a change back.
+  async putRaw(store, obj) {
+    await this._write(store, obj);
+    return obj;
+  },
+  _write(store, obj) {
+    return tx(store, 'readwrite').then((os) => new Promise((res, rej) => {
+      const r = os.put(obj);
+      r.onsuccess = () => res(obj);
+      r.onerror = () => rej(r.error);
+    }));
+  },
+  async del(store, id) {
+    const os = await tx(store, 'readwrite');
+    return new Promise((res, rej) => {
+      const r = os.delete(id);
+      r.onsuccess = () => res(true);
+      r.onerror = () => rej(r.error);
+    });
+  },
+};
+
+// Small id helper. Crypto-based so two offline devices won't collide.
+function uid(prefix = '') {
+  const rnd = crypto.getRandomValues(new Uint32Array(2));
+  return prefix + rnd[0].toString(36) + rnd[1].toString(36);
+}
+
+/* ----------------------------- Seed data ----------------------------------
+ * A realistic slice of a Jaipur garage so the owner can click through every
+ * flow on first open. Runs only once (guarded by a meta flag).
+ */
+async function seedIfEmpty() {
+  const seeded = await DB.get('meta', 'seeded');
+  if (seeded) return;
+
+  const now = Date.now();
+  const day = 86400000;
+
+  // No PINs here — credentials are validated server-side (hashed) and cached
+  // per-device by app.js (seedCreds). The synced roster carries name/role only.
+  const users = [
+    { id: 'u-owner', name: 'Bhuwan (Owner)', role: 'owner' },
+    { id: 'u-sup',   name: 'Ramesh (Supervisor)', role: 'supervisor' },
+    { id: 'u-store', name: 'Suresh (Store)', role: 'store' },
+    { id: 'u-m1',    name: 'Mukesh', role: 'mechanic' },
+    { id: 'u-m2',    name: 'Imran',  role: 'mechanic' },
+    { id: 'u-m3',    name: 'Vijay',  role: 'mechanic' },
+  ];
+
+  const buses = [
+    { id: 'b1', regNo: 'RJ14 PA 1023', company: 'Pink City Travels', model: 'Tata Starbus', chassis: 'MAT4470', engine: 'ENG88231', odometer: 184320,
+      serviceIntervalKm: 10000, lastServiceOdo: 178000,
+      docs: [
+        { type: 'Insurance', number: 'INS-9921', expiry: now + 40*day },
+        { type: 'Fitness',   number: 'FIT-3320', expiry: now + 9*day },
+        { type: 'Permit',    number: 'PMT-1180', expiry: now + 120*day },
+        { type: 'PUC',       number: 'PUC-7741', expiry: now - 2*day },
+      ], photos: [] },
+    { id: 'b2', regNo: 'RJ14 PB 4567', company: 'Rajasthan Roadlinks', model: 'Ashok Leyland Viking', chassis: 'ALV2231', engine: 'ENG44120', odometer: 251000,
+      serviceIntervalKm: 10000, lastServiceOdo: 242000,
+      docs: [
+        { type: 'Insurance', number: 'INS-7740', expiry: now + 200*day },
+        { type: 'Fitness',   number: 'FIT-9981', expiry: now + 60*day },
+        { type: 'PUC',       number: 'PUC-2210', expiry: now + 25*day },
+      ], photos: [] },
+    { id: 'b3', regNo: 'RJ45 CC 8890', company: 'Pink City Travels', model: 'Eicher Skyline', chassis: 'EIC5567', engine: 'ENG10093', odometer: 98700,
+      serviceIntervalKm: 10000, lastServiceOdo: 88000,
+      docs: [
+        { type: 'Insurance', number: 'INS-3312', expiry: now + 5*day },
+        { type: 'Fitness',   number: 'FIT-1102', expiry: now + 320*day },
+      ], photos: [] },
+  ];
+
+  const parts = [
+    { id: 'p1', name: 'Brake Pad Set (front)', partNo: 'BP-FR-22', category: 'Brakes', qty: 12, unit: 'set', reorderLevel: 4, unitCost: 1800 },
+    { id: 'p2', name: 'Engine Oil 15W-40 (1L)', partNo: 'OIL-1540', category: 'Lubricants', qty: 60, unit: 'L', reorderLevel: 20, unitCost: 320 },
+    { id: 'p3', name: 'Oil Filter', partNo: 'FLT-OIL-9', category: 'Filters', qty: 3, unit: 'pc', reorderLevel: 6, unitCost: 410 },
+    { id: 'p4', name: 'Air Filter', partNo: 'FLT-AIR-3', category: 'Filters', qty: 9, unit: 'pc', reorderLevel: 4, unitCost: 650 },
+    { id: 'p5', name: 'Clutch Plate', partNo: 'CLT-PL-7', category: 'Transmission', qty: 5, unit: 'pc', reorderLevel: 2, unitCost: 5200 },
+    { id: 'p6', name: 'Wiper Blade', partNo: 'WPR-21', category: 'Body', qty: 18, unit: 'pc', reorderLevel: 6, unitCost: 240 },
+    { id: 'p7', name: 'Tyre 10.00-20', partNo: 'TYR-1020', category: 'Tyres', qty: 2, unit: 'pc', reorderLevel: 4, unitCost: 21500 },
+  ];
+
+  const jobcards = [
+    { id: 'j1', busId: 'b1', problem: 'Front brakes weak, noise while stopping', priority: 'high',
+      status: 'verified', reportedBy: 'u-sup', assignedTo: 'u-m1',
+      beforePhotos: [], afterPhotos: [], partsUsed: [{ partId: 'p1', qty: 1, cost: 1800 }],
+      labourHours: 2.5, notes: 'Replaced front pad set, cleaned caliper.',
+      externalVendor: '', externalCost: 0,
+      createdAt: now - 6*day, closedAt: now - 5*day, verifiedBy: 'u-sup', verifiedAt: now - 5*day },
+    { id: 'j2', busId: 'b2', problem: 'Engine service due (10000 km)', priority: 'medium',
+      status: 'in-progress', reportedBy: 'u-sup', assignedTo: 'u-m2',
+      beforePhotos: [], afterPhotos: [], partsUsed: [{ partId: 'p2', qty: 12, cost: 3840 }, { partId: 'p3', qty: 1, cost: 410 }],
+      labourHours: 0, notes: '', externalVendor: '', externalCost: 0,
+      createdAt: now - 1*day, closedAt: null, verifiedBy: null },
+    { id: 'j3', busId: 'b3', problem: 'AC not cooling — sent to outside AC specialist', priority: 'medium',
+      status: 'open', reportedBy: 'u-sup', assignedTo: 'u-m3',
+      beforePhotos: [], afterPhotos: [], partsUsed: [],
+      labourHours: 0, notes: 'Quoted by CoolAir Jaipur', externalVendor: 'CoolAir Jaipur', externalCost: 4500,
+      createdAt: now - 3600000, closedAt: null, verifiedBy: null },
+  ];
+
+  const ledger = [
+    { id: uid('l-'), partId: 'p1', type: 'out', qty: 1, jobId: 'j1', reason: 'Issued to job', by: 'u-store', at: now - 5*day },
+    { id: uid('l-'), partId: 'p2', type: 'out', qty: 12, jobId: 'j2', reason: 'Issued to job', by: 'u-store', at: now - 1*day },
+    { id: uid('l-'), partId: 'p3', type: 'out', qty: 1, jobId: 'j2', reason: 'Issued to job', by: 'u-store', at: now - 1*day },
+  ];
+
+  const attendance = [
+    { id: uid('a-'), userId: 'u-m1', type: 'in', at: now - 5*3600000, lat: 26.9124, lng: 75.7873, selfie: '', late: false },
+    { id: uid('a-'), userId: 'u-m2', type: 'in', at: now - 4.2*3600000, lat: 26.9124, lng: 75.7873, selfie: '', late: true },
+  ];
+
+  const purchases = [
+    { id: uid('pur-'), supplier: 'Jaipur Auto Spares', billPhoto: '', amount: 28400, items: 'Brake pads x10, Oil filters x6', paymentStatus: 'pending', at: now - 8*day },
+  ];
+
+  for (const u of users) await DB.put('users', u);
+  for (const b of buses) await DB.put('buses', b);
+  for (const p of parts) await DB.put('parts', p);
+  for (const j of jobcards) await DB.put('jobcards', j);
+  for (const l of ledger) await DB.put('ledger', l);
+  for (const a of attendance) await DB.put('attendance', a);
+  for (const pu of purchases) await DB.put('purchases', pu);
+
+  // Garage location (geofence centre for attendance). Default: central Jaipur.
+  await DB.put('meta', { key: 'garage', lat: 26.9124, lng: 75.7873, radiusM: 200, name: 'Mahalaxmi Travels Garage, Jaipur' });
+  await DB.put('meta', { key: 'seeded', value: true });
+}

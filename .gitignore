@@ -1,0 +1,7 @@
+# Secrets & runtime data — never commit these
+.gps_ingest_token
+.public_url
+sync.db
+uploads/
+__pycache__/
+*.pyc
