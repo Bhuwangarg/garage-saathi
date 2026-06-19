@@ -177,6 +177,13 @@ textarea{min-height:76px;resize:vertical}
 .hero-badge{position:absolute;top:12px;right:12px;z-index:2}
 .hero-badge .badge{box-shadow:var(--shadow-sm)}
 
+/* Driver rating stars + report checklist */
+.stars{color:#f5a524;font-size:12px;font-weight:700;letter-spacing:1px;white-space:nowrap}
+.stars.big{font-size:17px}
+.repcheck{display:flex;gap:9px;align-items:flex-start;padding:8px 0;font-size:13px;border-bottom:1px solid var(--line)}
+.repcheck:last-child{border-bottom:none}
+.repcheck input{width:auto;margin-top:3px;flex:none}
+
 /* List rows */
 .li{display:flex;gap:13px;align-items:center;padding:13px 0;border-bottom:1px solid var(--line);cursor:pointer}
 .li:last-child{border-bottom:none}

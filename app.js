@@ -125,6 +125,10 @@ const PERMS = {
   receiveStock: ['owner', 'supervisor', 'store'],
   addPurchase: ['owner', 'supervisor', 'store'],
   dashboard: ['owner', 'supervisor'],
+  insights: ['owner', 'supervisor'],         // AI Insights screen
+  manageDrivers: ['owner', 'supervisor'],    // drivers list/detail, incidents, ratings
+  assignDriver: ['owner', 'supervisor'],     // assign a driver to a bus
+  logService: ['owner', 'supervisor'],       // resets service + writes a verified job
 };
 
 /* ------------------------------ Sheets ------------------------------------ */
@@ -286,6 +290,39 @@ function busesDueService() {
     .sort((a, b) => a.sv.dueIn - b.sv.dueIn);
 }
 
+/* --------------------------- Drivers & performance ------------------------- */
+// Performance data points and their penalty (subtracted from a 100 score).
+const INCIDENT = {
+  scratch:       { label: 'Scratch',      icon: '➰', pen: 3 },
+  dent:          { label: 'Dent',         icon: '🔨', pen: 8 },
+  'harsh-brake': { label: 'Harsh braking', icon: '🛑', pen: 5 },
+  overspeed:     { label: 'Overspeeding', icon: '💨', pen: 6 },
+  late:          { label: 'Late trip',    icon: '⏰', pen: 2 },
+  cleanliness:   { label: 'Cleanliness',  icon: '🧽', pen: 3 },
+  accident:      { label: 'Accident',     icon: '⚠️', pen: 20 },
+  other:         { label: 'Other',        icon: '•',  pen: 4 },
+};
+const driverById = (id) => byId(S.cache.drivers || [], id);
+const driverName = (id) => (driverById(id) || {}).name || '—';
+const driverOfBus = (busId) => (S.cache.drivers || []).find((d) => d.busId === busId) || null;
+const driverForUser = (userId) => (S.cache.drivers || []).find((d) => d.userId === userId) || null;
+const driverIncidents = (driverId) => (S.cache.incidents || []).filter((i) => i.driverId === driverId);
+const openReportsForBus = (busId) => (S.cache.driverreports || []).filter((r) => r.busId === busId && r.status === 'open');
+
+// Performance score: 100 minus weighted penalties (last 90 days), 0..100.
+function driverScore(driverId) {
+  const since = Date.now() - 90 * day;
+  const pen = driverIncidents(driverId).filter((i) => i.at >= since)
+    .reduce((s, i) => s + ((INCIDENT[i.type] || INCIDENT.other).pen), 0);
+  return Math.max(0, 100 - pen);
+}
+const scoreStars = (score) => Math.round((score / 20) * 2) / 2;   // 0..5, half steps
+function starStr(stars) {
+  const full = Math.floor(stars), half = stars - full >= 0.5;
+  return '★'.repeat(full) + (half ? '½' : '') + '☆'.repeat(5 - full - (half ? 1 : 0));
+}
+const scoreClass = (s) => s >= 85 ? 'b-green' : s >= 70 ? 'b-amber' : 'b-red';
+
 /* ------------------------------- RENDER ----------------------------------- */
 const root = () => document.getElementById('app');
 
@@ -308,13 +345,18 @@ function topbar(title) {
 }
 
 // Which bottom tab should light up — sub-screens map back to their parent tab.
-const TAB_OF = { home: 'home', buses: 'buses', jobs: 'jobs', store: 'store', me: 'me', purchases: 'me', alerts: 'me', insights: 'home' };
+const TAB_OF = { home: 'home', buses: 'buses', jobs: 'jobs', store: 'store', me: 'me', purchases: 'me', alerts: 'me', insights: 'home', drivers: 'home' };
 function bottomnav() {
   const active = TAB_OF[S.route.name] || 'home';
-  const items = [
-    ['home', '🏠', t('home')], ['buses', '🚌', t('buses')], ['jobs', '🛠️', t('jobs')],
-    ['store', '📦', t('store')], ['me', '👤', t('me')],
-  ];
+  // Each role gets a focused nav matching what they actually do.
+  const NAVS = {
+    driver:   [['home', '🚌', 'My Bus'], ['me', '👤', t('me')]],
+    store:    [['home', '🏠', t('home')], ['store', '📦', t('store')], ['jobs', '🛠️', t('jobs')], ['me', '👤', t('me')]],
+    mechanic: [['home', '🏠', t('home')], ['jobs', '🛠️', t('jobs')], ['buses', '🚌', t('buses')], ['me', '👤', t('me')]],
+  };
+  const items = NAVS[S.user.role] ||
+    [['home', '🏠', t('home')], ['buses', '🚌', t('buses')], ['jobs', '🛠️', t('jobs')],
+     ['store', '📦', t('store')], ['me', '👤', t('me')]];
   return `<div class="bottomnav">${items.map(([n, ic, lbl]) =>
     `<button data-nav="${n}" class="${active === n ? 'active' : ''}"><span class="ic">${ic}</span>${esc(lbl)}</button>`).join('')}</div>`;
 }
@@ -345,7 +387,63 @@ function qtile(icon, value, label, nav) {
     <div class="qicon">${icon}</div><div class="stat">${value}</div>
     <div class="muted small">${esc(label)}</div></div>`;
 }
+// Storekeeper home — inventory first.
+function viewStoreHome() {
+  const parts = S.cache.parts;
+  const low = parts.filter((p) => p.qty <= p.reorderLevel);
+  const stockValue = parts.reduce((s, p) => s + p.qty * p.unitCost, 0);
+  const pending = S.cache.purchases.filter((p) => p.paymentStatus === 'pending').reduce((s, p) => s + p.amount, 0);
+  const openJobs = S.cache.jobs.filter((j) => j.status === 'open' || j.status === 'in-progress');
+  let body = `<div class="greet"><div class="greet-av">📦</div>
+    <div><div class="greet-hi">Namaste, ${esc(S.user.name.split(' ')[0])} 👋</div><div class="muted small">${esc(BIZ)} · ${fmtToday()}</div></div></div>`;
+  body += `<div class="grid2">
+    <div class="card tile"><div class="muted small">Stock value</div><div class="stat">${money(stockValue)}</div></div>
+    <div class="card tile"><div class="muted small">Low stock</div><div class="stat">${low.length}</div></div></div>`;
+  body += `<div class="btnrow" style="margin-bottom:14px">
+    <button class="btn primary" data-act="issueTo">📤 Issue part</button>
+    <button class="btn" data-act="receive">📥 Receive</button></div>`;
+  body += `<div class="card"><div class="row between"><h3>Reorder soon</h3><span class="badge ${low.length ? 'b-amber' : 'b-green'}">${low.length}</span></div>`;
+  body += low.length ? low.map((p) => `<div class="li" data-part="${p.id}">${avatar(partImg(p), '🔩')}<div class="main"><div class="t">${esc(p.name)}</div><div class="s">${p.qty} ${p.unit} left · reorder at ${p.reorderLevel}</div></div><span class="badge b-amber">LOW</span></div>`).join('') : `<div class="muted small">Stock healthy 👍</div>`;
+  body += `</div>`;
+  body += `<div class="card" data-act="openPurchases" style="cursor:pointer"><div class="row between"><h3>Pending to suppliers</h3><b style="color:var(--amber)">${money(pending)}</b></div><div class="tiny muted">Tap to view bills</div></div>`;
+  body += `<div class="card"><h3>Open jobs (parts may be needed)</h3>`;
+  body += openJobs.length ? openJobs.slice(0, 6).map(jobLi).join('') : `<div class="muted small">No open jobs.</div>`;
+  body += `</div>`;
+  shell(t('appName'), body);
+}
+
+// Mechanic home — my work first.
+function viewMechanicHome() {
+  const me = S.user.id;
+  const myJobs = S.cache.jobs.filter((j) => j.assignedTo === me);
+  const open = myJobs.filter((j) => j.status === 'open' || j.status === 'in-progress');
+  const myAtt = S.cache.att.filter((a) => a.userId === me);
+  const checkedIn = myAtt.length && myAtt[myAtt.length - 1].type === 'in';
+  const myBusIds = [...new Set(open.map((j) => j.busId))];
+  const reports = (S.cache.driverreports || []).filter((r) => r.status === 'open' && myBusIds.includes(r.busId));
+  let body = `<div class="greet"><div class="greet-av">🔧</div>
+    <div><div class="greet-hi">Namaste, ${esc(S.user.name.split(' ')[0])} 👋</div><div class="muted small">${esc(BIZ)} · ${fmtToday()}</div></div></div>`;
+  if (!checkedIn) body += `<div class="banner warn">⏰ You are not checked in today.<button class="btn sm" data-nav="me" style="margin-left:auto">${t('checkin')}</button></div>`;
+  body += `<div class="grid2">
+    <div class="card tile"><div class="muted small">My open jobs</div><div class="stat">${open.length}</div></div>
+    <div class="card tile"><div class="muted small">Completed</div><div class="stat">${myJobs.filter((j) => j.status === 'done' || j.status === 'verified').length}</div></div></div>`;
+  const order = { open: 0, 'in-progress': 1, done: 2, verified: 3 };
+  body += `<div class="card"><h3>My jobs</h3>`;
+  body += myJobs.length ? [...myJobs].sort((a, b) => (order[a.status] - order[b.status]) || (b.createdAt - a.createdAt)).slice(0, 8).map(jobLi).join('') : `<div class="muted small">No jobs assigned to you.</div>`;
+  body += `</div>`;
+  if (reports.length) {
+    body += `<div class="card"><div class="row between"><h3>Driver said…</h3><span class="badge b-amber">${reports.length}</span></div>
+      <div class="tiny muted" style="margin-bottom:6px">What drivers reported on the buses you're working — check these too.</div>`;
+    body += reports.map((r) => `<div class="li" data-bus="${r.busId}"><div class="ava">🗣️</div><div class="main"><div class="t">${esc(r.problem)}</div><div class="s">${esc(busName(r.busId))} · ${esc(r.category || '')}</div></div></div>`).join('');
+    body += `</div>`;
+  }
+  shell(t('appName'), body);
+}
+
 function viewHome() {
+  if (S.user.role === 'driver') return viewDriverHome();
+  if (S.user.role === 'store') return viewStoreHome();
+  if (S.user.role === 'mechanic') return viewMechanicHome();
   const openJobs = S.cache.jobs.filter((j) => j.status === 'open' || j.status === 'in-progress');
   const low = S.cache.parts.filter((p) => p.qty <= p.reorderLevel);
   const alerts = allDocAlerts();
@@ -410,6 +508,18 @@ function viewHome() {
         <div class="main"><div class="t">${esc(b.regNo)}</div><div class="s">${esc(b.company)}</div></div>
         <span class="badge ${sv.status === 'overdue' ? 'b-red' : 'b-amber'}">${sv.status === 'overdue' ? 'OVERDUE ' + Math.abs(sv.dueIn).toLocaleString('en-IN') + 'km' : sv.dueIn.toLocaleString('en-IN') + 'km'}</span></div>`).join('');
       body += `<div class="tiny muted" style="margin-top:8px">Service on time → fewer breakdowns → lower cost.</div></div>`;
+    }
+
+    // Drivers — performance + open trip reports
+    const drv = S.cache.drivers || [];
+    if (drv.length) {
+      const worst = [...drv].sort((a, b) => driverScore(a.id) - driverScore(b.id))[0];
+      const openReps = (S.cache.driverreports || []).filter((r) => r.status === 'open').length;
+      body += `<div class="card" data-act="openDrivers" style="cursor:pointer">
+        <div class="row between"><h3>Drivers</h3><span class="badge ${openReps ? 'b-amber' : 'b-green'}">${openReps} open reports</span></div>
+        <div class="li" style="border:none;padding:8px 0 0"><div class="ava">🧑‍✈️</div>
+          <div class="main"><div class="t">Lowest rated: ${esc(worst.name)}</div><div class="s">tap to manage ${drv.length} drivers</div></div>
+          <span class="badge ${scoreClass(driverScore(worst.id))}">${driverScore(worst.id)}</span></div></div>`;
     }
 
     // Cost by company — horizontal bars
@@ -485,6 +595,29 @@ function viewBusDetail(id) {
         <span class="badge ${c}">${sv.status === 'overdue' ? 'OVERDUE ' + Math.abs(sv.dueIn).toLocaleString('en-IN') + ' km' : 'in ' + sv.dueIn.toLocaleString('en-IN') + ' km'}</span></div>`; })()}
     <button class="btn sm" data-act="gps" data-bus="${b.id}">📍 Live GPS &amp; service</button>
   </div>`;
+
+  // Driver assigned to this bus + their open trip reports
+  const drv = driverOfBus(b.id);
+  const openReps = openReportsForBus(b.id);
+  const canDrivers = can(S.user.role, 'manageDrivers');
+  body += `<div class="card"><div class="row between"><h3>Driver</h3>
+      ${can(S.user.role, 'assignDriver') ? `<button class="btn sm" data-act="assignDriver" data-bus="${b.id}">${drv ? 'Change' : 'Assign'}</button>` : ''}</div>`;
+  if (drv) {
+    const sc = driverScore(drv.id);
+    body += `<div class="li" ${canDrivers ? `data-driver="${drv.id}"` : ''}><div class="ava">🧑‍✈️</div>
+      <div class="main"><div class="t">${esc(drv.name)}</div><div class="s">${drv.tripsLogged || 0} trips · ${esc(drv.phone || '')}</div></div>
+      ${canDrivers ? `<div style="text-align:right"><span class="badge ${scoreClass(sc)}">${sc}</span><div class="stars">${starStr(scoreStars(sc))}</div></div>` : ''}</div>`;
+  } else body += `<div class="muted small">No driver assigned.</div>`;
+  body += `</div>`;
+
+  if (openReps.length) {
+    body += `<div class="card"><div class="row between"><h3>Driver-reported issues</h3><span class="badge b-amber">${openReps.length}</span></div>
+      <div class="tiny muted" style="margin-bottom:6px">What the driver felt on the road — fix these first.</div>`;
+    body += openReps.map((r) => `<div class="li"><div class="ava">🟠</div>
+      <div class="main"><div class="t">${esc(r.problem)}</div><div class="s">${esc(r.category || '')} · ${esc(driverName(r.driverId))} · ${fmtDate(r.at)}</div></div>
+      ${can(S.user.role, 'addJob') ? `<button class="btn sm" data-act="reportToJob" data-report="${r.id}">→ Job</button>` : ''}</div>`).join('');
+    body += `</div>`;
+  }
 
   // Documents
   body += `<div class="card"><h3>${t('documents')}</h3>`;
@@ -690,7 +823,8 @@ function viewMe() {
     <div class="li" data-act="openPurchases"><div class="ava">🧾</div><div class="main"><div class="t">${t('purchases')}</div><div class="s">Supplier bills & payments</div></div></div>
     <div class="li" data-act="openAlerts"><div class="ava">📄</div><div class="main"><div class="t">${t('docAlerts')}</div><div class="s">${allDocAlerts().length} need attention</div></div></div>
     ${['owner', 'supervisor'].includes(S.user.role)
-      ? `<div class="li" data-act="openStaff"><div class="ava">👥</div><div class="main"><div class="t">Staff</div><div class="s">${S.cache.users.length} accounts · add new</div></div></div>` : ''}
+      ? `<div class="li" data-act="openDrivers"><div class="ava">🧑‍✈️</div><div class="main"><div class="t">Drivers</div><div class="s">${(S.cache.drivers || []).length} drivers · performance & reports</div></div></div>
+         <div class="li" data-act="openStaff"><div class="ava">👥</div><div class="main"><div class="t">Staff</div><div class="s">${S.cache.users.length} accounts · add new</div></div></div>` : ''}
     <div class="li" data-act="openSync"><div class="ava">🔄</div><div class="main"><div class="t">Sync</div><div class="s">${SYNC_STATUS === 'synced' ? 'All devices up to date' : SYNC_STATUS === 'offline' ? 'Offline — will sync when connected' : 'Syncing…'}${si.pending ? ` · ${si.pending} pending` : ''}</div></div></div>
     <div class="li" data-act="logout"><div class="ava">🚪</div><div class="main"><div class="t">${t('logout')}</div></div></div>
   </div>`;
@@ -752,11 +886,22 @@ async function saveBus() {
   await load(); closeSheet(); toast('Bus added'); viewBuses();
 }
 
-function sheetAddJob() {
+// Driver-reported issues for a bus, as a tappable checklist the mechanic can
+// link this job to (so the complaint is tracked to resolution).
+function reportPicklist(busId) {
+  const reps = openReportsForBus(busId);
+  if (!reps.length) return `<div class="tiny muted">No open driver reports for this bus.</div>`;
+  return reps.map((r) => `<label class="repcheck"><input type="checkbox" class="f-rep" value="${r.id}" checked>
+    <span><b>${esc(driverName(r.driverId))}</b> · ${esc(r.category || '')} — ${esc(r.problem)}</span></label>`).join('');
+}
+function sheetAddJob(prefill = {}) {
   const buses = S.cache.buses, mechs = S.cache.users.filter((u) => u.role === 'mechanic');
+  const sel = prefill.busId || (buses[0] && buses[0].id);
   openSheet(t('addJob'), `
-    <label class="field"><span class="lbl">Bus</span><select id="f-bus">${buses.map((b) => `<option value="${b.id}">${esc(b.regNo)} — ${esc(b.company)}</option>`).join('')}</select></label>
-    <label class="field"><span class="lbl">Problem reported</span><textarea id="f-prob" placeholder="e.g. Front brakes weak"></textarea></label>
+    <input type="hidden" id="f-reportId" value="${prefill.reportId || ''}">
+    <label class="field"><span class="lbl">Bus</span><select id="f-bus">${buses.map((b) => `<option value="${b.id}" ${b.id === sel ? 'selected' : ''}>${esc(b.regNo)} — ${esc(b.company)}</option>`).join('')}</select></label>
+    <div class="card" style="box-shadow:none;background:var(--tile);padding:12px"><div class="tiny muted" style="margin-bottom:6px">🧑‍✈️ Driver reported on this bus</div><div id="f-reports">${reportPicklist(sel)}</div></div>
+    <label class="field"><span class="lbl">Problem reported</span><textarea id="f-prob" placeholder="e.g. Front brakes weak">${esc(prefill.problem || '')}</textarea></label>
     <div class="grid2">
       <label class="field"><span class="lbl">Assign to</span><select id="f-mech">${mechs.map((m) => `<option value="${m.id}">${esc(m.name)}</option>`).join('')}</select></label>
       <label class="field"><span class="lbl">Priority</span><select id="f-prio"><option value="high">High</option><option value="medium" selected>Medium</option><option value="low">Low</option></select></label>
@@ -766,20 +911,30 @@ function sheetAddJob() {
       <label class="field"><span class="lbl">Outside cost (₹)</span><input id="f-extcost" type="number" inputmode="numeric"></label>
       <label class="field"><span class="lbl">Labour hours</span><input id="f-hrs" type="number" inputmode="decimal"></label>
     </div>
-    <button class="btn primary" data-act="saveJob">${t('save')}</button>`);
+    <button class="btn primary" data-act="saveJob">${t('save')}</button>`,
+    (wrap) => {
+      const busSel = wrap.querySelector('#f-bus');
+      busSel.addEventListener('change', () => { wrap.querySelector('#f-reports').innerHTML = reportPicklist(busSel.value); });
+    });
 }
 async function saveJob() {
   const busId = $('#f-bus').value, prob = $('#f-prob').value.trim();
   if (!prob) return toast('Describe the problem');
+  const linkedReports = [...document.querySelectorAll('.f-rep:checked')].map((c) => c.value);
+  const presetId = ($('#f-reportId') || {}).value;
+  if (presetId && !linkedReports.includes(presetId)) linkedReports.push(presetId);
+  const jobId = uid('j-');
   await DB.put('jobcards', {
-    id: uid('j-'), busId, problem: prob, priority: $('#f-prio').value,
+    id: jobId, busId, problem: prob, priority: $('#f-prio').value,
     status: 'open', reportedBy: S.user.id, assignedTo: $('#f-mech').value,
     beforePhotos: [], afterPhotos: [], partsUsed: [],
     labourHours: Number($('#f-hrs').value) || 0,
     externalVendor: $('#f-vendor').value.trim(), externalCost: Number($('#f-extcost').value) || 0,
-    notes: '', createdAt: Date.now(), closedAt: null, verifiedBy: null,
+    reportIds: linkedReports, notes: '', createdAt: Date.now(), closedAt: null, verifiedBy: null,
   });
-  await load(); closeSheet(); toast('Job card created'); viewJobs();
+  // Tie the driver reports to this job (resolved when the job is verified).
+  for (const rid of linkedReports) { const r = byId(S.cache.driverreports, rid); if (r && r.status === 'open') { r.jobId = jobId; await DB.put('driverreports', r); } }
+  await load(); closeSheet(); toast(`Job created${linkedReports.length ? ` · ${linkedReports.length} report(s) linked` : ''}`); viewJobs();
 }
 
 function sheetIssue(presetJob) {
@@ -935,10 +1090,15 @@ async function markDone(jobId) {
   await load(); toast('Marked done — waiting for verify'); viewJobDetail(jobId);
 }
 async function verifyJob(jobId) {
+  if (!can(S.user.role, 'verifyJob')) return toast('Not allowed');
   const j = byId(S.cache.jobs, jobId);
   j.status = 'verified'; j.verifiedBy = S.user.id; j.verifiedAt = Date.now();
   if (!j.closedAt) j.closedAt = Date.now();
   await DB.put('jobcards', j);
+  // Resolve any driver reports this job addressed — closes the loop for the driver.
+  for (const r of (S.cache.driverreports || [])) {
+    if (r.jobId === jobId && r.status === 'open') { r.status = 'addressed'; r.resolvedAt = Date.now(); await DB.put('driverreports', r); }
+  }
   await load(); toast('Verified ✓'); viewJobDetail(jobId);
 }
 
@@ -979,12 +1139,13 @@ async function showGps(busId) {
     <div class="card"><div class="row between"><h3>Preventive service</h3><span class="badge ${svCls}">${sv.status.toUpperCase()}</span></div>
       <div class="small">${svTxt}</div>
       <div class="tiny muted" style="margin-top:4px">Auto-tracked from the live odometer (every ${sv.interval.toLocaleString('en-IN')} km).</div>
-      <div class="hr"></div>
-      <button class="btn primary" data-act="logService" data-bus="${b.id}">✅ Mark service done</button>
+      ${can(S.user.role, 'logService') ? `<div class="hr"></div>
+      <button class="btn primary" data-act="logService" data-bus="${b.id}">✅ Mark service done</button>` : ''}
     </div>
     <button class="btn ghost" data-act="gps" data-bus="${b.id}">↻ Refresh</button>`;
 }
 async function logService(busId) {
+  if (!can(S.user.role, 'logService')) return toast('Not allowed');
   const b = byId(S.cache.buses, busId);
   b.lastServiceOdo = b.odometer || 0; b.lastServiceDate = Date.now();
   await DB.put('buses', b);
@@ -997,6 +1158,173 @@ async function logService(busId) {
     verifiedBy: S.user.id, verifiedAt: Date.now(),
   });
   await load(); closeSheet(); toast('Service logged ✓'); rerender();
+}
+
+/* ------------------------------- Drivers ---------------------------------- */
+function driverLi(d) {
+  const score = driverScore(d.id), bus = byId(S.cache.buses, d.busId);
+  return `<div class="li" data-driver="${d.id}"><div class="ava">🧑‍✈️</div>
+    <div class="main"><div class="t">${esc(d.name)}</div>
+      <div class="s">${bus ? esc(bus.regNo) : 'unassigned'} · ${d.tripsLogged || 0} trips</div></div>
+    <div style="text-align:right"><span class="badge ${scoreClass(score)}">${score}</span>
+      <div class="stars">${starStr(scoreStars(score))}</div></div></div>`;
+}
+function viewDrivers() {
+  const list = [...(S.cache.drivers || [])].sort((a, b) => driverScore(a.id) - driverScore(b.id)); // worst first
+  const body = `<div class="card">${list.length ? list.map(driverLi).join('') : '<div class="empty">No drivers yet</div>'}</div>`;
+  shell('Drivers', body, can(S.user.role, 'addBus') ? { act: 'addDriver', icon: '+' } : null);
+}
+
+function viewDriverDetail(id) {
+  const d = driverById(id);
+  if (!d) return viewDrivers();
+  const bus = byId(S.cache.buses, d.busId), score = driverScore(id);
+  const incs = driverIncidents(id).sort((a, b) => b.at - a.at);
+  const reps = (S.cache.driverreports || []).filter((r) => r.driverId === id).sort((a, b) => b.at - a.at);
+  const byType = {}; incs.forEach((i) => { byType[i.type] = (byType[i.type] || 0) + 1; });
+
+  let body = `<div class="card"><div class="row">
+      <div class="ava" style="width:52px;height:52px;font-size:26px">🧑‍✈️</div>
+      <div style="flex:1"><div style="font-weight:800;font-size:17px">${esc(d.name)}</div>
+        <div class="small muted">${esc(d.phone || '')} · ${esc(d.license || '')}</div></div>
+      <span class="badge ${scoreClass(score)}">${score}/100</span></div>
+    <div class="hr"></div>
+    <div class="row between"><div><div class="tiny muted">Assigned bus</div><b>${bus ? esc(bus.regNo) : '—'}</b></div>
+      <div style="text-align:right"><div class="tiny muted">Rating</div><div class="stars">${starStr(scoreStars(score))}</div></div></div>
+    <div class="spacer"></div>
+    <div class="btnrow"><button class="btn sm" data-act="assignBus" data-driver="${d.id}">Change bus</button>
+      <button class="btn sm" data-act="reportProblem" data-bus="${d.busId || ''}" data-driver="${d.id}">Log report</button></div></div>`;
+
+  body += `<div class="card"><div class="row between"><h3>Performance</h3>
+    <button class="btn sm" data-act="addIncident" data-driver="${d.id}">+ Data point</button></div>`;
+  if (Object.keys(byType).length) body += `<div class="row" style="flex-wrap:wrap;gap:6px;margin-bottom:10px">${
+    Object.entries(byType).map(([tp, n]) => { const c = INCIDENT[tp] || INCIDENT.other; return `<span class="badge b-low">${c.icon} ${c.label} ×${n}</span>`; }).join('')}</div>`;
+  body += incs.length ? incs.map((i) => { const c = INCIDENT[i.type] || INCIDENT.other;
+    return `<div class="li"><div class="ava">${c.icon}</div><div class="main">
+      <div class="t">${c.label}${i.cost ? ` · ${money(i.cost)}` : ''}</div>
+      <div class="s">${esc(i.note || '')} · ${fmtDate(i.at)}</div></div><span class="badge b-red">-${c.pen}</span></div>`; }).join('')
+    : `<div class="muted small">Clean record 👍</div>`;
+  body += `</div>`;
+
+  body += `<div class="card"><h3>Trip reports</h3>`;
+  body += reps.length ? reps.map((r) => `<div class="li" ${r.jobId ? `data-job="${r.jobId}"` : ''}>
+      <div class="ava">${r.status === 'open' ? '🟠' : '✅'}</div>
+      <div class="main"><div class="t">${esc(r.problem)}</div><div class="s">${esc(r.category || '')} · ${fmtDate(r.at)}</div></div>
+      ${r.status === 'open' ? `<button class="btn sm" data-act="reportToJob" data-report="${r.id}">→ Job</button>` : '<span class="badge b-green">fixed</span>'}</div>`).join('')
+    : `<div class="muted small">No reports.</div>`;
+  body += `</div>`;
+  shell(esc(d.name), body);
+}
+
+// Driver's own home (role 'driver') — their bus, rating, and report button.
+function viewDriverHome() {
+  const d = driverForUser(S.user.id);
+  if (!d) { shell('My Trips', `<div class="card"><div class="empty">No bus assigned to your account yet.<br>Ask your supervisor.</div></div>`); return; }
+  const bus = byId(S.cache.buses, d.busId), score = driverScore(d.id);
+  let body = `<div class="greet"><div class="greet-av">🧑‍✈️</div>
+    <div><div class="greet-hi">Namaste, ${esc(d.name)} 👋</div><div class="muted small">${esc(BIZ)} · ${fmtToday()}</div></div></div>`;
+  if (bus) body += `<div class="hero cover"><img src="${busImg(bus)}" alt="">
+    <div class="hero-cap"><div class="hero-t">${esc(bus.regNo)}</div><div class="hero-s">Your assigned bus</div></div></div>`;
+  body += `<div class="card tile"><div class="row between">
+      <div><div class="muted small">Your rating</div><div class="stat">${score}<span style="font-size:14px"> /100</span></div></div>
+      <div style="text-align:right"><div class="stars big">${starStr(scoreStars(score))}</div><div class="tiny muted">${d.tripsLogged || 0} trips</div></div></div></div>`;
+  body += `<button class="btn primary" data-act="reportProblem" data-bus="${d.busId || ''}" data-driver="${d.id}">🛠️ Report a problem on my bus</button><div class="spacer"></div>`;
+  const reps = (S.cache.driverreports || []).filter((r) => r.driverId === d.id).sort((a, b) => b.at - a.at);
+  body += `<div class="card"><h3>My reports</h3>`;
+  body += reps.length ? reps.map((r) => `<div class="li"><div class="ava">${r.status === 'open' ? '🟠' : '✅'}</div>
+    <div class="main"><div class="t">${esc(r.problem)}</div><div class="s">${esc(r.category || '')} · ${fmtDate(r.at)}</div></div>
+    <span class="badge ${r.status === 'open' ? 'b-amber' : 'b-green'}">${r.status === 'open' ? 'open' : 'fixed'}</span></div>`).join('')
+    : `<div class="muted small">No reports yet. Tap the button above after a trip.</div>`;
+  body += `</div>`;
+  shell('My Trips', body);
+}
+
+/* ----- Driver sheets ----- */
+function sheetAddDriver() {
+  const buses = S.cache.buses;
+  openSheet('Add driver', `
+    <label class="field"><span class="lbl">Name</span><input id="f-dname" placeholder="e.g. Ramlal"></label>
+    <div class="grid2">
+      <label class="field"><span class="lbl">Phone</span><input id="f-dphone" inputmode="tel"></label>
+      <label class="field"><span class="lbl">Licence no.</span><input id="f-dlic"></label>
+    </div>
+    <label class="field"><span class="lbl">Assign to bus</span><select id="f-dbus"><option value="">— unassigned —</option>${buses.map((b) => `<option value="${b.id}">${esc(b.regNo)} — ${esc(b.company)}</option>`).join('')}</select></label>
+    <label class="field"><span class="lbl">App login PIN (optional — lets the driver report problems)</span><input id="f-dpin" inputmode="numeric" maxlength="4" placeholder="4 digits, or leave blank"></label>
+    <button class="btn primary" data-act="saveDriver">Save</button>`);
+}
+async function saveDriver() {
+  const name = $('#f-dname').value.trim();
+  if (!name) return toast('Enter a name');
+  const busId = $('#f-dbus').value || null, pin = $('#f-dpin').value.trim();
+  let userId = null;
+  if (pin) {
+    if (!/^\d{4}$/.test(pin)) return toast('PIN must be 4 digits');
+    try { const u = await Sync.addStaff({ name: name + ' (Driver)', role: 'driver', pin }); userId = u.id; credSet(u.id, pin); await DB.put('users', u); }
+    catch (e) { return toast(Sync.info().authed ? 'Could not reach server' : 'Sign in online to create a login'); }
+  }
+  await DB.put('drivers', { id: uid('d-'), name, phone: $('#f-dphone').value.trim(), license: $('#f-dlic').value.trim(), busId, userId, tripsLogged: 0, joinedAt: Date.now(), photo: '' });
+  await load(); closeSheet(); toast('Driver added'); rerender();
+}
+function sheetAssignBus(driverId) {
+  const d = driverById(driverId), buses = S.cache.buses;
+  openSheet('Assign bus', `<label class="field"><span class="lbl">Bus for ${esc(d.name)}</span>
+    <select id="f-abus"><option value="">— unassigned —</option>${buses.map((b) => `<option value="${b.id}" ${b.id === d.busId ? 'selected' : ''}>${esc(b.regNo)}</option>`).join('')}</select></label>
+    <button class="btn primary" data-act="saveAssignBus" data-driver="${driverId}">Save</button>`);
+}
+async function saveAssignBus(driverId) {
+  const d = driverById(driverId); const busId = $('#f-abus').value || null;
+  if (busId) for (const o of (S.cache.drivers || [])) { if (o.id !== driverId && o.busId === busId) { o.busId = null; await DB.put('drivers', o); } }
+  d.busId = busId; await DB.put('drivers', d);
+  await load(); closeSheet(); toast('Updated'); rerender();
+}
+function sheetAssignDriverToBus(busId) {
+  const ds = S.cache.drivers || [], cur = driverOfBus(busId);
+  openSheet('Assign driver', `<label class="field"><span class="lbl">Driver for this bus</span>
+    <select id="f-adrv"><option value="">— none —</option>${ds.map((d) => `<option value="${d.id}" ${cur && cur.id === d.id ? 'selected' : ''}>${esc(d.name)}</option>`).join('')}</select></label>
+    <button class="btn primary" data-act="saveAssignDriver" data-bus="${busId}">Save</button>`);
+}
+async function saveAssignDriver(busId) {
+  const id = $('#f-adrv').value;
+  for (const d of (S.cache.drivers || [])) { if (d.busId === busId && d.id !== id) { d.busId = null; await DB.put('drivers', d); } }
+  if (id) { const d = driverById(id); d.busId = busId; await DB.put('drivers', d); }
+  await load(); closeSheet(); toast('Driver assigned'); rerender();
+}
+let _incPhoto = '';
+function sheetIncident(driverId) {
+  openSheet('Add data point', `
+    <label class="field"><span class="lbl">Type</span><select id="f-itype">${Object.entries(INCIDENT).map(([k, v]) => `<option value="${k}">${v.icon} ${v.label} (-${v.pen})</option>`).join('')}</select></label>
+    <label class="field"><span class="lbl">Note</span><input id="f-inote" placeholder="e.g. left rear panel"></label>
+    <label class="field"><span class="lbl">Repair cost (₹, optional)</span><input id="f-icost" type="number" inputmode="numeric"></label>
+    <div id="f-iphoto"></div><button class="btn" data-act="incidentPhoto">📷 Add photo</button>
+    <div class="spacer"></div>
+    <button class="btn primary" data-act="saveIncident" data-driver="${driverId}">Save</button>`);
+}
+async function saveIncident(driverId) {
+  const d = driverById(driverId);
+  await DB.put('incidents', { id: uid('inc-'), driverId, busId: d.busId, type: $('#f-itype').value, note: $('#f-inote').value.trim(), cost: Number($('#f-icost').value) || 0, photo: _incPhoto, at: Date.now(), by: S.user.id });
+  _incPhoto = ''; await load(); closeSheet(); toast('Recorded'); rerender();
+}
+function sheetTripReport(busId, driverId) {
+  const bus = byId(S.cache.buses, busId);
+  const cats = ['Brakes', 'Engine', 'AC', 'Suspension', 'Electrical', 'Tyres', 'Gearbox', 'Body', 'Other'];
+  openSheet('Report a problem', `
+    ${bus ? `<div class="small muted" style="margin-bottom:10px">Bus: <b>${esc(bus.regNo)}</b></div>` : '<div class="banner warn">No bus assigned.</div>'}
+    <label class="field"><span class="lbl">Area</span><select id="f-rcat">${cats.map((c) => `<option>${c}</option>`).join('')}</select></label>
+    <label class="field"><span class="lbl">What did you notice on the trip?</span><textarea id="f-rprob" placeholder="e.g. brakes weak on slopes, noise from rear"></textarea></label>
+    <button class="btn primary" data-act="saveReport" data-bus="${busId}" data-driver="${driverId || ''}">Submit</button>`);
+}
+async function saveReport(busId, driverId) {
+  const prob = $('#f-rprob').value.trim();
+  if (!busId) return toast('No bus assigned');
+  if (!prob) return toast('Describe the problem');
+  const drv = driverId || (driverOfBus(busId) || {}).id || null;
+  await DB.put('driverreports', { id: uid('dr-'), driverId: drv, busId, category: $('#f-rcat').value, problem: prob, at: Date.now(), status: 'open', jobId: null, resolvedAt: null });
+  await load(); closeSheet(); toast('Report submitted ✓'); rerender();
+}
+function createJobFromReport(reportId) {
+  const r = byId(S.cache.driverreports, reportId);
+  if (!r) return;
+  sheetAddJob({ busId: r.busId, problem: r.problem, reportId, category: r.category });
 }
 
 /* -------------------- AI Insights: pilferage + cost + predictive ----------
@@ -1048,6 +1376,19 @@ function computeInsights() {
     title: `${a.doc.type} ${a.st.dl < 0 ? 'EXPIRED' : 'expiring'} — ${a.bus.regNo}`,
     detail: `${a.st.dl < 0 ? 'Expired' : 'Expires'} ${fmtDate(a.doc.expiry)}. Running on it risks fines & impound.`,
     nav: { name: 'buses', id: a.bus.id } }));
+
+  // Driver-reported issues still open — early warning straight from the road
+  (S.cache.driverreports || []).filter((r) => r.status === 'open').slice(0, 3)
+    .forEach((r) => out.push({ sev: 'med', icon: '🗣️', title: `Driver report open — ${busName(r.busId)}`,
+      detail: `"${r.problem}" (${driverName(r.driverId)}). Catch it at the next service before it becomes a breakdown.`,
+      nav: { name: 'buses', id: r.busId } }));
+
+  // Low driver ratings — damage/cost risk, coaching opportunity
+  (S.cache.drivers || []).map((d) => ({ d, s: driverScore(d.id) })).filter((x) => x.s < 75)
+    .sort((a, b) => a.s - b.s)
+    .forEach(({ d, s }) => out.push({ sev: s < 60 ? 'high' : 'med', icon: '🧑‍✈️', title: `Driver rating low — ${d.name}`,
+      detail: `${s}/100 from recent incidents (${driverIncidents(d.id).length}). Coaching or reassignment can cut damage costs.`,
+      nav: { name: 'drivers', id: d.id } }));
 
   // Aging open jobs — lost bus revenue
   jobs.filter((j) => j.status === 'open' || j.status === 'in-progress')
@@ -1146,7 +1487,10 @@ async function askAi() {
  *  - back()    → pop one level
  */
 const current = () => S.stack[S.stack.length - 1];
+// Role guard: routes restricted to certain roles fall back to home for others.
+const ROUTE_PERM = { insights: 'insights', drivers: 'manageDrivers' };
 function render(r) {
+  if (ROUTE_PERM[r.name] && !can(S.user.role, ROUTE_PERM[r.name])) r = { name: 'home' };
   S.route = r;
   switch (r.name) {
     case 'home': return viewHome();
@@ -1157,6 +1501,7 @@ function render(r) {
     case 'purchases': return viewPurchases();
     case 'alerts': return viewAlerts();
     case 'insights': return viewInsights();
+    case 'drivers': return r.id ? viewDriverDetail(r.id) : viewDrivers();
     default: return viewHome();
   }
 }
@@ -1182,6 +1527,7 @@ function bind() {
     if (el.hasAttribute('data-job') && !act) return push({ name: 'jobs', id: el.getAttribute('data-job') });
     if (el.hasAttribute('data-bus') && !act) return push({ name: 'buses', id: el.getAttribute('data-bus') });
     if (el.hasAttribute('data-part') && !act) return push({ name: 'store', id: el.getAttribute('data-part') });
+    if (el.hasAttribute('data-driver') && !act) return push({ name: 'drivers', id: el.getAttribute('data-driver') });
 
     switch (act) {
       case 'back': return back();
@@ -1211,6 +1557,19 @@ function bind() {
       case 'openAlerts': return push({ name: 'alerts' });
       case 'openStaff': return sheetStaff();
       case 'saveStaff': return saveStaff();
+      case 'openDrivers': return push({ name: 'drivers' });
+      case 'addDriver': return sheetAddDriver();
+      case 'saveDriver': return saveDriver();
+      case 'assignBus': return sheetAssignBus(el.getAttribute('data-driver'));
+      case 'saveAssignBus': return saveAssignBus(el.getAttribute('data-driver'));
+      case 'assignDriver': return sheetAssignDriverToBus(el.getAttribute('data-bus'));
+      case 'saveAssignDriver': return saveAssignDriver(el.getAttribute('data-bus'));
+      case 'addIncident': return sheetIncident(el.getAttribute('data-driver'));
+      case 'saveIncident': return saveIncident(el.getAttribute('data-driver'));
+      case 'incidentPhoto': { const d = await capturePhoto(); if (d) { _incPhoto = await Sync.uploadPhoto(d) || d; $('#f-iphoto').innerHTML = `<img class="thumb" src="${_incPhoto}">`; } return; }
+      case 'reportProblem': return sheetTripReport(el.getAttribute('data-bus'), el.getAttribute('data-driver'));
+      case 'saveReport': return saveReport(el.getAttribute('data-bus'), el.getAttribute('data-driver'));
+      case 'reportToJob': return createJobFromReport(el.getAttribute('data-report'));
       case 'openSync': return sheetSync();
       case 'saveSyncUrl': { Sync.setUrl($('#f-syncurl').value.trim()); const k = $('#f-aikey'); if (k) localStorage.setItem('aiKey', k.value.trim()); closeSheet(); toast('Saved'); return; }
       case 'syncNow': { Sync.tick(); toast('Syncing…'); return; }
@@ -1280,7 +1639,7 @@ function seedCreds() {
   // would NOT seed these — staff sign in online once and the PIN caches here.
   if (localStorage.getItem('creds')) return;
   localStorage.setItem('creds', JSON.stringify(
-    { 'u-owner': '1111', 'u-sup': '2222', 'u-store': '3333', 'u-m1': '0001', 'u-m2': '0002', 'u-m3': '0003' }));
+    { 'u-owner': '1111', 'u-sup': '2222', 'u-store': '3333', 'u-m1': '0001', 'u-m2': '0002', 'u-m3': '0003', 'u-d1': '0010' }));
 }
 
 // Server-authoritative login: the server verifies the PIN (and enforces lockout).
@@ -1313,6 +1672,34 @@ function enterApp(user) { S.user = user; route({ name: 'home' }); }
     if (b.serviceIntervalKm == null) { b.serviceIntervalKm = SERVICE_INTERVAL_KM; changed = true; }
     if (b.lastServiceOdo == null) { b.lastServiceOdo = SEED_LAST[b.id] != null ? SEED_LAST[b.id] : (b.odometer || 0); changed = true; }
     if (changed) await DB.put('buses', b);
+  }
+
+  // Seed the drivers module on devices set up before this feature existed.
+  if (!(S.cache.drivers || []).length) {
+    const d0 = Date.now(), DAY = 86400000;
+    if (!byId(S.cache.users, 'u-d1')) await DB.put('users', { id: 'u-d1', name: 'Ramlal (Driver)', role: 'driver' });
+    credSet('u-d1', '0010');
+    const dseed = [
+      { id: 'd1', name: 'Ramlal', phone: '98290 11111', license: 'RJ-DL-2210', busId: 'b1', userId: 'u-d1', tripsLogged: 142, joinedAt: d0 - 400 * DAY, photo: '' },
+      { id: 'd2', name: 'Shyam Lal', phone: '98290 22222', license: 'RJ-DL-3398', busId: 'b2', userId: null, tripsLogged: 96, joinedAt: d0 - 230 * DAY, photo: '' },
+      { id: 'd3', name: 'Geeta Devi', phone: '98290 33333', license: 'RJ-DL-7741', busId: 'b3', userId: null, tripsLogged: 61, joinedAt: d0 - 120 * DAY, photo: '' },
+    ];
+    const iseed = [
+      { id: 'inc-1', driverId: 'd1', busId: 'b1', type: 'scratch', note: 'Left rear panel scratch', photo: '', cost: 0, at: d0 - 12 * DAY, by: 'u-sup' },
+      { id: 'inc-2', driverId: 'd2', busId: 'b2', type: 'dent', note: 'Front bumper dent', photo: '', cost: 2500, at: d0 - 20 * DAY, by: 'u-sup' },
+      { id: 'inc-3', driverId: 'd2', busId: 'b2', type: 'harsh-brake', note: 'Repeated harsh braking', photo: '', cost: 0, at: d0 - 6 * DAY, by: 'u-sup' },
+      { id: 'inc-4', driverId: 'd3', busId: 'b3', type: 'accident', note: 'Minor side collision', photo: '', cost: 9000, at: d0 - 30 * DAY, by: 'u-sup' },
+      { id: 'inc-5', driverId: 'd3', busId: 'b3', type: 'scratch', note: 'Door scratch', photo: '', cost: 0, at: d0 - 4 * DAY, by: 'u-sup' },
+    ];
+    const rseed = [
+      { id: 'dr-1', driverId: 'd1', busId: 'b1', category: 'Brakes', problem: 'Brakes feel weak at high speed, slight noise', at: d0 - 6 * DAY, status: 'addressed', jobId: 'j1', resolvedAt: d0 - 5 * DAY },
+      { id: 'dr-2', driverId: 'd3', busId: 'b3', category: 'AC', problem: 'AC not cooling and a rattling noise from the rear', at: d0 - 2 * DAY, status: 'open', jobId: null, resolvedAt: null },
+      { id: 'dr-3', driverId: 'd2', busId: 'b2', category: 'Engine', problem: 'Engine feels low on power on inclines', at: d0 - 1 * DAY, status: 'open', jobId: null, resolvedAt: null },
+    ];
+    for (const x of dseed) await DB.put('drivers', x);
+    for (const x of iseed) await DB.put('incidents', x);
+    for (const x of rseed) await DB.put('driverreports', x);
+    await load();
   }
 
   // Start live sync with the shared server. Local-first: the app is fully usable

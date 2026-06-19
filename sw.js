@@ -2,7 +2,7 @@
  * Cache-first for the app shell; data lives in IndexedDB so nothing here
  * touches user records. Bump CACHE when you change shell files.
  */
-const CACHE = 'garage-saathi-v11';
+const CACHE = 'garage-saathi-v13';
 const SHELL = [
   './',
   './index.html',

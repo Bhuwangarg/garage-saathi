@@ -14,7 +14,8 @@
  */
 const Sync = (function () {
   // Only real business data syncs — local-only meta (seed flag, garage config) stays put.
-  const STORES = ['users', 'buses', 'parts', 'jobcards', 'ledger', 'attendance', 'purchases'];
+  const STORES = ['users', 'buses', 'parts', 'jobcards', 'ledger', 'attendance', 'purchases',
+                  'drivers', 'incidents', 'driverreports'];
 
   const ls = window.localStorage;
   const baseUrl = () => ls.getItem('syncUrl') ||

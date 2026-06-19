@@ -50,6 +50,7 @@ SEED_USERS = [
     ("u-m1", "Mukesh", "mechanic", "0001"),
     ("u-m2", "Imran", "mechanic", "0002"),
     ("u-m3", "Vijay", "mechanic", "0003"),
+    ("u-d1", "Ramlal (Driver)", "driver", "0010"),
 ]
 
 

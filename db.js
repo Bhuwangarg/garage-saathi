@@ -15,6 +15,9 @@ const STORES = {
   ledger: 'id',      // stock movement ledger (in/out) — the anti-pilferage trail
   attendance: 'id',
   purchases: 'id',
+  drivers: 'id',         // driver profiles, assigned to a bus
+  incidents: 'id',       // driver performance data points (scratch, dent, accident…)
+  driverreports: 'id',   // trip-end problems the driver reports → feed maintenance
   meta: 'key',
 };
 
@@ -114,6 +117,7 @@ async function seedIfEmpty() {
     { id: 'u-m1',    name: 'Mukesh', role: 'mechanic' },
     { id: 'u-m2',    name: 'Imran',  role: 'mechanic' },
     { id: 'u-m3',    name: 'Vijay',  role: 'mechanic' },
+    { id: 'u-d1',    name: 'Ramlal (Driver)', role: 'driver' },
   ];
 
   const buses = [
@@ -184,6 +188,30 @@ async function seedIfEmpty() {
     { id: uid('pur-'), supplier: 'Jaipur Auto Spares', billPhoto: '', amount: 28400, items: 'Brake pads x10, Oil filters x6', paymentStatus: 'pending', at: now - 8*day },
   ];
 
+  // Drivers, each fixed to a bus (so reports & wear map to the same vehicle).
+  const drivers = [
+    { id: 'd1', name: 'Ramlal', phone: '98290 11111', license: 'RJ-DL-2210', busId: 'b1', userId: 'u-d1', tripsLogged: 142, joinedAt: now - 400*day, photo: '' },
+    { id: 'd2', name: 'Shyam Lal', phone: '98290 22222', license: 'RJ-DL-3398', busId: 'b2', userId: null, tripsLogged: 96, joinedAt: now - 230*day, photo: '' },
+    { id: 'd3', name: 'Geeta Devi', phone: '98290 33333', license: 'RJ-DL-7741', busId: 'b3', userId: null, tripsLogged: 61, joinedAt: now - 120*day, photo: '' },
+  ];
+
+  // Performance data points (penalty applied by type in app.js). Stable ids so
+  // the boot migration in app.js can't create duplicates across devices.
+  const incidents = [
+    { id: 'inc-1', driverId: 'd1', busId: 'b1', type: 'scratch', note: 'Left rear panel scratch, parking', photo: '', cost: 0, at: now - 12*day, by: 'u-sup' },
+    { id: 'inc-2', driverId: 'd2', busId: 'b2', type: 'dent', note: 'Front bumper dent', photo: '', cost: 2500, at: now - 20*day, by: 'u-sup' },
+    { id: 'inc-3', driverId: 'd2', busId: 'b2', type: 'harsh-brake', note: 'Repeated harsh braking flagged', photo: '', cost: 0, at: now - 6*day, by: 'u-sup' },
+    { id: 'inc-4', driverId: 'd3', busId: 'b3', type: 'accident', note: 'Minor side collision, gate pillar', photo: '', cost: 9000, at: now - 30*day, by: 'u-sup' },
+    { id: 'inc-5', driverId: 'd3', busId: 'b3', type: 'scratch', note: 'Door scratch', photo: '', cost: 0, at: now - 4*day, by: 'u-sup' },
+  ];
+
+  // Trip-end problem reports from drivers → feed the maintenance team.
+  const driverreports = [
+    { id: 'dr-1', driverId: 'd1', busId: 'b1', category: 'Brakes', problem: 'Brakes feel weak at high speed, slight noise', at: now - 6*day, status: 'addressed', jobId: 'j1', resolvedAt: now - 5*day },
+    { id: 'dr-2', driverId: 'd3', busId: 'b3', category: 'AC', problem: 'AC not cooling and a rattling noise from the rear', at: now - 2*day, status: 'open', jobId: null, resolvedAt: null },
+    { id: 'dr-3', driverId: 'd2', busId: 'b2', category: 'Engine', problem: 'Engine feels low on power on inclines', at: now - 1*day, status: 'open', jobId: null, resolvedAt: null },
+  ];
+
   for (const u of users) await DB.put('users', u);
   for (const b of buses) await DB.put('buses', b);
   for (const p of parts) await DB.put('parts', p);
@@ -191,6 +219,9 @@ async function seedIfEmpty() {
   for (const l of ledger) await DB.put('ledger', l);
   for (const a of attendance) await DB.put('attendance', a);
   for (const pu of purchases) await DB.put('purchases', pu);
+  for (const dv of drivers) await DB.put('drivers', dv);
+  for (const ic of incidents) await DB.put('incidents', ic);
+  for (const dr of driverreports) await DB.put('driverreports', dr);
 
   // Garage location (geofence centre for attendance). Default: central Jaipur.
   await DB.put('meta', { key: 'garage', lat: 26.9124, lng: 75.7873, radiusM: 200, name: 'Mahalaxmi Travels Garage, Jaipur' });
