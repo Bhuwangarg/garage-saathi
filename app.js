@@ -352,7 +352,7 @@ function bottomnav() {
   const NAVS = {
     driver:   [['home', '🚌', 'My Bus'], ['me', '👤', t('me')]],
     store:    [['home', '🏠', t('home')], ['store', '📦', t('store')], ['jobs', '🛠️', t('jobs')], ['me', '👤', t('me')]],
-    mechanic: [['home', '🏠', t('home')], ['jobs', '🛠️', t('jobs')], ['buses', '🚌', t('buses')], ['me', '👤', t('me')]],
+    mechanic: [['home', '🏠', t('home')], ['jobs', '🛠️', t('jobs')], ['store', '📦', t('store')], ['me', '👤', t('me')]],
   };
   const items = NAVS[S.user.role] ||
     [['home', '🏠', t('home')], ['buses', '🚌', t('buses')], ['jobs', '🛠️', t('jobs')],
