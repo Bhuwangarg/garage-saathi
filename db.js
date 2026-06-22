@@ -5,7 +5,7 @@
  */
 
 const DB_NAME = 'garage-saathi';
-const DB_VERSION = 1;
+const DB_VERSION = 2;   // v2 adds drivers/incidents/driverreports stores (onupgradeneeded creates any missing)
 
 const STORES = {
   users: 'id',
@@ -49,7 +49,9 @@ const DB = {
     const os = await tx(store);
     return new Promise((res, rej) => {
       const r = os.getAll();
-      r.onsuccess = () => res(r.result || []);
+      // Tombstones (_deleted) are kept on disk so the deletion can sync, but are
+      // invisible to the app — callers see a clean, live-only list.
+      r.onsuccess = () => res((r.result || []).filter((x) => x && !x._deleted));
       r.onerror = () => rej(r.error);
     });
   },
@@ -57,7 +59,7 @@ const DB = {
     const os = await tx(store);
     return new Promise((res, rej) => {
       const r = os.get(id);
-      r.onsuccess = () => res(r.result || null);
+      r.onsuccess = () => { const v = r.result; res(v && !v._deleted ? v : null); };
       r.onerror = () => rej(r.error);
     });
   },
@@ -87,6 +89,39 @@ const DB = {
       const r = os.delete(id);
       r.onsuccess = () => res(true);
       r.onerror = () => rej(r.error);
+    });
+  },
+  // Sync-safe delete (tombstone). Instead of dropping the row locally and hoping
+  // the server forgets it too, we stamp a tombstone {_deleted:true, updatedAt}
+  // and DIRTY it so the outbox pushes the deletion to every device. The tombstone
+  // is filtered out of all()/get() so the UI treats it as gone. Use this anywhere
+  // a delete must propagate (wrong bill, cancelled report, etc.).
+  async softDel(store, id) {
+    const cur = await this._rawGet(store, id);
+    const obj = Object.assign({}, cur || { id }, { id, _deleted: true, updatedAt: Date.now() });
+    await this._write(store, obj);
+    if (typeof DB.onChange === 'function') DB.onChange(store, id);
+    return obj;
+  },
+  // Raw get that DOES return tombstones (sync internals only).
+  async _rawGet(store, id) {
+    const os = await tx(store);
+    return new Promise((res, rej) => {
+      const r = os.get(id);
+      r.onsuccess = () => res(r.result || null);
+      r.onerror = () => rej(r.error);
+    });
+  },
+  // Wipe every store — used by "Start fresh" to clear demo data so a real
+  // garage can begin empty. Caller is responsible for re-seeding/reloading.
+  async clearAll() {
+    const db = await openDB();
+    const names = Object.keys(STORES);
+    await new Promise((res, rej) => {
+      const t = db.transaction(names, 'readwrite');
+      t.oncomplete = () => res(true);
+      t.onerror = () => rej(t.error);
+      for (const n of names) t.objectStore(n).clear();
     });
   },
 };

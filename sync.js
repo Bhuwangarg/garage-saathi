@@ -25,13 +25,22 @@ const Sync = (function () {
   if (!deviceId) { deviceId = 'dev-' + Math.random().toString(36).slice(2, 9); ls.setItem('deviceId', deviceId); }
 
   let lastRev = parseInt(ls.getItem('lastRev') || '0', 10);
+  let lastSyncAt = parseInt(ls.getItem('lastSyncAt') || '0', 10);
   let outbox = new Set(JSON.parse(ls.getItem('outbox') || '[]'));
+  // Photos captured offline (no server URL yet): map of "store|id|field" -> dataUrl.
+  // Re-uploaded when the network returns, then the record is patched to the URL.
+  let photoQ = JSON.parse(ls.getItem('photoQueue') || '{}');
+  // Poison quarantine: keys the server keeps rejecting (e.g. malformed record).
+  // Skipped on push so one bad record can't wedge the whole outbox.
+  let quarantine = JSON.parse(ls.getItem('quarantine') || '{}');
   let token = ls.getItem('token') || '';
   let status = 'init';            // init | syncing | synced | offline
   let busy = false, kickTimer = null, pollTimer = null;
-  let cbStatus = null, cbApplied = null;
+  let cbStatus = null, cbApplied = null, cbConflict = null;
 
   const saveOutbox = () => ls.setItem('outbox', JSON.stringify([...outbox]));
+  const savePhotoQ = () => ls.setItem('photoQueue', JSON.stringify(photoQ));
+  const saveQuarantine = () => ls.setItem('quarantine', JSON.stringify(quarantine));
   const setStatus = (s) => { status = s; if (cbStatus) cbStatus(s); };
   const authHeaders = (extra) => Object.assign(
     {}, extra || {}, token ? { Authorization: 'Bearer ' + token } : {});
@@ -70,6 +79,16 @@ const Sync = (function () {
     return (await res.json()).user;
   }
 
+  // Change a user's PIN on the server (self, or owner resetting staff).
+  async function setPin(userId, pin) {
+    const res = await fetch(baseUrl() + '/auth/setpin', {
+      method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ userId, pin }),
+    });
+    if (!res.ok) throw new Error('setPin ' + res.status);
+    return true;
+  }
+
   // Upload a captured photo to object storage; returns a URL, or null on failure
   // (caller keeps the inline data URL as an offline fallback).
   async function uploadPhoto(dataUrl) {
@@ -98,6 +117,7 @@ const Sync = (function () {
     try {
       await push();
       await pull();
+      lastSyncAt = Date.now(); ls.setItem('lastSyncAt', String(lastSyncAt));
       setStatus('synced');
     } catch (e) {
       setStatus('offline');
@@ -106,25 +126,81 @@ const Sync = (function () {
     }
   }
 
+  // Build the wire record for an outbox key. Reads tombstones too (so deletes
+  // sync) via the raw getter. Returns null if the row truly vanished.
+  async function recordForKey(key) {
+    const i = key.indexOf('|');
+    const store = key.slice(0, i), id = key.slice(i + 1);
+    const rec = (DB._rawGet ? await DB._rawGet(store, id) : await DB.get(store, id));
+    if (!rec) return null;
+    return { store, id, data: rec, updatedAt: rec.updatedAt || 0 };
+  }
+
   async function push() {
+    await flushPhotos();                       // get offline photos a real URL first
     if (!outbox.size) return;
-    const keys = [...outbox];
-    const records = [];
-    for (const key of keys) {
-      const i = key.indexOf('|');
-      const store = key.slice(0, i), id = key.slice(i + 1);
-      const rec = await DB.get(store, id);
-      if (rec) records.push({ store, id, data: rec, updatedAt: rec.updatedAt || 0 });
-    }
-    if (!records.length) { outbox.clear(); saveOutbox(); return; }
+    const keys = [...outbox].filter((k) => !quarantine[k]);
+    if (!keys.length) return;
+    // Push one record at a time so a single poison record can't 4xx the whole
+    // batch. A 4xx on a record means the SERVER refuses it → quarantine it and
+    // move on (it stops wedging the outbox). A 5xx/network error is transient →
+    // bubble up so we retry the rest next tick.
     setStatus('syncing');
-    const res = await fetch(baseUrl() + '/push', {
-      method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ deviceId, records }),
-    });
-    if (!res.ok) throw new Error('push ' + res.status);
-    keys.forEach((k) => outbox.delete(k));   // only clear what we actually sent
-    saveOutbox();
+    for (const key of keys) {
+      const rec = await recordForKey(key);
+      if (!rec) { outbox.delete(key); saveOutbox(); continue; }
+      let res;
+      try {
+        res = await fetch(baseUrl() + '/push', {
+          method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify({ deviceId, records: [rec] }),
+        });
+      } catch (e) { throw e; }                  // offline → retry later, keep key
+      if (res.ok) { outbox.delete(key); saveOutbox(); continue; }
+      if (res.status >= 400 && res.status < 500 && res.status !== 401 && res.status !== 429) {
+        // Server rejects this record — quarantine so it never blocks the rest.
+        quarantine[key] = { at: Date.now(), status: res.status };
+        saveQuarantine();
+        outbox.delete(key); saveOutbox();
+        continue;
+      }
+      throw new Error('push ' + res.status);    // auth/lock/5xx → stop, retry later
+    }
+  }
+
+  // ---- Offline photo queue --------------------------------------------------
+  // Feature code calls Sync.queuePhoto(store,id,field,dataUrl) when an upload
+  // fails (offline). We store the data URL inline on the record now, remember the
+  // key, and re-upload + patch the record to a server URL once back online.
+  function queuePhoto(store, id, field, dataUrl) {
+    if (!dataUrl) return;
+    photoQ[store + '|' + id + '|' + field] = dataUrl;
+    savePhotoQ();
+    kick();
+  }
+  async function flushPhotos() {
+    const keys = Object.keys(photoQ);
+    if (!keys.length || !token) return;
+    for (const qk of keys) {
+      const parts = qk.split('|');
+      const store = parts[0], id = parts[1], field = parts.slice(2).join('|');
+      const dataUrl = photoQ[qk];
+      if (typeof dataUrl !== 'string' || !dataUrl.startsWith('data:')) { delete photoQ[qk]; savePhotoQ(); continue; }
+      const url = await uploadPhoto(dataUrl);
+      if (!url) return;                          // still offline → try again later
+      // Patch the record: swap the inline data URL for the hosted URL. Supports a
+      // plain string field or a photos[] array containing the data URL.
+      const rec = (DB._rawGet ? await DB._rawGet(store, id) : await DB.get(store, id));
+      if (rec) {
+        if (Array.isArray(rec[field])) {
+          rec[field] = rec[field].map((p) => (p === dataUrl ? url : p));
+        } else if (rec[field] === dataUrl || rec[field] == null) {
+          rec[field] = url;
+        }
+        await DB.put(store, rec);                // dirties → pushes the URL out
+      }
+      delete photoQ[qk]; savePhotoQ();
+    }
   }
 
   async function pull() {
@@ -133,21 +209,31 @@ const Sync = (function () {
       { headers: authHeaders() });
     if (!res.ok) throw new Error('pull ' + res.status);
     const j = await res.json();
-    let applied = 0;
+    let applied = 0; let conflicts = 0;
     for (const r of (j.records || [])) {
       if (!STORES.includes(r.store) || !r.data) continue;
-      const local = await DB.get(r.store, r.id);
+      const key = r.store + '|' + r.id;
+      const local = (DB._rawGet ? await DB._rawGet(r.store, r.id) : await DB.get(r.store, r.id));
       if (!local || (r.data.updatedAt || 0) > (local.updatedAt || 0)) {
+        // Concurrent-overwrite signal: a server copy newer than a LOCAL edit we
+        // still owe the server (in the outbox). Last-write-wins still applies
+        // (server is newer), but the local editor must be told their change was
+        // superseded so they don't trust a stale screen.
+        if (outbox.has(key)) {
+          conflicts++;
+          outbox.delete(key); saveOutbox();   // server already has a newer copy
+        }
         await DB.putRaw(r.store, r.data);   // keep server timestamp, no echo
         applied++;
       }
     }
     if (typeof j.maxRev === 'number') { lastRev = j.maxRev; ls.setItem('lastRev', String(lastRev)); }
     if (applied && cbApplied) await cbApplied(applied);
+    if (conflicts && cbConflict) await cbConflict(conflicts);
   }
 
   function start(opts = {}) {
-    cbStatus = opts.onStatus; cbApplied = opts.onApplied;
+    cbStatus = opts.onStatus; cbApplied = opts.onApplied; cbConflict = opts.onConflict;
     DB.onChange = markDirty;                 // wire the outbox to local writes
     window.addEventListener('online', tick);
     clearInterval(pollTimer);
@@ -157,8 +243,16 @@ const Sync = (function () {
 
   function setUrl(u) { ls.setItem('syncUrl', u); tick(); }
   function reset() { ls.removeItem('lastRev'); lastRev = 0; tick(); }
-  const info = () => ({ deviceId, lastRev, pending: outbox.size, url: baseUrl(), status, authed: !!token });
+  const info = () => ({ deviceId, lastRev, pending: outbox.size, url: baseUrl(), status, authed: !!token, lastSyncAt,
+                        photosPending: Object.keys(photoQ).length, quarantined: Object.keys(quarantine).length });
 
-  return { start, tick, kick, setUrl, reset, info, login, logout, addStaff, uploadPhoto,
+  // Sync-safe delete used by feature code: tombstone + dirty so the deletion
+  // propagates to every device (see DB.softDel).
+  function remove(store, id) { return DB.softDel(store, id).then(() => kick()); }
+  // Drain the quarantine so retried/fixed records get another chance.
+  function clearQuarantine() { quarantine = {}; saveQuarantine(); kick(); }
+
+  return { start, tick, kick, setUrl, reset, info, login, logout, addStaff, setPin, uploadPhoto,
+           queuePhoto, remove, clearQuarantine,
            get status() { return status; } };
 })();

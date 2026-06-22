@@ -4,7 +4,7 @@
  */
 :root{
   --bg:#e9ebf1; --surface:#ffffff; --tile:#f2f5fa; --tile2:#eef2f8;
-  --text:#161922; --muted:#8b91a0; --line:#edeff4;
+  --text:#161922; --muted:#5d6675; --line:#edeff4;  /* muted darkened from #8b91a0 → ~4.6:1 on white (WCAG AA) */
   --ink:#181a20;                 /* primary (dark) buttons */
   --accent:#c6f24a;              /* lime highlight */
   --accent-ink:#1c2208;          /* text on lime */
@@ -44,7 +44,7 @@ a{color:var(--blue)}
   color:var(--text);font-size:24px;line-height:1;display:grid;place-items:center;padding:0 0 3px;margin:0}
 .backbtn:active{background:var(--tile)}
 .lang{background:var(--surface);border:1px solid var(--line);color:var(--text);border-radius:999px;
-  padding:5px 12px;font-size:12px;font-weight:600;box-shadow:var(--shadow-sm)}
+  padding:8px 14px;font-size:14px;font-weight:700;min-height:38px;box-shadow:var(--shadow-sm)}
 .syncchip{font-size:11px;font-weight:700;padding:4px 8px;border-radius:999px;white-space:nowrap}
 .syncchip.ok{background:#e7f7ef;color:#16a571}
 .syncchip.warn{background:#fff3e0;color:#b9740a}
@@ -232,3 +232,12 @@ img.ava{object-fit:cover}
 .banner{padding:12px 13px;border-radius:14px;margin-bottom:14px;font-size:13px;display:flex;gap:9px;align-items:center;font-weight:600}
 .banner.warn{background:#fff3e0;color:#b9740a}
 .banner.bad{background:#ffe8e8;color:#e23b3b}
+
+/* Driver report — big icon category tiles (low-literacy, one-handed) + voice rec */
+.cat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:6px 0 12px}
+.cat-tile{display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 6px;border:1.5px solid var(--line);
+  border-radius:14px;background:var(--surface);color:var(--text);cursor:pointer;min-height:74px;justify-content:center}
+.cat-tile.on{border-color:var(--brand2,#16a571);background:#e8f8f1;box-shadow:0 0 0 2px rgba(22,165,113,.15)}
+.cat-ic{font-size:24px;line-height:1}
+.cat-lb{font-size:12px;font-weight:600;text-align:center}
+#f-rvoice.rec{background:#ffe8e8;color:#e23b3b;border-color:#e23b3b}

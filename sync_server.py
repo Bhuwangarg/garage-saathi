@@ -160,6 +160,21 @@ def create_user(name, role, pin):
     return {"id": uid, "name": name, "role": role}
 
 
+def set_pin(user_id, pin):
+    """Rotate a user's PIN (new salt + hash). Returns False if no such user."""
+    with _lock:
+        c = db()
+        row = c.execute("SELECT id FROM users WHERE id=?", (user_id,)).fetchone()
+        if not row:
+            c.close()
+            return False
+        salt = uuid.uuid4().hex
+        c.execute("UPDATE users SET salt=?, pin_hash=? WHERE id=?", (salt, hash_pin(salt, pin), user_id))
+        c.commit()
+        c.close()
+    return True
+
+
 # ----------------------------- sync helpers --------------------------------
 def push(records):
     with _lock:
@@ -356,6 +371,22 @@ class Handler(BaseHTTPRequestHandler):
             if not name or not pin:
                 return self._send(400, {"error": "name and pin required"})
             return self._send(200, {"user": create_user(name, role, pin)})
+
+        if u.path == "/auth/setpin":         # change own PIN, or owner/supervisor reset staff
+            me = self._auth_user()
+            if not me:
+                return self._send(401, {"error": "unauthorized"})
+            b = self._body()
+            target = b.get("userId") or me["id"]
+            pin = str(b.get("pin") or "")
+            if not (len(pin) == 4 and pin.isdigit()):
+                return self._send(400, {"error": "pin must be 4 digits"})
+            # Only self, or a manager changing someone else's.
+            if target != me["id"] and me["role"] not in ("owner", "supervisor"):
+                return self._send(403, {"error": "forbidden"})
+            if not set_pin(target, pin):
+                return self._send(404, {"error": "no such user"})
+            return self._send(200, {"ok": True})
 
         if u.path == "/push":
             if not self._auth_user():
