@@ -18,8 +18,14 @@ const Sync = (function () {
                   'drivers', 'incidents', 'driverreports'];
 
   const ls = window.localStorage;
+  // Default sync backend: a device's explicit setting always wins. Otherwise, on
+  // a local/LAN host use the local dev server (:8766); on any public host (the
+  // hosted PWA) default to the Render backend so it works with no per-device setup.
+  const PROD_SYNC = 'https://garage-saathi-sync.onrender.com';
+  const _isLocalHost = () => location.hostname === '' ||
+    /^(localhost|127\.|0\.0\.0\.0|\[?::1\]?|192\.168\.|10\.|172\.1[6-9]\.|172\.2\d\.|172\.3[01]\.)/.test(location.hostname);
   const baseUrl = () => ls.getItem('syncUrl') ||
-    (location.protocol + '//' + location.hostname + ':8766');
+    (_isLocalHost() ? (location.protocol + '//' + location.hostname + ':8766') : PROD_SYNC);
 
   let deviceId = ls.getItem('deviceId');
   if (!deviceId) { deviceId = 'dev-' + Math.random().toString(36).slice(2, 9); ls.setItem('deviceId', deviceId); }

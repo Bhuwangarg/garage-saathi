@@ -363,7 +363,8 @@ function busCostPerKm(b) {
 const GpsProvider = {
   name: 'AirFi',
   async live(bus) {
-    const base = localStorage.getItem('syncUrl') || (location.protocol + '//' + location.hostname + ':8766');
+    // Reuse Sync's resolved backend URL (Render in production, local in dev).
+    const base = (Sync.info && Sync.info().url) || (location.protocol + '//' + location.hostname + ':8766');
     const res = await fetch(base + '/gps?busId=' + encodeURIComponent(bus.id) +
       '&odo=' + (bus.odometer || 0) + '&reg=' + encodeURIComponent(bus.regNo || ''));
     if (!res.ok) throw new Error('gps ' + res.status);
