@@ -1,8 +1,13 @@
-/* Service worker — makes the app installable and fully usable offline.
- * Cache-first for the app shell; data lives in IndexedDB so nothing here
- * touches user records. Bump CACHE when you change shell files.
+/* Service worker — installable + fully usable offline.
+ *
+ * NETWORK-FIRST for the app shell (same-origin GETs): when online we always
+ * fetch the latest code and refresh the cache, so a new build is picked up on
+ * the next load with no manual cache-clear. When offline we serve the last
+ * cached copy. Data lives in IndexedDB, so the shell is all this caches.
+ * Cross-origin requests (the sync server, uploads, the Anthropic API) are NOT
+ * intercepted — they go straight to the network.
  */
-const CACHE = 'garage-saathi-v21';
+const CACHE = 'garage-saathi-v24';
 const SHELL = [
   './',
   './index.html',
@@ -27,14 +32,16 @@ self.addEventListener('activate', (e) => {
 self.addEventListener('fetch', (e) => {
   const { request } = e;
   if (request.method !== 'GET') return;
+  const url = new URL(request.url);
+  if (url.origin !== location.origin) return;   // API / uploads / Anthropic → pass through to network
+  // Network-first: fresh code wins; cache is the offline fallback.
   e.respondWith(
-    caches.match(request).then((cached) => {
-      if (cached) return cached;
-      return fetch(request).then((res) => {
+    fetch(request)
+      .then((res) => {
         const copy = res.clone();
         caches.open(CACHE).then((c) => c.put(request, copy)).catch(() => {});
         return res;
-      }).catch(() => cached);
-    })
+      })
+      .catch(() => caches.match(request))
   );
 });

@@ -93,8 +93,15 @@ const I18N = {
 let LANG = localStorage.getItem('lang') || 'en';
 const t = (k) => (I18N[LANG] && I18N[LANG][k]) || I18N.en[k] || k;
 
-// The garage business this app runs for.
-const BIZ = 'Mahalaxmi Travels';
+// The garage business name shown across the app. NOT hardcoded to one customer:
+// each garage sets its own name in Garage setup; this is just the default shown
+// until then (and for the demo). load() refreshes BIZ from the saved garage config.
+const DEFAULT_BIZ = 'Garage Saathi';
+let BIZ = DEFAULT_BIZ;
+function refreshBiz() {
+  const g = S.cache && S.cache.garage;
+  BIZ = (g && (g.biz || g.name)) || DEFAULT_BIZ;
+}
 
 /* ------------------------------ App state --------------------------------- */
 // `stack` is the navigation history. Top-level tabs reset it to one entry;
@@ -231,6 +238,7 @@ async function load() {
     DB.all('drivers'), DB.all('incidents'), DB.all('driverreports'), DB.get('meta', 'garage'),
   ]);
   S.cache = { users, buses, parts, jobs, ledger, att, purchases, drivers, incidents, driverreports, garage };
+  refreshBiz();   // keep the displayed business name in sync with garage config
 }
 const byId = (arr, id) => arr.find((x) => x.id === id);
 const userName = (id) => (byId(S.cache.users, id) || {}).name || '—';
@@ -316,9 +324,13 @@ function allDocAlerts() {
 }
 
 /* ----------------------------- Cost analytics ----------------------------- */
+// Labour rate is a garage setting (₹/hr), not a hardcoded value — each garage
+// sets its own in Garage setup. Falls back to a sane default until configured.
+const DEFAULT_LABOUR_RATE = 250;
+function labourRate() { return (S.cache.garage && Number(S.cache.garage.labourRate)) || DEFAULT_LABOUR_RATE; }
 function jobCost(job) {
   const parts = (job.partsUsed || []).reduce((s, l) => s + l.cost, 0);
-  const labour = (job.labourHours || 0) * 250; // ₹250/hr default labour rate
+  const labour = (job.labourHours || 0) * labourRate();
   const ext = job.externalCost || 0;
   return { parts, labour, ext, total: parts + labour + ext };
 }
@@ -336,9 +348,11 @@ function costByCompany() {
   return Object.entries(map).sort((a, b) => b[1] - a[1]);
 }
 function busCostPerKm(b) {
+  // Rough lifetime ₹/km: total repair spend on this bus ÷ km it has run.
+  // (The old formula subtracted a service window and produced nonsense numbers.)
   const cost = S.cache.jobs.filter((j) => j.busId === b.id).reduce((s, j) => s + jobCost(j).total, 0);
-  const km = Math.max(1, (b.odometer || 0) - ((b.lastServiceOdo || 0) - (b.serviceIntervalKm || 10000)));
-  return cost / km; // rough ₹/km over the recent service window
+  const km = Math.max(1, b.odometer || 0);
+  return cost / km;
 }
 
 /* ----------------------- Phase 3: GPS provider ----------------------------
@@ -1423,7 +1437,8 @@ function sheetGarageSetup() {
   const g = S.cache.garage || {};
   _setupLat = null; _setupLng = null;
   openSheet('Garage setup', `
-    <label class="field"><span class="lbl">Garage name</span><input id="f-gname" value="${esc(g.name || '')}" placeholder="My Garage, Jaipur"></label>
+    <label class="field"><span class="lbl">Business name (shown to staff)</span><input id="f-gbiz" value="${esc(g.biz || g.name || '')}" placeholder="e.g. Mahalaxmi Travels"></label>
+    <label class="field"><span class="lbl">Garage full name</span><input id="f-gname" value="${esc(g.name || '')}" placeholder="My Garage, Jaipur"></label>
     <div class="card" style="box-shadow:none;background:var(--tile);padding:12px">
       <div class="tiny muted" style="margin-bottom:6px">📍 Attendance geofence — staff must be within this distance of the garage to check in.</div>
       <div id="f-gloc" class="small">${g.lat != null ? `Current: ${g.lat.toFixed(5)}, ${g.lng.toFixed(5)}` : '⚠️ Not set — set it from the garage, or attendance distance will be wrong.'}</div>
@@ -1433,6 +1448,7 @@ function sheetGarageSetup() {
       <label class="field"><span class="lbl">Geofence radius (m)</span><input id="f-gradius" type="number" inputmode="numeric" value="${g.radiusM || 200}"></label>
       <label class="field"><span class="lbl">Late after (HH:MM)</span><input id="f-gcutoff" value="${esc(g.lateCutoff || '09:30')}" placeholder="09:30"></label>
     </div>
+    <label class="field"><span class="lbl">Labour rate (₹ per hour)</span><input id="f-grate" type="number" inputmode="numeric" value="${g.labourRate || DEFAULT_LABOUR_RATE}"></label>
     <button class="btn primary" data-act="saveGarage">${t('save')}</button>
     <div class="hr"></div>
     <div class="tiny muted" style="margin-bottom:8px">Setting up for your real garage? This clears the demo buses, parts, drivers, jobs and bills and starts empty.</div>
@@ -1451,10 +1467,12 @@ async function saveGarage() {
   const g = Object.assign({ key: 'garage', radiusM: 200 }, S.cache.garage || {});
   g.key = 'garage';
   g.name = $('#f-gname').value.trim() || g.name || 'My Garage';
+  g.biz = ($('#f-gbiz') ? $('#f-gbiz').value.trim() : '') || g.biz || g.name;
   if (_setupLat != null) { g.lat = _setupLat; g.lng = _setupLng; }
   g.radiusM = Number($('#f-gradius').value) || 200;
   const cut = $('#f-gcutoff').value.trim();
   g.lateCutoff = /^\d{1,2}:\d{2}$/.test(cut) ? cut : (g.lateCutoff || '09:30');
+  g.labourRate = Number($('#f-grate') ? $('#f-grate').value : 0) || g.labourRate || DEFAULT_LABOUR_RATE;
   await DB.put('meta', g);
   _setupLat = _setupLng = null;
   await load(); closeSheet(); toast('Garage settings saved ✓'); rerender();
@@ -1467,7 +1485,7 @@ async function startFresh() {
   // Minimal real-start state: one owner + an empty garage record, marked seeded
   // so the demo seeder will NOT repopulate fake data on reload.
   await DB.put('users', { id: 'u-owner', name: 'Owner', role: 'owner' });
-  await DB.put('meta', { key: 'garage', lat: null, lng: null, radiusM: 200, name: 'My Garage', lateCutoff: '09:30' });
+  await DB.put('meta', { key: 'garage', lat: null, lng: null, radiusM: 200, name: 'My Garage', biz: 'My Garage', lateCutoff: '09:30', labourRate: DEFAULT_LABOUR_RATE });
   await DB.put('meta', { key: 'seeded', value: true });
   try { localStorage.setItem('creds', JSON.stringify({ 'u-owner': '1111' })); } catch (e) { /* ignore */ }
   localStorage.setItem('demoMode', '0');   // hide demo PIN hints; don't reseed demo PINs
@@ -1877,7 +1895,9 @@ async function showGps(busId) {
   const svTxt = sv.status === 'overdue' ? `Service OVERDUE by ${Math.abs(sv.dueIn).toLocaleString('en-IN')} km`
     : sv.status === 'soon' ? `Service due in ${sv.dueIn.toLocaleString('en-IN')} km`
     : `Service OK · ${sv.dueIn.toLocaleString('en-IN')} km to go`;
+  const demoGps = /demo|simulat/i.test(GpsProvider.name);
   el.innerHTML = `
+    ${demoGps ? `<div class="banner warn">⚠️ Demo GPS — this location is simulated, not the real bus. Connect your tracker provider to show live position.</div>` : ''}
     <div class="card">
       <div class="row between"><h3>${esc(b.regNo)}</h3>
         <span class="badge ${tel.ignition ? 'b-green' : 'b-low'}">${tel.ignition ? '🟢 Running' : '⚪ Parked'}</span></div>
@@ -2355,10 +2375,20 @@ function aiContext() {
   ].join('\n');
 }
 
-// Real Anthropic API call (browser-direct). Key-gated; nothing is sent without it.
+// AI advisor. PREFERRED path: the server-side /ai proxy, so the Anthropic key
+// stays on the server and never ships to devices. Fallback: only if a device
+// has a local key configured (dev/demo) do we call Anthropic directly.
 async function callClaude(question) {
+  // 1) Try the secure server proxy first.
+  if (Sync.ai) {
+    const r = await Sync.ai({ question, context: aiContext(), biz: BIZ });
+    if (r && r.text) return { text: r.text };
+    if (r && r.error && r.configured) return { error: r.error };   // server has AI but errored
+    // else: server has no AI key (not configured) or unreachable → fall through
+  }
+  // 2) Dev/demo fallback: direct browser call, only if a local key is set.
   const key = localStorage.getItem('aiKey');
-  if (!key) return { error: 'Add your Anthropic API key in Me → Sync to enable AI answers.' };
+  if (!key) return { error: 'AI advisor not set up. Ask your admin to enable it on the server (or add a key in Me → Sync for testing).' };
   try {
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -2597,7 +2627,17 @@ function credClear(id) {
 }
 // Demo mode is ON until a real garage runs "Start fresh" (which sets it to '0').
 // Only in demo mode do we seed convenience PINs and show the PIN cheat-sheet.
-const isDemoMode = () => localStorage.getItem('demoMode') !== '0';
+// Demo mode powers the demo PIN seeding + login cheat-sheet. It is ON for local
+// and LAN testing, but DEFAULTS OFF on a real public domain so a production
+// deployment never ships demo credentials. Override explicitly with '1'/'0'.
+const isLocalHost = () => location.hostname === '' ||
+  /^(localhost|127\.|0\.0\.0\.0|\[?::1\]?|192\.168\.|10\.|172\.1[6-9]\.|172\.2\d\.|172\.3[01]\.)/.test(location.hostname);
+const isDemoMode = () => {
+  const v = localStorage.getItem('demoMode');
+  if (v === '0') return false;
+  if (v === '1') return true;
+  return isLocalHost();
+};
 function seedCreds() {
   // Demo convenience so the app works standalone on first run. A real garage
   // runs Start fresh → demo mode off → no demo PINs are ever planted again.
@@ -2651,10 +2691,8 @@ function enterApp(user) { S.user = user; route({ name: 'home' }); }
   await seedIfEmpty();
   seedCreds();
   await load();
-  // Keep the demo garage branded — but NEVER overwrite a real garage's own name
-  // (a fresh-started garage runs with demo mode off and sets its own name).
-  const g = S.cache.garage;
-  if (isDemoMode() && g && g.name !== `${BIZ} Garage, Jaipur`) { g.name = `${BIZ} Garage, Jaipur`; await DB.put('meta', g); S.cache.garage = g; }
+  // Business name now comes from garage config (set in db.js seed for the demo,
+  // and via Garage setup for a real garage) — refreshBiz() in load() applies it.
 
   // Backfill service-plan fields on buses created before Phase 3.
   const SEED_LAST = { b1: 178000, b2: 242000, b3: 88000 };
@@ -2703,6 +2741,11 @@ function enterApp(user) { S.user = user; route({ name: 'home' }); }
       await load();
       if (S.user && !document.querySelector('.sheetwrap')) rerender();
     },
+    onConflict: (n) => {
+      // Another device changed the same record concurrently (last-write-wins
+      // already applied) — tell the user so a silent overwrite isn't invisible.
+      if (n && S.user) toast(`⚠️ ${n} record(s) updated on another device`);
+    },
   });
   } catch (e) {
     // A seed/migration/DB-upgrade hiccup must never leave a blank screen —
@@ -2711,4 +2754,9 @@ function enterApp(user) { S.user = user; route({ name: 'home' }); }
     try { await load(); } catch (_) { /* keep whatever cache we have */ }
   }
   renderLogin();
+  // Camera (selfies, job photos) and GPS only work over HTTPS (or localhost).
+  // Warn loudly on a plain-http public host so it isn't a silent field failure.
+  if (location.protocol === 'http:' && !isLocalHost()) {
+    setTimeout(() => toast('⚠️ Open this app over HTTPS — camera & GPS need it'), 800);
+  }
 })();

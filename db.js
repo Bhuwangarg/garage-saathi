@@ -259,6 +259,6 @@ async function seedIfEmpty() {
   for (const dr of driverreports) await DB.put('driverreports', dr);
 
   // Garage location (geofence centre for attendance). Default: central Jaipur.
-  await DB.put('meta', { key: 'garage', lat: 26.9124, lng: 75.7873, radiusM: 200, name: 'Mahalaxmi Travels Garage, Jaipur' });
+  await DB.put('meta', { key: 'garage', lat: 26.9124, lng: 75.7873, radiusM: 200, name: 'Mahalaxmi Travels Garage, Jaipur', biz: 'Mahalaxmi Travels', labourRate: 250 });
   await DB.put('meta', { key: 'seeded', value: true });
 }

@@ -20,6 +20,7 @@ import os
 import sqlite3
 import threading
 import time
+import urllib.request
 import uuid
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -32,6 +33,13 @@ _lock = threading.Lock()
 SESSIONS = {}          # token -> {uid, exp}
 SESSION_TTL = int(os.environ.get("SESSION_TTL_SEC", str(12 * 3600)))   # 12h
 ALLOWED_ORIGIN = os.environ.get("ALLOWED_ORIGIN", "*")
+# Launch hardening knobs (safe defaults preserve dev behaviour):
+#   ENABLE_DEMO_SEED=0  → do NOT seed the demo staff accounts (real deployment)
+#   MAX_UPLOAD_MB       → reject oversized photo uploads (DoS guard)
+#   ANTHROPIC_API_KEY   → enables the server-side /ai proxy (keeps the key off devices)
+ENABLE_DEMO_SEED = os.environ.get("ENABLE_DEMO_SEED", "1") != "0"
+MAX_UPLOAD_BYTES = int(os.environ.get("MAX_UPLOAD_MB", "8")) * 1024 * 1024
+ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "").strip()
 
 # Login brute-force protection: lock a user (and the source IP) after too many
 # failed PIN attempts inside a rolling window.
@@ -214,8 +222,11 @@ GPS_STATE = {}                 # busId -> {t0, odo0}   (simulator fallback)
 LIVE_GPS = {}                  # normalised reg -> latest real telemetry from provider
 JAIPUR = (26.9124, 75.7873)
 
-# Dedicated token the GPS provider uses for /gps/ingest (rotate in production).
-GPS_INGEST_TOKEN = os.environ.get("GPS_INGEST_TOKEN", "airfi-demo-token-CHANGE-ME")
+# Dedicated token the GPS provider uses for /gps/ingest. No insecure default:
+# if it's unset (or still a demo placeholder), /gps/ingest is refused so an
+# unauthenticated caller can never push fake telemetry in production.
+GPS_INGEST_TOKEN = os.environ.get("GPS_INGEST_TOKEN", "").strip()
+_GPS_TOKEN_OK = bool(GPS_INGEST_TOKEN) and "demo" not in GPS_INGEST_TOKEN.lower() and "change-me" not in GPS_INGEST_TOKEN.lower()
 
 
 def norm_reg(s):
@@ -396,12 +407,43 @@ class Handler(BaseHTTPRequestHandler):
         if u.path == "/upload":
             if not self._auth_user():
                 return self._send(401, {"error": "unauthorized"})
+            if int(self.headers.get("Content-Length") or 0) > MAX_UPLOAD_BYTES:
+                return self._send(413, {"error": f"upload too large (max {MAX_UPLOAD_BYTES // (1024*1024)} MB)"})
             data = self._body().get("data") or ""
             if not data.startswith("data:"):
                 return self._send(400, {"error": "expected data URL"})
             return self._send(200, save_upload(data, self.headers.get("Host", f"localhost:{PORT}")))
 
+        if u.path == "/ai":          # server-side Anthropic proxy — keeps the API key OFF devices
+            if not self._auth_user():
+                return self._send(401, {"error": "unauthorized"})
+            if not ANTHROPIC_API_KEY:
+                return self._send(501, {"error": "AI not configured on server"})
+            b = self._body()
+            question = (b.get("question") or "").strip()
+            context = (b.get("context") or "").strip()
+            biz = (b.get("biz") or "the garage").strip()
+            if not question:
+                return self._send(400, {"error": "question required"})
+            try:
+                payload = json.dumps({
+                    "model": b.get("model") or "claude-haiku-4-5-20251001",
+                    "max_tokens": 500,
+                    "system": f"You are the operations advisor for {biz}, a bus maintenance garage in Jaipur, India. Be concise and practical, use rupee (Rs) figures, focus on cutting cost and pilferage. Max 6 sentences.",
+                    "messages": [{"role": "user", "content": f"Current garage data:\n{context}\n\nQuestion: {question}"}],
+                }).encode()
+                req = urllib.request.Request("https://api.anthropic.com/v1/messages", data=payload, method="POST", headers={
+                    "content-type": "application/json", "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01"})
+                with urllib.request.urlopen(req, timeout=30) as resp:
+                    j = json.loads(resp.read())
+                text = "".join(c.get("text", "") for c in (j.get("content") or [])).strip()
+                return self._send(200, {"text": text})
+            except Exception as e:
+                return self._send(502, {"error": "AI upstream error"})
+
         if u.path == "/gps/ingest":                  # GPS provider pushes telemetry here
+            if not _GPS_TOKEN_OK:                     # no real token configured → ingest disabled
+                return self._send(503, {"error": "gps ingest disabled — set GPS_INGEST_TOKEN"})
             h = self.headers.get("Authorization") or ""
             if h != "Bearer " + GPS_INGEST_TOKEN:
                 return self._send(401, {"error": "unauthorized"})
@@ -419,7 +461,15 @@ class Handler(BaseHTTPRequestHandler):
 
 if __name__ == "__main__":
     db().close()
-    seed_users()
+    if ENABLE_DEMO_SEED:
+        seed_users()
+    else:
+        print("ENABLE_DEMO_SEED=0 → skipping demo staff accounts (real deployment)")
     os.makedirs(UPLOADS, exist_ok=True)
+    if ALLOWED_ORIGIN == "*":
+        print("WARNING: ALLOWED_ORIGIN=* (open CORS). Set it to your PWA domain before production.")
+    if not _GPS_TOKEN_OK:
+        print("NOTE: GPS_INGEST_TOKEN not set (or demo) → /gps/ingest is disabled.")
+    print(f"AI advisor proxy: {'ENABLED (/ai)' if ANTHROPIC_API_KEY else 'disabled (set ANTHROPIC_API_KEY)'}")
     print(f"Garage Saathi sync server on http://0.0.0.0:{PORT}  (db: {DB}, uploads: {UPLOADS}/)")
     ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()

@@ -79,6 +79,22 @@ const Sync = (function () {
     return (await res.json()).user;
   }
 
+  // AI advisor via the server proxy (key stays server-side). Returns
+  // {text} on success, {configured:true,error} if the server's AI errored,
+  // or {configured:false} when the server has no AI key / is unreachable
+  // (caller then decides whether to use a local-key dev fallback).
+  async function ai({ question, context, biz }) {
+    try {
+      const res = await fetch(baseUrl() + '/ai', {
+        method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ question, context, biz }),
+      });
+      if (res.status === 501 || res.status === 401) return { configured: false };  // no server key / not authed → let caller fall back
+      if (!res.ok) return { configured: true, error: 'AI server error ' + res.status };
+      return { text: (await res.json()).text || '' };
+    } catch (e) { return { configured: false }; }
+  }
+
   // Change a user's PIN on the server (self, or owner resetting staff).
   async function setPin(userId, pin) {
     const res = await fetch(baseUrl() + '/auth/setpin', {
@@ -252,7 +268,7 @@ const Sync = (function () {
   // Drain the quarantine so retried/fixed records get another chance.
   function clearQuarantine() { quarantine = {}; saveQuarantine(); kick(); }
 
-  return { start, tick, kick, setUrl, reset, info, login, logout, addStaff, setPin, uploadPhoto,
+  return { start, tick, kick, setUrl, reset, info, login, logout, addStaff, setPin, ai, uploadPhoto,
            queuePhoto, remove, clearQuarantine,
            get status() { return status; } };
 })();
