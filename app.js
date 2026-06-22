@@ -361,15 +361,17 @@ function busCostPerKm(b) {
  * map the response fields below — nothing else in the app changes.
  */
 const GpsProvider = {
-  name: 'Simulated (demo)',
+  name: 'AirFi',
   async live(bus) {
     const base = localStorage.getItem('syncUrl') || (location.protocol + '//' + location.hostname + ':8766');
     const res = await fetch(base + '/gps?busId=' + encodeURIComponent(bus.id) +
       '&odo=' + (bus.odometer || 0) + '&reg=' + encodeURIComponent(bus.regNo || ''));
     if (!res.ok) throw new Error('gps ' + res.status);
     const d = await res.json();
-    // ── map provider response → app shape (edit this line for a real provider) ──
-    return { lat: d.lat, lng: d.lng, speedKph: d.speedKph, ignition: d.ignition, odometer: d.odometer, lastPing: d.lastPing };
+    // The server returns real AirFi telemetry when the tracker is pushing for
+    // this registration, else a simulated fallback — `source` says which.
+    return { lat: d.lat, lng: d.lng, speedKph: d.speedKph, ignition: d.ignition,
+      odometer: d.odometer, lastPing: d.lastPing, source: d.source || 'simulated' };
   },
 };
 
@@ -1895,9 +1897,11 @@ async function showGps(busId) {
   const svTxt = sv.status === 'overdue' ? `Service OVERDUE by ${Math.abs(sv.dueIn).toLocaleString('en-IN')} km`
     : sv.status === 'soon' ? `Service due in ${sv.dueIn.toLocaleString('en-IN')} km`
     : `Service OK · ${sv.dueIn.toLocaleString('en-IN')} km to go`;
-  const demoGps = /demo|simulat/i.test(GpsProvider.name);
+  const isLive = tel.source === 'provider';
   el.innerHTML = `
-    ${demoGps ? `<div class="banner warn">⚠️ Demo GPS — this location is simulated, not the real bus. Connect your tracker provider to show live position.</div>` : ''}
+    ${isLive
+      ? `<div class="banner" style="background:#e7f7ef;color:#16a571">🛰️ Live from ${esc(GpsProvider.name)}</div>`
+      : `<div class="banner warn">⚠️ Demo GPS — simulated, not the real bus. Live position shows once ${esc(GpsProvider.name)} is pushing telemetry for this bus.</div>`}
     <div class="card">
       <div class="row between"><h3>${esc(b.regNo)}</h3>
         <span class="badge ${tel.ignition ? 'b-green' : 'b-low'}">${tel.ignition ? '🟢 Running' : '⚪ Parked'}</span></div>

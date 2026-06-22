@@ -222,10 +222,20 @@ GPS_STATE = {}                 # busId -> {t0, odo0}   (simulator fallback)
 LIVE_GPS = {}                  # normalised reg -> latest real telemetry from provider
 JAIPUR = (26.9124, 75.7873)
 
-# Dedicated token the GPS provider uses for /gps/ingest. No insecure default:
-# if it's unset (or still a demo placeholder), /gps/ingest is refused so an
-# unauthenticated caller can never push fake telemetry in production.
-GPS_INGEST_TOKEN = os.environ.get("GPS_INGEST_TOKEN", "").strip()
+# Dedicated token the GPS provider (AirFi) uses for /gps/ingest. Sourced from the
+# GPS_INGEST_TOKEN env var, falling back to the git-ignored .gps_ingest_token file.
+# No insecure default: if it's unset (or still a demo placeholder), /gps/ingest is
+# refused so nobody can push fake telemetry.
+def _read_gps_token():
+    t = os.environ.get("GPS_INGEST_TOKEN", "").strip()
+    if t:
+        return t
+    try:
+        with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".gps_ingest_token")) as f:
+            return f.read().strip()
+    except Exception:
+        return ""
+GPS_INGEST_TOKEN = _read_gps_token()
 _GPS_TOKEN_OK = bool(GPS_INGEST_TOKEN) and "demo" not in GPS_INGEST_TOKEN.lower() and "change-me" not in GPS_INGEST_TOKEN.lower()
 
 
