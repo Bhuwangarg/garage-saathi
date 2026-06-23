@@ -449,7 +449,7 @@ function topbar(title) {
 }
 
 // Which bottom tab should light up — sub-screens map back to their parent tab.
-const TAB_OF = { home: 'home', buses: 'buses', jobs: 'jobs', store: 'store', me: 'me', purchases: 'me', alerts: 'me', insights: 'home', drivers: 'home', assignments: 'home', company: 'home', routes: 'home' };
+const TAB_OF = { home: 'home', buses: 'buses', jobs: 'jobs', store: 'store', me: 'me', purchases: 'me', alerts: 'me', insights: 'home', drivers: 'home', assignments: 'home', company: 'home', routes: 'home', reports: 'home', busreport: 'home' };
 function bottomnav() {
   const active = TAB_OF[S.route.name] || 'home';
   // Each role gets a focused nav matching what they actually do.
@@ -578,8 +578,8 @@ function viewHome() {
     const max = Math.max(1, ...series.map((d) => d.value));
     const total7 = series.reduce((s, d) => s + d.value, 0);
     let peak = 0; series.forEach((d, i) => { if (d.value > series[peak].value) peak = i; });
-    body += `<div class="card">
-      <div class="row between"><h3>Repair cost</h3><span class="badge b-low">last 7 days</span></div>
+    body += `<div class="card" data-act="openReports" style="cursor:pointer">
+      <div class="row between"><h3>Repair cost</h3><span class="badge b-low">last 7 days · reports ›</span></div>
       <div class="chart">${series.map((d, i) => `<div class="bar ${i === peak && d.value > 0 ? 'peak' : ''}">
         <i style="height:${Math.round(d.value / max * 100)}%"></i><span>${d.label}</span></div>`).join('')}</div>
       <div class="feature-pill"><div class="fp-dot">₹</div>
@@ -1084,6 +1084,7 @@ function viewMe() {
       ? `<div class="li" data-act="openDrivers"><div class="ava">🧑‍✈️</div><div class="main"><div class="t">Drivers</div><div class="s">${(S.cache.drivers || []).length} drivers · performance & reports</div></div></div>
          <div class="li" data-act="openAssignments"><div class="ava">🔁</div><div class="main"><div class="t">Driver ↔ Bus assignments</div><div class="s">Who drives which bus · reassign in one place</div></div></div>
          <div class="li" data-act="openStaff"><div class="ava">👥</div><div class="main"><div class="t">Staff</div><div class="s">${S.cache.users.length} accounts · add new</div></div></div>
+         <div class="li" data-act="openReports"><div class="ava">📊</div><div class="main"><div class="t">Bus reports</div><div class="s">Total maintenance spend per bus + full detail</div></div></div>
          <div class="li" data-act="openRoutes"><div class="ava">🕒</div><div class="main"><div class="t">Routes &amp; timings</div><div class="s">Pickup geofences, go-times &amp; punctuality</div></div></div>
          <div class="li" data-act="openSetup"><div class="ava">⚙️</div><div class="main"><div class="t">Garage setup</div><div class="s">Location, geofence, shift time · start fresh</div></div></div>` : ''}
     <div class="li" data-act="changePin"><div class="ava">🔑</div><div class="main"><div class="t">${t('changePin')}</div><div class="s">Set a new 4-digit login PIN</div></div></div>
@@ -1696,6 +1697,110 @@ async function shareBill(company) {
   } catch (e) { /* user cancelled or unsupported → fall through to copy */ }
   try { await navigator.clipboard.writeText(text); toast('Bill copied — paste into WhatsApp'); }
   catch (e) { openSheet(`Bill — ${company}`, `<textarea style="width:100%;height:240px" readonly>${esc(text)}</textarea>`); }
+}
+
+/* ========================= Bus Reports (owner/supervisor) ==================
+ * One place to see total maintenance spend — fleet-wide and per bus — over a
+ * chosen period, with the full breakdown: cost, jobs & downtime, parts, service,
+ * documents, driver, and On-Time punctuality.
+ */
+const REPORT_PERIODS = [['30', '30 days'], ['90', '90 days'], ['0', 'Lifetime']];
+const reportDays = () => (S.reportDays != null ? S.reportDays : 30);
+const reportSinceMs = () => { const d = Number(reportDays()); return d ? Date.now() - d * day : 0; };
+const periodLabel = () => { const d = Number(reportDays()); return d ? ` (${d} days)` : ' (lifetime)'; };
+function periodBar() {
+  return `<div class="row" style="gap:7px;margin-bottom:12px">${REPORT_PERIODS.map(([d, l]) =>
+    `<button class="btn sm ${String(reportDays()) === d ? 'primary' : 'ghost'}" data-act="reportPeriod" data-days="${d}" style="border:1px solid var(--line)">${l}</button>`).join('')}</div>`;
+}
+function busReport(b, since) {
+  const jobs = S.cache.jobs.filter((j) => j.busId === b.id && (j.closedAt || j.createdAt) >= since);
+  const cost = jobs.reduce((a, j) => { const c = jobCost(j); a.parts += c.parts; a.labour += c.labour; a.ext += c.ext; a.total += c.total; return a; }, { parts: 0, labour: 0, ext: 0, total: 0 });
+  const byStatus = { open: 0, 'in-progress': 0, done: 0, verified: 0 };
+  jobs.forEach((j) => { byStatus[j.status] = (byStatus[j.status] || 0) + 1; });
+  const downDays = jobs.filter((j) => j.closedAt).reduce((s, j) => s + Math.max(0, (j.closedAt - j.createdAt) / day), 0);
+  const partMap = {};
+  jobs.forEach((j) => (j.partsUsed || []).forEach((l) => { const p = partMap[l.partId] || { qty: 0, cost: 0 }; p.qty += l.qty; p.cost += l.cost; partMap[l.partId] = p; }));
+  const topParts = Object.entries(partMap).map(([pid, v]) => ({ pid, ...v })).sort((a, b) => b.cost - a.cost);
+  return { jobs, cost, byStatus, downDays, topParts, extJobs: jobs.filter((j) => j.externalVendor).length, n: jobs.length };
+}
+function viewReports() {
+  const since = reportSinceMs();
+  const rows = [...S.cache.buses].map((b) => ({ b, r: busReport(b, since) })).sort((a, b) => b.r.cost.total - a.r.cost.total);
+  const fleetTotal = rows.reduce((s, x) => s + x.r.cost.total, 0);
+  const fleetJobs = rows.reduce((s, x) => s + x.r.n, 0);
+  let body = periodBar();
+  body += `<div class="card"><div class="muted small">Total maintenance spend${periodLabel()}</div>
+    <div class="stat" style="color:var(--brand2)">${money(fleetTotal)}</div>
+    <div class="tiny muted">${rows.length} buses · ${fleetJobs} job(s)</div></div>`;
+  body += `<div class="card"><h3>By bus — highest spend first</h3>`;
+  body += rows.length ? rows.map(({ b, r }) => {
+    const cpk = busCostPerKm(b);
+    return `<div class="li" data-act="busReport" data-bus="${b.id}" style="cursor:pointer">${avatar(busImg(b), '🚌')}
+      <div class="main"><div class="t">${esc(b.regNo)}</div>
+        <div class="s">${esc(b.company)} · ${r.n} job(s)${cpk ? ' · ₹' + cpk.toFixed(1) + '/km' : ''}</div></div>
+      <b>${money(r.cost.total)}</b></div>`;
+  }).join('') : `<div class="empty">No buses yet</div>`;
+  body += `</div>`;
+  shell('Bus reports', body);
+}
+function viewBusReport(busId) {
+  const b = byId(S.cache.buses, busId); if (!b) return viewReports();
+  const r = busReport(b, reportSinceMs()), c = r.cost, cpk = busCostPerKm(b);
+  let body = periodBar();
+  body += `<div class="card"><div class="row between"><h3>${esc(b.regNo)}</h3>
+    <button class="btn sm" data-act="shareBusReport" data-bus="${b.id}">📤 Share</button></div>
+    <div class="small muted">${esc(b.company)} · ${esc(b.model || '')} · ${(b.odometer || 0).toLocaleString('en-IN')} km</div></div>`;
+  body += `<div class="card"><h3>Maintenance cost${periodLabel()}</h3>
+    <div class="row between small"><span class="muted">Parts</span><b>${money(c.parts)}</b></div>
+    <div class="row between small"><span class="muted">Labour</span><b>${money(c.labour)}</b></div>
+    <div class="row between small"><span class="muted">Outside vendor</span><b>${money(c.ext)}</b></div>
+    <div class="hr"></div>
+    <div class="row between"><b>Total</b><b style="color:var(--brand2)">${money(c.total)}</b></div>
+    ${cpk ? `<div class="tiny muted" style="margin-top:6px">≈ ₹${cpk.toFixed(2)}/km (lifetime)</div>` : ''}</div>`;
+  body += `<div class="card"><h3>Jobs &amp; downtime</h3><div class="grid2">
+      <div><div class="tiny muted">Jobs</div><b>${r.n}</b></div>
+      <div><div class="tiny muted">Outside repairs</div><b>${r.extJobs}</b></div>
+      <div><div class="tiny muted">Total bay time</div><b>${Math.round(r.downDays)} day(s)</b></div>
+      <div><div class="tiny muted">Still open</div><b>${r.byStatus.open + r.byStatus['in-progress']}</b></div></div></div>`;
+  if (r.topParts.length) {
+    body += `<div class="card"><h3>Parts consumed</h3>` + r.topParts.slice(0, 6).map((p) => {
+      const part = byId(S.cache.parts, p.pid);
+      return `<div class="row between small" style="padding:4px 0"><span>${esc(part ? part.name : p.pid)} × ${p.qty}</span><b>${money(p.cost)}</b></div>`;
+    }).join('') + `</div>`;
+  }
+  const sv = serviceInfo(b), svc = sv.status === 'overdue' ? 'b-red' : sv.status === 'soon' ? 'b-amber' : 'b-green';
+  body += `<div class="card"><div class="row between"><h3>Service</h3><span class="badge ${svc}">${sv.status.toUpperCase()}</span></div>
+    <div class="small">${sv.status === 'overdue' ? 'Overdue by ' + Math.abs(sv.dueIn).toLocaleString('en-IN') + ' km' : 'Due in ' + sv.dueIn.toLocaleString('en-IN') + ' km'} · every ${sv.interval.toLocaleString('en-IN')} km</div></div>`;
+  body += `<div class="card"><h3>Documents</h3>` + ((b.docs || []).length ? (b.docs || []).map((d) => {
+    const st = docStatus(d.expiry); return `<div class="row between small" style="padding:4px 0"><span>${esc(d.type)}</span><span class="badge ${st.cls}">${st.txt}</span></div>`;
+  }).join('') : `<div class="muted small">No documents</div>`) + `</div>`;
+  const drv = driverOfBus(b.id);
+  if (drv) {
+    const sc = driverScore(drv.id), incs = driverIncidents(drv.id);
+    body += `<div class="card"><div class="row between"><h3>Driver</h3><span class="badge ${scoreClass(sc)}">${sc}/100</span></div>
+      <div class="small">${esc(drv.name)} · ${incs.length} incident(s) · ${money(incs.reduce((s, i) => s + (i.cost || 0), 0))} damage · ${openReportsForBus(b.id).length} open report(s)</div></div>`;
+  }
+  const route = routeForBus(b.id);
+  if (route && (route.stops || []).length) {
+    body += `<div class="card"><h3>On-time pickup</h3>` + route.stops.map((s) => {
+      const p = stopPunctuality(s);
+      return `<div class="row between small" style="padding:4px 0"><span>${esc(s.name)}</span><span>${p.onTime == null ? '—' : p.onTime + '%'}${p.avgLate ? ' · avg +' + p.avgLate + 'm' : ''}</span></div>`;
+    }).join('') + `</div>`;
+  }
+  shell(esc(b.regNo) + ' — report', body);
+}
+function busReportText(busId) {
+  const b = byId(S.cache.buses, busId); if (!b) return '';
+  const r = busReport(b, reportSinceMs()), c = r.cost, sv = serviceInfo(b);
+  return [`${BIZ} — Maintenance report${periodLabel()}`, `Bus ${b.regNo} (${b.company})`, '',
+    `Total: ${money(c.total)}`, `  Parts: ${money(c.parts)}`, `  Labour: ${money(c.labour)}`, `  Outside: ${money(c.ext)}`,
+    `Jobs: ${r.n} (${r.extJobs} outside) · bay time ${Math.round(r.downDays)} day(s)`,
+    `Service: ${sv.status === 'overdue' ? 'overdue ' + Math.abs(sv.dueIn).toLocaleString('en-IN') + ' km' : 'due in ' + sv.dueIn.toLocaleString('en-IN') + ' km'}`].join('\n');
+}
+async function shareText(title, text) {
+  try { if (navigator.share) { await navigator.share({ title, text }); return; } } catch (e) { /* fall through */ }
+  try { await navigator.clipboard.writeText(text); toast('Copied — paste into WhatsApp'); }
+  catch (e) { openSheet(title, `<textarea style="width:100%;height:240px" readonly>${esc(text)}</textarea>`); }
 }
 
 /* ----------------------------- Job actions -------------------------------- */
@@ -2709,7 +2814,7 @@ async function askAi() {
  */
 const current = () => S.stack[S.stack.length - 1];
 // Role guard: routes restricted to certain roles fall back to home for others.
-const ROUTE_PERM = { insights: 'insights', drivers: 'manageDrivers', assignments: 'assignDriver', routes: 'manageRoutes' };
+const ROUTE_PERM = { insights: 'insights', drivers: 'manageDrivers', assignments: 'assignDriver', routes: 'manageRoutes', reports: 'dashboard', busreport: 'dashboard' };
 function render(r) {
   if (ROUTE_PERM[r.name] && !can(S.user.role, ROUTE_PERM[r.name])) r = { name: 'home' };
   S.route = r;
@@ -2726,6 +2831,8 @@ function render(r) {
     case 'assignments': return viewAssignments();
     case 'routes': return r.id ? viewRouteDetail(r.id) : viewRoutes();
     case 'company': return viewCompanyDetail(r.id);
+    case 'reports': return viewReports();
+    case 'busreport': return viewBusReport(r.id);
     default: return viewHome();
   }
 }
@@ -2808,6 +2915,10 @@ function bind() {
       case 'logService': return logService(el.getAttribute('data-bus'));
       case 'confirmLogService': return confirmLogService(el.getAttribute('data-bus'));
       case 'openInsights': return push({ name: 'insights' });
+      case 'openReports': return push({ name: 'reports' });
+      case 'busReport': return push({ name: 'busreport', id: el.getAttribute('data-bus') });
+      case 'reportPeriod': { S.reportDays = Number(el.getAttribute('data-days')); return rerender(); }
+      case 'shareBusReport': return shareText(busName(el.getAttribute('data-bus')) + ' report', busReportText(el.getAttribute('data-bus')));
       case 'shareBill': return shareBill(el.getAttribute('data-company'));
       case 'askAi': return askAi();
       case 'openPurchases': return push({ name: 'purchases' });
