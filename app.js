@@ -208,6 +208,7 @@ const PERMS = {
   manageDrivers: ['owner', 'supervisor'],    // drivers list/detail, incidents, ratings
   assignDriver: ['owner', 'supervisor'],     // assign a driver to a bus
   logService: ['owner', 'supervisor'],       // resets service + writes a verified job
+  manageRoutes: ['owner', 'supervisor'],     // routes, stops, go-times, punctuality
 };
 
 /* ------------------------------ Sheets ------------------------------------ */
@@ -232,12 +233,13 @@ function closeSheet() {
 
 /* ------------------------------ Data ops ---------------------------------- */
 async function load() {
-  const [users, buses, parts, jobs, ledger, att, purchases, drivers, incidents, driverreports, garage] = await Promise.all([
+  const [users, buses, parts, jobs, ledger, att, purchases, drivers, incidents, driverreports, routes, triplog, garage] = await Promise.all([
     DB.all('users'), DB.all('buses'), DB.all('parts'), DB.all('jobcards'),
     DB.all('ledger'), DB.all('attendance'), DB.all('purchases'),
-    DB.all('drivers'), DB.all('incidents'), DB.all('driverreports'), DB.get('meta', 'garage'),
+    DB.all('drivers'), DB.all('incidents'), DB.all('driverreports'),
+    DB.all('routes'), DB.all('triplog'), DB.get('meta', 'garage'),
   ]);
-  S.cache = { users, buses, parts, jobs, ledger, att, purchases, drivers, incidents, driverreports, garage };
+  S.cache = { users, buses, parts, jobs, ledger, att, purchases, drivers, incidents, driverreports, routes, triplog, garage };
   refreshBiz();   // keep the displayed business name in sync with garage config
 }
 const byId = (arr, id) => arr.find((x) => x.id === id);
@@ -447,7 +449,7 @@ function topbar(title) {
 }
 
 // Which bottom tab should light up — sub-screens map back to their parent tab.
-const TAB_OF = { home: 'home', buses: 'buses', jobs: 'jobs', store: 'store', me: 'me', purchases: 'me', alerts: 'me', insights: 'home', drivers: 'home', assignments: 'home', company: 'home' };
+const TAB_OF = { home: 'home', buses: 'buses', jobs: 'jobs', store: 'store', me: 'me', purchases: 'me', alerts: 'me', insights: 'home', drivers: 'home', assignments: 'home', company: 'home', routes: 'home' };
 function bottomnav() {
   const active = TAB_OF[S.route.name] || 'home';
   // Each role gets a focused nav matching what they actually do.
@@ -592,6 +594,17 @@ function viewHome() {
       ${qtile('🔩', low.length, 'Low stock', 'store')}
       ${qtile('🧾', money(pending), 'Owed to suppliers', 'purchases')}
     </div>`;
+
+    // On-time pickup — at-risk warning (computed by the route monitor)
+    const risks = S.routeRisks || [];
+    if (risks.length) {
+      body += `<div class="card" data-act="openRoutes" style="cursor:pointer;border:1.5px solid var(--amber)">
+        <div class="row between"><h3>⚠️ Pickups at risk now</h3><span class="badge b-amber">${risks.length}</span></div>`;
+      body += risks.slice(0, 3).map((r) => `<div class="li" style="border:none;padding:6px 0"><div class="ava">🚍</div>
+        <div class="main"><div class="t">${esc(busName(r.bus.id))} → ${esc(r.stop.name)}</div>
+        <div class="s">due ${minToHhmm(r.sched)}${r.etaMin != null ? ' · ETA ' + minToHhmm(r.etaMin) : ''}${r.reason ? ' · ' + r.reason : ''}</div></div></div>`).join('');
+      body += `<div class="tiny muted" style="margin-top:6px">Tap to view routes — call the driver before the pickup is missed.</div></div>`;
+    }
 
     // AI Insights entry — pilferage radar + cost + predictive
     const insightCount = computeInsights().length;
@@ -1071,6 +1084,7 @@ function viewMe() {
       ? `<div class="li" data-act="openDrivers"><div class="ava">🧑‍✈️</div><div class="main"><div class="t">Drivers</div><div class="s">${(S.cache.drivers || []).length} drivers · performance & reports</div></div></div>
          <div class="li" data-act="openAssignments"><div class="ava">🔁</div><div class="main"><div class="t">Driver ↔ Bus assignments</div><div class="s">Who drives which bus · reassign in one place</div></div></div>
          <div class="li" data-act="openStaff"><div class="ava">👥</div><div class="main"><div class="t">Staff</div><div class="s">${S.cache.users.length} accounts · add new</div></div></div>
+         <div class="li" data-act="openRoutes"><div class="ava">🕒</div><div class="main"><div class="t">Routes &amp; timings</div><div class="s">Pickup geofences, go-times &amp; punctuality</div></div></div>
          <div class="li" data-act="openSetup"><div class="ava">⚙️</div><div class="main"><div class="t">Garage setup</div><div class="s">Location, geofence, shift time · start fresh</div></div></div>` : ''}
     <div class="li" data-act="changePin"><div class="ava">🔑</div><div class="main"><div class="t">${t('changePin')}</div><div class="s">Set a new 4-digit login PIN</div></div></div>
     <div class="li" data-act="openSync"><div class="ava">🔄</div><div class="main"><div class="t">${t('sync')}</div><div class="s">${SYNC_STATUS === 'synced' ? 'All devices up to date' : SYNC_STATUS === 'offline' ? 'Offline — will sync when connected' : 'Syncing…'}${si.pending ? ` · ${si.pending} pending` : ''}</div></div></div>
@@ -2293,6 +2307,226 @@ function createJobFromReport(reportId) {
   sheetAddJob({ busId: r.busId, problem: r.problem, reportId, category: r.category });
 }
 
+/* ===================== On-Time Pickup: routes, geofences, ETA, punctuality ==
+ * Each bus has a route = ordered geofenced stops, each with a daily "go-time".
+ * Live AirFi GPS drives three things:
+ *   1) Punctuality   — capture the actual arrival time at each stop vs schedule.
+ *   2) Auto-learn    — the schedule fills itself in from past arrivals (median).
+ *   3) Predict       — ~15 min before a stop is due, warn owner/supervisor if a
+ *                      live ETA (from GPS position + speed) says the bus is at risk.
+ * The depot is the garage geofence (stop 0) so we can see WHERE a delay starts.
+ */
+const hhmmToMin = (s) => { const m = /^(\d{1,2}):(\d{2})$/.exec(s || ''); return m ? (+m[1]) * 60 + (+m[2]) : null; };
+const minToHhmm = (n) => { n = ((Math.round(n) % 1440) + 1440) % 1440; return String(Math.floor(n / 60)).padStart(2, '0') + ':' + String(n % 60).padStart(2, '0'); };
+const nowMin = () => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); };
+const todayKey = () => { const d = new Date(); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); };
+const routeForBus = (busId) => (S.cache.routes || []).find((r) => r.busId === busId) || null;
+
+// Auto-learned scheduled minute for a stop: median actual-arrival over the last
+// 21 days from the trip log. Manual schedTime (if set) always overrides.
+function learnedMin(stopId) {
+  const since = Date.now() - 21 * day;
+  const mins = (S.cache.triplog || []).filter((t) => t.stopId === stopId && t.at >= since && t.actualMin != null)
+    .map((t) => t.actualMin).sort((a, b) => a - b);
+  return mins.length ? mins[Math.floor(mins.length / 2)] : null;
+}
+const stopSched = (stop) => { const m = hhmmToMin(stop.schedTime); return m != null ? m : learnedMin(stop.id); };
+const stopArrivalToday = (stopId) => (S.cache.triplog || []).find((t) => t.stopId === stopId && t.day === todayKey()) || null;
+function stopPunctuality(stop) {
+  const logs = (S.cache.triplog || []).filter((t) => t.stopId === stop.id && t.deltaMin != null);
+  if (!logs.length) return { n: 0, onTime: 100, avgLate: 0 };
+  const late = logs.filter((t) => t.deltaMin > 3).length;
+  const avgLate = Math.round(logs.reduce((s, t) => s + Math.max(0, t.deltaMin), 0) / logs.length);
+  return { n: logs.length, onTime: Math.round((logs.length - late) / logs.length * 100), avgLate };
+}
+
+// Capture geofence arrivals from a live fix: if the bus is inside a stop's
+// radius and we haven't logged it today, record actual time + delta vs schedule.
+async function captureArrivals(bus, tel) {
+  const route = routeForBus(bus.id);
+  if (!route || !tel || tel.lat == null) return false;
+  let changed = false;
+  for (const stop of route.stops || []) {
+    if (stopArrivalToday(stop.id)) continue;
+    if (haversineM(tel.lat, tel.lng, stop.lat, stop.lng) <= (stop.radiusM || 150)) {
+      const sched = stopSched(stop), aMin = nowMin();
+      await DB.put('triplog', { id: uid('tl-'), routeId: route.id, busId: bus.id, stopId: stop.id,
+        day: todayKey(), at: Date.now(), actualMin: aMin, scheduledMin: sched,
+        deltaMin: sched != null ? aMin - sched : null, source: tel.source || 'unknown' });
+      changed = true;
+    }
+  }
+  return changed;
+}
+
+// Risk for a bus's NEXT pending stop today: predicts lateness from live GPS.
+function routeRisk(bus, tel) {
+  const route = routeForBus(bus.id);
+  if (!route || !(route.stops || []).length) return null;
+  const next = (route.stops || []).find((s) => !stopArrivalToday(s.id) && stopSched(s) != null);
+  if (!next) return null;
+  const sched = stopSched(next), mins = nowMin(), within = sched - mins;
+  if (within > 15) return null;                       // outside the warning window
+  let etaMin = null, reason = '';
+  if (tel && tel.lat != null) {
+    const distKm = haversineM(tel.lat, tel.lng, next.lat, next.lng) / 1000;
+    etaMin = mins + Math.round(distKm / Math.max(tel.speedKph || 0, 18) * 60);
+    if (!tel.ignition && distKm > 0.25) reason = 'engine still off';
+    else if (distKm > 0.25 && (tel.speedKph || 0) < 3) reason = 'not moving';
+  }
+  const late = within < 0 || (etaMin != null && etaMin > sched + 3) || (!!reason && within <= 10);
+  if (!late) return null;
+  return { stop: next, sched, etaMin, within, reason };
+}
+
+let _routeMonitorOn = false, _riskAlerted = {};
+async function checkRoutes(opts = {}) {
+  const buses = (S.cache.buses || []).filter((b) => routeForBus(b.id));
+  let changed = false; const risks = [];
+  for (const b of buses) {
+    let tel = null; try { tel = await GpsProvider.live(b); } catch (e) { /* offline → skip */ }
+    if (await captureArrivals(b, tel)) changed = true;
+    const r = routeRisk(b, tel);
+    if (r) risks.push({ bus: b, ...r });
+  }
+  if (changed) await load();
+  S.routeRisks = risks;
+  if (opts.alert && S.user && can(S.user.role, 'manageRoutes')) {
+    for (const r of risks) {
+      if (_riskAlerted[r.stop.id] === todayKey()) continue;
+      _riskAlerted[r.stop.id] = todayKey();
+      toast(`⚠️ ${busName(r.bus.id)} may be late to ${r.stop.name}${r.etaMin != null ? ' · ETA ' + minToHhmm(r.etaMin) : ''}`);
+    }
+  }
+  if (changed && S.user && !document.querySelector('.sheetwrap')) rerender();
+  return risks;
+}
+function startRouteMonitor() {
+  if (_routeMonitorOn) return;
+  _routeMonitorOn = true;
+  setInterval(() => { if (S.user && (S.cache.routes || []).length) checkRoutes({ alert: true }); }, 60000);
+}
+
+/* ----- Routes UI ----- */
+function routeStatusBadge(stop) {
+  const a = stopArrivalToday(stop.id);
+  if (a && a.deltaMin != null) {
+    const d = a.deltaMin;
+    return d > 3 ? `<span class="badge b-red">${d}m late</span>`
+      : d < -1 ? `<span class="badge b-green">${-d}m early</span>` : `<span class="badge b-green">on time</span>`;
+  }
+  if (a) return `<span class="badge b-low">arrived ${minToHhmm(a.actualMin)}</span>`;
+  const risk = (S.routeRisks || []).find((r) => r.stop.id === stop.id);
+  if (risk) return `<span class="badge b-amber">at risk${risk.etaMin != null ? ' · ETA ' + minToHhmm(risk.etaMin) : ''}</span>`;
+  return `<span class="badge b-low">pending</span>`;
+}
+function viewRoutes() {
+  const buses = [...S.cache.buses].sort((a, b) => a.regNo.localeCompare(b.regNo));
+  const risks = S.routeRisks || [];
+  let body = '';
+  if (risks.length) {
+    body += `<div class="card" style="border:1.5px solid var(--amber)"><div class="row between"><h3>⚠️ Pickups at risk now</h3><span class="badge b-amber">${risks.length}</span></div>`;
+    body += risks.map((r) => `<div class="li" data-bus="${r.bus.id}"><div class="ava">🚍</div>
+      <div class="main"><div class="t">${esc(busName(r.bus.id))} → ${esc(r.stop.name)}</div>
+      <div class="s">due ${minToHhmm(r.sched)}${r.etaMin != null ? ' · ETA ' + minToHhmm(r.etaMin) : ''}${r.reason ? ' · ' + r.reason : ''}</div></div>
+      <span class="badge b-amber">late risk</span></div>`).join('');
+    body += `</div>`;
+  }
+  body += `<button class="btn" data-act="checkRoutesNow" style="margin-bottom:12px">↻ Check live now</button>`;
+  body += `<div class="card"><h3>Buses</h3>`;
+  body += buses.length ? buses.map((b) => {
+    const r = routeForBus(b.id); const n = r ? (r.stops || []).length : 0;
+    return `<div class="li" data-routebus="${b.id}"><div class="ava">🚌</div>
+      <div class="main"><div class="t">${esc(b.regNo)}</div>
+      <div class="s">${n ? n + ' stop' + (n > 1 ? 's' : '') : 'No route yet — tap to set up'}</div></div>
+      ${n ? `<span class="tiny" style="color:var(--brand2)">view ›</span>` : `<span class="badge b-amber">set up</span>`}</div>`;
+  }).join('') : `<div class="empty">No buses yet</div>`;
+  body += `</div>`;
+  shell('Routes & timings', body);
+}
+function viewRouteDetail(busId) {
+  const bus = byId(S.cache.buses, busId); if (!bus) return viewRoutes();
+  const route = routeForBus(busId);
+  let body = `<div class="card"><div class="row between"><h3>${esc(bus.regNo)}</h3>
+    <button class="btn sm" data-act="addStop" data-routebus="${busId}">+ Stop</button></div>
+    <div class="tiny muted">Stops in order. Leave the time blank to auto-learn it from GPS arrivals. The depot is your garage location.</div></div>`;
+  const stops = route ? (route.stops || []) : [];
+  if (!stops.length) {
+    body += `<div class="card"><div class="empty">No stops yet.<br>Add the first pickup spot (capture its location + set the go-time).</div></div>`;
+  } else {
+    body += `<div class="card"><h3>Schedule &amp; punctuality</h3>`;
+    body += stops.map((s, i) => {
+      const sched = stopSched(s); const learned = hhmmToMin(s.schedTime) == null && sched != null;
+      const p = stopPunctuality(s);
+      return `<div class="li" data-act="editStop" data-routebus="${busId}" data-stop="${s.id}" style="cursor:pointer">
+        <div class="ava">${i === 0 ? '①' : i + 1}</div>
+        <div class="main"><div class="t">${esc(s.name)}</div>
+          <div class="s">go ${sched != null ? minToHhmm(sched) : '—'}${learned ? ' (learned)' : ''} · on-time ${p.onTime}%${p.avgLate ? ' · avg +' + p.avgLate + 'm' : ''} · ${p.n} day(s)</div></div>
+        ${routeStatusBadge(s)}</div>`;
+    }).join('');
+    body += `</div>`;
+  }
+  shell(esc(bus.regNo) + ' — route', body);
+}
+
+let _stopLat = null, _stopLng = null;
+function sheetAddStop(busId, stopId) {
+  const route = routeForBus(busId);
+  const cur = stopId && route ? (route.stops || []).find((s) => s.id === stopId) : null;
+  _stopLat = cur ? cur.lat : null; _stopLng = cur ? cur.lng : null;
+  openSheet(cur ? 'Edit stop' : 'Add stop', `
+    <input type="hidden" id="f-stopid" value="${cur ? cur.id : ''}">
+    <label class="field"><span class="lbl">Stop name</span><input id="f-stopname" value="${esc(cur && cur.name || '')}" placeholder="e.g. Sindhi Camp first pickup"></label>
+    <div class="card" style="box-shadow:none;background:var(--tile);padding:12px">
+      <div class="tiny muted" style="margin-bottom:6px">📍 Geofence — stand at the stop and capture it, or it keeps the existing pin.</div>
+      <div id="f-stoploc" class="small">${cur && cur.lat != null ? `Set: ${cur.lat.toFixed(5)}, ${cur.lng.toFixed(5)}` : '⚠️ Not set'}</div>
+      <button class="btn sm" data-act="captureStopLoc" style="margin-top:8px">📍 Use my current location</button>
+    </div>
+    <div class="grid2">
+      <label class="field"><span class="lbl">Radius (m)</span><input id="f-stopradius" type="number" inputmode="numeric" value="${cur && cur.radiusM || 150}"></label>
+      <label class="field"><span class="lbl">Go-time (HH:MM, blank = auto-learn)</span><input id="f-stoptime" value="${esc(cur && cur.schedTime || '')}" placeholder="06:45"></label>
+    </div>
+    <button class="btn primary" data-act="saveStop" data-routebus="${busId}">${t('save')}</button>
+    ${cur ? `<div class="spacer"></div><button class="btn" data-act="delStop" data-routebus="${busId}" data-stop="${cur.id}" style="color:var(--red)">🗑 Remove stop</button>` : ''}`);
+}
+async function captureStopLocation() {
+  toast('Getting location…');
+  try {
+    const pos = await new Promise((res, rej) => navigator.geolocation.getCurrentPosition(res, rej, { enableHighAccuracy: true, timeout: 8000 }));
+    _stopLat = pos.coords.latitude; _stopLng = pos.coords.longitude;
+    const el = $('#f-stoploc'); if (el) el.textContent = `Captured: ${_stopLat.toFixed(5)}, ${_stopLng.toFixed(5)} ✓`;
+    toast('Location captured ✓');
+  } catch (e) { toast('Could not get location — check GPS permission'); }
+}
+async function saveStop(busId) {
+  const name = $('#f-stopname').value.trim();
+  if (!name) return toast('Enter a stop name');
+  const cur = $('#f-stopid').value;
+  if (_stopLat == null && !cur) return toast('Capture the stop location first');
+  const time = $('#f-stoptime').value.trim();
+  if (time && hhmmToMin(time) == null) return toast('Time must be HH:MM, e.g. 06:45');
+  let route = routeForBus(busId);
+  if (!route) { route = { id: uid('rt-'), busId, name: busName(busId), stops: [] }; }
+  route.stops = route.stops || [];
+  const data = { name, radiusM: Number($('#f-stopradius').value) || 150, schedTime: time };
+  if (cur) {
+    const s = route.stops.find((x) => x.id === cur); if (!s) return;
+    Object.assign(s, data);
+    if (_stopLat != null) { s.lat = _stopLat; s.lng = _stopLng; }
+  } else {
+    route.stops.push({ id: uid('st-'), lat: _stopLat, lng: _stopLng, ...data });
+  }
+  await DB.put('routes', route);
+  _stopLat = _stopLng = null;
+  await load(); closeSheet(); toast('Stop saved ✓'); viewRouteDetail(busId);
+}
+async function delStop(busId, stopId) {
+  const route = routeForBus(busId); if (!route) return;
+  route.stops = (route.stops || []).filter((s) => s.id !== stopId);
+  await DB.put('routes', route);
+  await load(); closeSheet(); toast('Stop removed'); viewRouteDetail(busId);
+}
+
 /* -------------------- AI Insights: pilferage + cost + predictive ----------
  * Runs locally on the device — no data leaves the garage. Surfaces the patterns
  * an owner can't eyeball from paper: undocumented work, parts diverted, money-pit
@@ -2464,7 +2698,7 @@ async function askAi() {
  */
 const current = () => S.stack[S.stack.length - 1];
 // Role guard: routes restricted to certain roles fall back to home for others.
-const ROUTE_PERM = { insights: 'insights', drivers: 'manageDrivers', assignments: 'assignDriver' };
+const ROUTE_PERM = { insights: 'insights', drivers: 'manageDrivers', assignments: 'assignDriver', routes: 'manageRoutes' };
 function render(r) {
   if (ROUTE_PERM[r.name] && !can(S.user.role, ROUTE_PERM[r.name])) r = { name: 'home' };
   S.route = r;
@@ -2479,6 +2713,7 @@ function render(r) {
     case 'insights': return viewInsights();
     case 'drivers': return r.id ? viewDriverDetail(r.id) : viewDrivers();
     case 'assignments': return viewAssignments();
+    case 'routes': return r.id ? viewRouteDetail(r.id) : viewRoutes();
     case 'company': return viewCompanyDetail(r.id);
     default: return viewHome();
   }
@@ -2495,7 +2730,7 @@ function route(r) { S.stack = [r]; render(r); }
 function bind() {
   const r = root();
   r.onclick = async (e) => {
-    const el = e.target.closest('[data-act],[data-nav],[data-bus],[data-job],[data-part],[data-driver],[data-company]');
+    const el = e.target.closest('[data-act],[data-nav],[data-bus],[data-job],[data-part],[data-driver],[data-company],[data-routebus]');
     if (!el) return;
     const nav = el.getAttribute('data-nav');
     if (nav) return navTab(nav);
@@ -2507,6 +2742,7 @@ function bind() {
     if (el.hasAttribute('data-part') && !act) return push({ name: 'store', id: el.getAttribute('data-part') });
     if (el.hasAttribute('data-driver') && !act) return push({ name: 'drivers', id: el.getAttribute('data-driver') });
     if (el.hasAttribute('data-company') && !act) return push({ name: 'company', id: el.getAttribute('data-company') });
+    if (el.hasAttribute('data-routebus') && !act) return push({ name: 'routes', id: el.getAttribute('data-routebus') });
 
     switch (act) {
       case 'back': return back();
@@ -2582,6 +2818,13 @@ function bind() {
       case 'reportToJob': return createJobFromReport(el.getAttribute('data-report'));
       case 'openSync': return sheetSync();
       case 'openSetup': return sheetGarageSetup();
+      case 'openRoutes': return push({ name: 'routes' });
+      case 'checkRoutesNow': { toast('Checking live GPS…'); checkRoutes({ alert: true }).then((r) => toast(r.length ? `${r.length} at risk` : 'All on track ✓')); return; }
+      case 'addStop': return sheetAddStop(el.getAttribute('data-routebus'), null);
+      case 'editStop': return sheetAddStop(el.getAttribute('data-routebus'), el.getAttribute('data-stop'));
+      case 'saveStop': return saveStop(el.getAttribute('data-routebus'));
+      case 'captureStopLoc': return captureStopLocation();
+      case 'delStop': return delStop(el.getAttribute('data-routebus'), el.getAttribute('data-stop'));
       case 'captureGarageLoc': return captureGarageLocation();
       case 'saveGarage': return saveGarage();
       case 'startFresh': return startFresh();
@@ -2784,6 +3027,9 @@ function enterApp(user) { S.user = user; route({ name: 'home' }); }
       if (n && S.user) toast(`⚠️ ${n} record(s) updated on another device`);
     },
   });
+  // On-Time Pickup: start the live route monitor (geofence arrivals + at-risk ETA).
+  startRouteMonitor();
+  if ((S.cache.routes || []).length) checkRoutes();   // prime the dashboard once
   } catch (e) {
     // A seed/migration/DB-upgrade hiccup must never leave a blank screen —
     // always fall through to the login.

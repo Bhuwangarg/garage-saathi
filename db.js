@@ -5,7 +5,7 @@
  */
 
 const DB_NAME = 'garage-saathi';
-const DB_VERSION = 2;   // v2 adds drivers/incidents/driverreports stores (onupgradeneeded creates any missing)
+const DB_VERSION = 3;   // v3 adds routes/triplog stores (onupgradeneeded creates any missing)
 
 const STORES = {
   users: 'id',
@@ -18,6 +18,8 @@ const STORES = {
   drivers: 'id',         // driver profiles, assigned to a bus
   incidents: 'id',       // driver performance data points (scratch, dent, accident…)
   driverreports: 'id',   // trip-end problems the driver reports → feed maintenance
+  routes: 'id',          // a bus's route: ordered geofenced stops + scheduled go-times
+  triplog: 'id',         // per-day actual arrival at each stop → punctuality + auto-learn
   meta: 'key',
 };
 
