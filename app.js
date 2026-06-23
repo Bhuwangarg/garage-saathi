@@ -528,6 +528,14 @@ function viewMechanicHome() {
   let body = `<div class="greet"><div class="greet-av">🔧</div>
     <div><div class="greet-hi">Namaste, ${esc(S.user.name.split(' ')[0])} 👋</div><div class="muted small">${esc(BIZ)} · ${fmtToday()}</div></div></div>`;
   if (!checkedIn) body += `<div class="banner warn">⏰ You are not checked in today.<button class="btn sm" data-nav="me" style="margin-left:auto">${t('checkin')}</button></div>`;
+  // My scorecard — score, this-month attendance + late penalty, at a glance.
+  const ms = mechanicScore(me), mp = latePenaltyFor(me), matt = mechAttendance(me, true);
+  body += `<div class="card" data-act="myScorecard" style="cursor:pointer"><div class="row between">
+      <div><div class="muted small">My score</div><div class="stat">${ms.score}<span style="font-size:14px"> /100</span></div></div>
+      <div style="text-align:right"><div class="stars big">${starStr(scoreStars(ms.score))}</div>
+        <div class="tiny muted">${matt.lates} late${mp.amount ? ' · ' + money(mp.amount) + ' penalty' : ''} this month</div></div></div>
+    <div class="tiny muted" style="margin-top:6px">Tap for your attendance, penalties &amp; how the score is built.</div></div>`;
+  body += `<button class="btn" data-act="openScoreboard" style="margin-bottom:14px">🏆 Team leaderboard</button>`;
   body += `<div class="grid2">
     <div class="card tile"><div class="muted small">My open jobs</div><div class="stat">${open.length}</div></div>
     <div class="card tile"><div class="muted small">Completed</div><div class="stat">${myJobs.filter((j) => j.status === 'done' || j.status === 'verified').length}</div></div></div>`;
@@ -1085,6 +1093,7 @@ function viewMe() {
          <div class="li" data-act="openAssignments"><div class="ava">🔁</div><div class="main"><div class="t">Driver ↔ Bus assignments</div><div class="s">Who drives which bus · reassign in one place</div></div></div>
          <div class="li" data-act="openStaff"><div class="ava">👥</div><div class="main"><div class="t">Staff</div><div class="s">${S.cache.users.length} accounts · add new</div></div></div>
          <div class="li" data-act="openReports"><div class="ava">📊</div><div class="main"><div class="t">Bus reports</div><div class="s">Total maintenance spend per bus + full detail</div></div></div>
+         <div class="li" data-act="openScoreboard"><div class="ava">🏆</div><div class="main"><div class="t">Mechanic scorecards</div><div class="s">Attendance, late penalties &amp; work-quality ratings</div></div></div>
          <div class="li" data-act="openRoutes"><div class="ava">🕒</div><div class="main"><div class="t">Routes &amp; timings</div><div class="s">Pickup geofences, go-times &amp; punctuality</div></div></div>
          <div class="li" data-act="openSetup"><div class="ava">⚙️</div><div class="main"><div class="t">Garage setup</div><div class="s">Location, geofence, shift time · start fresh</div></div></div>` : ''}
     <div class="li" data-act="changePin"><div class="ava">🔑</div><div class="main"><div class="t">${t('changePin')}</div><div class="s">Set a new 4-digit login PIN</div></div></div>
@@ -1498,6 +1507,14 @@ function sheetGarageSetup() {
       <label class="field"><span class="lbl">Late after (HH:MM)</span><input id="f-gcutoff" value="${esc(g.lateCutoff || '09:30')}" placeholder="09:30"></label>
     </div>
     <label class="field"><span class="lbl">Labour rate (₹ per hour)</span><input id="f-grate" type="number" inputmode="numeric" value="${g.labourRate || DEFAULT_LABOUR_RATE}"></label>
+    <div class="card" style="box-shadow:none;background:var(--tile);padding:12px">
+      <div class="tiny muted" style="margin-bottom:6px">⏱️ Mechanic late-attendance penalty (set 0 to disable)</div>
+      <div class="grid2">
+        <label class="field" style="margin:0"><span class="lbl">₹ per late</span><input id="f-glatepen" type="number" inputmode="numeric" value="${g.latePenalty || 0}"></label>
+        <label class="field" style="margin:0"><span class="lbl">Free lates/month</span><input id="f-glategrace" type="number" inputmode="numeric" value="${g.lateGraceDays || 0}"></label>
+      </div>
+      <label class="field" style="margin:8px 0 0"><span class="lbl">Monthly cap (₹, 0 = none)</span><input id="f-glatecap" type="number" inputmode="numeric" value="${g.latePenaltyCap || 0}"></label>
+    </div>
     <button class="btn primary" data-act="saveGarage">${t('save')}</button>
     <div class="hr"></div>
     <div class="tiny muted" style="margin-bottom:8px">Setting up for your real garage? This clears the demo buses, parts, drivers, jobs and bills and starts empty.</div>
@@ -1522,6 +1539,7 @@ async function saveGarage() {
   const cut = $('#f-gcutoff').value.trim();
   g.lateCutoff = /^\d{1,2}:\d{2}$/.test(cut) ? cut : (g.lateCutoff || '09:30');
   g.labourRate = Number($('#f-grate') ? $('#f-grate').value : 0) || g.labourRate || DEFAULT_LABOUR_RATE;
+  if ($('#f-glatepen')) { g.latePenalty = Number($('#f-glatepen').value) || 0; g.lateGraceDays = Number($('#f-glategrace').value) || 0; g.latePenaltyCap = Number($('#f-glatecap').value) || 0; }
   await DB.put('meta', g);
   _setupLat = _setupLng = null;
   await load(); closeSheet(); toast('Garage settings saved ✓'); rerender();
@@ -1803,6 +1821,83 @@ async function shareText(title, text) {
   catch (e) { openSheet(title, `<textarea style="width:100%;height:240px" readonly>${esc(text)}</textarea>`); }
 }
 
+/* ========================= Mechanic Scorecard =============================
+ * Each mechanic sees their attendance, late penalty, and a 0–100 work-quality
+ * score (last 90 days) built from rework, proof-photo discipline, turnaround
+ * and punctuality. Owner sets the late-penalty policy. Everyone sees the board.
+ */
+const sameMonth = (ts) => { const d = new Date(ts), n = new Date(); return d.getFullYear() === n.getFullYear() && d.getMonth() === n.getMonth(); };
+function mechAttendance(userId, monthOnly) {
+  let ins = (S.cache.att || []).filter((a) => a.userId === userId && a.type === 'in');
+  if (monthOnly) ins = ins.filter((a) => sameMonth(a.at));
+  const lates = ins.filter((a) => a.late).length;
+  return { checkins: ins.length, lates, onTime: ins.length ? Math.round((ins.length - lates) / ins.length * 100) : 100 };
+}
+function latePenaltyFor(userId) {
+  const g = S.cache.garage || {};
+  const rate = Number(g.latePenalty) || 0, grace = Number(g.lateGraceDays) || 0, cap = Number(g.latePenaltyCap) || 0;
+  const lates = mechAttendance(userId, true).lates;
+  const chargeable = Math.max(0, lates - grace);
+  let amount = chargeable * rate; if (cap) amount = Math.min(amount, cap);
+  return { lates, grace, chargeable, rate, cap, amount };
+}
+// 0–100 work-quality score (last 90 days) with a transparent penalty breakdown.
+function mechanicScore(userId) {
+  const since = Date.now() - 90 * day;
+  const jobs = S.cache.jobs.filter((j) => j.assignedTo === userId && (j.closedAt || j.createdAt) >= since);
+  const closed = jobs.filter((j) => j.status === 'done' || j.status === 'verified');
+  const reworks = jobs.reduce((s, j) => s + (j.reworkCount || 0), 0);
+  const proofGaps = closed.filter((j) => !(j.afterPhotos || []).length && jobCost(j).parts > 0).length;
+  const bay = closed.filter((j) => j.closedAt);
+  const avgBay = bay.length ? bay.reduce((s, j) => s + Math.max(0, (j.closedAt - j.createdAt) / day), 0) / bay.length : 0;
+  const att = mechAttendance(userId, false);
+  const lateRate = att.checkins ? att.lates / att.checkins : 0;
+  const pen = {
+    rework: Math.min(40, reworks * 12),                       // quality first — heaviest
+    proof: Math.min(25, proofGaps * 8),
+    turnaround: Math.min(15, Math.round(Math.max(0, avgBay - 2) * 3)),  // only beyond 2 days; weighted low
+    punctuality: Math.min(20, Math.round(lateRate * 40)),
+  };
+  const score = Math.max(0, 100 - pen.rework - pen.proof - pen.turnaround - pen.punctuality);
+  return { score, jobs: jobs.length, verified: jobs.filter((j) => j.status === 'verified').length, reworks, proofGaps, avgBay: Math.round(avgBay * 10) / 10, att, pen };
+}
+function penLine(label, count, pen) {
+  return `<div class="row between small" style="padding:3px 0"><span>${label}${count != null ? ` ×${count}` : ''}</span><b style="color:${pen > 0 ? 'var(--red)' : 'var(--green)'}">${pen > 0 ? '−' + pen : '0'}</b></div>`;
+}
+function viewScoreboard() {
+  const mechs = S.cache.users.filter((u) => u.role === 'mechanic').map((u) => ({ u, s: mechanicScore(u.id).score })).sort((a, b) => b.s - a.s);
+  let body = `<div class="card"><div class="tiny muted">Work-quality score, last 90 days — from rework, proof photos, turnaround &amp; punctuality. Tap a name for the detail.</div></div>`;
+  body += `<div class="card"><h3>Mechanic leaderboard</h3>`;
+  body += mechs.length ? mechs.map(({ u, s }, i) => `<div class="li" data-act="scorecard" data-user="${u.id}" style="cursor:pointer">
+    <div class="ava">${i === 0 ? '🏆' : '🔧'}</div><div class="main"><div class="t">${i + 1}. ${esc(u.name)}${u.id === S.user.id ? ' (you)' : ''}</div></div>
+    <span class="badge ${scoreClass(s)}">${s}</span></div>`).join('') : `<div class="empty">No mechanics yet</div>`;
+  body += `</div>`;
+  shell('Mechanic leaderboard', body);
+}
+function viewScorecard(userId) {
+  const u = byId(S.cache.users, userId);
+  if (!u) return viewScoreboard();
+  if (u.id !== S.user.id && !['owner', 'supervisor'].includes(S.user.role)) return route({ name: 'home' });   // mechanics see only their own
+  const m = mechanicScore(userId), pen = latePenaltyFor(userId), att = mechAttendance(userId, true);
+  let body = `<div class="card"><div class="row between"><div><div style="font-weight:800;font-size:17px">${esc(u.name)}</div><div class="small muted">Mechanic scorecard</div></div>
+      <div style="text-align:right"><span class="badge ${scoreClass(m.score)}" style="font-size:15px">${m.score}/100</span><div class="stars">${starStr(scoreStars(m.score))}</div></div></div></div>`;
+  body += `<div class="card"><h3>Attendance (this month)</h3><div class="grid2">
+      <div><div class="tiny muted">Days present</div><b>${att.checkins}</b></div>
+      <div><div class="tiny muted">Late</div><b>${att.lates}</b></div>
+      <div><div class="tiny muted">On-time</div><b>${att.onTime}%</b></div>
+      <div><div class="tiny muted">Late penalty</div><b style="color:var(--red)">${money(pen.amount)}</b></div></div>
+    ${pen.rate ? `<div class="tiny muted" style="margin-top:8px">${pen.grace} free late/month, then ${money(pen.rate)} each${pen.cap ? ` (monthly cap ${money(pen.cap)})` : ''} · ${pen.chargeable} chargeable now.</div>`
+      : `<div class="tiny muted" style="margin-top:8px">No late penalty set${['owner', 'supervisor'].includes(S.user.role) ? ' — set it in Me → Garage setup.' : '.'}</div>`}</div>`;
+  body += `<div class="card"><h3>Work quality — why ${m.score}/100</h3>
+    ${penLine('Rework sent back', m.reworks, m.pen.rework)}
+    ${penLine('Missing proof photos', m.proofGaps, m.pen.proof)}
+    ${penLine(`Slow turnaround (avg ${m.avgBay}d)`, null, m.pen.turnaround)}
+    ${penLine('Late attendance', att.lates, m.pen.punctuality)}
+    <div class="hr"></div><div class="row between small"><span class="muted">Jobs (90d) · verified first-time</span><b>${m.jobs} · ${m.verified}</b></div>
+    <div class="tiny muted" style="margin-top:8px">${m.score >= 85 ? '👏 Great work — keep before+after photos on every job and check in on time.' : 'Raise your score: get jobs verified first time (no rework), always add before + after photos, and check in before the shift cutoff.'}</div></div>`;
+  shell(esc(u.name), body);
+}
+
 /* ----------------------------- Job actions -------------------------------- */
 async function addJobPhoto(jobId, field) {
   const shot = await capturePhoto();
@@ -2023,6 +2118,7 @@ async function rejectJob(jobId) {
   const j = byId(S.cache.jobs, jobId);
   if (!confirm('Send this job back to the mechanic for rework?')) return;
   j.status = 'in-progress'; j.closedAt = null;
+  j.reworkCount = (j.reworkCount || 0) + 1;   // counts against the mechanic's quality score
   await DB.put('jobcards', j);
   await load(); toast('Sent back for rework'); viewJobDetail(jobId);
 }
@@ -2833,6 +2929,8 @@ function render(r) {
     case 'company': return viewCompanyDetail(r.id);
     case 'reports': return viewReports();
     case 'busreport': return viewBusReport(r.id);
+    case 'scoreboard': return viewScoreboard();
+    case 'scorecard': return viewScorecard(r.id);
     default: return viewHome();
   }
 }
@@ -2916,6 +3014,9 @@ function bind() {
       case 'confirmLogService': return confirmLogService(el.getAttribute('data-bus'));
       case 'openInsights': return push({ name: 'insights' });
       case 'openReports': return push({ name: 'reports' });
+      case 'openScoreboard': return push({ name: 'scoreboard' });
+      case 'scorecard': return push({ name: 'scorecard', id: el.getAttribute('data-user') });
+      case 'myScorecard': return push({ name: 'scorecard', id: S.user.id });
       case 'busReport': return push({ name: 'busreport', id: el.getAttribute('data-bus') });
       case 'reportPeriod': { S.reportDays = Number(el.getAttribute('data-days')); return rerender(); }
       case 'shareBusReport': return shareText(busName(el.getAttribute('data-bus')) + ' report', busReportText(el.getAttribute('data-bus')));
