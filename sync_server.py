@@ -263,6 +263,9 @@ def ingest_gps(events):
             "odometer": int(float(e.get("odometerKm") or 0)),
             "lastPing": iso_ms(e.get("timestamp")),
             "deviceId": e.get("deviceId"),
+            # Keep the original display registration (norm_reg strips spaces/case)
+            # so the app can pull the fleet and create buses with the proper regNo.
+            "reg": (e.get("vehicleReg") or e.get("deviceId") or "").strip(),
         }
         accepted += 1
     return {"ok": True, "accepted": accepted}
@@ -362,6 +365,12 @@ class Handler(BaseHTTPRequestHandler):
             reg = (parse_qs(u.query).get("reg") or [""])[0]
             data = LIVE_GPS.get(norm_reg(reg))
             return self._send(200 if data else 404, data or {"error": "no telemetry for reg"})
+        if u.path == "/gps/fleet":                    # every registration AirFi has pushed
+            if not self._auth_user():
+                return self._send(401, {"error": "unauthorized"})
+            buses = [{"reg": v.get("reg") or k, "odometer": v.get("odometer"), "lastPing": v.get("lastPing")}
+                     for k, v in LIVE_GPS.items()]
+            return self._send(200, {"buses": sorted(buses, key=lambda b: b["reg"])})
         self._send(404, {"error": "not found"})
 
     def do_POST(self):

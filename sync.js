@@ -101,6 +101,15 @@ const Sync = (function () {
     } catch (e) { return { configured: false }; }
   }
 
+  // Pull the fleet AirFi has pushed telemetry for — list of {reg, odometer, lastPing}.
+  async function fleet() {
+    try {
+      const res = await fetch(baseUrl() + '/gps/fleet', { headers: authHeaders() });
+      if (!res.ok) return [];
+      return (await res.json()).buses || [];
+    } catch (e) { return []; }
+  }
+
   // Change a user's PIN on the server (self, or owner resetting staff).
   async function setPin(userId, pin) {
     const res = await fetch(baseUrl() + '/auth/setpin', {
@@ -274,7 +283,7 @@ const Sync = (function () {
   // Drain the quarantine so retried/fixed records get another chance.
   function clearQuarantine() { quarantine = {}; saveQuarantine(); kick(); }
 
-  return { start, tick, kick, setUrl, reset, info, login, logout, addStaff, setPin, ai, uploadPhoto,
+  return { start, tick, kick, setUrl, reset, info, login, logout, addStaff, setPin, ai, fleet, uploadPhoto,
            queuePhoto, remove, clearQuarantine,
            get status() { return status; } };
 })();

@@ -670,8 +670,39 @@ function busLi(b) {
 }
 function viewBuses() {
   const list = [...S.cache.buses].sort((a, b) => a.regNo.localeCompare(b.regNo));
-  let body = `<div class="card">${list.length ? list.map(busLi).join('') : `<div class="empty">No buses yet</div>`}</div>`;
+  let body = '';
+  if (can(S.user.role, 'addBus')) {
+    body += `<button class="btn" data-act="importFleet" style="margin-bottom:12px">📡 Import fleet from AirFi (GPS)</button>`;
+  }
+  body += `<div class="card">${list.length ? list.map(busLi).join('') : `<div class="empty">No buses yet</div>`}</div>`;
   shell(t('buses'), body, can(S.user.role, 'addBus') ? { act: 'addBus', icon: '+' } : null);
+}
+// Pull the fleet AirFi is tracking and create a bus for any registration we
+// don't have yet. New buses then track live automatically via GpsProvider.
+const _normReg = (s) => (s || '').toUpperCase().replace(/[\s-]/g, '');
+async function importFleet() {
+  if (!can(S.user.role, 'addBus')) return toast('Not allowed');
+  toast('Pulling fleet from AirFi…');
+  const fleet = await Sync.fleet();
+  if (!fleet.length) {
+    return toast('No buses from AirFi yet — they appear once trackers start pushing.');
+  }
+  const have = new Set((S.cache.buses || []).map((b) => _normReg(b.regNo)));
+  let added = 0;
+  for (const f of fleet) {
+    const reg = (f.reg || '').trim();
+    if (!reg || have.has(_normReg(reg))) continue;
+    const odo = Number(f.odometer) || 0;
+    await DB.put('buses', {
+      id: uid('b-'), regNo: reg, company: '', model: '', chassis: '', engine: '',
+      odometer: odo, serviceIntervalKm: SERVICE_INTERVAL_KM, lastServiceOdo: odo,
+      docs: [], photos: [], source: 'airfi',
+    });
+    have.add(_normReg(reg)); added++;
+  }
+  await load();
+  toast(added ? `Imported ${added} bus(es) from AirFi ✓` : 'Fleet already up to date');
+  rerender();
 }
 
 function viewBusDetail(id) {
@@ -2482,6 +2513,7 @@ function bind() {
       case 'lang': LANG = LANG === 'en' ? 'hi' : 'en'; localStorage.setItem('lang', LANG); return rerender();
       case 'addBus': return sheetAddBus();
       case 'saveBus': return saveBus();
+      case 'importFleet': return importFleet();
       case 'addDoc': return sheetAddDoc(el.getAttribute('data-bus'), null);
       case 'editDoc': return sheetAddDoc(el.getAttribute('data-bus'), el.getAttribute('data-doc'));
       case 'saveDoc': return saveDoc(el.getAttribute('data-bus'));
