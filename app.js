@@ -228,7 +228,7 @@ function closeSheet() {
   const w = $('.sheetwrap'); if (w) w.remove();
   // Reset pending photo captures so a dismissed sheet can't leak its photo
   // into the next incident/bill (these are module-level scratch vars).
-  _incPhoto = ''; _billPhoto = ''; _docPhoto = '';
+  _incPhoto = ''; _billPhoto = ''; _docPhoto = ''; _stopLat = null; _stopLng = null;
 }
 
 /* ------------------------------ Data ops ---------------------------------- */
@@ -2319,7 +2319,7 @@ function createJobFromReport(reportId) {
 const hhmmToMin = (s) => { const m = /^(\d{1,2}):(\d{2})$/.exec(s || ''); return m ? (+m[1]) * 60 + (+m[2]) : null; };
 const minToHhmm = (n) => { n = ((Math.round(n) % 1440) + 1440) % 1440; return String(Math.floor(n / 60)).padStart(2, '0') + ':' + String(n % 60).padStart(2, '0'); };
 const nowMin = () => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); };
-const todayKey = () => { const d = new Date(); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); };
+const todayKey = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
 const routeForBus = (busId) => (S.cache.routes || []).find((r) => r.busId === busId) || null;
 
 // Auto-learned scheduled minute for a stop: median actual-arrival over the last
@@ -2328,13 +2328,15 @@ function learnedMin(stopId) {
   const since = Date.now() - 21 * day;
   const mins = (S.cache.triplog || []).filter((t) => t.stopId === stopId && t.at >= since && t.actualMin != null)
     .map((t) => t.actualMin).sort((a, b) => a - b);
-  return mins.length ? mins[Math.floor(mins.length / 2)] : null;
+  if (!mins.length) return null;
+  const mid = Math.floor(mins.length / 2);
+  return mins.length % 2 ? mins[mid] : Math.round((mins[mid - 1] + mins[mid]) / 2);   // true median
 }
 const stopSched = (stop) => { const m = hhmmToMin(stop.schedTime); return m != null ? m : learnedMin(stop.id); };
 const stopArrivalToday = (stopId) => (S.cache.triplog || []).find((t) => t.stopId === stopId && t.day === todayKey()) || null;
 function stopPunctuality(stop) {
   const logs = (S.cache.triplog || []).filter((t) => t.stopId === stop.id && t.deltaMin != null);
-  if (!logs.length) return { n: 0, onTime: 100, avgLate: 0 };
+  if (!logs.length) return { n: 0, onTime: null, avgLate: 0 };   // no scheduled history yet
   const late = logs.filter((t) => t.deltaMin > 3).length;
   const avgLate = Math.round(logs.reduce((s, t) => s + Math.max(0, t.deltaMin), 0) / logs.length);
   return { n: logs.length, onTime: Math.round((logs.length - late) / logs.length * 100), avgLate };
@@ -2350,9 +2352,13 @@ async function captureArrivals(bus, tel) {
     if (stopArrivalToday(stop.id)) continue;
     if (haversineM(tel.lat, tel.lng, stop.lat, stop.lng) <= (stop.radiusM || 150)) {
       const sched = stopSched(stop), aMin = nowMin();
-      await DB.put('triplog', { id: uid('tl-'), routeId: route.id, busId: bus.id, stopId: stop.id,
+      let delta = null;
+      if (sched != null) { delta = aMin - sched; if (delta > 720) delta -= 1440; else if (delta < -720) delta += 1440; }
+      const row = { id: uid('tl-'), routeId: route.id, busId: bus.id, stopId: stop.id,
         day: todayKey(), at: Date.now(), actualMin: aMin, scheduledMin: sched,
-        deltaMin: sched != null ? aMin - sched : null, source: tel.source || 'unknown' });
+        deltaMin: delta, source: tel.source || 'unknown' };
+      await DB.put('triplog', row);
+      (S.cache.triplog = S.cache.triplog || []).push(row);   // reflect immediately so we never double-log
       changed = true;
     }
   }
@@ -2363,18 +2369,20 @@ async function captureArrivals(bus, tel) {
 function routeRisk(bus, tel) {
   const route = routeForBus(bus.id);
   if (!route || !(route.stops || []).length) return null;
+  // Without a live position we can't predict — don't fire false alerts.
+  if (!tel || tel.lat == null) return null;
   const next = (route.stops || []).find((s) => !stopArrivalToday(s.id) && stopSched(s) != null);
   if (!next) return null;
   const sched = stopSched(next), mins = nowMin(), within = sched - mins;
-  if (within > 15) return null;                       // outside the warning window
-  let etaMin = null, reason = '';
-  if (tel && tel.lat != null) {
-    const distKm = haversineM(tel.lat, tel.lng, next.lat, next.lng) / 1000;
-    etaMin = mins + Math.round(distKm / Math.max(tel.speedKph || 0, 18) * 60);
-    if (!tel.ignition && distKm > 0.25) reason = 'engine still off';
-    else if (distKm > 0.25 && (tel.speedKph || 0) < 3) reason = 'not moving';
-  }
-  const late = within < 0 || (etaMin != null && etaMin > sched + 3) || (!!reason && within <= 10);
+  // Warning window: due within 15 min, or up to ~2h overdue. Outside that it's
+  // not this morning's pickup (avoids late-night false alerts for tomorrow's run).
+  if (within > 15 || within < -120) return null;
+  const distKm = haversineM(tel.lat, tel.lng, next.lat, next.lng) / 1000;
+  const etaMin = mins + Math.round(distKm / Math.max(tel.speedKph || 0, 8) * 60);   // honour slow/traffic speed
+  let reason = '';
+  if (!tel.ignition && distKm > 0.25) reason = 'engine still off';
+  else if (distKm > 0.25 && (tel.speedKph || 0) < 3) reason = 'not moving';
+  const late = within < 0 || etaMin > sched + 3 || (!!reason && within <= 10);
   if (!late) return null;
   return { stop: next, sched, etaMin, within, reason };
 }
@@ -2382,15 +2390,16 @@ function routeRisk(bus, tel) {
 let _routeMonitorOn = false, _riskAlerted = {};
 async function checkRoutes(opts = {}) {
   const buses = (S.cache.buses || []).filter((b) => routeForBus(b.id));
-  let changed = false; const risks = [];
+  let changed = false, gpsOffline = false; const risks = [];
   for (const b of buses) {
-    let tel = null; try { tel = await GpsProvider.live(b); } catch (e) { /* offline → skip */ }
+    let tel = null; try { tel = await GpsProvider.live(b); } catch (e) { gpsOffline = true; }
     if (await captureArrivals(b, tel)) changed = true;
     const r = routeRisk(b, tel);
     if (r) risks.push({ bus: b, ...r });
   }
   if (changed) await load();
-  S.routeRisks = risks;
+  const risksChanged = risks.length !== (S.routeRisks || []).length;
+  S.routeRisks = risks; S.routeGpsOffline = gpsOffline && buses.length > 0;
   if (opts.alert && S.user && can(S.user.role, 'manageRoutes')) {
     for (const r of risks) {
       if (_riskAlerted[r.stop.id] === todayKey()) continue;
@@ -2398,7 +2407,7 @@ async function checkRoutes(opts = {}) {
       toast(`⚠️ ${busName(r.bus.id)} may be late to ${r.stop.name}${r.etaMin != null ? ' · ETA ' + minToHhmm(r.etaMin) : ''}`);
     }
   }
-  if (changed && S.user && !document.querySelector('.sheetwrap')) rerender();
+  if ((changed || risksChanged) && S.user && !document.querySelector('.sheetwrap')) rerender();
   return risks;
 }
 function startRouteMonitor() {
@@ -2426,7 +2435,7 @@ function viewRoutes() {
   let body = '';
   if (risks.length) {
     body += `<div class="card" style="border:1.5px solid var(--amber)"><div class="row between"><h3>⚠️ Pickups at risk now</h3><span class="badge b-amber">${risks.length}</span></div>`;
-    body += risks.map((r) => `<div class="li" data-bus="${r.bus.id}"><div class="ava">🚍</div>
+    body += risks.map((r) => `<div class="li" data-routebus="${r.bus.id}"><div class="ava">🚍</div>
       <div class="main"><div class="t">${esc(busName(r.bus.id))} → ${esc(r.stop.name)}</div>
       <div class="s">due ${minToHhmm(r.sched)}${r.etaMin != null ? ' · ETA ' + minToHhmm(r.etaMin) : ''}${r.reason ? ' · ' + r.reason : ''}</div></div>
       <span class="badge b-amber">late risk</span></div>`).join('');
@@ -2461,7 +2470,7 @@ function viewRouteDetail(busId) {
       return `<div class="li" data-act="editStop" data-routebus="${busId}" data-stop="${s.id}" style="cursor:pointer">
         <div class="ava">${i === 0 ? '①' : i + 1}</div>
         <div class="main"><div class="t">${esc(s.name)}</div>
-          <div class="s">go ${sched != null ? minToHhmm(sched) : '—'}${learned ? ' (learned)' : ''} · on-time ${p.onTime}%${p.avgLate ? ' · avg +' + p.avgLate + 'm' : ''} · ${p.n} day(s)</div></div>
+          <div class="s">go ${sched != null ? minToHhmm(sched) : '—'}${learned ? ' (learned)' : ''} · on-time ${p.onTime == null ? '—' : p.onTime + '%'}${p.avgLate ? ' · avg +' + p.avgLate + 'm' : ''} · ${p.n} day(s)</div></div>
         ${routeStatusBadge(s)}</div>`;
     }).join('');
     body += `</div>`;
@@ -2483,7 +2492,7 @@ function sheetAddStop(busId, stopId) {
       <button class="btn sm" data-act="captureStopLoc" style="margin-top:8px">📍 Use my current location</button>
     </div>
     <div class="grid2">
-      <label class="field"><span class="lbl">Radius (m)</span><input id="f-stopradius" type="number" inputmode="numeric" value="${cur && cur.radiusM || 150}"></label>
+      <label class="field"><span class="lbl">Radius (m)</span><input id="f-stopradius" type="number" inputmode="numeric" min="10" value="${cur && cur.radiusM || 150}"></label>
       <label class="field"><span class="lbl">Go-time (HH:MM, blank = auto-learn)</span><input id="f-stoptime" value="${esc(cur && cur.schedTime || '')}" placeholder="06:45"></label>
     </div>
     <button class="btn primary" data-act="saveStop" data-routebus="${busId}">${t('save')}</button>
@@ -2508,9 +2517,9 @@ async function saveStop(busId) {
   let route = routeForBus(busId);
   if (!route) { route = { id: uid('rt-'), busId, name: busName(busId), stops: [] }; }
   route.stops = route.stops || [];
-  const data = { name, radiusM: Number($('#f-stopradius').value) || 150, schedTime: time };
+  const data = { name, radiusM: Math.max(10, Number($('#f-stopradius').value) || 150), schedTime: time };
   if (cur) {
-    const s = route.stops.find((x) => x.id === cur); if (!s) return;
+    const s = route.stops.find((x) => x.id === cur); if (!s) return toast('Stop not found — it may have been changed on another device');
     Object.assign(s, data);
     if (_stopLat != null) { s.lat = _stopLat; s.lng = _stopLng; }
   } else {
@@ -2523,7 +2532,9 @@ async function saveStop(busId) {
 async function delStop(busId, stopId) {
   const route = routeForBus(busId); if (!route) return;
   route.stops = (route.stops || []).filter((s) => s.id !== stopId);
-  await DB.put('routes', route);
+  // Removing the last stop → drop the (now empty) route via a synced tombstone.
+  if (!route.stops.length) await DB.softDel('routes', route.id);
+  else await DB.put('routes', route);
   await load(); closeSheet(); toast('Stop removed'); viewRouteDetail(busId);
 }
 
@@ -2819,7 +2830,7 @@ function bind() {
       case 'openSync': return sheetSync();
       case 'openSetup': return sheetGarageSetup();
       case 'openRoutes': return push({ name: 'routes' });
-      case 'checkRoutesNow': { toast('Checking live GPS…'); checkRoutes({ alert: true }).then((r) => toast(r.length ? `${r.length} at risk` : 'All on track ✓')); return; }
+      case 'checkRoutesNow': { toast('Checking live GPS…'); checkRoutes({ alert: true }).then((r) => toast(S.routeGpsOffline ? '⚠️ GPS offline — arrivals not captured' : (r.length ? `${r.length} at risk` : 'All on track ✓'))); return; }
       case 'addStop': return sheetAddStop(el.getAttribute('data-routebus'), null);
       case 'editStop': return sheetAddStop(el.getAttribute('data-routebus'), el.getAttribute('data-stop'));
       case 'saveStop': return saveStop(el.getAttribute('data-routebus'));
