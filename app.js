@@ -688,11 +688,14 @@ function viewHome() {
 /* ----- Buses ----- */
 function busLi(b) {
   const alerts = (b.docs || []).filter((d) => daysLeft(d.expiry) <= 15).length;
+  // The row taps into bus detail; the Track button (its own data-act) taps into
+  // the live tracking page — closest() matches the button first, so they don't clash.
   return `<div class="li" data-bus="${b.id}">
     ${avatar(busImg(b), '🚌')}
     <div class="main"><div class="t">${esc(b.regNo)}</div>
       <div class="s">${esc(b.company)} · ${esc(b.model)} · ${(b.odometer||0).toLocaleString('en-IN')} km</div></div>
     ${alerts ? `<span class="badge b-red">${alerts}!</span>` : ''}
+    <button class="btn sm" data-act="trackBus" data-bus="${b.id}" style="width:auto" title="Live track">🛰️</button>
   </div>`;
 }
 function viewBuses() {
