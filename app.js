@@ -234,13 +234,13 @@ function closeSheet() {
 
 /* ------------------------------ Data ops ---------------------------------- */
 async function load() {
-  const [users, buses, parts, jobs, ledger, att, purchases, drivers, incidents, driverreports, routes, triplog, fuel, garage] = await Promise.all([
+  const [users, buses, parts, jobs, ledger, att, purchases, drivers, incidents, driverreports, routes, triplog, fuel, gpsevents, garage] = await Promise.all([
     DB.all('users'), DB.all('buses'), DB.all('parts'), DB.all('jobcards'),
     DB.all('ledger'), DB.all('attendance'), DB.all('purchases'),
     DB.all('drivers'), DB.all('incidents'), DB.all('driverreports'),
-    DB.all('routes'), DB.all('triplog'), DB.all('fuel'), DB.get('meta', 'garage'),
+    DB.all('routes'), DB.all('triplog'), DB.all('fuel'), DB.all('gpsevents'), DB.get('meta', 'garage'),
   ]);
-  S.cache = { users, buses, parts, jobs, ledger, att, purchases, drivers, incidents, driverreports, routes, triplog, fuel, garage };
+  S.cache = { users, buses, parts, jobs, ledger, att, purchases, drivers, incidents, driverreports, routes, triplog, fuel, gpsevents, garage };
   refreshBiz();   // keep the displayed business name in sync with garage config
 }
 const byId = (arr, id) => arr.find((x) => x.id === id);
@@ -415,10 +415,28 @@ const driverIncidents = (driverId) => (S.cache.incidents || []).filter((i) => i.
 const openReportsForBus = (busId) => (S.cache.driverreports || []).filter((r) => r.busId === busId && r.status === 'open');
 
 // Performance score: 100 minus weighted penalties (last 90 days), 0..100.
+// Auto safety/misuse events detected from live GPS (server-side), penalty each.
+const GPS_EVENT = {
+  overspeed:  { label: 'Overspeeding',   icon: '💨', pen: 4 },
+  harshbrake: { label: 'Harsh braking',  icon: '🛑', pen: 3 },
+  night:      { label: 'Night movement', icon: '🌙', pen: 5 },
+  idle:       { label: 'Long idle',      icon: '🐌', pen: 1 },
+};
+const gpsEventsForBus = (busId) => {
+  const b = byId(S.cache.buses, busId); if (!b) return [];
+  const nr = _normReg(b.regNo);
+  return (S.cache.gpsevents || []).filter((e) => _normReg(e.reg) === nr).sort((a, b2) => b2.at - a.at);
+};
 function driverScore(driverId) {
   const since = Date.now() - 90 * day;
-  const pen = driverIncidents(driverId).filter((i) => i.at >= since)
+  let pen = driverIncidents(driverId).filter((i) => i.at >= since)
     .reduce((s, i) => s + ((INCIDENT[i.type] || INCIDENT.other).pen), 0);
+  const drv = driverById(driverId);
+  if (drv && drv.busId) {           // auto GPS events on the driver's bus also count (capped)
+    const gp = gpsEventsForBus(drv.busId).filter((e) => e.at >= since)
+      .reduce((s, e) => s + ((GPS_EVENT[e.type] || {}).pen || 0), 0);
+    pen += Math.min(40, gp);
+  }
   return Math.max(0, 100 - pen);
 }
 const scoreStars = (score) => Math.round((score / 20) * 2) / 2;   // 0..5, half steps
@@ -450,7 +468,7 @@ function topbar(title) {
 }
 
 // Which bottom tab should light up — sub-screens map back to their parent tab.
-const TAB_OF = { home: 'home', buses: 'buses', jobs: 'jobs', store: 'store', me: 'me', purchases: 'me', alerts: 'me', insights: 'home', drivers: 'home', assignments: 'home', company: 'home', routes: 'home', reports: 'home', busreport: 'home', livemap: 'home', track: 'home', fuel: 'home' };
+const TAB_OF = { home: 'home', buses: 'buses', jobs: 'jobs', store: 'store', me: 'me', purchases: 'me', alerts: 'me', insights: 'home', drivers: 'home', assignments: 'home', company: 'home', routes: 'home', reports: 'home', busreport: 'home', livemap: 'home', track: 'home', fuel: 'home', safety: 'home' };
 function bottomnav() {
   const active = TAB_OF[S.route.name] || 'home';
   // Each role gets a focused nav matching what they actually do.
@@ -1221,6 +1239,7 @@ function viewMe() {
          <div class="li" data-act="openLiveMap"><div class="ava">🗺️</div><div class="main"><div class="t">Live map</div><div class="s">Track every bus live, Uber-style</div></div></div>
          <div class="li" data-act="openReports"><div class="ava">📊</div><div class="main"><div class="t">Bus reports</div><div class="s">Total maintenance spend per bus + full detail</div></div></div>
          <div class="li" data-act="openFuel"><div class="ava">⛽</div><div class="main"><div class="t">Fuel &amp; mileage</div><div class="s">Fills, km/l, fuel ₹/km &amp; mileage-drop alerts</div></div></div>
+         <div class="li" data-act="openSafety"><div class="ava">🛡️</div><div class="main"><div class="t">Safety &amp; misuse</div><div class="s">Overspeed, harsh braking, night moves &amp; idling</div></div></div>
          <div class="li" data-act="openScoreboard"><div class="ava">🏆</div><div class="main"><div class="t">Mechanic scorecards</div><div class="s">Attendance, late penalties &amp; work-quality ratings</div></div></div>
          <div class="li" data-act="openRoutes"><div class="ava">🕒</div><div class="main"><div class="t">Routes &amp; timings</div><div class="s">Pickup geofences, go-times &amp; punctuality</div></div></div>
          <div class="li" data-act="openSetup"><div class="ava">⚙️</div><div class="main"><div class="t">Garage setup</div><div class="s">Location, geofence, shift time · start fresh</div></div></div>` : ''}
@@ -2107,6 +2126,29 @@ function viewFuel() {
   shell('Fuel & mileage', body);
 }
 
+/* ========================= Safety & misuse (from live GPS) ================= */
+function evDetail(e) {
+  if (e.type === 'overspeed') return Math.round(e.value) + ' km/h';
+  if (e.type === 'harshbrake') return '−' + Math.round(e.value) + ' km/h';
+  if (e.type === 'idle') return Math.round(e.value) + ' min idling';
+  if (e.type === 'night') return 'moving ' + Math.round(e.value) + ' km/h at night';
+  return '';
+}
+function viewSafety() {
+  const since = Date.now() - 7 * day;
+  const evs = (S.cache.gpsevents || []).filter((e) => e.at >= since).sort((a, b) => b.at - a.at);
+  const byType = {}; evs.forEach((e) => { byType[e.type] = (byType[e.type] || 0) + 1; });
+  let body = `<div class="card"><div class="tiny muted">Auto-detected from live GPS over the last 7 days — these also lower the driver's score.</div></div>`;
+  body += `<div class="card"><h3>Last 7 days</h3>` + Object.keys(GPS_EVENT).map((t) =>
+    `<div class="row between small" style="padding:4px 0"><span>${GPS_EVENT[t].icon} ${GPS_EVENT[t].label}</span><b>${byType[t] || 0}</b></div>`).join('') + `</div>`;
+  body += `<div class="card"><h3>Recent events</h3>`;
+  body += evs.length ? evs.slice(0, 50).map((e) => { const c = GPS_EVENT[e.type] || { icon: '•', label: e.type };
+    return `<div class="li"><div class="ava">${c.icon}</div><div class="main"><div class="t">${esc(e.reg)} · ${c.label}</div>
+      <div class="s">${evDetail(e)} · ${fmtDateTime(e.at)}</div></div></div>`; }).join('') : `<div class="empty">No safety events — clean driving 👍</div>`;
+  body += `</div>`;
+  shell('Safety & misuse', body);
+}
+
 /* ----------------------------- Job actions -------------------------------- */
 async function addJobPhoto(jobId, field) {
   const shot = await capturePhoto();
@@ -2482,6 +2524,19 @@ function viewDriverDetail(id) {
     : `<div class="muted small">Clean record 👍</div>`;
   body += `</div>`;
 
+  // Safety events auto-detected from the assigned bus's live GPS (last 90 days)
+  if (d.busId) {
+    const since = Date.now() - 90 * day;
+    const evs = gpsEventsForBus(d.busId).filter((e) => e.at >= since);
+    const byT = {}; evs.forEach((e) => { byT[e.type] = (byT[e.type] || 0) + 1; });
+    body += `<div class="card"><div class="row between"><h3>Safety (live GPS)</h3><span class="badge ${evs.length ? 'b-amber' : 'b-green'}">${evs.length}</span></div>`;
+    if (evs.length) {
+      body += `<div class="row" style="flex-wrap:wrap;gap:6px;margin-bottom:8px">${Object.keys(byT).map((t) => { const c = GPS_EVENT[t] || { icon: '•', label: t }; return `<span class="badge b-low">${c.icon} ${c.label} ×${byT[t]}</span>`; }).join('')}</div>`;
+      body += evs.slice(0, 6).map((e) => { const c = GPS_EVENT[e.type] || { icon: '•', label: e.type };
+        return `<div class="li"><div class="ava">${c.icon}</div><div class="main"><div class="t">${c.label}</div><div class="s">${evDetail(e)} · ${fmtDate(e.at)}</div></div></div>`; }).join('');
+    } else { body += `<div class="muted small">No GPS safety flags 👍</div>`; }
+    body += `</div>`;
+  }
   body += `<div class="card"><h3>Trip reports</h3>`;
   body += reps.length ? reps.map((r) => `<div class="li" ${r.jobId ? `data-job="${r.jobId}"` : ''}>
       <div class="ava">${r.status === 'open' ? '🟠' : '✅'}</div>
@@ -3018,6 +3073,22 @@ function computeInsights() {
     .forEach(({ j, age }) => out.push({ sev: 'low', icon: '⏳', title: `Job aging ${age}d — ${busName(j.busId)}`,
       detail: `Open ${age} days. Long bay time = lost running days for the bus.`, nav: { name: 'jobs', id: j.id } }));
 
+  // Misuse / safety from live GPS (last 24h–7d)
+  const ev24 = (S.cache.gpsevents || []).filter((e) => e.at >= Date.now() - day);
+  const ev7 = (S.cache.gpsevents || []).filter((e) => e.at >= Date.now() - 7 * day);
+  // Night movement in the last 24h — possible unauthorized use
+  const nightBy = {}; ev24.filter((e) => e.type === 'night').forEach((e) => { nightBy[e.reg] = (nightBy[e.reg] || 0) + 1; });
+  Object.keys(nightBy).forEach((reg) => out.push({ sev: 'high', icon: '🌙', title: `Night movement — ${reg}`,
+    detail: `${nightBy[reg]} night-time move(s) in 24h. Confirm it's an authorised trip, not misuse.`, nav: { name: 'safety' } }));
+  // Overspeed-heavy in the last 7 days
+  const ovBy = {}; ev7.filter((e) => e.type === 'overspeed').forEach((e) => { ovBy[e.reg] = (ovBy[e.reg] || 0) + 1; });
+  Object.entries(ovBy).filter(([, n]) => n >= 5).forEach(([reg, n]) => out.push({ sev: 'med', icon: '💨', title: `Frequent overspeeding — ${reg}`,
+    detail: `${n} overspeed events this week. Coach the driver — it raises crash & fuel risk.`, nav: { name: 'safety' } }));
+  // Heavy idling — fuel waste
+  const idleBy = {}; ev7.filter((e) => e.type === 'idle').forEach((e) => { idleBy[e.reg] = (idleBy[e.reg] || 0) + 1; });
+  Object.entries(idleBy).filter(([, n]) => n >= 5).forEach(([reg, n]) => out.push({ sev: 'low', icon: '🐌', title: `Heavy idling — ${reg}`,
+    detail: `${n} long-idle events this week, burning fuel parked. Ask drivers to switch off.`, nav: { name: 'safety' } }));
+
   // Mileage drop — engine trouble or fuel pilferage
   buses.forEach((b) => { const m = busMileage(b.id);
     if (m.drop) out.push({ sev: 'high', icon: '⛽', title: `Mileage dropped — ${b.regNo}`,
@@ -3125,7 +3196,7 @@ async function askAi() {
  */
 const current = () => S.stack[S.stack.length - 1];
 // Role guard: routes restricted to certain roles fall back to home for others.
-const ROUTE_PERM = { insights: 'insights', drivers: 'manageDrivers', assignments: 'assignDriver', routes: 'manageRoutes', reports: 'dashboard', busreport: 'dashboard', livemap: 'dashboard', track: 'dashboard', fuel: 'addFuel' };
+const ROUTE_PERM = { insights: 'insights', drivers: 'manageDrivers', assignments: 'assignDriver', routes: 'manageRoutes', reports: 'dashboard', busreport: 'dashboard', livemap: 'dashboard', track: 'dashboard', fuel: 'addFuel', safety: 'dashboard' };
 function render(r) {
   if (typeof stopMap === 'function') stopMap();   // leaving any screen halts the live-map refresh timer
   if (typeof stopTrack === 'function') stopTrack();
@@ -3149,6 +3220,7 @@ function render(r) {
     case 'reports': return viewReports();
     case 'busreport': return viewBusReport(r.id);
     case 'fuel': return viewFuel();
+    case 'safety': return viewSafety();
     case 'scoreboard': return viewScoreboard();
     case 'scorecard': return viewScorecard(r.id);
     default: return viewHome();
@@ -3235,6 +3307,7 @@ function bind() {
       case 'openInsights': return push({ name: 'insights' });
       case 'openReports': return push({ name: 'reports' });
       case 'openFuel': return push({ name: 'fuel' });
+      case 'openSafety': return push({ name: 'safety' });
       case 'addFuel': return sheetAddFuel(el.getAttribute('data-bus'));
       case 'saveFuel': return saveFuel();
       case 'openLiveMap': return push({ name: 'livemap' });

@@ -5,7 +5,7 @@
  */
 
 const DB_NAME = 'garage-saathi';
-const DB_VERSION = 4;   // v4 adds the fuel store (onupgradeneeded creates any missing)
+const DB_VERSION = 5;   // v5 adds the gpsevents store (onupgradeneeded creates any missing)
 
 const STORES = {
   users: 'id',
@@ -21,6 +21,7 @@ const STORES = {
   routes: 'id',          // a bus's route: ordered geofenced stops + scheduled go-times
   triplog: 'id',         // per-day actual arrival at each stop → punctuality + auto-learn
   fuel: 'id',            // fuel fills (litres + ₹ + odometer) → mileage (km/l) & fuel ₹/km
+  gpsevents: 'id',       // auto safety/misuse events from live GPS (overspeed/harshbrake/night/idle)
   meta: 'key',
 };
 

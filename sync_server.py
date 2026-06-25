@@ -38,6 +38,11 @@ ALLOWED_ORIGIN = os.environ.get("ALLOWED_ORIGIN", "*")
 #   MAX_UPLOAD_MB       → reject oversized photo uploads (DoS guard)
 #   ANTHROPIC_API_KEY   → enables the server-side /ai proxy (keeps the key off devices)
 ENABLE_DEMO_SEED = os.environ.get("ENABLE_DEMO_SEED", "1") != "0"
+# GPS safety/misuse detection thresholds (configurable).
+OVERSPEED_KPH = float(os.environ.get("OVERSPEED_KPH", "80"))
+HARSH_DROP_KPH = float(os.environ.get("HARSH_DROP_KPH", "30"))   # speed drop in one push interval
+IDLE_MIN = int(os.environ.get("IDLE_MIN", "15"))                  # engine-on, not moving, minutes
+NIGHT_START_IST, NIGHT_END_IST = 23, 5                            # night-movement window (IST)
 MAX_UPLOAD_BYTES = int(os.environ.get("MAX_UPLOAD_MB", "8")) * 1024 * 1024
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "").strip()
 
@@ -250,25 +255,63 @@ def iso_ms(s):
         return int(time.time() * 1000)
 
 
+def _ist_hour(ms):
+    return int(((ms / 1000 + 5.5 * 3600) % 86400) // 3600)
+
 def ingest_gps(events):
     accepted = 0
+    new_events = []          # safety/misuse events detected this batch
     for e in events or []:
         reg = norm_reg(e.get("vehicleReg") or e.get("deviceId"))
         if not reg:
             continue
+        spd = float(e.get("speedKph") or 0)
+        ign = bool(e.get("ignition"))
+        ts = iso_ms(e.get("timestamp"))
+        lat, lng = e.get("lat"), e.get("lng")
+        disp = (e.get("vehicleReg") or e.get("deviceId") or "").strip()
+        p = LIVE_GPS.get(reg) or {}
+        night = _ist_hour(ts) >= NIGHT_START_IST or _ist_hour(ts) < NIGHT_END_IST
+
+        def mkev(t, v):
+            new_events.append({"id": "ev-" + uuid.uuid4().hex[:10], "reg": disp or reg, "type": t,
+                               "value": round(float(v), 1), "lat": lat, "lng": lng, "at": ts})
+        # Overspeed — only on the transition into overspeed (one event per episode).
+        if spd >= OVERSPEED_KPH and p.get("speedKph", 0) < OVERSPEED_KPH:
+            mkev("overspeed", spd)
+        # Harsh braking — large speed drop in a single interval.
+        if p and (p.get("speedKph", 0) - spd) >= HARSH_DROP_KPH and spd < p.get("speedKph", 0):
+            mkev("harshbrake", p.get("speedKph", 0) - spd)
+        # Night movement — moving during the night window (debounced to 30 min).
+        last_night = p.get("_lastNight", 0)
+        if ign and spd > 5 and night and (ts - last_night) > 30 * 60 * 1000:
+            mkev("night", spd); last_night = ts
+        # Long idle — engine on, not moving, ≥ IDLE_MIN (one event per episode).
+        idle_start, idle_logged = p.get("_idleStart"), p.get("_idleLogged", False)
+        if ign and spd < 2:
+            if not idle_start:
+                idle_start = ts
+            if not idle_logged and (ts - idle_start) >= IDLE_MIN * 60 * 1000:
+                mkev("idle", (ts - idle_start) / 60000.0); idle_logged = True
+        else:
+            idle_start, idle_logged = None, False
+
         LIVE_GPS[reg] = {
-            "lat": e.get("lat"), "lng": e.get("lng"),
-            "speedKph": float(e.get("speedKph") or 0),
-            "ignition": bool(e.get("ignition")),
-            "odometer": int(float(e.get("odometerKm") or 0)),
-            "lastPing": iso_ms(e.get("timestamp")),
-            "deviceId": e.get("deviceId"),
-            # Keep the original display registration (norm_reg strips spaces/case)
-            # so the app can pull the fleet and create buses with the proper regNo.
-            "reg": (e.get("vehicleReg") or e.get("deviceId") or "").strip(),
+            "lat": lat, "lng": lng, "speedKph": spd, "ignition": ign,
+            "odometer": int(float(e.get("odometerKm") or 0)), "lastPing": ts,
+            "deviceId": e.get("deviceId"), "reg": disp,
+            "_idleStart": idle_start, "_idleLogged": idle_logged, "_lastNight": last_night,
         }
         accepted += 1
-    return {"ok": True, "accepted": accepted}
+    if new_events:
+        with _lock:
+            c = db()
+            rev = c.execute("SELECT COALESCE(MAX(rev),0) FROM records").fetchone()[0]
+            now = now_ms()
+            for ev in new_events:
+                rev = _upsert_record(c, "gpsevents", ev["id"], ev, now, rev)
+            c.commit(); c.close()
+    return {"ok": True, "accepted": accepted, "events": len(new_events)}
 
 
 def gps_telemetry(bus_id, odo, reg=None):
