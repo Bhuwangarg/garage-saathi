@@ -101,13 +101,22 @@ const Sync = (function () {
     } catch (e) { return { configured: false }; }
   }
 
-  // Pull the fleet AirFi has pushed telemetry for — list of {reg, odometer, lastPing}.
+  // Pull the fleet AirFi has pushed telemetry for — list of {reg, odometer, lastPing, lat, lng, speedKph, ignition}.
   async function fleet() {
     try {
       const res = await fetch(baseUrl() + '/gps/fleet', { headers: authHeaders() });
       if (!res.ok) return [];
       return (await res.json()).buses || [];
     } catch (e) { return []; }
+  }
+  // Latest position for one registration (used as a fallback when /gps/fleet
+  // doesn't carry coordinates yet). Returns the telemetry record or null.
+  async function latest(reg) {
+    try {
+      const res = await fetch(baseUrl() + '/gps/latest?reg=' + encodeURIComponent(reg), { headers: authHeaders() });
+      if (!res.ok) return null;
+      return await res.json();
+    } catch (e) { return null; }
   }
 
   // Change a user's PIN on the server (self, or owner resetting staff).
@@ -283,7 +292,7 @@ const Sync = (function () {
   // Drain the quarantine so retried/fixed records get another chance.
   function clearQuarantine() { quarantine = {}; saveQuarantine(); kick(); }
 
-  return { start, tick, kick, setUrl, reset, info, login, logout, addStaff, setPin, ai, fleet, uploadPhoto,
+  return { start, tick, kick, setUrl, reset, info, login, logout, addStaff, setPin, ai, fleet, latest, uploadPhoto,
            queuePhoto, remove, clearQuarantine,
            get status() { return status; } };
 })();

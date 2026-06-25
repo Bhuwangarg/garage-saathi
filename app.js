@@ -751,6 +751,13 @@ async function refreshMap() {
   if (!_busMap || !window.L) return;
   let fleet = [];
   try { fleet = await Sync.fleet(); } catch (e) { /* offline */ }
+  // Fallback for older servers whose /gps/fleet lacks coordinates: pull each
+  // bus's latest position directly (capped so a huge fleet can't stampede).
+  const missing = fleet.filter((f) => f.lat == null && f.reg).slice(0, 60);
+  if (missing.length && Sync.latest) {
+    const got = await Promise.all(missing.map((f) => Sync.latest(f.reg)));
+    missing.forEach((f, i) => { const d = got[i]; if (d && d.lat != null) Object.assign(f, { lat: d.lat, lng: d.lng, speedKph: d.speedKph, ignition: d.ignition, lastPing: d.lastPing }); });
+  }
   if (!_busMap) return;   // navigated away while awaiting
   const pts = [];
   fleet.forEach((f) => {
