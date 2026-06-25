@@ -5,7 +5,7 @@
  */
 
 const DB_NAME = 'garage-saathi';
-const DB_VERSION = 3;   // v3 adds routes/triplog stores (onupgradeneeded creates any missing)
+const DB_VERSION = 4;   // v4 adds the fuel store (onupgradeneeded creates any missing)
 
 const STORES = {
   users: 'id',
@@ -20,6 +20,7 @@ const STORES = {
   driverreports: 'id',   // trip-end problems the driver reports → feed maintenance
   routes: 'id',          // a bus's route: ordered geofenced stops + scheduled go-times
   triplog: 'id',         // per-day actual arrival at each stop → punctuality + auto-learn
+  fuel: 'id',            // fuel fills (litres + ₹ + odometer) → mileage (km/l) & fuel ₹/km
   meta: 'key',
 };
 

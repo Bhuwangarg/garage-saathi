@@ -209,6 +209,7 @@ const PERMS = {
   assignDriver: ['owner', 'supervisor'],     // assign a driver to a bus
   logService: ['owner', 'supervisor'],       // resets service + writes a verified job
   manageRoutes: ['owner', 'supervisor'],     // routes, stops, go-times, punctuality
+  addFuel: ['owner', 'supervisor', 'store'], // log fuel fills; view mileage
 };
 
 /* ------------------------------ Sheets ------------------------------------ */
@@ -233,13 +234,13 @@ function closeSheet() {
 
 /* ------------------------------ Data ops ---------------------------------- */
 async function load() {
-  const [users, buses, parts, jobs, ledger, att, purchases, drivers, incidents, driverreports, routes, triplog, garage] = await Promise.all([
+  const [users, buses, parts, jobs, ledger, att, purchases, drivers, incidents, driverreports, routes, triplog, fuel, garage] = await Promise.all([
     DB.all('users'), DB.all('buses'), DB.all('parts'), DB.all('jobcards'),
     DB.all('ledger'), DB.all('attendance'), DB.all('purchases'),
     DB.all('drivers'), DB.all('incidents'), DB.all('driverreports'),
-    DB.all('routes'), DB.all('triplog'), DB.get('meta', 'garage'),
+    DB.all('routes'), DB.all('triplog'), DB.all('fuel'), DB.get('meta', 'garage'),
   ]);
-  S.cache = { users, buses, parts, jobs, ledger, att, purchases, drivers, incidents, driverreports, routes, triplog, garage };
+  S.cache = { users, buses, parts, jobs, ledger, att, purchases, drivers, incidents, driverreports, routes, triplog, fuel, garage };
   refreshBiz();   // keep the displayed business name in sync with garage config
 }
 const byId = (arr, id) => arr.find((x) => x.id === id);
@@ -449,7 +450,7 @@ function topbar(title) {
 }
 
 // Which bottom tab should light up — sub-screens map back to their parent tab.
-const TAB_OF = { home: 'home', buses: 'buses', jobs: 'jobs', store: 'store', me: 'me', purchases: 'me', alerts: 'me', insights: 'home', drivers: 'home', assignments: 'home', company: 'home', routes: 'home', reports: 'home', busreport: 'home', livemap: 'home', track: 'home' };
+const TAB_OF = { home: 'home', buses: 'buses', jobs: 'jobs', store: 'store', me: 'me', purchases: 'me', alerts: 'me', insights: 'home', drivers: 'home', assignments: 'home', company: 'home', routes: 'home', reports: 'home', busreport: 'home', livemap: 'home', track: 'home', fuel: 'home' };
 function bottomnav() {
   const active = TAB_OF[S.route.name] || 'home';
   // Each role gets a focused nav matching what they actually do.
@@ -506,6 +507,7 @@ function viewStoreHome() {
   body += `<div class="btnrow" style="margin-bottom:14px">
     <button class="btn primary" data-act="addStock">📥 ${t('addStock')}</button>
     <button class="btn" data-act="issueTo">📤 Issue part</button></div>`;
+  body += `<button class="btn" data-act="openFuel" style="margin-bottom:14px">⛽ Fuel &amp; mileage</button>`;
   body += `<div class="card"><div class="row between"><h3>Reorder soon</h3><span class="badge ${low.length ? 'b-amber' : 'b-green'}">${low.length}</span></div>`;
   body += low.length ? low.map((p) => `<div class="li" data-part="${p.id}">${avatar(partImg(p), '🔩')}<div class="main"><div class="t">${esc(p.name)}</div><div class="s">${p.qty} ${p.unit} left · reorder at ${p.reorderLevel}</div></div><span class="badge b-amber">LOW</span></div>`).join('') : `<div class="muted small">Stock healthy 👍</div>`;
   body += `</div>`;
@@ -871,6 +873,7 @@ function viewBusDetail(id) {
         <span class="badge ${c}">${sv.status === 'overdue' ? 'OVERDUE ' + Math.abs(sv.dueIn).toLocaleString('en-IN') + ' km' : 'in ' + sv.dueIn.toLocaleString('en-IN') + ' km'}</span></div>`; })()}
     <div class="btnrow"><button class="btn sm" data-act="trackBus" data-bus="${b.id}">🛰️ Track live</button>
       <button class="btn sm" data-act="gps" data-bus="${b.id}">📍 GPS &amp; service</button></div>
+    ${can(S.user.role, 'addFuel') ? `<button class="btn sm" data-act="addFuel" data-bus="${b.id}" style="margin-top:8px">⛽ Log fuel</button>` : ''}
   </div>`;
 
   // Driver assigned to this bus + their open trip reports
@@ -1217,6 +1220,7 @@ function viewMe() {
          <div class="li" data-act="openStaff"><div class="ava">👥</div><div class="main"><div class="t">Staff</div><div class="s">${S.cache.users.length} accounts · add new</div></div></div>
          <div class="li" data-act="openLiveMap"><div class="ava">🗺️</div><div class="main"><div class="t">Live map</div><div class="s">Track every bus live, Uber-style</div></div></div>
          <div class="li" data-act="openReports"><div class="ava">📊</div><div class="main"><div class="t">Bus reports</div><div class="s">Total maintenance spend per bus + full detail</div></div></div>
+         <div class="li" data-act="openFuel"><div class="ava">⛽</div><div class="main"><div class="t">Fuel &amp; mileage</div><div class="s">Fills, km/l, fuel ₹/km &amp; mileage-drop alerts</div></div></div>
          <div class="li" data-act="openScoreboard"><div class="ava">🏆</div><div class="main"><div class="t">Mechanic scorecards</div><div class="s">Attendance, late penalties &amp; work-quality ratings</div></div></div>
          <div class="li" data-act="openRoutes"><div class="ava">🕒</div><div class="main"><div class="t">Routes &amp; timings</div><div class="s">Pickup geofences, go-times &amp; punctuality</div></div></div>
          <div class="li" data-act="openSetup"><div class="ava">⚙️</div><div class="main"><div class="t">Garage setup</div><div class="s">Location, geofence, shift time · start fresh</div></div></div>` : ''}
@@ -1898,7 +1902,21 @@ function viewBusReport(busId) {
     <div class="row between small"><span class="muted">Outside vendor</span><b>${money(c.ext)}</b></div>
     <div class="hr"></div>
     <div class="row between"><b>Total</b><b style="color:var(--brand2)">${money(c.total)}</b></div>
-    ${cpk ? `<div class="tiny muted" style="margin-top:6px">≈ ₹${cpk.toFixed(2)}/km (lifetime)</div>` : ''}</div>`;
+    ${cpk ? `<div class="tiny muted" style="margin-top:6px">≈ ₹${cpk.toFixed(2)}/km maintenance (lifetime)</div>` : ''}</div>`;
+  // Fuel & mileage
+  const fm = busMileage(b.id);
+  body += `<div class="card"><div class="row between"><h3>Fuel &amp; mileage</h3>${fm.drop ? '<span class="badge b-red">mileage ↓</span>' : ''}</div>`;
+  if (fm.fills) {
+    body += `<div class="grid2">
+      <div><div class="tiny muted">Mileage</div><b>${fm.avgKmpl != null ? fm.avgKmpl.toFixed(1) + ' km/l' : '—'}</b></div>
+      <div><div class="tiny muted">Fuel cost/km</div><b>${fm.fuelPerKm != null ? '₹' + fm.fuelPerKm.toFixed(1) : '—'}</b></div>
+      <div><div class="tiny muted">Total fuel</div><b>${money(fm.totalCost)}</b></div>
+      <div><div class="tiny muted">Fills</div><b>${fm.fills}</b></div></div>
+      ${cpk != null && fm.fuelPerKm != null ? `<div class="hr"></div><div class="row between"><b>True running cost</b><b style="color:var(--brand2)">₹${(cpk + fm.fuelPerKm).toFixed(1)}/km</b></div>` : ''}`;
+  } else {
+    body += `<div class="muted small">No fuel logged yet.</div>`;
+  }
+  body += `${can(S.user.role, 'addFuel') ? `<div class="spacer"></div><button class="btn sm" data-act="addFuel" data-bus="${b.id}">⛽ Log fuel</button>` : ''}</div>`;
   body += `<div class="card"><h3>Jobs &amp; downtime</h3><div class="grid2">
       <div><div class="tiny muted">Jobs</div><b>${r.n}</b></div>
       <div><div class="tiny muted">Outside repairs</div><b>${r.extJobs}</b></div>
@@ -2020,6 +2038,73 @@ function viewScorecard(userId) {
     <div class="hr"></div><div class="row between small"><span class="muted">Jobs (90d) · verified first-time</span><b>${m.jobs} · ${m.verified}</b></div>
     <div class="tiny muted" style="margin-top:8px">${m.score >= 85 ? '👏 Great work — keep before+after photos on every job and check in on time.' : 'Raise your score: get jobs verified first time (no rework), always add before + after photos, and check in before the shift cutoff.'}</div></div>`;
   shell(esc(u.name), body);
+}
+
+/* ========================= Fuel & mileage =================================
+ * Log fills (litres + ₹ + odometer) → km/l (tank-to-tank), fuel ₹/km, total
+ * fuel spend, and a mileage-drop alert (engine trouble or fuel pilferage).
+ */
+const fuelEntries = (busId) => (S.cache.fuel || []).filter((f) => f.busId === busId).sort((a, b) => (a.odometer || 0) - (b.odometer || 0));
+function busMileage(busId) {
+  const fills = fuelEntries(busId);
+  let litres = 0; const segs = [];
+  for (let i = 1; i < fills.length; i++) {
+    const d = (fills[i].odometer || 0) - (fills[i - 1].odometer || 0);
+    if (d > 0 && fills[i].litres > 0) { litres += fills[i].litres; segs.push(d / fills[i].litres); }
+  }
+  const totalCost = fills.reduce((s, f) => s + (f.cost || 0), 0);
+  const spanKm = fills.length > 1 ? (fills[fills.length - 1].odometer - fills[0].odometer) : 0;
+  const avgKmpl = litres > 0 && spanKm > 0 ? spanKm / litres : null;
+  const lastKmpl = segs.length ? segs[segs.length - 1] : null;
+  let drop = false;
+  if (segs.length >= 3 && lastKmpl != null) {
+    const prior = segs.slice(0, -1), pavg = prior.reduce((s, x) => s + x, 0) / prior.length;
+    if (pavg > 0 && lastKmpl < pavg * 0.8) drop = true;     // >20% worse than usual
+  }
+  const fuelPerKm = spanKm > 0 ? totalCost / spanKm : null;
+  return { fills: fills.length, avgKmpl, lastKmpl, totalCost, fuelPerKm, drop };
+}
+function sheetAddFuel(busId) {
+  const buses = S.cache.buses;
+  if (!buses.length) return openSheet('Log fuel', `<div class="banner warn">Add a bus first.</div>`);
+  const b = busId ? byId(buses, busId) : null;
+  openSheet('Log fuel', `
+    ${b ? `<input type="hidden" id="f-fbus" value="${b.id}"><div class="small muted" style="margin-bottom:10px">Bus: <b>${esc(b.regNo)}</b></div>`
+      : `<label class="field"><span class="lbl">Bus</span><select id="f-fbus">${buses.map((x) => `<option value="${x.id}">${esc(x.regNo)}</option>`).join('')}</select></label>`}
+    <div class="grid2">
+      <label class="field"><span class="lbl">Litres</span><input id="f-flitres" type="number" inputmode="decimal" placeholder="e.g. 60"></label>
+      <label class="field"><span class="lbl">Amount (₹)</span><input id="f-fcost" type="number" inputmode="numeric"></label>
+    </div>
+    <label class="field"><span class="lbl">Odometer now (km)</span><input id="f-fodo" type="number" inputmode="numeric" value="${b ? (b.odometer || '') : ''}" placeholder="current reading"></label>
+    <label class="repcheck"><input type="checkbox" id="f-ffull" checked> <span>Filled to full (needed for accurate km/l)</span></label>
+    <button class="btn primary" data-act="saveFuel">${t('save')}</button>`);
+}
+async function saveFuel() {
+  const busId = $('#f-fbus').value;
+  const litres = Number($('#f-flitres').value) || 0, cost = Number($('#f-fcost').value) || 0, odo = Number($('#f-fodo').value) || 0;
+  if (!busId) return toast('Pick a bus');
+  if (litres <= 0) return toast('Enter litres');
+  if (odo <= 0) return toast('Enter the odometer reading');
+  await DB.put('fuel', { id: uid('fu-'), busId, litres, cost, odometer: odo, full: $('#f-ffull').checked, at: Date.now(), by: S.user.id });
+  // Keep the bus odometer fresh from the fill reading if it's higher.
+  const b = byId(S.cache.buses, busId);
+  if (b && odo > (b.odometer || 0)) { b.odometer = odo; await DB.put('buses', b); }
+  await load(); closeSheet(); toast('Fuel logged ✓'); rerender();
+}
+function viewFuel() {
+  const rows = [...S.cache.buses].map((b) => ({ b, m: busMileage(b.id) })).sort((a, b) => b.m.totalCost - a.m.totalCost);
+  const fleetCost = rows.reduce((s, x) => s + x.m.totalCost, 0);
+  let body = '';
+  if (can(S.user.role, 'addFuel')) body += `<button class="btn primary" data-act="addFuel" style="margin-bottom:12px">⛽ Log fuel</button>`;
+  body += `<div class="card"><div class="muted small">Total fuel spend (logged)</div><div class="stat" style="color:var(--brand2)">${money(fleetCost)}</div>
+    <div class="tiny muted">Log full-tank fills for accurate km/l.</div></div>`;
+  body += `<div class="card"><h3>Mileage by bus</h3>`;
+  body += rows.length ? rows.map(({ b, m }) => `<div class="li" data-act="busReport" data-bus="${b.id}" style="cursor:pointer">${avatar(busImg(b), '🚌')}
+    <div class="main"><div class="t">${esc(b.regNo)}${m.drop ? ' <span class="badge b-red">mileage ↓</span>' : ''}</div>
+      <div class="s">${m.avgKmpl != null ? m.avgKmpl.toFixed(1) + ' km/l' : 'no data'} · ${money(m.totalCost)} · ${m.fills} fill(s)</div></div>
+    ${m.fuelPerKm != null ? `<b>₹${m.fuelPerKm.toFixed(1)}/km</b>` : ''}</div>`).join('') : `<div class="empty">No buses</div>`;
+  body += `</div>`;
+  shell('Fuel & mileage', body);
 }
 
 /* ----------------------------- Job actions -------------------------------- */
@@ -2933,6 +3018,12 @@ function computeInsights() {
     .forEach(({ j, age }) => out.push({ sev: 'low', icon: '⏳', title: `Job aging ${age}d — ${busName(j.busId)}`,
       detail: `Open ${age} days. Long bay time = lost running days for the bus.`, nav: { name: 'jobs', id: j.id } }));
 
+  // Mileage drop — engine trouble or fuel pilferage
+  buses.forEach((b) => { const m = busMileage(b.id);
+    if (m.drop) out.push({ sev: 'high', icon: '⛽', title: `Mileage dropped — ${b.regNo}`,
+      detail: `Now ${m.lastKmpl.toFixed(1)} km/l vs usual ~${m.avgKmpl.toFixed(1)}. Check for an engine issue or fuel pilferage.`,
+      nav: { name: 'buses', id: b.id } }); });
+
   const rank = { high: 0, med: 1, low: 2 };
   return out.sort((a, b) => rank[a.sev] - rank[b.sev]);
 }
@@ -3034,7 +3125,7 @@ async function askAi() {
  */
 const current = () => S.stack[S.stack.length - 1];
 // Role guard: routes restricted to certain roles fall back to home for others.
-const ROUTE_PERM = { insights: 'insights', drivers: 'manageDrivers', assignments: 'assignDriver', routes: 'manageRoutes', reports: 'dashboard', busreport: 'dashboard', livemap: 'dashboard', track: 'dashboard' };
+const ROUTE_PERM = { insights: 'insights', drivers: 'manageDrivers', assignments: 'assignDriver', routes: 'manageRoutes', reports: 'dashboard', busreport: 'dashboard', livemap: 'dashboard', track: 'dashboard', fuel: 'addFuel' };
 function render(r) {
   if (typeof stopMap === 'function') stopMap();   // leaving any screen halts the live-map refresh timer
   if (typeof stopTrack === 'function') stopTrack();
@@ -3057,6 +3148,7 @@ function render(r) {
     case 'company': return viewCompanyDetail(r.id);
     case 'reports': return viewReports();
     case 'busreport': return viewBusReport(r.id);
+    case 'fuel': return viewFuel();
     case 'scoreboard': return viewScoreboard();
     case 'scorecard': return viewScorecard(r.id);
     default: return viewHome();
@@ -3142,6 +3234,9 @@ function bind() {
       case 'confirmLogService': return confirmLogService(el.getAttribute('data-bus'));
       case 'openInsights': return push({ name: 'insights' });
       case 'openReports': return push({ name: 'reports' });
+      case 'openFuel': return push({ name: 'fuel' });
+      case 'addFuel': return sheetAddFuel(el.getAttribute('data-bus'));
+      case 'saveFuel': return saveFuel();
       case 'openLiveMap': return push({ name: 'livemap' });
       case 'trackBus': return push({ name: 'track', id: el.getAttribute('data-bus') });
       case 'openScoreboard': return push({ name: 'scoreboard' });
