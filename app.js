@@ -810,28 +810,32 @@ function trackPanel(b, d) {
     ${speedGauge(d.speedKph)}
     <div class="row between tiny muted" style="margin-top:4px"><span>${(d.odometer || 0).toLocaleString('en-IN')} km</span><span>${d.lastPing ? 'updated ' + timeAgo(d.lastPing) : ''}</span></div></div>`;
 }
+let _trackBusy = false;
 function viewTrackBus(busId) {
   const b = byId(S.cache.buses, busId); if (!b) return viewBuses();
   if (!window.L) { shell('Live tracking', `<div class="card"><div class="empty">📡 Live tracking needs an internet connection.</div></div>`); return; }
-  root().innerHTML = topbar(esc(b.regNo)) +
-    `<div class="content" style="padding:0;position:relative">
-       <div id="trackmap" style="height:calc(100vh - 138px)"></div>
-       <div id="track-panel" style="position:absolute;top:12px;left:12px;right:12px;z-index:600"><div class="card" style="margin:0"><div class="tiny muted">Locating ${esc(b.regNo)}…</div></div></div>
-     </div>` + bottomnav();
+  // Immersive full-screen map (no topbar) with its own floating Back button, so
+  // there's always an obvious, reliable way out on every device.
+  root().innerHTML =
+    `<div id="trackmap" style="position:fixed;top:0;left:0;right:0;bottom:64px;z-index:1"></div>
+     <button class="backbtn" data-act="back" aria-label="Back" style="position:fixed;top:14px;left:14px;z-index:1001">‹</button>
+     <div id="track-panel" style="position:fixed;top:12px;left:62px;right:12px;z-index:1000"><div class="card" style="margin:0"><div class="tiny muted">Locating ${esc(b.regNo)}…</div></div></div>`
+    + bottomnav();
   bind();
   try {
     _trackMap = L.map('trackmap', { zoomControl: false, attributionControl: false }).setView([26.9, 75.8], 13);
-    L.control.zoom({ position: 'bottomright' }).addTo(_trackMap);   // keep clear of the top speedometer panel
+    L.control.zoom({ position: 'bottomright' }).addTo(_trackMap);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(_trackMap);
   } catch (e) { return; }
-  _trackMarker = null;
+  _trackMarker = null; _trackBusy = false;
   trackTick(busId);
-  clearInterval(_trackTimer); _trackTimer = setInterval(() => trackTick(busId), 4000);   // ~real-time
+  clearInterval(_trackTimer); _trackTimer = setInterval(() => trackTick(busId), 1000);   // live, every second
 }
 async function trackTick(busId) {
-  if (!_trackMap || !window.L) return;
+  if (!_trackMap || !window.L || _trackBusy) return;     // guard: never stack requests
   const b = byId(S.cache.buses, busId); if (!b) return;
-  let d = null; try { d = await Sync.latest(b.regNo); } catch (e) { /* offline */ }
+  _trackBusy = true;
+  let d = null; try { d = await Sync.latest(b.regNo); } catch (e) { /* offline */ } finally { _trackBusy = false; }
   if (!_trackMap) return;                       // navigated away mid-await
   const panel = document.getElementById('track-panel');
   if (!d || d.lat == null) { if (panel) panel.innerHTML = `<div class="card" style="margin:0"><div class="tiny muted">${esc(b.regNo)} · waiting for GPS fix…</div></div>`; return; }
