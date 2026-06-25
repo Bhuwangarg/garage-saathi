@@ -817,7 +817,8 @@ function viewTrackBus(busId) {
      </div>` + bottomnav();
   bind();
   try {
-    _trackMap = L.map('trackmap', { zoomControl: true, attributionControl: false }).setView([26.9, 75.8], 13);
+    _trackMap = L.map('trackmap', { zoomControl: false, attributionControl: false }).setView([26.9, 75.8], 13);
+    L.control.zoom({ position: 'bottomright' }).addTo(_trackMap);   // keep clear of the top speedometer panel
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(_trackMap);
   } catch (e) { return; }
   _trackMarker = null;
