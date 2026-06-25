@@ -449,7 +449,7 @@ function topbar(title) {
 }
 
 // Which bottom tab should light up — sub-screens map back to their parent tab.
-const TAB_OF = { home: 'home', buses: 'buses', jobs: 'jobs', store: 'store', me: 'me', purchases: 'me', alerts: 'me', insights: 'home', drivers: 'home', assignments: 'home', company: 'home', routes: 'home', reports: 'home', busreport: 'home' };
+const TAB_OF = { home: 'home', buses: 'buses', jobs: 'jobs', store: 'store', me: 'me', purchases: 'me', alerts: 'me', insights: 'home', drivers: 'home', assignments: 'home', company: 'home', routes: 'home', reports: 'home', busreport: 'home', livemap: 'home' };
 function bottomnav() {
   const active = TAB_OF[S.route.name] || 'home';
   // Each role gets a focused nav matching what they actually do.
@@ -603,6 +603,12 @@ function viewHome() {
       ${qtile('🧾', money(pending), 'Owed to suppliers', 'purchases')}
     </div>`;
 
+    // Live fleet map — Uber-style tracking
+    body += `<div class="card" data-act="openLiveMap" style="cursor:pointer"><div class="row between">
+      <div class="row" style="gap:10px"><div class="ai-ic">🗺️</div><div><div class="t" style="font-weight:800">Live map</div>
+        <div class="tiny muted">Track every bus live on the map</div></div></div>
+      <span class="tiny" style="color:var(--brand2)">open ›</span></div></div>`;
+
     // On-time pickup — at-risk warning (computed by the route monitor)
     const risks = S.routeRisks || [];
     if (risks.length) {
@@ -724,6 +730,43 @@ async function importFleet() {
   await load();
   toast(added ? `Imported ${added} bus(es) from AirFi ✓` : 'Fleet already up to date');
   rerender();
+}
+
+/* ----- Live map (Uber-style fleet tracking, Leaflet) ----- */
+let _mapTimer = null, _busMap = null, _busMarkers = {};
+function stopMap() { if (_mapTimer) { clearInterval(_mapTimer); _mapTimer = null; } _busMap = null; _busMarkers = {}; }
+function viewLiveMap() {
+  if (!window.L) { shell('Live map', `<div class="card"><div class="empty">📡 Live map needs an internet connection.<br>Reconnect and reopen.</div></div>`); return; }
+  shell('Live map', `<div id="busmap" style="height:72vh;border-radius:16px;overflow:hidden;border:1px solid var(--line)"></div>
+    <div id="map-meta" class="tiny muted" style="margin-top:8px;text-align:center">Loading live positions…</div>`);
+  try {
+    _busMap = L.map('busmap', { zoomControl: true }).setView([26.9, 75.8], 5);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(_busMap);
+  } catch (e) { return; }
+  _busMarkers = {}; _busMap._fitted = false;
+  refreshMap();
+  clearInterval(_mapTimer); _mapTimer = setInterval(refreshMap, 20000);
+}
+async function refreshMap() {
+  if (!_busMap || !window.L) return;
+  let fleet = [];
+  try { fleet = await Sync.fleet(); } catch (e) { /* offline */ }
+  if (!_busMap) return;   // navigated away while awaiting
+  const pts = [];
+  fleet.forEach((f) => {
+    if (f.lat == null || f.lng == null) return;
+    pts.push([f.lat, f.lng]);
+    const moving = (f.speedKph || 0) > 2 && f.ignition;
+    const color = !f.ignition ? '#8b91a0' : (moving ? '#16a571' : '#f59e0b');
+    const popup = `<b>${esc(f.reg)}</b><br>${Math.round(f.speedKph || 0)} km/h · ${f.ignition ? (moving ? 'running' : 'idling') : 'parked'}<br>${f.lastPing ? timeAgo(f.lastPing) : ''}`;
+    if (_busMarkers[f.reg]) {
+      _busMarkers[f.reg].setLatLng([f.lat, f.lng]); _busMarkers[f.reg].setStyle({ fillColor: color }); _busMarkers[f.reg].setPopupContent(popup);
+    } else {
+      _busMarkers[f.reg] = L.circleMarker([f.lat, f.lng], { radius: 9, color: '#fff', weight: 2, fillColor: color, fillOpacity: 1 }).addTo(_busMap).bindPopup(popup);
+    }
+  });
+  const meta = $('#map-meta'); if (meta) meta.textContent = pts.length ? `${pts.length} buses live · 🟢 running · 🟡 idling · ⚪ parked · updates every 20s` : 'No live positions yet';
+  if (pts.length && !_busMap._fitted) { try { _busMap.fitBounds(pts, { padding: [30, 30], maxZoom: 13 }); } catch (e) {} _busMap._fitted = true; }
 }
 
 function viewBusDetail(id) {
@@ -1092,6 +1135,7 @@ function viewMe() {
       ? `<div class="li" data-act="openDrivers"><div class="ava">🧑‍✈️</div><div class="main"><div class="t">Drivers</div><div class="s">${(S.cache.drivers || []).length} drivers · performance & reports</div></div></div>
          <div class="li" data-act="openAssignments"><div class="ava">🔁</div><div class="main"><div class="t">Driver ↔ Bus assignments</div><div class="s">Who drives which bus · reassign in one place</div></div></div>
          <div class="li" data-act="openStaff"><div class="ava">👥</div><div class="main"><div class="t">Staff</div><div class="s">${S.cache.users.length} accounts · add new</div></div></div>
+         <div class="li" data-act="openLiveMap"><div class="ava">🗺️</div><div class="main"><div class="t">Live map</div><div class="s">Track every bus live, Uber-style</div></div></div>
          <div class="li" data-act="openReports"><div class="ava">📊</div><div class="main"><div class="t">Bus reports</div><div class="s">Total maintenance spend per bus + full detail</div></div></div>
          <div class="li" data-act="openScoreboard"><div class="ava">🏆</div><div class="main"><div class="t">Mechanic scorecards</div><div class="s">Attendance, late penalties &amp; work-quality ratings</div></div></div>
          <div class="li" data-act="openRoutes"><div class="ava">🕒</div><div class="main"><div class="t">Routes &amp; timings</div><div class="s">Pickup geofences, go-times &amp; punctuality</div></div></div>
@@ -2910,8 +2954,9 @@ async function askAi() {
  */
 const current = () => S.stack[S.stack.length - 1];
 // Role guard: routes restricted to certain roles fall back to home for others.
-const ROUTE_PERM = { insights: 'insights', drivers: 'manageDrivers', assignments: 'assignDriver', routes: 'manageRoutes', reports: 'dashboard', busreport: 'dashboard' };
+const ROUTE_PERM = { insights: 'insights', drivers: 'manageDrivers', assignments: 'assignDriver', routes: 'manageRoutes', reports: 'dashboard', busreport: 'dashboard', livemap: 'dashboard' };
 function render(r) {
+  if (typeof stopMap === 'function') stopMap();   // leaving any screen halts the live-map refresh timer
   if (ROUTE_PERM[r.name] && !can(S.user.role, ROUTE_PERM[r.name])) r = { name: 'home' };
   S.route = r;
   switch (r.name) {
@@ -2926,6 +2971,7 @@ function render(r) {
     case 'drivers': return r.id ? viewDriverDetail(r.id) : viewDrivers();
     case 'assignments': return viewAssignments();
     case 'routes': return r.id ? viewRouteDetail(r.id) : viewRoutes();
+    case 'livemap': return viewLiveMap();
     case 'company': return viewCompanyDetail(r.id);
     case 'reports': return viewReports();
     case 'busreport': return viewBusReport(r.id);
@@ -3014,6 +3060,7 @@ function bind() {
       case 'confirmLogService': return confirmLogService(el.getAttribute('data-bus'));
       case 'openInsights': return push({ name: 'insights' });
       case 'openReports': return push({ name: 'reports' });
+      case 'openLiveMap': return push({ name: 'livemap' });
       case 'openScoreboard': return push({ name: 'scoreboard' });
       case 'scorecard': return push({ name: 'scorecard', id: el.getAttribute('data-user') });
       case 'myScorecard': return push({ name: 'scorecard', id: S.user.id });

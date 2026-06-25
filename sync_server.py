@@ -368,7 +368,8 @@ class Handler(BaseHTTPRequestHandler):
         if u.path == "/gps/fleet":                    # every registration AirFi has pushed
             if not self._auth_user():
                 return self._send(401, {"error": "unauthorized"})
-            buses = [{"reg": v.get("reg") or k, "odometer": v.get("odometer"), "lastPing": v.get("lastPing")}
+            buses = [{"reg": v.get("reg") or k, "odometer": v.get("odometer"), "lastPing": v.get("lastPing"),
+                      "lat": v.get("lat"), "lng": v.get("lng"), "speedKph": v.get("speedKph"), "ignition": v.get("ignition")}
                      for k, v in LIVE_GPS.items()]
             return self._send(200, {"buses": sorted(buses, key=lambda b: b["reg"])})
         self._send(404, {"error": "not found"})
