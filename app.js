@@ -449,7 +449,7 @@ function topbar(title) {
 }
 
 // Which bottom tab should light up — sub-screens map back to their parent tab.
-const TAB_OF = { home: 'home', buses: 'buses', jobs: 'jobs', store: 'store', me: 'me', purchases: 'me', alerts: 'me', insights: 'home', drivers: 'home', assignments: 'home', company: 'home', routes: 'home', reports: 'home', busreport: 'home', livemap: 'home' };
+const TAB_OF = { home: 'home', buses: 'buses', jobs: 'jobs', store: 'store', me: 'me', purchases: 'me', alerts: 'me', insights: 'home', drivers: 'home', assignments: 'home', company: 'home', routes: 'home', reports: 'home', busreport: 'home', livemap: 'home', track: 'home' };
 function bottomnav() {
   const active = TAB_OF[S.route.name] || 'home';
   // Each role gets a focused nav matching what they actually do.
@@ -769,11 +769,75 @@ async function refreshMap() {
     if (_busMarkers[f.reg]) {
       _busMarkers[f.reg].setLatLng([f.lat, f.lng]); _busMarkers[f.reg].setStyle({ fillColor: color }); _busMarkers[f.reg].setPopupContent(popup);
     } else {
-      _busMarkers[f.reg] = L.circleMarker([f.lat, f.lng], { radius: 9, color: '#fff', weight: 2, fillColor: color, fillOpacity: 1 }).addTo(_busMap).bindPopup(popup);
+      const m = L.circleMarker([f.lat, f.lng], { radius: 9, color: '#fff', weight: 2, fillColor: color, fillOpacity: 1 }).addTo(_busMap).bindPopup(popup);
+      // Tap a bus → open its live tracking page (map follows it + speedometer).
+      m.on('click', () => { const bus = (S.cache.buses || []).find((x) => _normReg(x.regNo) === _normReg(f.reg)); if (bus) push({ name: 'track', id: bus.id }); });
+      _busMarkers[f.reg] = m;
     }
   });
   const meta = $('#map-meta'); if (meta) meta.textContent = pts.length ? `${pts.length} buses live · 🟢 running · 🟡 idling · ⚪ parked · updates every 20s` : 'No live positions yet';
   if (pts.length && !_busMap._fitted) { try { _busMap.fitBounds(pts, { padding: [30, 30], maxZoom: 13 }); } catch (e) {} _busMap._fitted = true; }
+}
+
+/* ----- Single-bus live tracking: map follows the bus + live speedometer ----- */
+let _trackTimer = null, _trackMap = null, _trackMarker = null;
+function stopTrack() { if (_trackTimer) { clearInterval(_trackTimer); _trackTimer = null; } _trackMap = null; _trackMarker = null; }
+// SVG semicircular speedometer (0–120 km/h) — needle + coloured progress arc.
+function speedGauge(spd) {
+  const max = 120, s = Math.max(0, Math.min(Number(spd) || 0, max));
+  const theta = Math.PI * (1 - s / max);            // π at 0 km/h → 0 at max
+  const cx = 100, cy = 96, r = 78;
+  const ex = cx + r * Math.cos(theta), ey = cy - r * Math.sin(theta);
+  const nx = cx + (r - 14) * Math.cos(theta), ny = cy - (r - 14) * Math.sin(theta);
+  const col = s >= 80 ? '#ef4444' : s >= 40 ? '#f59e0b' : '#16a571';
+  return `<svg viewBox="0 0 200 116" style="width:100%;max-width:230px;display:block;margin:2px auto 0">
+    <path d="M${cx - r},${cy} A${r},${r} 0 0 1 ${cx + r},${cy}" fill="none" stroke="#e6e9f0" stroke-width="13" stroke-linecap="round"/>
+    <path d="M${cx - r},${cy} A${r},${r} 0 0 1 ${ex},${ey}" fill="none" stroke="${col}" stroke-width="13" stroke-linecap="round"/>
+    <line x1="${cx}" y1="${cy}" x2="${nx.toFixed(1)}" y2="${ny.toFixed(1)}" stroke="#161922" stroke-width="3.5" stroke-linecap="round"/>
+    <circle cx="${cx}" cy="${cy}" r="6" fill="#161922"/>
+    <text x="${cx}" y="${cy - 20}" text-anchor="middle" style="font:800 30px -apple-system,sans-serif;fill:#161922">${Math.round(s)}</text>
+    <text x="${cx}" y="${cy - 5}" text-anchor="middle" style="font:600 11px -apple-system,sans-serif;fill:#5d6675">km/h</text>
+  </svg>`;
+}
+function trackPanel(b, d) {
+  const moving = (d.speedKph || 0) > 2 && d.ignition;
+  const status = !d.ignition ? '⚪ Parked' : (moving ? '🟢 Running' : '🟡 Idling');
+  return `<div class="card" style="margin:0">
+    <div class="row between"><b>${esc(b.regNo)}</b><span class="badge ${!d.ignition ? 'b-low' : (moving ? 'b-green' : 'b-amber')}">${status}</span></div>
+    ${speedGauge(d.speedKph)}
+    <div class="row between tiny muted" style="margin-top:4px"><span>${(d.odometer || 0).toLocaleString('en-IN')} km</span><span>${d.lastPing ? 'updated ' + timeAgo(d.lastPing) : ''}</span></div></div>`;
+}
+function viewTrackBus(busId) {
+  const b = byId(S.cache.buses, busId); if (!b) return viewBuses();
+  if (!window.L) { shell('Live tracking', `<div class="card"><div class="empty">📡 Live tracking needs an internet connection.</div></div>`); return; }
+  root().innerHTML = topbar(esc(b.regNo)) +
+    `<div class="content" style="padding:0;position:relative">
+       <div id="trackmap" style="height:calc(100vh - 138px)"></div>
+       <div id="track-panel" style="position:absolute;top:12px;left:12px;right:12px;z-index:600"><div class="card" style="margin:0"><div class="tiny muted">Locating ${esc(b.regNo)}…</div></div></div>
+     </div>` + bottomnav();
+  bind();
+  try {
+    _trackMap = L.map('trackmap', { zoomControl: true, attributionControl: false }).setView([26.9, 75.8], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(_trackMap);
+  } catch (e) { return; }
+  _trackMarker = null;
+  trackTick(busId);
+  clearInterval(_trackTimer); _trackTimer = setInterval(() => trackTick(busId), 4000);   // ~real-time
+}
+async function trackTick(busId) {
+  if (!_trackMap || !window.L) return;
+  const b = byId(S.cache.buses, busId); if (!b) return;
+  let d = null; try { d = await Sync.latest(b.regNo); } catch (e) { /* offline */ }
+  if (!_trackMap) return;                       // navigated away mid-await
+  const panel = document.getElementById('track-panel');
+  if (!d || d.lat == null) { if (panel) panel.innerHTML = `<div class="card" style="margin:0"><div class="tiny muted">${esc(b.regNo)} · waiting for GPS fix…</div></div>`; return; }
+  const pos = [d.lat, d.lng];
+  const moving = (d.speedKph || 0) > 2 && d.ignition;
+  const color = !d.ignition ? '#8b91a0' : (moving ? '#16a571' : '#f59e0b');
+  if (_trackMarker) { _trackMarker.setLatLng(pos); _trackMarker.setStyle({ fillColor: color }); }
+  else { _trackMarker = L.circleMarker(pos, { radius: 11, color: '#fff', weight: 3, fillColor: color, fillOpacity: 1 }).addTo(_trackMap); _trackMap.setView(pos, 15); }
+  _trackMap.panTo(pos, { animate: true, duration: 0.8 });   // follow the bus
+  if (panel) panel.innerHTML = trackPanel(b, d);
 }
 
 function viewBusDetail(id) {
@@ -797,7 +861,8 @@ function viewBusDetail(id) {
     ${(() => { const sv = serviceInfo(b); const c = sv.status === 'overdue' ? 'b-red' : sv.status === 'soon' ? 'b-amber' : 'b-green';
       return `<div class="row between small" style="margin-bottom:10px"><span class="muted">Next service</span>
         <span class="badge ${c}">${sv.status === 'overdue' ? 'OVERDUE ' + Math.abs(sv.dueIn).toLocaleString('en-IN') + ' km' : 'in ' + sv.dueIn.toLocaleString('en-IN') + ' km'}</span></div>`; })()}
-    <button class="btn sm" data-act="gps" data-bus="${b.id}">📍 Live GPS &amp; service</button>
+    <div class="btnrow"><button class="btn sm" data-act="trackBus" data-bus="${b.id}">🛰️ Track live</button>
+      <button class="btn sm" data-act="gps" data-bus="${b.id}">📍 GPS &amp; service</button></div>
   </div>`;
 
   // Driver assigned to this bus + their open trip reports
@@ -2961,9 +3026,10 @@ async function askAi() {
  */
 const current = () => S.stack[S.stack.length - 1];
 // Role guard: routes restricted to certain roles fall back to home for others.
-const ROUTE_PERM = { insights: 'insights', drivers: 'manageDrivers', assignments: 'assignDriver', routes: 'manageRoutes', reports: 'dashboard', busreport: 'dashboard', livemap: 'dashboard' };
+const ROUTE_PERM = { insights: 'insights', drivers: 'manageDrivers', assignments: 'assignDriver', routes: 'manageRoutes', reports: 'dashboard', busreport: 'dashboard', livemap: 'dashboard', track: 'dashboard' };
 function render(r) {
   if (typeof stopMap === 'function') stopMap();   // leaving any screen halts the live-map refresh timer
+  if (typeof stopTrack === 'function') stopTrack();
   if (ROUTE_PERM[r.name] && !can(S.user.role, ROUTE_PERM[r.name])) r = { name: 'home' };
   S.route = r;
   switch (r.name) {
@@ -2979,6 +3045,7 @@ function render(r) {
     case 'assignments': return viewAssignments();
     case 'routes': return r.id ? viewRouteDetail(r.id) : viewRoutes();
     case 'livemap': return viewLiveMap();
+    case 'track': return viewTrackBus(r.id);
     case 'company': return viewCompanyDetail(r.id);
     case 'reports': return viewReports();
     case 'busreport': return viewBusReport(r.id);
@@ -3068,6 +3135,7 @@ function bind() {
       case 'openInsights': return push({ name: 'insights' });
       case 'openReports': return push({ name: 'reports' });
       case 'openLiveMap': return push({ name: 'livemap' });
+      case 'trackBus': return push({ name: 'track', id: el.getAttribute('data-bus') });
       case 'openScoreboard': return push({ name: 'scoreboard' });
       case 'scorecard': return push({ name: 'scorecard', id: el.getAttribute('data-user') });
       case 'myScorecard': return push({ name: 'scorecard', id: S.user.id });
