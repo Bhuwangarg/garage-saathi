@@ -55,14 +55,17 @@ except Exception:
     _WEBPUSH = False
 
 def _vapid_pem_path():
-    if os.path.exists(".vapid_private.pem"):
-        return ".vapid_private.pem"
+    # 1) local dev file, or 2) a Render "Secret File" named vapid_private.pem
+    #    (mounted at /etc/secrets/…), or 3) the VAPID_PRIVATE_KEY env var.
+    for p in (".vapid_private.pem", "/etc/secrets/vapid_private.pem"):
+        if os.path.exists(p):
+            return p
     pem = os.environ.get("VAPID_PRIVATE_KEY", "")
     if pem:
-        p = "/tmp/vapid_private.pem"
-        with open(p, "w") as f:
+        out = "/tmp/vapid_private.pem"
+        with open(out, "w") as f:
             f.write(pem.replace("\\n", "\n"))
-        return p
+        return out
     return None
 MAX_UPLOAD_BYTES = int(os.environ.get("MAX_UPLOAD_MB", "8")) * 1024 * 1024
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "").strip()
@@ -481,7 +484,7 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, {"publicKey": VAPID_PUBLIC, "enabled": _WEBPUSH and bool(_vapid_pem_path()),
                                     "webpush": _WEBPUSH,
                                     "keyEnv": bool(os.environ.get("VAPID_PRIVATE_KEY")),   # is the env var visible to the process?
-                                    "keyFile": os.path.exists(".vapid_private.pem")})
+                                    "secretFile": os.path.exists("/etc/secrets/vapid_private.pem")})
         if u.path == "/gps/latest":                  # provider self-check
             reg = (parse_qs(u.query).get("reg") or [""])[0]
             data = LIVE_GPS.get(norm_reg(reg))
