@@ -323,13 +323,13 @@ function closeSheet() {
 
 /* ------------------------------ Data ops ---------------------------------- */
 async function load() {
-  const [users, buses, parts, jobs, ledger, att, purchases, drivers, incidents, driverreports, routes, triplog, fuel, gpsevents, garage] = await Promise.all([
+  const [users, buses, parts, jobs, ledger, att, purchases, drivers, incidents, driverreports, routes, triplog, fuel, gpsevents, audits, garage] = await Promise.all([
     DB.all('users'), DB.all('buses'), DB.all('parts'), DB.all('jobcards'),
     DB.all('ledger'), DB.all('attendance'), DB.all('purchases'),
     DB.all('drivers'), DB.all('incidents'), DB.all('driverreports'),
-    DB.all('routes'), DB.all('triplog'), DB.all('fuel'), DB.all('gpsevents'), DB.get('meta', 'garage'),
+    DB.all('routes'), DB.all('triplog'), DB.all('fuel'), DB.all('gpsevents'), DB.all('audits'), DB.get('meta', 'garage'),
   ]);
-  S.cache = { users, buses, parts, jobs, ledger, att, purchases, drivers, incidents, driverreports, routes, triplog, fuel, gpsevents, garage };
+  S.cache = { users, buses, parts, jobs, ledger, att, purchases, drivers, incidents, driverreports, routes, triplog, fuel, gpsevents, audits, garage };
   refreshBiz();   // keep the displayed business name in sync with garage config
 }
 const byId = (arr, id) => arr.find((x) => x.id === id);
@@ -557,7 +557,7 @@ function topbar(title) {
 }
 
 // Which bottom tab should light up — sub-screens map back to their parent tab.
-const TAB_OF = { home: 'home', buses: 'buses', jobs: 'jobs', store: 'store', me: 'me', purchases: 'me', alerts: 'me', insights: 'home', drivers: 'home', assignments: 'home', company: 'home', routes: 'home', reports: 'home', busreport: 'home', livemap: 'home', track: 'home', fuel: 'home', safety: 'home', warranty: 'home' };
+const TAB_OF = { home: 'home', buses: 'buses', jobs: 'jobs', store: 'store', me: 'me', purchases: 'me', alerts: 'me', insights: 'home', drivers: 'home', assignments: 'home', company: 'home', routes: 'home', reports: 'home', busreport: 'home', livemap: 'home', track: 'home', fuel: 'home', safety: 'home', warranty: 'home', storehealth: 'store' };
 function bottomnav() {
   const active = TAB_OF[S.route.name] || 'home';
   // Each role gets a focused nav matching what they actually do.
@@ -614,7 +614,7 @@ function viewStoreHome() {
   body += `<div class="btnrow" style="margin-bottom:14px">
     <button class="btn primary" data-act="addStock">📥 ${t('addStock')}</button>
     <button class="btn" data-act="issueTo">📤 Issue part</button></div>`;
-  body += `<button class="btn" data-act="openFuel" style="margin-bottom:14px">⛽ Fuel &amp; mileage</button>`;
+  body += `<div class="btnrow" style="margin-bottom:14px"><button class="btn" data-act="openFuel">⛽ Fuel</button><button class="btn" data-act="openStoreHealth">📦 Store health</button></div>`;
   body += `<div class="card"><div class="row between"><h3>Reorder soon</h3><span class="badge ${low.length ? 'b-amber' : 'b-green'}">${low.length}</span></div>`;
   body += low.length ? low.map((p) => `<div class="li" data-part="${p.id}">${avatar(partImg(p), '🔩')}<div class="main"><div class="t">${esc(p.name)}</div><div class="s">${p.qty} ${p.unit} left · reorder at ${p.reorderLevel}</div></div><span class="badge b-amber">LOW</span></div>`).join('') : `<div class="muted small">Stock healthy 👍</div>`;
   body += `</div>`;
@@ -1327,6 +1327,89 @@ function viewWarranty() {
   shell('Warranty register', body);
 }
 
+/* ===== Anti-pilferage #3 — reconciliation + shrinkage scorecard ===========
+ * Book-keeping always balances; physical counts catch theft. A stock count
+ * compares counted vs system qty → the shortfall (valued in ₹) is shrinkage,
+ * which feeds a store trust score. Blind counts hide system totals so the
+ * counter can't just echo them. */
+function storeStats() {
+  const parts = S.cache.parts || [], ledger = S.cache.ledger || [], audits = S.cache.audits || [];
+  const cost = (pid) => { const p = byId(parts, pid); return p ? (p.unitCost || 0) : 0; };
+  const stockValue = parts.reduce((s, p) => s + p.qty * (p.unitCost || 0), 0);
+  let receivedValue = 0, issuedValue = 0;
+  ledger.forEach((l) => { const v = l.qty * cost(l.partId);
+    if (l.type === 'in' && !/surplus/i.test(l.reason || '')) receivedValue += v;
+    if (l.type === 'out' && !/shortfall|shrink/i.test(l.reason || '')) issuedValue += v;
+  });
+  const shrinkValue = audits.reduce((s, a) => s + (a.shrinkValue || 0), 0);
+  const throughput = issuedValue + shrinkValue;
+  const shrinkPct = throughput > 0 ? shrinkValue / throughput * 100 : 0;
+  const lastAudit = audits.length ? audits.slice().sort((a, b) => b.at - a.at)[0] : null;
+  const trust = Math.max(0, Math.round(100 - Math.min(60, shrinkPct * 3)));
+  return { stockValue, receivedValue, issuedValue, shrinkValue, shrinkPct, lastAudit, trust, count: audits.length };
+}
+function viewStoreHealth() {
+  const st = storeStats();
+  const tcol = st.trust >= 80 ? 'var(--green)' : st.trust >= 50 ? '#f59e0b' : '#ef4444';
+  let body = `<div class="card"><div class="row between">
+      <div><div class="muted small">Store trust score</div><div class="stat" style="color:${tcol}">${st.trust}<span style="font-size:14px">/100</span></div></div>
+      <div style="text-align:right"><div class="muted small">Shrinkage</div><div class="stat" style="color:#ef4444">${money(st.shrinkValue)}</div><div class="tiny muted">${st.shrinkPct.toFixed(1)}% of throughput</div></div></div>
+    ${st.lastAudit ? `<div class="tiny muted">Last count ${fmtDate(st.lastAudit.at)}` + (st.count ? ` · ${st.count} total` : '') + `</div>` : `<div class="tiny muted">No stock count yet — run one to baseline.</div>`}</div>`;
+  body += `<div class="card"><h3>Reconciliation</h3>
+    <div class="row between small"><span>Stock received</span><b>${money(st.receivedValue)}</b></div>
+    <div class="row between small"><span>Issued to jobs</span><b>${money(st.issuedValue)}</b></div>
+    <div class="row between small"><span>On hand now</span><b>${money(st.stockValue)}</b></div>
+    <div class="hr"></div>
+    <div class="row between"><b>Unexplained shrinkage</b><b style="color:#ef4444">${money(st.shrinkValue)}</b></div>
+    <div class="tiny muted" style="margin-top:6px">Parts gone without an issue-to-job — the pilferage signal.</div></div>`;
+  if (can(S.user.role, 'issuePart')) body += `<div class="btnrow"><button class="btn primary" data-act="auditBlind">🎲 Blind count</button><button class="btn" data-act="auditFull">📋 Full count</button></div>`;
+  const stores = (S.cache.users || []).filter((u) => u.role === 'store');
+  if (stores.length) {
+    body += `<div class="card"><h3>Storekeepers</h3>` + stores.map((u) => {
+      const issued = (S.cache.ledger || []).filter((l) => l.type === 'out' && l.by === u.id).length;
+      const did = (S.cache.audits || []).filter((a) => a.by === u.id).length;
+      return `<div class="li"><div class="ava">📦</div><div class="main"><div class="t">${esc(u.name)}</div><div class="s">${issued} issues · ${did} count(s) done</div></div></div>`;
+    }).join('') + `</div>`;
+  }
+  const recent = (S.cache.audits || []).slice().sort((a, b) => b.at - a.at).slice(0, 8);
+  body += `<div class="card"><h3>Recent counts</h3>` + (recent.length ? recent.map((a) => `<div class="li"><div class="ava">${a.shrinkValue > 0 ? '⚠️' : '✓'}</div>
+    <div class="main"><div class="t">${a.lines.length} parts · ${a.shrinkValue > 0 ? money(a.shrinkValue) + ' short' : 'matched'}</div>
+      <div class="s">${fmtDateTime(a.at)} · ${esc(userName(a.by))} · ${a.mode}</div></div></div>`).join('') : `<div class="empty">No stock counts yet</div>`) + `</div>`;
+  shell('Store health', body);
+}
+function sheetAudit(mode) {
+  let parts = [...(S.cache.parts || [])];
+  if (!parts.length) return openSheet('Stock count', `<div class="banner warn">No parts to count yet.</div>`);
+  if (mode === 'blind') parts = parts.sort(() => Math.random() - 0.5).slice(0, Math.min(5, parts.length));
+  else parts = parts.sort((a, b) => a.name.localeCompare(b.name));
+  openSheet(mode === 'blind' ? 'Blind count' : 'Full count', `
+    <div class="tiny muted" style="margin-bottom:10px">${mode === 'blind' ? 'Physically count these parts and enter the actual number. System totals are hidden to keep it honest.' : 'Enter the physical count for each part.'}</div>
+    ${parts.map((p) => `<label class="field"><span class="lbl">${esc(p.name)}${mode === 'full' ? ` <span class="tiny muted">(system ${p.qty} ${p.unit})</span>` : ''}</span>
+      <input class="au-count" data-part="${p.id}" type="number" inputmode="numeric" placeholder="counted ${esc(p.unit)}"></label>`).join('')}
+    <button class="btn primary" data-act="saveAudit" data-mode="${mode}">Submit count</button>`);
+}
+async function saveAudit(mode) {
+  const inputs = [...document.querySelectorAll('.au-count')];
+  const lines = []; let shrink = 0, found = 0;
+  for (const inp of inputs) {
+    if (inp.value === '') continue;
+    const p = byId(S.cache.parts, inp.getAttribute('data-part')); if (!p) continue;
+    const counted = Math.max(0, Math.round(Number(inp.value) || 0));
+    const system = p.qty, variance = counted - system, val = Math.abs(variance) * (p.unitCost || 0);
+    lines.push({ partId: p.id, system, counted, variance, value: variance < 0 ? val : 0 });
+    if (variance !== 0) {
+      if (variance < 0) { shrink += val; await DB.put('ledger', { id: uid('l-'), partId: p.id, type: 'out', qty: -variance, jobId: null, reason: 'Audit shortfall (shrinkage)', by: S.user.id, at: Date.now() }); }
+      else { found += val; await DB.put('ledger', { id: uid('l-'), partId: p.id, type: 'in', qty: variance, jobId: null, reason: 'Audit surplus', by: S.user.id, at: Date.now() }); }
+      p.qty = counted; await DB.put('parts', p);
+    }
+  }
+  if (!lines.length) return toast('Enter at least one count');
+  await DB.put('audits', { id: uid('au-'), at: Date.now(), by: S.user.id, mode, lines, shrinkValue: shrink, foundValue: found });
+  await load(); closeSheet();
+  toast(shrink > 0 ? `Count saved · ${money(shrink)} shrinkage found` : 'Count saved · stock matches ✓');
+  rerender();
+}
+
 /* ----- Store / inventory ----- */
 function viewStore() {
   const parts = [...S.cache.parts].sort((a, b) => (a.qty <= a.reorderLevel ? -1 : 1) - (b.qty <= b.reorderLevel ? -1 : 1));
@@ -1424,6 +1507,7 @@ function viewMe() {
          <div class="li" data-act="openFuel"><div class="ava">⛽</div><div class="main"><div class="t">Fuel &amp; mileage</div><div class="s">Fills, km/l, fuel ₹/km &amp; mileage-drop alerts</div></div></div>
          <div class="li" data-act="openSafety"><div class="ava">🛡️</div><div class="main"><div class="t">Safety &amp; misuse</div><div class="s">Overspeed, harsh braking, night moves &amp; idling</div></div></div>
          <div class="li" data-act="openWarranty"><div class="ava">🧾</div><div class="main"><div class="t">Warranty register</div><div class="s">Parts under warranty — don't pay for free replacements</div></div></div>
+         <div class="li" data-act="openStoreHealth"><div class="ava">📦</div><div class="main"><div class="t">Store health</div><div class="s">Reconciliation, stock counts &amp; shrinkage score</div></div></div>
          <div class="li" data-act="openScoreboard"><div class="ava">🏆</div><div class="main"><div class="t">Mechanic scorecards</div><div class="s">Attendance, late penalties &amp; work-quality ratings</div></div></div>
          <div class="li" data-act="openRoutes"><div class="ava">🕒</div><div class="main"><div class="t">Routes &amp; timings</div><div class="s">Pickup geofences, go-times &amp; punctuality</div></div></div>
          <div class="li" data-act="openSetup"><div class="ava">⚙️</div><div class="main"><div class="t">Garage setup</div><div class="s">Location, geofence, shift time · start fresh</div></div></div>` : ''}
@@ -3322,6 +3406,11 @@ function computeInsights() {
     });
   });
 
+  // Stock shrinkage from the latest physical count
+  const lastAudit = (S.cache.audits || []).slice().sort((a, b) => b.at - a.at)[0];
+  if (lastAudit && lastAudit.shrinkValue > 0) out.push({ sev: 'high', icon: '📦', title: `Stock shrinkage — ${money(lastAudit.shrinkValue)}`,
+    detail: `Last stock count found ${money(lastAudit.shrinkValue)} of parts missing without a job. Investigate the store.`, nav: { name: 'storehealth' } });
+
   // Mileage drop — engine trouble or fuel pilferage
   buses.forEach((b) => { const m = busMileage(b.id);
     if (m.drop) out.push({ sev: 'high', icon: '⛽', title: `Mileage dropped — ${b.regNo}`,
@@ -3429,7 +3518,7 @@ async function askAi() {
  */
 const current = () => S.stack[S.stack.length - 1];
 // Role guard: routes restricted to certain roles fall back to home for others.
-const ROUTE_PERM = { insights: 'insights', drivers: 'manageDrivers', assignments: 'assignDriver', routes: 'manageRoutes', reports: 'dashboard', busreport: 'dashboard', livemap: 'dashboard', track: 'dashboard', fuel: 'addFuel', safety: 'dashboard', warranty: 'addFuel' };
+const ROUTE_PERM = { insights: 'insights', drivers: 'manageDrivers', assignments: 'assignDriver', routes: 'manageRoutes', reports: 'dashboard', busreport: 'dashboard', livemap: 'dashboard', track: 'dashboard', fuel: 'addFuel', safety: 'dashboard', warranty: 'addFuel', storehealth: 'issuePart' };
 function render(r) {
   if (typeof stopMap === 'function') stopMap();   // leaving any screen halts the live-map refresh timer
   if (typeof stopTrack === 'function') stopTrack();
@@ -3455,6 +3544,7 @@ function render(r) {
     case 'fuel': return viewFuel();
     case 'safety': return viewSafety();
     case 'warranty': return viewWarranty();
+    case 'storehealth': return viewStoreHealth();
     case 'scoreboard': return viewScoreboard();
     case 'scorecard': return viewScorecard(r.id);
     default: return viewHome();
@@ -3543,6 +3633,10 @@ function bind() {
       case 'openFuel': return push({ name: 'fuel' });
       case 'openSafety': return push({ name: 'safety' });
       case 'openWarranty': return push({ name: 'warranty' });
+      case 'openStoreHealth': return push({ name: 'storehealth' });
+      case 'auditBlind': return sheetAudit('blind');
+      case 'auditFull': return sheetAudit('full');
+      case 'saveAudit': return saveAudit(el.getAttribute('data-mode'));
       case 'returnCore': return sheetReturnCore(el.getAttribute('data-job'));
       case 'captureCore': return captureCore();
       case 'saveCoreReturn': return saveCoreReturn(el.getAttribute('data-job'));

@@ -15,7 +15,7 @@
 const Sync = (function () {
   // Only real business data syncs — local-only meta (seed flag, garage config) stays put.
   const STORES = ['users', 'buses', 'parts', 'jobcards', 'ledger', 'attendance', 'purchases',
-                  'drivers', 'incidents', 'driverreports', 'routes', 'triplog', 'fuel', 'gpsevents'];
+                  'drivers', 'incidents', 'driverreports', 'routes', 'triplog', 'fuel', 'gpsevents', 'audits'];
 
   const ls = window.localStorage;
   // Default sync backend: a device's explicit setting always wins. Otherwise, on

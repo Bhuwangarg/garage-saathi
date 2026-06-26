@@ -5,7 +5,7 @@
  */
 
 const DB_NAME = 'garage-saathi';
-const DB_VERSION = 5;   // v5 adds the gpsevents store (onupgradeneeded creates any missing)
+const DB_VERSION = 6;   // v6 adds the audits store (onupgradeneeded creates any missing)
 
 const STORES = {
   users: 'id',
@@ -22,6 +22,7 @@ const STORES = {
   triplog: 'id',         // per-day actual arrival at each stop → punctuality + auto-learn
   fuel: 'id',            // fuel fills (litres + ₹ + odometer) → mileage (km/l) & fuel ₹/km
   gpsevents: 'id',       // auto safety/misuse events from live GPS (overspeed/harshbrake/night/idle)
+  audits: 'id',          // physical stock counts → shrinkage reconciliation + store scorecard
   meta: 'key',
 };
 
