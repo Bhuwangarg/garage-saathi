@@ -1055,6 +1055,19 @@ function viewJobDetail(id) {
   }).join('')) : `<div class="muted small">No parts issued</div>`;
   body += `</div>`;
 
+  // Old-part return (core) — anti-swap / anti-warranty-fraud
+  const crs = j.coreReturns || [];
+  if ((j.partsUsed || []).length || crs.length) {
+    const missing = coreMissing(j);
+    body += `<div class="card"><div class="row between"><h3>🔧 Old parts returned</h3>${editable && (j.partsUsed || []).length ? `<button class="btn sm" data-act="returnCore" data-job="${j.id}">📦 Return old part</button>` : ''}</div>`;
+    body += crs.map((c) => { const p = byId(S.cache.parts, c.partId); const cc = CORE_COND[c.condition] || CORE_COND.worn;
+      return `<div class="li"><img class="thumb" src="${c.photo}" data-act="viewPhoto" data-src="${c.photo}">
+        <div class="main"><div class="t">${esc(p ? p.name : (c.note || 'Old part'))}</div><div class="s">${fmtDate(c.at)} · ${esc(userName(c.by))}</div></div>
+        <span class="badge ${cc[1]}">${cc[0]}</span></div>`; }).join('');
+    if (missing.length) body += `<div class="banner warn" style="margin-top:8px">⚠️ Old part not returned for: ${missing.map((l) => { const p = byId(S.cache.parts, l.partId); return esc(p ? p.name : l.partId); }).join(', ')}. Get the worn part back before paying.</div>`;
+    body += `</div>`;
+  }
+
   // Outside repair
   if (j.externalVendor) {
     body += `<div class="card"><h3>Outside repair</h3>
@@ -1142,6 +1155,49 @@ async function saveEditJob(jobId) {
   j.notes = ($('#fe-notes') ? $('#fe-notes').value.trim() : '');
   await DB.put('jobcards', j);
   await load(); closeSheet(); toast(t('jobUpdated')); rerender();
+}
+
+/* ===== Anti-pilferage #1 — old-part return ("core return") ================
+ * To stop "replaced on paper only" + part-swap fraud, the OLD removed part must
+ * be returned to store and photographed. The returner grades its wear; a part
+ * billed as worn-out that looks new is the fraud signal the owner reviews.
+ * (AI auto-grading of the photo slots in once the server vision update ships.) */
+const CORE_COND = { worn: ['Worn out ✓', 'b-green'], partial: ['Part-worn', 'b-amber'], suspect: ['Looks new ⚠️', 'b-red'] };
+const coreMissing = (j) => {
+  const ret = new Set((j.coreReturns || []).map((c) => c.partId).filter(Boolean));
+  return (j.partsUsed || []).filter((l) => !ret.has(l.partId));
+};
+let _coreShot = null;
+function sheetReturnCore(jobId) {
+  const j = byId(S.cache.jobs, jobId); if (!j) return;
+  _coreShot = null;
+  const used = j.partsUsed || [];
+  const opts = used.map((l) => { const p = byId(S.cache.parts, l.partId); return `<option value="${l.partId}">${esc(p ? p.name : l.partId)}</option>`; }).join('');
+  openSheet('Return old part', `
+    <div class="tiny muted" style="margin-bottom:10px">Bring the OLD removed part back to store so it can't be re-sold or swapped. Photograph it as proof.</div>
+    ${used.length ? `<label class="field"><span class="lbl">Old core of which part?</span><select id="cr-part">${opts}<option value="">Other / consumable</option></select></label>` : `<input type="hidden" id="cr-part" value="">`}
+    <button class="btn" data-act="captureCore">📷 Photo of old part</button>
+    <div id="cr-prev" class="thumbs" style="margin:8px 0"></div>
+    <label class="field"><span class="lbl">Condition of the old part</span><select id="cr-cond">
+      <option value="worn">Worn out — genuinely needed replacing</option>
+      <option value="partial">Partly worn</option>
+      <option value="suspect">Looks almost new — suspicious</option></select></label>
+    <label class="field"><span class="lbl">Note (optional)</span><input id="cr-note" placeholder="e.g. front brake pad, fully worn"></label>
+    <button class="btn primary" data-act="saveCoreReturn" data-job="${jobId}">${t('save')}</button>`);
+}
+async function captureCore() {
+  const shot = await capturePhoto(); if (!shot) return;
+  _coreShot = shot; const prev = $('#cr-prev'); if (prev) prev.innerHTML = `<img class="thumb" src="${shot}">`;
+}
+async function saveCoreReturn(jobId) {
+  const j = byId(S.cache.jobs, jobId); if (!j) return;
+  if (!_coreShot) return toast('Take a photo of the old part first');
+  const src = await Sync.uploadPhoto(_coreShot) || _coreShot;
+  const entry = { id: uid('cr-'), partId: ($('#cr-part') || {}).value || '', photo: src,
+    condition: ($('#cr-cond') || {}).value || 'worn', note: ($('#cr-note') || {}).value.trim() || '', at: Date.now(), by: S.user.id };
+  j.coreReturns = [...(j.coreReturns || []), entry];
+  await DB.put('jobcards', j);
+  _coreShot = null; await load(); closeSheet(); toast('Old part recorded ✓'); viewJobDetail(jobId);
 }
 
 /* ----- Store / inventory ----- */
@@ -2366,6 +2422,9 @@ async function verifyJob(jobId) {
     ? ((j.beforePhotos || []).length || (j.afterPhotos || []).length)
     : (j.afterPhotos || []).length;
   if (!hasProof) return toast(j.externalVendor ? '⚠️ Add the vendor bill photo before verifying' : '⚠️ Needs an after photo before you can verify');
+  // Anti-fraud gate: warn if a replaced part's old core was never returned.
+  const miss = coreMissing(j);
+  if (miss.length && !confirm(`Old part NOT returned for ${miss.length} replaced part(s).\nThis is how swap & warranty fraud hides. Verify and pay anyway?`)) return;
   j.status = 'verified'; j.verifiedBy = S.user.id; j.verifiedAt = Date.now();
   if (!j.closedAt) j.closedAt = Date.now();
   await DB.put('jobcards', j);
@@ -3101,6 +3160,14 @@ function computeInsights() {
   Object.entries(idleBy).filter(([, n]) => n >= 5).forEach(([reg, n]) => out.push({ sev: 'low', icon: '🐌', title: `Heavy idling — ${reg}`,
     detail: `${n} long-idle events this week, burning fuel parked. Ask drivers to switch off.`, nav: { name: 'safety' } }));
 
+  // Parts fraud — old core not returned, or a returned "old" part looks new
+  jobs.filter((j) => ['done', 'verified'].includes(j.status)).forEach((j) => {
+    if (coreMissing(j).length) out.push({ sev: 'med', icon: '🔧', title: `Old part not returned — ${busName(j.busId)}`,
+      detail: `${coreMissing(j).length} replaced part(s) with no old core returned — possible swap or warranty fraud.`, nav: { name: 'jobs', id: j.id } });
+    if ((j.coreReturns || []).some((c) => c.condition === 'suspect')) out.push({ sev: 'high', icon: '🚩', title: `Suspicious old part — ${busName(j.busId)}`,
+      detail: `A returned "old" part looks nearly new. Inspect before paying.`, nav: { name: 'jobs', id: j.id } });
+  });
+
   // Mileage drop — engine trouble or fuel pilferage
   buses.forEach((b) => { const m = busMileage(b.id);
     if (m.drop) out.push({ sev: 'high', icon: '⛽', title: `Mileage dropped — ${b.regNo}`,
@@ -3320,6 +3387,9 @@ function bind() {
       case 'openReports': return push({ name: 'reports' });
       case 'openFuel': return push({ name: 'fuel' });
       case 'openSafety': return push({ name: 'safety' });
+      case 'returnCore': return sheetReturnCore(el.getAttribute('data-job'));
+      case 'captureCore': return captureCore();
+      case 'saveCoreReturn': return saveCoreReturn(el.getAttribute('data-job'));
       case 'enableNotif': return enableNotifications();
       case 'disableNotif': return disableNotifications();
       case 'testNotif': return testNotification();

@@ -7,6 +7,8 @@ services:
     runtime: docker
     plan: free                   # free = no card, but storage is EPHEMERAL (wiped on redeploy)
     region: singapore            # closest Render region to Jaipur
+    autoDeploy: false            # don't redeploy on every git push (a redeploy wipes the ephemeral DB).
+                                 # Deploy manually from the dashboard when the server actually changes.
     healthCheckPath: /health
     envVars:
       - key: GPS_INGEST_TOKEN     # set the real token (from .gps_ingest_token) in the dashboard
