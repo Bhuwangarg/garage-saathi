@@ -5,9 +5,9 @@ services:
   - type: web
     name: garage-saathi-sync
     runtime: docker
-    plan: free                   # free = no card, but storage is EPHEMERAL (wiped on redeploy)
+    plan: starter                # paid (~$7/mo): persistent disk + always-on (no cold starts)
     region: singapore            # closest Render region to Jaipur
-    autoDeploy: false            # don't redeploy on every git push (a redeploy wipes the ephemeral DB).
+    autoDeploy: false            # don't redeploy on every git push (a redeploy rebuilds the image).
                                  # Deploy manually from the dashboard when the server actually changes.
     healthCheckPath: /health
     envVars:
@@ -15,10 +15,17 @@ services:
         sync: false
       - key: ALLOWED_ORIGIN       # set to your app's domain once the PWA is hosted
         value: "*"
+      - key: VAPID_PRIVATE_KEY    # web-push signing key (PEM). Set in the dashboard / Secret File.
+        sync: false
+      - key: VAPID_SUBJECT        # contact for push services
+        value: "mailto:mahalaxmitravels96@gmail.com"
+      - key: ANTHROPIC_API_KEY    # enables the /ai advisor + (later) AI vision for parts
+        sync: false
 
-    # ── For PRODUCTION (persistent DB + photos, always-on, no cold starts) ──
-    # Change `plan: free` to `plan: starter` (~$7/mo) and uncomment the disk:
-    # disk:
-    #   name: data
-    #   mountPath: /data
-    #   sizeGB: 1
+    # Persistent storage — the SQLite DB (/data/sync.db) and uploaded photos
+    # (/data/uploads) survive redeploys. Mount path must stay /data (matches the
+    # Dockerfile's DB_PATH / UPLOADS_DIR).
+    disk:
+      name: data
+      mountPath: /data
+      sizeGB: 1
