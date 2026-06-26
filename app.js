@@ -3366,24 +3366,58 @@ function bind() {
 
 /* ------------------------------- Login ------------------------------------ */
 let _pinUser = null, _pin = '';
+const ROLE_META = { owner: ['👑', 'Owner'], supervisor: ['🧑‍🔧', 'Supervisor'], store: ['📦', 'Store'], mechanic: ['🔧', 'Mechanic'], driver: ['🧑‍✈️', 'Driver'] };
+const roleEmoji = (r) => (ROLE_META[r] || ['🔧'])[0];
+// Step 1 — pick your role. (Keeps the list manageable across a big fleet.)
 function renderLogin() {
   _pinUser = null; _pin = '';
   const users = S.cache.users || [];
+  const counts = {}; users.forEach((u) => { counts[u.role] = (counts[u.role] || 0) + 1; });
+  const roles = Object.keys(ROLE_META).filter((r) => counts[r]);
   root().innerHTML = `<div class="login">
     <div class="row between" style="width:100%;max-width:420px"><span></span>
       <button class="lang" data-loginlang>${t('lang')}</button></div>
     <div class="bigicon">🚌</div>
     <h1 style="margin:0">${esc(BIZ)}</h1>
     <div class="muted small">${t('appName')} · ${t('tagline')}</div>
-    <div class="userpick">${users.map((u) => `<div class="u" data-login="${u.id}">
-      <div style="font-size:22px">${u.role==='owner'?'👑':u.role==='supervisor'?'🧑‍🔧':u.role==='store'?'📦':u.role==='driver'?'🧑‍✈️':'🔧'}</div>
-      <div style="font-weight:700;font-size:14px">${esc(u.name)}</div>
-      <div class="tiny muted">${esc(u.role)}</div></div>`).join('')}</div>
+    <div class="muted small" style="margin-top:18px">Who are you?</div>
+    <div class="userpick">${roles.map((r) => `<div class="u" data-role="${r}">
+      <div style="font-size:22px">${ROLE_META[r][0]}</div>
+      <div style="font-weight:700;font-size:14px">${ROLE_META[r][1]}</div>
+      <div class="tiny muted">${counts[r]} ${counts[r] > 1 ? 'people' : 'person'}</div></div>`).join('')}</div>
     ${isDemoMode() && /^(localhost|127\.|192\.168\.|10\.|172\.1[6-9]\.|172\.2\d\.|172\.3[01]\.)/.test(location.hostname)
       ? `<div class="tiny muted" style="margin-top:14px">Demo PINs — Owner 1111 · Store 3333 · Mechanic 0001</div>` : ''}
   </div>`;
   root().onclick = (e) => {
     if (e.target.closest('[data-loginlang]')) { LANG = LANG === 'en' ? 'hi' : 'en'; localStorage.setItem('lang', LANG); return renderLogin(); }
+    const r = e.target.closest('[data-role]');
+    if (r) return renderRolePick(r.getAttribute('data-role'));
+  };
+}
+// Step 2 — pick your name within that role (searchable for big rosters).
+function renderRolePick(role) {
+  _pinUser = null; _pin = '';
+  const list = (S.cache.users || []).filter((u) => u.role === role).sort((a, b) => a.name.localeCompare(b.name));
+  root().innerHTML = `<div class="login">
+    <div class="row between" style="width:100%;max-width:420px">
+      <button class="backbtn" data-loginback aria-label="Back">‹</button>
+      <span class="muted small">${ROLE_META[role][1]}</span><span style="width:36px"></span></div>
+    <div class="bigicon">${ROLE_META[role][0]}</div>
+    <div style="font-weight:700">Select your name</div>
+    ${list.length > 6 ? `<input id="login-search" placeholder="Search name…" autocomplete="off" style="max-width:420px;margin:10px 0">` : '<div class="spacer"></div>'}
+    <div class="userpick" id="namelist"></div>
+  </div>`;
+  const renderList = (q) => {
+    const f = q ? list.filter((u) => u.name.toLowerCase().includes(q)) : list;
+    const el = $('#namelist'); if (!el) return;
+    el.innerHTML = f.length ? f.map((u) => `<div class="u" data-login="${u.id}">
+      <div style="font-size:20px">${ROLE_META[role][0]}</div>
+      <div style="font-weight:700;font-size:14px">${esc(u.name)}</div></div>`).join('') : `<div class="muted small">No match</div>`;
+  };
+  renderList('');
+  const s = $('#login-search'); if (s) { s.oninput = () => renderList(s.value.trim().toLowerCase()); s.focus(); }
+  root().onclick = (e) => {
+    if (e.target.closest('[data-loginback]')) return renderLogin();
     const u = e.target.closest('[data-login]');
     if (u) return renderPin(byId(S.cache.users, u.getAttribute('data-login')));
   };
@@ -3405,7 +3439,7 @@ function renderPin(user) {
     root().onclick = async (e) => {
       const k = e.target.closest('[data-k]'); if (!k) return;
       const key = k.getAttribute('data-k');
-      if (key === 'cancel') return renderLogin();
+      if (key === 'cancel') return _pinUser ? renderRolePick(_pinUser.role) : renderLogin();
       if (key === 'back') { _pin = _pin.slice(0, -1); return draw(); }
       if (key >= '0' && key <= '9' && _pin.length < 4) { _pin += key; draw(); }
       if (_pin.length === 4 || key === 'ok') return attemptLogin(user, _pin, draw);
