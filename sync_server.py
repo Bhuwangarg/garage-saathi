@@ -30,7 +30,8 @@ DB = os.environ.get("DB_PATH", "sync.db")
 UPLOADS = os.environ.get("UPLOADS_DIR", "uploads")
 # Free persistence: point at a Turso (libSQL) database when these are set.
 # Same SQL — Turso *is* SQLite — so nothing else in the server changes.
-TURSO_URL = os.environ.get("TURSO_URL", "")
+# Accept either our name or Turso's conventional TURSO_DATABASE_URL.
+TURSO_URL = os.environ.get("TURSO_URL", "") or os.environ.get("TURSO_DATABASE_URL", "")
 TURSO_TOKEN = os.environ.get("TURSO_AUTH_TOKEN", "")
 _USE_TURSO = bool(TURSO_URL and TURSO_TOKEN)
 _SCHEMA_OK = False
@@ -483,7 +484,8 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         u = urlparse(self.path)
         if u.path in ("/", "/health"):
-            return self._send(200, {"ok": True, "service": "garage-saathi-sync", "db": "turso" if _USE_TURSO else "sqlite", "persistent": _USE_TURSO})
+            return self._send(200, {"ok": True, "service": "garage-saathi-sync", "db": "turso" if _USE_TURSO else "sqlite",
+                                     "persistent": _USE_TURSO, "urlSet": bool(TURSO_URL), "tokenSet": bool(TURSO_TOKEN)})
         if u.path.startswith("/uploads/"):
             name = os.path.basename(u.path)
             fp = os.path.join(UPLOADS, name)
