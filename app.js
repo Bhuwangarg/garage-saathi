@@ -468,7 +468,7 @@ function topbar(title) {
 }
 
 // Which bottom tab should light up — sub-screens map back to their parent tab.
-const TAB_OF = { home: 'home', buses: 'buses', jobs: 'jobs', store: 'store', me: 'me', purchases: 'me', alerts: 'me', insights: 'home', drivers: 'home', assignments: 'home', company: 'home', routes: 'home', reports: 'home', busreport: 'home', livemap: 'home', track: 'home', fuel: 'home', safety: 'home' };
+const TAB_OF = { home: 'home', buses: 'buses', jobs: 'jobs', store: 'store', me: 'me', purchases: 'me', alerts: 'me', insights: 'home', drivers: 'home', assignments: 'home', company: 'home', routes: 'home', reports: 'home', busreport: 'home', livemap: 'home', track: 'home', fuel: 'home', safety: 'home', warranty: 'home' };
 function bottomnav() {
   const active = TAB_OF[S.route.name] || 'home';
   // Each role gets a focused nav matching what they actually do.
@@ -1200,6 +1200,44 @@ async function saveCoreReturn(jobId) {
   _coreShot = null; await load(); closeSheet(); toast('Old part recorded ✓'); viewJobDetail(jobId);
 }
 
+/* ===== Anti-pilferage #2 — warranty register + guard =====================
+ * A part's fitment history already lives in job records (partsUsed + busId +
+ * date). If the same part is replaced again on the same bus inside its warranty
+ * window, the replacement should be a FREE supplier claim — so we flag it, and
+ * flag any job that *charged* for a still-under-warranty part. */
+function warrantyStatus(busId, partId, asOf = Date.now(), beforeTime = null) {
+  const p = byId(S.cache.parts, partId);
+  const months = p ? Number(p.warrantyMonths) || 0 : 0;
+  if (!months) return null;
+  const cut = beforeTime == null ? asOf : beforeTime;
+  const fits = S.cache.jobs.filter((j) => j.busId === busId && (j.partsUsed || []).some((l) => l.partId === partId))
+    .map((j) => j.closedAt || j.createdAt).filter((tm) => tm < cut).sort((a, b) => b - a);
+  if (!fits.length) return null;
+  const fitAt = fits[0];
+  const leftDays = Math.round(months * 30 - (asOf - fitAt) / 86400000);
+  return { underWarranty: leftDays > 0, supplier: (p.supplier || ''), fitAt, leftDays, months };
+}
+function viewWarranty() {
+  // Latest under-warranty fitment per (bus, part).
+  const seen = {}; const rows = [];
+  S.cache.jobs.forEach((j) => (j.partsUsed || []).forEach((l) => {
+    const key = j.busId + '|' + l.partId;
+    const st = warrantyStatus(j.busId, l.partId);
+    if (st && st.underWarranty && !seen[key]) { seen[key] = 1; const p = byId(S.cache.parts, l.partId);
+      rows.push({ bus: busName(j.busId), part: p ? p.name : l.partId, st }); }
+  }));
+  rows.sort((a, b) => a.st.leftDays - b.st.leftDays);
+  let body = `<div class="card"><div class="tiny muted">Parts still under supplier warranty. If one fails now, claim a FREE replacement — don't pay for it.</div></div>`;
+  body += `<div class="card"><h3>Under warranty (${rows.length})</h3>`;
+  body += rows.length ? rows.map((r) => `<div class="li"><div class="ava">🛡️</div>
+    <div class="main"><div class="t">${esc(r.part)} · ${esc(r.bus)}</div>
+      <div class="s">${r.st.supplier ? esc(r.st.supplier) + ' · ' : ''}fitted ${fmtDate(r.st.fitAt)}</div></div>
+    <span class="badge ${r.st.leftDays < 30 ? 'b-amber' : 'b-green'}">${r.st.leftDays}d left</span></div>`).join('')
+    : `<div class="empty">No parts under warranty.<br><span class="tiny">Set a warranty period when adding a part type.</span></div>`;
+  body += `</div>`;
+  shell('Warranty register', body);
+}
+
 /* ----- Store / inventory ----- */
 function viewStore() {
   const parts = [...S.cache.parts].sort((a, b) => (a.qty <= a.reorderLevel ? -1 : 1) - (b.qty <= b.reorderLevel ? -1 : 1));
@@ -1296,6 +1334,7 @@ function viewMe() {
          <div class="li" data-act="openReports"><div class="ava">📊</div><div class="main"><div class="t">Bus reports</div><div class="s">Total maintenance spend per bus + full detail</div></div></div>
          <div class="li" data-act="openFuel"><div class="ava">⛽</div><div class="main"><div class="t">Fuel &amp; mileage</div><div class="s">Fills, km/l, fuel ₹/km &amp; mileage-drop alerts</div></div></div>
          <div class="li" data-act="openSafety"><div class="ava">🛡️</div><div class="main"><div class="t">Safety &amp; misuse</div><div class="s">Overspeed, harsh braking, night moves &amp; idling</div></div></div>
+         <div class="li" data-act="openWarranty"><div class="ava">🧾</div><div class="main"><div class="t">Warranty register</div><div class="s">Parts under warranty — don't pay for free replacements</div></div></div>
          <div class="li" data-act="openScoreboard"><div class="ava">🏆</div><div class="main"><div class="t">Mechanic scorecards</div><div class="s">Attendance, late penalties &amp; work-quality ratings</div></div></div>
          <div class="li" data-act="openRoutes"><div class="ava">🕒</div><div class="main"><div class="t">Routes &amp; timings</div><div class="s">Pickup geofences, go-times &amp; punctuality</div></div></div>
          <div class="li" data-act="openSetup"><div class="ava">⚙️</div><div class="main"><div class="t">Garage setup</div><div class="s">Location, geofence, shift time · start fresh</div></div></div>` : ''}
@@ -1519,8 +1558,19 @@ function sheetIssue(presetJob) {
     <label class="field"><span class="lbl">Part</span><select id="f-part">${parts.map((p) => `<option value="${p.id}">${esc(p.name)} (${p.qty} ${p.unit})</option>`).join('')}</select></label>
     <label class="field"><span class="lbl">Issue to job card</span><select id="f-job">${openJobs.map((j) => `<option value="${j.id}" ${j.id===presetJob?'selected':''}>${esc(busName(j.busId))} — ${esc(j.problem.slice(0,28))}</option>`).join('')}</select></label>
     <label class="field"><span class="lbl">Quantity</span><input id="f-qty" type="number" inputmode="numeric" value="1"></label>
+    <div id="f-warr"></div>
     <div class="banner warn">🔒 Parts can only be issued against a job card. This stops untracked pilferage.</div>
-    <button class="btn primary" data-act="confirmIssue">${t('issuePart')}</button>`);
+    <button class="btn primary" data-act="confirmIssue">${t('issuePart')}</button>`,
+    (wrap) => {
+      const pSel = wrap.querySelector('#f-part'), jSel = wrap.querySelector('#f-job');
+      const refresh = () => {
+        const j = byId(S.cache.jobs, jSel.value); const box = wrap.querySelector('#f-warr');
+        const st = j ? warrantyStatus(j.busId, pSel.value) : null;
+        box.innerHTML = (st && st.underWarranty)
+          ? `<div class="banner" style="background:#3a2412;color:#f59e0b">⚠️ This part is still under warranty${st.supplier ? ' (' + esc(st.supplier) + ')' : ''} — ${st.leftDays} days left. Claim a FREE replacement, don't buy a new one.</div>` : '';
+      };
+      pSel.addEventListener('change', refresh); jSel.addEventListener('change', refresh); refresh();
+    });
 }
 async function confirmIssue() {
   await issuePart({ partId: $('#f-part').value, qty: Number($('#f-qty').value) || 0, jobId: $('#f-job').value });
@@ -1562,6 +1612,10 @@ function sheetAddPart() {
       <label class="field"><span class="lbl">Opening qty</span><input id="f-pqty" type="number" inputmode="numeric" value="0"></label>
       <label class="field"><span class="lbl">Reorder at</span><input id="f-preorder" type="number" inputmode="numeric" value="2"></label>
     </div>
+    <div class="grid2">
+      <label class="field"><span class="lbl">Supplier (for warranty)</span><input id="f-psupp" placeholder="e.g. Bosch dealer"></label>
+      <label class="field"><span class="lbl">Warranty (months)</span><input id="f-pwarr" type="number" inputmode="numeric" placeholder="0 = none"></label>
+    </div>
     <button class="btn primary" data-act="saveAddPart">${t('save')}</button>`);
 }
 async function saveAddPart() {
@@ -1573,6 +1627,7 @@ async function saveAddPart() {
     id: partId, name, partNo: $('#f-pno').value.trim(), category: $('#f-pcat').value.trim() || 'General',
     unit: $('#f-punit').value, unitCost: Number($('#f-pcost').value) || 0,
     reorderLevel: Number($('#f-preorder').value) || 0, qty,
+    supplier: ($('#f-psupp') || {}).value ? $('#f-psupp').value.trim() : '', warrantyMonths: Number(($('#f-pwarr') || {}).value) || 0,
   });
   // An opening stock count is a stock-in movement — keep the ledger complete.
   if (qty > 0) await DB.put('ledger', { id: uid('l-'), partId, type: 'in', qty, jobId: null, reason: 'Opening stock', by: S.user.id, at: Date.now() });
@@ -3166,6 +3221,15 @@ function computeInsights() {
       detail: `${coreMissing(j).length} replaced part(s) with no old core returned — possible swap or warranty fraud.`, nav: { name: 'jobs', id: j.id } });
     if ((j.coreReturns || []).some((c) => c.condition === 'suspect')) out.push({ sev: 'high', icon: '🚩', title: `Suspicious old part — ${busName(j.busId)}`,
       detail: `A returned "old" part looks nearly new. Inspect before paying.`, nav: { name: 'jobs', id: j.id } });
+    // Charged for a part that was still under supplier warranty
+    (j.partsUsed || []).forEach((l) => {
+      if ((l.cost || 0) <= 0) return;
+      const at = j.closedAt || j.createdAt;
+      const st = warrantyStatus(j.busId, l.partId, at, at);
+      if (st && st.underWarranty) { const p = byId(S.cache.parts, l.partId);
+        out.push({ sev: 'high', icon: '🧾', title: `Charged for a warranty part — ${busName(j.busId)}`,
+          detail: `${p ? p.name : l.partId} was under ${st.supplier || 'supplier'} warranty when replaced & billed ${money(l.cost)} — should have been free.`, nav: { name: 'jobs', id: j.id } }); }
+    });
   });
 
   // Mileage drop — engine trouble or fuel pilferage
@@ -3275,7 +3339,7 @@ async function askAi() {
  */
 const current = () => S.stack[S.stack.length - 1];
 // Role guard: routes restricted to certain roles fall back to home for others.
-const ROUTE_PERM = { insights: 'insights', drivers: 'manageDrivers', assignments: 'assignDriver', routes: 'manageRoutes', reports: 'dashboard', busreport: 'dashboard', livemap: 'dashboard', track: 'dashboard', fuel: 'addFuel', safety: 'dashboard' };
+const ROUTE_PERM = { insights: 'insights', drivers: 'manageDrivers', assignments: 'assignDriver', routes: 'manageRoutes', reports: 'dashboard', busreport: 'dashboard', livemap: 'dashboard', track: 'dashboard', fuel: 'addFuel', safety: 'dashboard', warranty: 'addFuel' };
 function render(r) {
   if (typeof stopMap === 'function') stopMap();   // leaving any screen halts the live-map refresh timer
   if (typeof stopTrack === 'function') stopTrack();
@@ -3300,6 +3364,7 @@ function render(r) {
     case 'busreport': return viewBusReport(r.id);
     case 'fuel': return viewFuel();
     case 'safety': return viewSafety();
+    case 'warranty': return viewWarranty();
     case 'scoreboard': return viewScoreboard();
     case 'scorecard': return viewScorecard(r.id);
     default: return viewHome();
@@ -3387,6 +3452,7 @@ function bind() {
       case 'openReports': return push({ name: 'reports' });
       case 'openFuel': return push({ name: 'fuel' });
       case 'openSafety': return push({ name: 'safety' });
+      case 'openWarranty': return push({ name: 'warranty' });
       case 'returnCore': return sheetReturnCore(el.getAttribute('data-job'));
       case 'captureCore': return captureCore();
       case 'saveCoreReturn': return saveCoreReturn(el.getAttribute('data-job'));
