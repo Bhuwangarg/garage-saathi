@@ -3,6 +3,9 @@
 FROM python:3.12-slim
 
 WORKDIR /app
+# Install web-push deps (pywebpush + cryptography) before copying the app.
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 COPY sync_server.py .
 
 # Persist the SQLite DB and uploaded photos to a mounted volume in production.

@@ -292,7 +292,24 @@ const Sync = (function () {
   // Drain the quarantine so retried/fixed records get another chance.
   function clearQuarantine() { quarantine = {}; saveQuarantine(); kick(); }
 
+  // Web-push: register this device's subscription, and fire a server test alert.
+  async function subscribePush(subscription, role) {
+    try {
+      const res = await fetch(baseUrl() + '/push/subscribe', {
+        method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ subscription, role }),
+      });
+      return res.ok;
+    } catch (e) { return false; }
+  }
+  async function pushTest() {
+    try {
+      const res = await fetch(baseUrl() + '/push/test', { method: 'POST', headers: authHeaders() });
+      return res.ok ? await res.json() : null;
+    } catch (e) { return null; }
+  }
+
   return { start, tick, kick, setUrl, reset, info, login, logout, addStaff, setPin, ai, fleet, latest, uploadPhoto,
-           queuePhoto, remove, clearQuarantine,
+           queuePhoto, remove, clearQuarantine, subscribePush, pushTest,
            get status() { return status; } };
 })();

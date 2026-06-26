@@ -43,6 +43,27 @@ OVERSPEED_KPH = float(os.environ.get("OVERSPEED_KPH", "80"))
 HARSH_DROP_KPH = float(os.environ.get("HARSH_DROP_KPH", "30"))   # speed drop in one push interval
 IDLE_MIN = int(os.environ.get("IDLE_MIN", "15"))                  # engine-on, not moving, minutes
 NIGHT_START_IST, NIGHT_END_IST = 23, 5                            # night-movement window (IST)
+
+# Web push (VAPID). Public key is safe to ship to the browser; the private key
+# stays server-side (local .vapid_private.pem, or the VAPID_PRIVATE_KEY env var).
+VAPID_PUBLIC = os.environ.get("VAPID_PUBLIC", "BPbZL6mTam86eXAc8zT4vDCnP-0huKTqogZVEWjkUrhEkpIIS-V_kdFC9o78Ibu55ln7QSqUaoVT0Uq7lWX7-r8")
+VAPID_SUBJECT = os.environ.get("VAPID_SUBJECT", "mailto:mahalaxmitravels96@gmail.com")
+try:
+    from pywebpush import webpush, WebPushException   # installed via requirements.txt on the host
+    _WEBPUSH = True
+except Exception:
+    _WEBPUSH = False
+
+def _vapid_pem_path():
+    if os.path.exists(".vapid_private.pem"):
+        return ".vapid_private.pem"
+    pem = os.environ.get("VAPID_PRIVATE_KEY", "")
+    if pem:
+        p = "/tmp/vapid_private.pem"
+        with open(p, "w") as f:
+            f.write(pem.replace("\\n", "\n"))
+        return p
+    return None
 MAX_UPLOAD_BYTES = int(os.environ.get("MAX_UPLOAD_MB", "8")) * 1024 * 1024
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "").strip()
 
@@ -74,6 +95,8 @@ def db():
         PRIMARY KEY(store, id))""")
     c.execute("""CREATE TABLE IF NOT EXISTS users(
         id TEXT PRIMARY KEY, name TEXT, role TEXT, salt TEXT, pin_hash TEXT)""")
+    c.execute("""CREATE TABLE IF NOT EXISTS pushsubs(
+        endpoint TEXT PRIMARY KEY, sub TEXT, role TEXT, at INTEGER)""")
     return c
 
 
@@ -311,7 +334,57 @@ def ingest_gps(events):
             for ev in new_events:
                 rev = _upsert_record(c, "gpsevents", ev["id"], ev, now, rev)
             c.commit(); c.close()
+        # Push the most urgent misuse signal (night movement) to owners/supervisors.
+        for ev in new_events:
+            if ev["type"] == "night":
+                send_push("🌙 Night movement", f"{ev['reg']} is moving at night — confirm it's an authorised trip.", "/")
     return {"ok": True, "accepted": accepted, "events": len(new_events)}
+
+
+def save_pushsub(sub, role):
+    ep = sub.get("endpoint") if isinstance(sub, dict) else None
+    if not ep:
+        return False
+    with _lock:
+        c = db()
+        c.execute("INSERT OR REPLACE INTO pushsubs(endpoint,sub,role,at) VALUES(?,?,?,?)",
+                  (ep, json.dumps(sub), role or "owner", now_ms()))
+        c.commit(); c.close()
+    return True
+
+
+def _del_pushsub(ep):
+    with _lock:
+        c = db(); c.execute("DELETE FROM pushsubs WHERE endpoint=?", (ep,)); c.commit(); c.close()
+
+
+def send_push(title, body, url="/", roles=("owner", "supervisor")):
+    """Send a web-push to stored subscriptions. roles=None → everyone."""
+    if not _WEBPUSH:
+        return 0
+    pem = _vapid_pem_path()
+    if not pem:
+        return 0
+    with _lock:
+        c = db()
+        rows = c.execute("SELECT endpoint,sub,role FROM pushsubs").fetchall()
+        c.close()
+    payload = json.dumps({"title": title, "body": body, "url": url})
+    sent = 0
+    for ep, sub_json, role in rows:
+        if roles and role not in roles:
+            continue
+        try:
+            webpush(subscription_info=json.loads(sub_json), data=payload,
+                    vapid_private_key=pem, vapid_claims={"sub": VAPID_SUBJECT})
+            sent += 1
+        except WebPushException as e:
+            code = getattr(getattr(e, "response", None), "status_code", None)
+            if code in (404, 410):      # gone/expired → drop the dead subscription
+                _del_pushsub(ep)
+        except Exception:
+            pass
+    return sent
 
 
 def gps_telemetry(bus_id, odo, reg=None):
@@ -404,6 +477,8 @@ class Handler(BaseHTTPRequestHandler):
             odo = float((q.get("odo") or ["0"])[0] or 0)
             reg = (q.get("reg") or [""])[0]
             return self._send(200, gps_telemetry(bus_id, odo, reg))
+        if u.path == "/push/vapid":                   # public VAPID key for the browser to subscribe
+            return self._send(200, {"publicKey": VAPID_PUBLIC, "enabled": _WEBPUSH and bool(_vapid_pem_path())})
         if u.path == "/gps/latest":                  # provider self-check
             reg = (parse_qs(u.query).get("reg") or [""])[0]
             data = LIVE_GPS.get(norm_reg(reg))
@@ -503,6 +578,21 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, {"text": text})
             except Exception as e:
                 return self._send(502, {"error": "AI upstream error"})
+
+        if u.path == "/push/subscribe":              # browser registers for web-push
+            me = self._auth_user()
+            if not me:
+                return self._send(401, {"error": "unauthorized"})
+            b = self._body()
+            ok = save_pushsub(b.get("subscription"), b.get("role") or me["role"])
+            return self._send(200 if ok else 400, {"ok": ok})
+
+        if u.path == "/push/test":                   # send a test alert to the caller's role
+            me = self._auth_user()
+            if not me:
+                return self._send(401, {"error": "unauthorized"})
+            n = send_push("Garage Saathi", "✅ Test alert — phone notifications are working.", "/", roles=None)
+            return self._send(200, {"ok": True, "sent": n, "webpush": _WEBPUSH})
 
         if u.path == "/gps/ingest":                  # GPS provider pushes telemetry here
             if not _GPS_TOKEN_OK:                     # no real token configured → ingest disabled

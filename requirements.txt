@@ -1,2 +1,5 @@
-# Garage Saathi sync/GPS server uses only the Python standard library.
-# (No third-party packages required.)
+# Garage Saathi sync/GPS server.
+# Core server is stdlib-only; pywebpush powers Phase-3 web-push notifications
+# (it pulls in cryptography + py-vapid + http-ece). If absent, push silently
+# no-ops and the rest of the server runs unchanged.
+pywebpush>=1.14.0

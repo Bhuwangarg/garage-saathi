@@ -5,3 +5,4 @@ sync.db
 uploads/
 __pycache__/
 *.pyc
+.vapid_private.pem

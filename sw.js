@@ -7,7 +7,7 @@
  * Cross-origin requests (the sync server, uploads, the Anthropic API) are NOT
  * intercepted — they go straight to the network.
  */
-const CACHE = 'garage-saathi-v40';
+const CACHE = 'garage-saathi-v41';
 const SHELL = [
   './',
   './index.html',
@@ -27,6 +27,24 @@ self.addEventListener('activate', (e) => {
     caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
       .then(() => self.clients.claim())
   );
+});
+
+/* Web-push: show the notification the server sent, and focus the app on tap. */
+self.addEventListener('push', (e) => {
+  let d = { title: 'Garage Saathi', body: '', url: '/' };
+  try { if (e.data) d = Object.assign(d, e.data.json()); } catch (_) { if (e.data) d.body = e.data.text(); }
+  e.waitUntil(self.registration.showNotification(d.title, {
+    body: d.body, icon: './icon-192.png', badge: './icon-192.png',
+    data: { url: d.url || '/' }, tag: d.tag, renotify: true,
+  }));
+});
+self.addEventListener('notificationclick', (e) => {
+  e.notification.close();
+  const target = (e.notification.data && e.notification.data.url) || '/';
+  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((cls) => {
+    for (const c of cls) { if ('focus' in c) return c.focus(); }
+    if (self.clients.openWindow) return self.clients.openWindow(target);
+  }));
 });
 
 self.addEventListener('fetch', (e) => {

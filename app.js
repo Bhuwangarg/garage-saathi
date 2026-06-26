@@ -1248,6 +1248,18 @@ function viewMe() {
     <div class="li" data-act="logout"><div class="ava">🚪</div><div class="main"><div class="t">${t('logout')}</div></div></div>
   </div>`;
 
+  // Phone alerts (web-push) — for owner/supervisor who receive misuse/safety alerts.
+  if (['owner', 'supervisor'].includes(S.user.role)) {
+    const on = pushEnabled();
+    body += `<div class="card"><div class="row between"><h3>🔔 Phone alerts</h3>
+        <span class="badge ${on ? 'b-green' : 'b-low'}">${on ? 'ON' : 'OFF'}</span></div>
+      <div class="tiny muted" style="margin-bottom:10px">Get pushed to your phone for night movement &amp; other urgent alerts — even when the app is closed. WhatsApp coming once your Business account is ready.</div>
+      <div class="btnrow">
+        ${on ? `<button class="btn sm" data-act="testNotif">Send test</button><button class="btn sm ghost" data-act="disableNotif">Turn off</button>`
+             : `<button class="btn sm primary" data-act="enableNotif">Enable alerts</button>`}
+      </div></div>`;
+  }
+
   shell(t('me'), body);
 }
 
@@ -3308,6 +3320,9 @@ function bind() {
       case 'openReports': return push({ name: 'reports' });
       case 'openFuel': return push({ name: 'fuel' });
       case 'openSafety': return push({ name: 'safety' });
+      case 'enableNotif': return enableNotifications();
+      case 'disableNotif': return disableNotifications();
+      case 'testNotif': return testNotification();
       case 'addFuel': return sheetAddFuel(el.getAttribute('data-bus'));
       case 'saveFuel': return saveFuel();
       case 'openLiveMap': return push({ name: 'livemap' });
@@ -3366,6 +3381,42 @@ function bind() {
 
 /* ------------------------------- Login ------------------------------------ */
 let _pinUser = null, _pin = '';
+/* ----------------------------- Web-push notifications --------------------- */
+const VAPID_PUBLIC = 'BPbZL6mTam86eXAc8zT4vDCnP-0huKTqogZVEWjkUrhEkpIIS-V_kdFC9o78Ibu55ln7QSqUaoVT0Uq7lWX7-r8';
+function _urlB64ToUint8(b64) {
+  const pad = '='.repeat((4 - (b64.length % 4)) % 4);
+  const s = (b64 + pad).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(s); const out = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+  return out;
+}
+const pushEnabled = () => localStorage.getItem('pushOn') === '1' && ('Notification' in window) && Notification.permission === 'granted';
+async function enableNotifications() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return toast('Notifications not supported on this device');
+  let perm = Notification.permission;
+  if (perm !== 'granted') perm = await Notification.requestPermission();
+  if (perm !== 'granted') return toast('Allow notifications in your browser settings to enable');
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: _urlB64ToUint8(VAPID_PUBLIC) });
+    const ok = await Sync.subscribePush(sub.toJSON(), S.user.role);
+    localStorage.setItem('pushOn', ok ? '1' : '');
+    toast(ok ? 'Phone alerts enabled ✓' : 'Saved here; will register when the server is reachable');
+  } catch (e) { toast('Could not enable notifications'); }
+  rerender();
+}
+async function disableNotifications() {
+  try { const reg = await navigator.serviceWorker.ready; const sub = await reg.pushManager.getSubscription(); if (sub) await sub.unsubscribe(); } catch (e) {}
+  localStorage.setItem('pushOn', ''); toast('Phone alerts off'); rerender();
+}
+async function testNotification() {
+  const r = await Sync.pushTest();
+  if (r && r.sent) toast(`Test sent to ${r.sent} device(s) ✓`);
+  else if (r && !r.webpush) toast('Server push still deploying — try again shortly');
+  else toast('No subscribed devices yet — enable alerts first');
+}
+
 const ROLE_META = { owner: ['👑', 'Owner'], supervisor: ['🧑‍🔧', 'Supervisor'], store: ['📦', 'Store'], mechanic: ['🔧', 'Mechanic'], driver: ['🧑‍✈️', 'Driver'] };
 const roleEmoji = (r) => (ROLE_META[r] || ['🔧'])[0];
 // Step 1 — pick your role. (Keeps the list manageable across a big fleet.)
