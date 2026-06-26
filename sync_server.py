@@ -478,7 +478,10 @@ class Handler(BaseHTTPRequestHandler):
             reg = (q.get("reg") or [""])[0]
             return self._send(200, gps_telemetry(bus_id, odo, reg))
         if u.path == "/push/vapid":                   # public VAPID key for the browser to subscribe
-            return self._send(200, {"publicKey": VAPID_PUBLIC, "enabled": _WEBPUSH and bool(_vapid_pem_path())})
+            return self._send(200, {"publicKey": VAPID_PUBLIC, "enabled": _WEBPUSH and bool(_vapid_pem_path()),
+                                    "webpush": _WEBPUSH,
+                                    "keyEnv": bool(os.environ.get("VAPID_PRIVATE_KEY")),   # is the env var visible to the process?
+                                    "keyFile": os.path.exists(".vapid_private.pem")})
         if u.path == "/gps/latest":                  # provider self-check
             reg = (parse_qs(u.query).get("reg") or [""])[0]
             data = LIVE_GPS.get(norm_reg(reg))
