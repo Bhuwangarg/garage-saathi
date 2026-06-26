@@ -11,6 +11,10 @@
   <!-- Leaflet (live map). Cross-origin → loads when online; map degrades gracefully offline. -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <!-- face-api.js — face detection for attendance check-in/out (fallback when the
+       browser has no native FaceDetector). Online only; attendance degrades to a
+       plain selfie offline. -->
+  <script defer src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>

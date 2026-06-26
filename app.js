@@ -195,6 +195,95 @@ function capturePhoto() {
   });
 }
 
+/* ===== Face check-in: live camera + face detection ========================
+ * Uses the browser's native FaceDetector when present, else face-api.js
+ * (tinyFaceDetector, loaded from CDN). Capture is only allowed while a real
+ * face is in frame — so it's a live face, not a random uploaded photo. If
+ * neither detector is available (or offline), it degrades to a plain selfie. */
+let _faceModelsLoaded = false;
+async function ensureFaceModels() {
+  if (window.FaceDetector) return true;                 // native — no model download
+  if (!window.faceapi) return false;                    // lib didn't load (offline)
+  if (_faceModelsLoaded) return true;
+  try { await faceapi.nets.tinyFaceDetector.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model'); _faceModelsLoaded = true; return true; }
+  catch (e) { return false; }
+}
+const faceDetectorReady = () => !!window.FaceDetector || (window.faceapi && _faceModelsLoaded);
+async function detectFaceBoxes(video) {
+  try {
+    if (window.FaceDetector) {
+      const fs = await new FaceDetector({ fastMode: true, maxDetectedFaces: 3 }).detect(video);
+      return fs.map((f) => ({ x: f.boundingBox.x, y: f.boundingBox.y, w: f.boundingBox.width, h: f.boundingBox.height }));
+    }
+    if (window.faceapi && _faceModelsLoaded) {
+      const ds = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.45 }));
+      return ds.map((d) => ({ x: d.box.x, y: d.box.y, w: d.box.width, h: d.box.height }));
+    }
+  } catch (e) { /* detection hiccup → treat as no face this frame */ }
+  return [];
+}
+function drawFaceBrackets(ctx, b) {
+  const len = Math.min(b.w, b.h) * 0.24;
+  ctx.strokeStyle = '#16a571'; ctx.lineWidth = 4; ctx.lineCap = 'round';
+  [[b.x, b.y, 1, 1], [b.x + b.w, b.y, -1, 1], [b.x, b.y + b.h, 1, -1], [b.x + b.w, b.y + b.h, -1, -1]]
+    .forEach(([x, y, sx, sy]) => { ctx.beginPath(); ctx.moveTo(x, y + sy * len); ctx.lineTo(x, y); ctx.lineTo(x + sx * len, y); ctx.stroke(); });
+  ctx.strokeStyle = 'rgba(22,165,113,.45)'; ctx.lineWidth = 1.5; ctx.strokeRect(b.x, b.y, b.w, b.h);
+}
+// Returns { photo, faceVerified } or null (cancelled).
+async function captureFace(caption) {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    const p = await capturePhoto(); return p ? { photo: p, faceVerified: false } : null;
+  }
+  let stream;
+  try { stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 640 } }, audio: false }); }
+  catch (e) { const p = await capturePhoto(); return p ? { photo: p, faceVerified: false } : null; }
+  await ensureFaceModels();
+  return new Promise((resolve) => {
+    const ov = document.createElement('div');
+    ov.style.cssText = 'position:fixed;inset:0;z-index:9999;background:#0b0f14;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:18px';
+    ov.innerHTML = `<div style="position:relative;width:min(92vw,400px);aspect-ratio:1;border-radius:22px;overflow:hidden;background:#000">
+        <video id="fc-v" playsinline muted autoplay style="width:100%;height:100%;object-fit:cover;transform:scaleX(-1)"></video>
+        <canvas id="fc-c" style="position:absolute;inset:0;width:100%;height:100%;transform:scaleX(-1)"></canvas>
+      </div>
+      <div id="fc-status" style="color:#fff;font:700 16px -apple-system,system-ui,sans-serif;margin-top:16px">Looking for a face…</div>
+      <div style="color:#8b91a0;font-size:12px;margin-top:4px">${esc(caption || '')}</div>
+      <div style="display:flex;gap:14px;margin-top:18px">
+        <button id="fc-x" style="padding:13px 22px;border-radius:14px;border:0;background:#2a2f37;color:#fff;font-weight:700">Cancel</button>
+        <button id="fc-go" disabled style="padding:13px 28px;border-radius:14px;border:0;background:#16a571;color:#fff;font-weight:800;opacity:.45">Capture</button>
+      </div>`;
+    document.body.appendChild(ov);
+    const v = ov.querySelector('#fc-v'), c = ov.querySelector('#fc-c'), status = ov.querySelector('#fc-status'),
+      go = ov.querySelector('#fc-go'), x = ov.querySelector('#fc-x'), ctx = c.getContext('2d');
+    v.srcObject = stream; v.play && v.play().catch(() => {});
+    let running = true, hasFace = false, timer = null;
+    const cleanup = () => { running = false; if (timer) clearInterval(timer); try { stream.getTracks().forEach((t) => t.stop()); } catch (e) {} ov.remove(); };
+    const loop = async () => {
+      if (!running || !v.videoWidth) return;
+      const boxes = faceDetectorReady() ? await detectFaceBoxes(v) : [];
+      if (!running) return;
+      c.width = v.videoWidth; c.height = v.videoHeight;
+      ctx.clearRect(0, 0, c.width, c.height);
+      hasFace = boxes.length > 0;
+      boxes.forEach((b) => drawFaceBrackets(ctx, b));
+      if (!faceDetectorReady()) { status.textContent = 'Centre your face, then Capture'; status.style.color = '#fff'; }
+      else { status.textContent = hasFace ? '✓ Face detected' : 'Looking for a face…'; status.style.color = hasFace ? '#16a571' : '#fff'; }
+      const allow = !faceDetectorReady() || hasFace;     // require a face only when a detector is available
+      go.disabled = !allow; go.style.opacity = allow ? '1' : '.45';
+    };
+    timer = setInterval(loop, 250);
+    go.onclick = () => {
+      let w = v.videoWidth || 640, h = v.videoHeight || 640; const max = 720;
+      if (w > h && w > max) { h = h * max / w; w = max; } else if (h > max) { w = w * max / h; h = max; }
+      const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+      cv.getContext('2d').drawImage(v, 0, 0, w, h);
+      const photo = cv.toDataURL('image/jpeg', 0.72);
+      const fv = faceDetectorReady() && hasFace;
+      cleanup(); resolve({ photo, faceVerified: fv });
+    };
+    x.onclick = () => { cleanup(); resolve(null); };
+  });
+}
+
 const can = (role, perm) => (PERMS[perm] || []).includes(role);
 const PERMS = {
   addBus: ['owner', 'supervisor'],
@@ -1360,10 +1449,11 @@ function viewMe() {
 
 /* ----------------------------- Attendance flow ---------------------------- */
 async function doAttendance(type) {
-  // Selfie first — attendance is unverifiable without proof of who showed up.
-  toast(type === 'in' ? 'Take a selfie to check in' : 'Take a selfie to check out');
-  const selfie = await capturePhoto();
-  if (!selfie) return toast('Selfie required to mark attendance');
+  // Live face capture — attendance is unverifiable without proof of who showed
+  // up, and the face detector ensures it's a real face in frame, not a photo.
+  const cap = await captureFace(type === 'in' ? 'Check in' : 'Check out');
+  if (!cap) return toast('Face capture required to mark attendance');
+  const selfie = cap.photo;
 
   toast('Getting location…');
   let lat = null, lng = null, dist = null;
@@ -1391,9 +1481,9 @@ async function doAttendance(type) {
   }
 
   const selfieRef = selfie ? (await Sync.uploadPhoto(selfie) || selfie) : '';
-  await DB.put('attendance', { id: uid('a-'), userId: S.user.id, type, at: Date.now(), lat, lng, dist, selfie: selfieRef, late, flagged: !!tooFar || lat == null });
+  await DB.put('attendance', { id: uid('a-'), userId: S.user.id, type, at: Date.now(), lat, lng, dist, selfie: selfieRef, late, faceVerified: !!cap.faceVerified, flagged: !!tooFar || lat == null });
   await load();
-  toast(type === 'in' ? (late ? 'Checked in (late)' : 'Checked in ✓') : 'Checked out ✓');
+  toast(type === 'in' ? (late ? 'Checked in (late)' : `Checked in ✓${cap.faceVerified ? ' · face verified 🙂' : ''}`) : `Checked out ✓${cap.faceVerified ? ' · face verified 🙂' : ''}`);
   viewMe();
 }
 
