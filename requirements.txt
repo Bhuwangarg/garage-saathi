@@ -3,3 +3,8 @@
 # (it pulls in cryptography + py-vapid + http-ece). If absent, push silently
 # no-ops and the rest of the server runs unchanged.
 pywebpush>=1.14.0
+# Optional: persist to a free Turso (libSQL) database instead of the local
+# (ephemeral on Render free) SQLite file. Activated only when TURSO_URL +
+# TURSO_AUTH_TOKEN env vars are set; otherwise the server uses local SQLite.
+libsql-experimental>=0.0.41
+

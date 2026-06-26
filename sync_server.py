@@ -28,6 +28,12 @@ from urllib.parse import urlparse, parse_qs
 
 DB = os.environ.get("DB_PATH", "sync.db")
 UPLOADS = os.environ.get("UPLOADS_DIR", "uploads")
+# Free persistence: point at a Turso (libSQL) database when these are set.
+# Same SQL — Turso *is* SQLite — so nothing else in the server changes.
+TURSO_URL = os.environ.get("TURSO_URL", "")
+TURSO_TOKEN = os.environ.get("TURSO_AUTH_TOKEN", "")
+_USE_TURSO = bool(TURSO_URL and TURSO_TOKEN)
+_SCHEMA_OK = False
 PORT = int(os.environ.get("PORT", "8766"))      # cloud hosts inject $PORT
 _lock = threading.Lock()
 SESSIONS = {}          # token -> {uid, exp}
@@ -91,15 +97,34 @@ SEED_USERS = [
 ]
 
 
+def _connect():
+    """A SQLite-compatible connection — Turso (remote, persistent) when configured,
+    otherwise the local SQLite file (ephemeral on Render free)."""
+    if _USE_TURSO:
+        try:
+            import libsql_experimental as libsql
+            return libsql.connect(database=TURSO_URL, auth_token=TURSO_TOKEN)
+        except Exception as e:
+            print("WARNING: Turso connect failed, using local SQLite:", e)
+    return sqlite3.connect(DB)
+
+
 def db():
-    c = sqlite3.connect(DB)
-    c.execute("""CREATE TABLE IF NOT EXISTS records(
-        store TEXT, id TEXT, data TEXT, updatedAt INTEGER, rev INTEGER,
-        PRIMARY KEY(store, id))""")
-    c.execute("""CREATE TABLE IF NOT EXISTS users(
-        id TEXT PRIMARY KEY, name TEXT, role TEXT, salt TEXT, pin_hash TEXT)""")
-    c.execute("""CREATE TABLE IF NOT EXISTS pushsubs(
-        endpoint TEXT PRIMARY KEY, sub TEXT, role TEXT, at INTEGER)""")
+    global _SCHEMA_OK
+    c = _connect()
+    if not _SCHEMA_OK:                      # create the schema once per process
+        c.execute("""CREATE TABLE IF NOT EXISTS records(
+            store TEXT, id TEXT, data TEXT, updatedAt INTEGER, rev INTEGER,
+            PRIMARY KEY(store, id))""")
+        c.execute("""CREATE TABLE IF NOT EXISTS users(
+            id TEXT PRIMARY KEY, name TEXT, role TEXT, salt TEXT, pin_hash TEXT)""")
+        c.execute("""CREATE TABLE IF NOT EXISTS pushsubs(
+            endpoint TEXT PRIMARY KEY, sub TEXT, role TEXT, at INTEGER)""")
+        try:
+            c.commit()
+        except Exception:
+            pass
+        _SCHEMA_OK = True
     return c
 
 
@@ -458,7 +483,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         u = urlparse(self.path)
         if u.path in ("/", "/health"):
-            return self._send(200, {"ok": True, "service": "garage-saathi-sync"})
+            return self._send(200, {"ok": True, "service": "garage-saathi-sync", "db": "turso" if _USE_TURSO else "sqlite", "persistent": _USE_TURSO})
         if u.path.startswith("/uploads/"):
             name = os.path.basename(u.path)
             fp = os.path.join(UPLOADS, name)
@@ -630,5 +655,6 @@ if __name__ == "__main__":
     if not _GPS_TOKEN_OK:
         print("NOTE: GPS_INGEST_TOKEN not set (or demo) → /gps/ingest is disabled.")
     print(f"AI advisor proxy: {'ENABLED (/ai)' if ANTHROPIC_API_KEY else 'disabled (set ANTHROPIC_API_KEY)'}")
-    print(f"Garage Saathi sync server on http://0.0.0.0:{PORT}  (db: {DB}, uploads: {UPLOADS}/)")
+    print(f"DB: {'Turso (libSQL, persistent)' if _USE_TURSO else DB + ' — local SQLite (EPHEMERAL on Render free; set TURSO_URL+TURSO_AUTH_TOKEN to persist)'}")
+    print(f"Garage Saathi sync server on http://0.0.0.0:{PORT}  (uploads: {UPLOADS}/)")
     ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
