@@ -612,6 +612,36 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 return self._send(502, {"error": "AI upstream error"})
 
+        if u.path == "/ai/vision":   # Claude vision — part-wear grading + serial OCR
+            if not self._auth_user():
+                return self._send(401, {"error": "unauthorized"})
+            if not ANTHROPIC_API_KEY:
+                return self._send(501, {"error": "AI not configured on server"})
+            b = self._body()
+            image = (b.get("image") or "")        # data URL: data:image/jpeg;base64,XXXX
+            prompt = (b.get("prompt") or "").strip()
+            if not image.startswith("data:") or "," not in image or not prompt:
+                return self._send(400, {"error": "image (data URL) and prompt required"})
+            try:
+                header, b64 = image.split(",", 1)
+                media = header.split(";")[0].split(":")[1] if ":" in header else "image/jpeg"
+                payload = json.dumps({
+                    "model": b.get("model") or "claude-haiku-4-5-20251001",
+                    "max_tokens": 300,
+                    "messages": [{"role": "user", "content": [
+                        {"type": "image", "source": {"type": "base64", "media_type": media, "data": b64}},
+                        {"type": "text", "text": prompt},
+                    ]}],
+                }).encode()
+                req = urllib.request.Request("https://api.anthropic.com/v1/messages", data=payload, method="POST", headers={
+                    "content-type": "application/json", "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01"})
+                with urllib.request.urlopen(req, timeout=40) as resp:
+                    j = json.loads(resp.read())
+                text = "".join(c.get("text", "") for c in (j.get("content") or [])).strip()
+                return self._send(200, {"text": text})
+            except Exception as e:
+                return self._send(502, {"error": "AI vision upstream error"})
+
         if u.path == "/push/subscribe":              # browser registers for web-push
             me = self._auth_user()
             if not me:

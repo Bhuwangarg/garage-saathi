@@ -100,6 +100,19 @@ const Sync = (function () {
       return { text: (await res.json()).text || '' };
     } catch (e) { return { configured: false }; }
   }
+  // Claude vision: send a photo (data URL) + prompt → text. For part-wear grading
+  // and serial OCR. { text } on success, { configured:false } if no server key.
+  async function aiVision(image, prompt) {
+    try {
+      const res = await fetch(baseUrl() + '/ai/vision', {
+        method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ image, prompt }),
+      });
+      if (res.status === 501 || res.status === 401) return { configured: false };
+      if (!res.ok) return { configured: true, error: 'AI vision error ' + res.status };
+      return { text: (await res.json()).text || '' };
+    } catch (e) { return { configured: false }; }
+  }
 
   // Pull the fleet AirFi has pushed telemetry for — list of {reg, odometer, lastPing, lat, lng, speedKph, ignition}.
   async function fleet() {
@@ -309,7 +322,7 @@ const Sync = (function () {
     } catch (e) { return null; }
   }
 
-  return { start, tick, kick, setUrl, reset, info, login, logout, addStaff, setPin, ai, fleet, latest, uploadPhoto,
+  return { start, tick, kick, setUrl, reset, info, login, logout, addStaff, setPin, ai, aiVision, fleet, latest, uploadPhoto,
            queuePhoto, remove, clearQuarantine, subscribePush, pushTest,
            get status() { return status; } };
 })();

@@ -557,7 +557,7 @@ function topbar(title) {
 }
 
 // Which bottom tab should light up — sub-screens map back to their parent tab.
-const TAB_OF = { home: 'home', buses: 'buses', jobs: 'jobs', store: 'store', me: 'me', purchases: 'me', alerts: 'me', insights: 'home', drivers: 'home', assignments: 'home', company: 'home', routes: 'home', reports: 'home', busreport: 'home', livemap: 'home', track: 'home', fuel: 'home', safety: 'home', warranty: 'home', storehealth: 'store' };
+const TAB_OF = { home: 'home', buses: 'buses', jobs: 'jobs', store: 'store', me: 'me', purchases: 'me', alerts: 'me', insights: 'home', drivers: 'home', assignments: 'home', company: 'home', routes: 'home', reports: 'home', busreport: 'home', livemap: 'home', track: 'home', fuel: 'home', safety: 'home', warranty: 'home', storehealth: 'store', linkgps: 'home' };
 function bottomnav() {
   const active = TAB_OF[S.route.name] || 'home';
   // Each role gets a focused nav matching what they actually do.
@@ -1150,9 +1150,11 @@ function viewJobDetail(id) {
     const missing = coreMissing(j);
     body += `<div class="card"><div class="row between"><h3>🔧 Old parts returned</h3>${editable && (j.partsUsed || []).length ? `<button class="btn sm" data-act="returnCore" data-job="${j.id}">📦 Return old part</button>` : ''}</div>`;
     body += crs.map((c) => { const p = byId(S.cache.parts, c.partId); const cc = CORE_COND[c.condition] || CORE_COND.worn;
+      const ai = c.ai ? `<div class="tiny" style="margin-top:4px;color:${c.ai.verdict === 'suspect' ? '#ef4444' : '#5d6675'}">🤖 ${c.ai.wear}% worn · ${esc(c.ai.verdict)}${c.ai.note ? ' — ' + esc(c.ai.note) : ''}</div>` : '';
+      const gradeBtn = (!c.ai && ['owner', 'supervisor'].includes(S.user.role)) ? `<div style="margin-top:6px"><button class="btn sm ghost" data-act="aiGradeCore" data-job="${j.id}" data-cr="${c.id}">🤖 AI grade</button></div>` : '';
       return `<div class="li"><img class="thumb" src="${c.photo}" data-act="viewPhoto" data-src="${c.photo}">
-        <div class="main"><div class="t">${esc(p ? p.name : (c.note || 'Old part'))}</div><div class="s">${fmtDate(c.at)} · ${esc(userName(c.by))}</div></div>
-        <span class="badge ${cc[1]}">${cc[0]}</span></div>`; }).join('');
+        <div class="main"><div class="t">${esc(p ? p.name : (c.note || 'Old part'))}</div><div class="s">${fmtDate(c.at)} · ${esc(userName(c.by))}</div>${ai}</div>
+        <div style="text-align:right"><span class="badge ${cc[1]}">${cc[0]}</span>${gradeBtn}</div></div>`; }).join('');
     if (missing.length) body += `<div class="banner warn" style="margin-top:8px">⚠️ Old part not returned for: ${missing.map((l) => { const p = byId(S.cache.parts, l.partId); return esc(p ? p.name : l.partId); }).join(', ')}. Get the worn part back before paying.</div>`;
     body += `</div>`;
   }
@@ -1288,6 +1290,33 @@ async function saveCoreReturn(jobId) {
   await DB.put('jobcards', j);
   _coreShot = null; await load(); closeSheet(); toast('Old part recorded ✓'); viewJobDetail(jobId);
 }
+// AI vision: grade how worn a returned old part actually is (anti-swap fraud).
+async function aiGradeCore(jobId, crId) {
+  const j = byId(S.cache.jobs, jobId); if (!j) return;
+  const cr = (j.coreReturns || []).find((c) => c.id === crId); if (!cr || !cr.photo) return;
+  const p = byId(S.cache.parts, cr.partId);
+  const stop = showBusyOverlay('AI checking the part…');
+  const prompt = `This is an OLD vehicle part (${p ? p.name : 'part'}) removed from a bus, claimed worn-out and replaced. From the photo, rate how worn it really is. Reply ONLY compact JSON: {"wear":0-100,"verdict":"worn"|"ok"|"suspect","note":"short reason"}. 0=brand new, 100=fully worn. Use "suspect" if it looks too new to justify replacement.`;
+  const r = await Sync.aiVision(cr.photo, prompt);
+  if (stop) stop();
+  if (!r || r.configured === false) return toast('AI vision not enabled on the server yet (set ANTHROPIC_API_KEY)');
+  if (r.error) return toast(r.error);
+  let v = null; try { v = JSON.parse((r.text || '').match(/\{[\s\S]*\}/)[0]); } catch (e) {}
+  if (!v || v.wear == null) return toast('AI: ' + (r.text || 'no reading').slice(0, 70));
+  cr.ai = { wear: Math.round(v.wear), verdict: v.verdict || 'ok', note: (v.note || '').slice(0, 80), at: Date.now() };
+  await DB.put('jobcards', j); await load(); toast(`AI: ${cr.ai.wear}% worn (${cr.ai.verdict})`); viewJobDetail(jobId);
+}
+// AI vision OCR: read a part's serial/part number from a photo into a field.
+async function scanSerial(targetId) {
+  const shot = await capturePhoto(); if (!shot) return;
+  const stop = showBusyOverlay('Reading serial…');
+  const r = await Sync.aiVision(shot, 'Read the serial number or part number printed on this automotive part. Reply ONLY the alphanumeric code, nothing else. If unreadable reply NONE.');
+  if (stop) stop();
+  if (!r || r.configured === false) return toast('AI vision not enabled on the server yet (set ANTHROPIC_API_KEY)');
+  const s = (r.text || '').trim().split(/\s/)[0];
+  const el = document.getElementById(targetId);
+  if (el && s && s.toUpperCase() !== 'NONE') { el.value = s; toast('Serial: ' + s); } else toast('Could not read a serial');
+}
 
 /* ===== Anti-pilferage #2 — warranty register + guard =====================
  * A part's fitment history already lives in job records (partsUsed + busId +
@@ -1410,6 +1439,36 @@ async function saveAudit(mode) {
   rerender();
 }
 
+/* ===== Link AirFi GPS devices to fleet units (turn on live tracking) ====== */
+function viewLinkGps() {
+  shell('Link GPS to buses', `<div id="gpslink"><div class="card"><div class="muted small">Loading AirFi devices…</div></div></div>`);
+  loadGpsLinks();
+}
+async function loadGpsLinks() {
+  let fleet = []; try { fleet = await Sync.fleet(); } catch (e) { /* offline */ }
+  const buses = S.cache.buses || [];
+  const matched = [], unmatched = [];
+  fleet.forEach((f) => { const b = buses.find((x) => _normReg(x.regNo) === _normReg(f.reg)); (b ? matched : unmatched).push({ f, b }); });
+  const units = buses.filter((b) => /^unit\s/i.test(b.regNo) || b.source === 'klm-excel');
+  let h = `<div class="card"><div class="tiny muted">AirFi reports by registration plate. Match each live device to its bus (unit) — that switches on live tracking + safety scoring for it. A device only appears here while its bus is powered on.</div></div>`;
+  h += `<div class="card"><h3>Unlinked devices (${unmatched.length})</h3>`;
+  h += unmatched.length ? unmatched.map(({ f }) => `<div class="li"><div class="ava">🛰️</div>
+      <div class="main"><div class="t">${esc(f.reg)}</div><div class="s">${Math.round(f.speedKph || 0)} km/h · odo ${(f.odometer || 0).toLocaleString('en-IN')}</div></div>
+      <select class="gpslink-sel" data-reg="${esc(f.reg)}" data-odo="${f.odometer || 0}"><option value="">Assign to…</option>${units.map((u) => `<option value="${u.id}">${esc(u.regNo)}${u.company ? ' · ' + esc(u.company) : ''}</option>`).join('')}</select></div>`).join('') : `<div class="muted small">No unlinked devices reporting right now.</div>`;
+  h += `</div>`;
+  h += `<div class="card"><h3>Linked &amp; tracking (${matched.length})</h3>` + (matched.length ? matched.map(({ b }) => `<div class="li"><div class="ava">✅</div><div class="main"><div class="t">${esc(b.regNo)}</div><div class="s">live GPS active</div></div></div>`).join('') : `<div class="muted small">None yet — assign a device above.</div>`) + `</div>`;
+  const box = document.getElementById('gpslink'); if (!box) return;
+  box.innerHTML = h;
+  box.querySelectorAll('.gpslink-sel').forEach((sel) => { sel.onchange = () => { if (sel.value) linkGps(sel.value, sel.getAttribute('data-reg'), Number(sel.getAttribute('data-odo'))); }; });
+}
+async function linkGps(busId, reg, odo) {
+  const b = byId(S.cache.buses, busId); if (!b) return;
+  if (!confirm(`Set "${b.regNo}" to its real plate ${reg}? This links the bus to its live GPS.`)) return;
+  b.regNo = reg;
+  if (odo > 0) { b.odometer = Math.max(b.odometer || 0, odo); if (!b.lastServiceOdo) b.lastServiceOdo = odo; }
+  await DB.put('buses', b); await load(); toast(`${reg} linked ✓ — now tracking live`); viewLinkGps();
+}
+
 /* ----- Store / inventory ----- */
 function viewStore() {
   const parts = [...S.cache.parts].sort((a, b) => (a.qty <= a.reorderLevel ? -1 : 1) - (b.qty <= b.reorderLevel ? -1 : 1));
@@ -1508,6 +1567,7 @@ function viewMe() {
          <div class="li" data-act="openSafety"><div class="ava">🛡️</div><div class="main"><div class="t">Safety &amp; misuse</div><div class="s">Overspeed, harsh braking, night moves &amp; idling</div></div></div>
          <div class="li" data-act="openWarranty"><div class="ava">🧾</div><div class="main"><div class="t">Warranty register</div><div class="s">Parts under warranty — don't pay for free replacements</div></div></div>
          <div class="li" data-act="openStoreHealth"><div class="ava">📦</div><div class="main"><div class="t">Store health</div><div class="s">Reconciliation, stock counts &amp; shrinkage score</div></div></div>
+         <div class="li" data-act="openLinkGps"><div class="ava">🛰️</div><div class="main"><div class="t">Link GPS to buses</div><div class="s">Match live AirFi devices to fleet units → tracking on</div></div></div>
          <div class="li" data-act="openScoreboard"><div class="ava">🏆</div><div class="main"><div class="t">Mechanic scorecards</div><div class="s">Attendance, late penalties &amp; work-quality ratings</div></div></div>
          <div class="li" data-act="openRoutes"><div class="ava">🕒</div><div class="main"><div class="t">Routes &amp; timings</div><div class="s">Pickup geofences, go-times &amp; punctuality</div></div></div>
          <div class="li" data-act="openSetup"><div class="ava">⚙️</div><div class="main"><div class="t">Garage setup</div><div class="s">Location, geofence, shift time · start fresh</div></div></div>` : ''}
@@ -1775,9 +1835,10 @@ function sheetAddPart() {
   openSheet('Add part type', `
     <label class="field"><span class="lbl">Part name</span><input id="f-pname" placeholder="e.g. Brake pad"></label>
     <div class="grid2">
-      <label class="field"><span class="lbl">Part no.</span><input id="f-pno" placeholder="optional"></label>
+      <label class="field"><span class="lbl">Part no. / serial</span><input id="f-pno" placeholder="optional"></label>
       <label class="field"><span class="lbl">Category</span><input id="f-pcat" placeholder="e.g. Brakes"></label>
     </div>
+    <button class="btn sm ghost" data-act="scanSerial" data-target="f-pno" style="margin:-4px 0 8px">📷 Scan serial (AI)</button>
     <div class="grid2">
       <label class="field"><span class="lbl">Unit</span><select id="f-punit">${PART_UNITS.map((u) => `<option value="${u}">${u}</option>`).join('')}</select></label>
       <label class="field"><span class="lbl">Unit cost (₹)</span><input id="f-pcost" type="number" inputmode="numeric"></label>
@@ -3406,6 +3467,21 @@ function computeInsights() {
     });
   });
 
+  // Parts anomalies — repeat-failure / premature replacement (from fitment history)
+  const fitMap = {};
+  jobs.forEach((j) => (j.partsUsed || []).forEach((l) => { const k = j.busId + '|' + l.partId; (fitMap[k] = fitMap[k] || []).push(j.closedAt || j.createdAt); }));
+  Object.entries(fitMap).forEach(([k, times]) => {
+    if (times.length < 2) return;
+    times.sort((a, b) => a - b);
+    const [busId, partId] = k.split('|'); const p = byId(S.cache.parts, partId); const pn = p ? p.name : partId;
+    const recent = times.filter((t) => t >= Date.now() - 365 * day);
+    if (recent.length >= 3) out.push({ sev: 'high', icon: '🔁', title: `Repeat failure — ${pn} on ${busName(busId)}`,
+      detail: `Replaced ${recent.length}× in 12 months. A recurring fault, or the part is being recycled/resold.`, nav: { name: 'buses', id: busId } });
+    else { const gap = (times[times.length - 1] - times[times.length - 2]) / day;
+      if (gap < 60) out.push({ sev: 'med', icon: '⏱️', title: `Premature replacement — ${pn} on ${busName(busId)}`,
+        detail: `Replaced again after only ${Math.round(gap)} days. Verify it was genuinely needed.`, nav: { name: 'jobs', id: '' } }); }
+  });
+
   // Stock shrinkage from the latest physical count
   const lastAudit = (S.cache.audits || []).slice().sort((a, b) => b.at - a.at)[0];
   if (lastAudit && lastAudit.shrinkValue > 0) out.push({ sev: 'high', icon: '📦', title: `Stock shrinkage — ${money(lastAudit.shrinkValue)}`,
@@ -3518,7 +3594,7 @@ async function askAi() {
  */
 const current = () => S.stack[S.stack.length - 1];
 // Role guard: routes restricted to certain roles fall back to home for others.
-const ROUTE_PERM = { insights: 'insights', drivers: 'manageDrivers', assignments: 'assignDriver', routes: 'manageRoutes', reports: 'dashboard', busreport: 'dashboard', livemap: 'dashboard', track: 'dashboard', fuel: 'addFuel', safety: 'dashboard', warranty: 'addFuel', storehealth: 'issuePart' };
+const ROUTE_PERM = { insights: 'insights', drivers: 'manageDrivers', assignments: 'assignDriver', routes: 'manageRoutes', reports: 'dashboard', busreport: 'dashboard', livemap: 'dashboard', track: 'dashboard', fuel: 'addFuel', safety: 'dashboard', warranty: 'addFuel', storehealth: 'issuePart', linkgps: 'addBus' };
 function render(r) {
   if (typeof stopMap === 'function') stopMap();   // leaving any screen halts the live-map refresh timer
   if (typeof stopTrack === 'function') stopTrack();
@@ -3545,6 +3621,7 @@ function render(r) {
     case 'safety': return viewSafety();
     case 'warranty': return viewWarranty();
     case 'storehealth': return viewStoreHealth();
+    case 'linkgps': return viewLinkGps();
     case 'scoreboard': return viewScoreboard();
     case 'scorecard': return viewScorecard(r.id);
     default: return viewHome();
@@ -3637,6 +3714,9 @@ function bind() {
       case 'auditBlind': return sheetAudit('blind');
       case 'auditFull': return sheetAudit('full');
       case 'saveAudit': return saveAudit(el.getAttribute('data-mode'));
+      case 'openLinkGps': return push({ name: 'linkgps' });
+      case 'aiGradeCore': return aiGradeCore(el.getAttribute('data-job'), el.getAttribute('data-cr'));
+      case 'scanSerial': return scanSerial(el.getAttribute('data-target'));
       case 'returnCore': return sheetReturnCore(el.getAttribute('data-job'));
       case 'captureCore': return captureCore();
       case 'saveCoreReturn': return saveCoreReturn(el.getAttribute('data-job'));
