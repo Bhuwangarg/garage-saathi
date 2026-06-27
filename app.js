@@ -557,7 +557,7 @@ function topbar(title) {
 }
 
 // Which bottom tab should light up — sub-screens map back to their parent tab.
-const TAB_OF = { home: 'home', buses: 'buses', jobs: 'jobs', store: 'store', me: 'me', purchases: 'me', alerts: 'me', insights: 'home', drivers: 'home', assignments: 'home', company: 'home', routes: 'home', reports: 'home', busreport: 'home', livemap: 'home', track: 'home', fuel: 'home', safety: 'home', warranty: 'home', storehealth: 'store', linkgps: 'home' };
+const TAB_OF = { home: 'home', buses: 'buses', jobs: 'jobs', store: 'store', me: 'me', purchases: 'me', alerts: 'me', insights: 'home', drivers: 'home', assignments: 'home', company: 'home', routes: 'home', reports: 'home', busreport: 'home', livemap: 'home', track: 'home', fuel: 'home', safety: 'home', warranty: 'home', storehealth: 'store', linkgps: 'home', newjob: 'jobs' };
 function bottomnav() {
   const active = TAB_OF[S.route.name] || 'home';
   // Each role gets a focused nav matching what they actually do.
@@ -1725,36 +1725,54 @@ function reportPicklistRich(busId) {
     <span data-act="useReport" data-rprob="${esc(r.problem)}" style="cursor:pointer"><b>${esc(driverName(r.driverId))}</b> · ${esc(r.category || '')} — ${esc(r.problem)} <span class="tiny" style="color:var(--brand2)">${t('useThisReport')}</span></span>
   </label>`).join('');
 }
-function sheetAddJob(prefill = {}) {
-  const buses = S.cache.buses, mechs = S.cache.users.filter((u) => u.role === 'mechanic');
+// Opens the new-job form as its own full-screen page (pushed route) — see viewNewJob.
+function sheetAddJob(prefill = {}) { push({ name: 'newjob', prefill }); }
+
+// Full-screen, grouped, icon-led job-creation page (Apple-style). Keeps the same
+// field IDs so saveJob() is unchanged.
+function viewNewJob(prefill = {}) {
+  const buses = S.cache.buses || [];
   if (!buses.length) {
-    return openSheet(t('addJob'), `<div class="banner warn">Add a bus first — a job card must belong to a bus.</div>
-      ${can(S.user.role, 'addBus') ? '<button class="btn primary" data-act="addBus">+ Add bus</button>' : ''}`);
+    return shell('New job card', `<div class="card"><div class="empty">Add a bus first — a job card belongs to a bus.</div>
+      ${can(S.user.role, 'addBus') ? '<button class="btn primary" data-act="addBus">+ Add bus</button>' : ''}</div>`);
   }
-  // No mechanic accounts yet → let the manager assign the job to themselves so
-  // the assignee is never blank (they can reassign once staff are added).
+  const mechs = S.cache.users.filter((u) => u.role === 'mechanic');
   const assignees = mechs.length ? mechs : [{ id: S.user.id, name: S.user.name + ' (you)' }];
-  const sel = prefill.busId || (buses[0] && buses[0].id);
-  openSheet(t('addJob'), `
+  const sel = prefill.busId || buses[0].id;
+  const prio = prefill.priority || 'medium';
+  const PCOL = { high: '#ef4444', medium: '#f59e0b', low: '#16a571' };
+  const seg = (v, label) => { const on = prio === v, c = PCOL[v];
+    return `<button class="prio-seg" data-act="setPrio" data-v="${v}" style="flex:1;padding:12px;border-radius:12px;cursor:pointer;font-weight:${on ? 800 : 600};border:1.5px solid ${on ? c : 'var(--line,#e6e9f0)'};color:${on ? '#161922' : '#8b91a0'};background:${on ? c + '22' : '#fff0'}">${label}</button>`; };
+  const body = `
     <input type="hidden" id="f-reportId" value="${prefill.reportId || ''}">
-    <label class="field"><span class="lbl">Bus</span><select id="f-bus">${buses.map((b) => `<option value="${b.id}" ${b.id === sel ? 'selected' : ''}>${esc(b.regNo)} — ${esc(b.company)}</option>`).join('')}</select></label>
-    <div class="card" style="box-shadow:none;background:var(--tile);padding:12px"><div id="f-reports">${reportPicklistRich(sel)}</div></div>
-    <label class="field"><span class="lbl">Problem reported</span><textarea id="f-prob" placeholder="e.g. Front brakes weak">${esc(prefill.problem || '')}</textarea></label>
-    <div class="grid2">
-      <label class="field"><span class="lbl">Assign to</span><select id="f-mech">${assignees.map((m) => `<option value="${m.id}">${esc(m.name)}</option>`).join('')}</select></label>
-      <label class="field"><span class="lbl">Priority</span><select id="f-prio"><option value="high">High</option><option value="medium" selected>Medium</option><option value="low">Low</option></select></label>
-    </div>
-    <label class="field"><span class="lbl">Outside vendor (optional)</span><input id="f-vendor" placeholder="Leave blank if in-house"></label>
-    <div class="grid2">
-      <label class="field"><span class="lbl">Outside cost (₹)</span><input id="f-extcost" type="number" inputmode="numeric"></label>
-      <label class="field"><span class="lbl">Labour hours</span><input id="f-hrs" type="number" inputmode="decimal"></label>
-    </div>
-    <label class="field"><span class="lbl">Notes (optional)</span><textarea id="f-notes" placeholder="Any extra detail for the mechanic"></textarea></label>
-    <button class="btn primary" data-act="saveJob">${t('save')}</button>`,
-    (wrap) => {
-      const busSel = wrap.querySelector('#f-bus');
-      busSel.addEventListener('change', () => { wrap.querySelector('#f-reports').innerHTML = reportPicklistRich(busSel.value); });
-    });
+    <input type="hidden" id="f-prio" value="${prio}">
+    <div class="card"><label class="field"><span class="lbl">🚌 Bus</span>
+      <select id="f-bus">${buses.map((b) => `<option value="${b.id}" ${b.id === sel ? 'selected' : ''}>${esc(b.regNo)}${b.company ? ' — ' + esc(b.company) : ''}</option>`).join('')}</select></label>
+      <div id="f-reports" style="margin-top:8px">${reportPicklistRich(sel)}</div></div>
+    <div class="card"><label class="field"><span class="lbl">🔧 Problem reported</span>
+      <textarea id="f-prob" placeholder="e.g. Front brakes weak, pulls left">${esc(prefill.problem || '')}</textarea></label></div>
+    <div class="card"><div class="lbl" style="margin-bottom:8px">🚩 Priority</div>
+      <div style="display:flex;gap:8px">${seg('high', '🔴 High')}${seg('medium', '🟡 Medium')}${seg('low', '🟢 Low')}</div></div>
+    <div class="card"><label class="field"><span class="lbl">👷 Assign to</span>
+      <select id="f-mech">${assignees.map((m) => `<option value="${m.id}">${esc(m.name)}</option>`).join('')}</select></label></div>
+    <div class="card"><label class="field"><span class="lbl">🏪 Outside vendor (optional)</span>
+      <input id="f-vendor" placeholder="Leave blank if done in-house"></label>
+      <div class="grid2" style="margin-top:8px">
+        <label class="field"><span class="lbl">₹ Outside cost</span><input id="f-extcost" type="number" inputmode="numeric"></label>
+        <label class="field"><span class="lbl">⏱️ Labour hours</span><input id="f-hrs" type="number" inputmode="decimal"></label></div></div>
+    <div class="card"><label class="field"><span class="lbl">📝 Notes (optional)</span>
+      <textarea id="f-notes" placeholder="Any extra detail for the mechanic"></textarea></label></div>
+    <button class="btn primary" data-act="saveJob" style="font-size:16px;padding:15px;margin-top:2px">✓ Create job card</button>
+    <div class="spacer"></div>`;
+  shell('New job card', body);
+  const busSel = document.getElementById('f-bus');
+  if (busSel) busSel.addEventListener('change', () => { const rp = document.getElementById('f-reports'); if (rp) rp.innerHTML = reportPicklistRich(busSel.value); });
+}
+function setPrio(v) {
+  const h = document.getElementById('f-prio'); if (h) h.value = v;
+  const PCOL = { high: '#ef4444', medium: '#f59e0b', low: '#16a571' };
+  document.querySelectorAll('.prio-seg').forEach((b) => { const bv = b.getAttribute('data-v'), on = bv === v, c = PCOL[bv];
+    b.style.fontWeight = on ? 800 : 600; b.style.borderColor = on ? c : 'var(--line,#e6e9f0)'; b.style.color = on ? '#161922' : '#8b91a0'; b.style.background = on ? c + '22' : '#fff0'; });
 }
 async function saveJob() {
   const busId = $('#f-bus').value, prob = $('#f-prob').value.trim();
@@ -1775,7 +1793,7 @@ async function saveJob() {
   });
   // Tie the driver reports to this job (resolved when the job is verified).
   for (const rid of linkedReports) { const r = byId(S.cache.driverreports, rid); if (r && r.status === 'open') { r.jobId = jobId; await DB.put('driverreports', r); } }
-  await load(); closeSheet(); toast(`Job created${linkedReports.length ? ` · ${linkedReports.length} report(s) linked` : ''}`); viewJobs();
+  await load(); closeSheet(); toast(`Job created${linkedReports.length ? ` · ${linkedReports.length} report(s) linked` : ''}`); navTab('jobs');
 }
 
 function sheetIssue(presetJob) {
@@ -3594,7 +3612,7 @@ async function askAi() {
  */
 const current = () => S.stack[S.stack.length - 1];
 // Role guard: routes restricted to certain roles fall back to home for others.
-const ROUTE_PERM = { insights: 'insights', drivers: 'manageDrivers', assignments: 'assignDriver', routes: 'manageRoutes', reports: 'dashboard', busreport: 'dashboard', livemap: 'dashboard', track: 'dashboard', fuel: 'addFuel', safety: 'dashboard', warranty: 'addFuel', storehealth: 'issuePart', linkgps: 'addBus' };
+const ROUTE_PERM = { insights: 'insights', drivers: 'manageDrivers', assignments: 'assignDriver', routes: 'manageRoutes', reports: 'dashboard', busreport: 'dashboard', livemap: 'dashboard', track: 'dashboard', fuel: 'addFuel', safety: 'dashboard', warranty: 'addFuel', storehealth: 'issuePart', linkgps: 'addBus', newjob: 'addJob' };
 function render(r) {
   if (typeof stopMap === 'function') stopMap();   // leaving any screen halts the live-map refresh timer
   if (typeof stopTrack === 'function') stopTrack();
@@ -3622,6 +3640,7 @@ function render(r) {
     case 'warranty': return viewWarranty();
     case 'storehealth': return viewStoreHealth();
     case 'linkgps': return viewLinkGps();
+    case 'newjob': return viewNewJob(r.prefill || {});
     case 'scoreboard': return viewScoreboard();
     case 'scorecard': return viewScorecard(r.id);
     default: return viewHome();
@@ -3717,6 +3736,7 @@ function bind() {
       case 'openLinkGps': return push({ name: 'linkgps' });
       case 'aiGradeCore': return aiGradeCore(el.getAttribute('data-job'), el.getAttribute('data-cr'));
       case 'scanSerial': return scanSerial(el.getAttribute('data-target'));
+      case 'setPrio': return setPrio(el.getAttribute('data-v'));
       case 'returnCore': return sheetReturnCore(el.getAttribute('data-job'));
       case 'captureCore': return captureCore();
       case 'saveCoreReturn': return saveCoreReturn(el.getAttribute('data-job'));
