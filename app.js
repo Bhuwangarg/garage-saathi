@@ -557,7 +557,7 @@ function topbar(title) {
 }
 
 // Which bottom tab should light up — sub-screens map back to their parent tab.
-const TAB_OF = { home: 'home', buses: 'buses', jobs: 'jobs', store: 'store', me: 'me', purchases: 'me', alerts: 'me', insights: 'home', drivers: 'home', assignments: 'home', company: 'home', routes: 'home', reports: 'home', busreport: 'home', livemap: 'home', track: 'home', fuel: 'home', safety: 'home', warranty: 'home', storehealth: 'store', linkgps: 'home', newjob: 'jobs' };
+const TAB_OF = { home: 'home', buses: 'buses', jobs: 'jobs', store: 'store', me: 'me', purchases: 'me', alerts: 'me', insights: 'home', drivers: 'home', assignments: 'home', company: 'home', routes: 'home', reports: 'home', busreport: 'home', livemap: 'home', track: 'home', fuel: 'home', safety: 'home', warranty: 'home', storehealth: 'store', linkgps: 'home', newjob: 'jobs', driverdocs: 'home' };
 function bottomnav() {
   const active = TAB_OF[S.route.name] || 'home';
   // Each role gets a focused nav matching what they actually do.
@@ -1633,6 +1633,18 @@ function viewMe() {
     <div class="li" data-act="openSync"><div class="ava">🔄</div><div class="main"><div class="t">${t('sync')}</div><div class="s">${SYNC_STATUS === 'synced' ? 'All devices up to date' : SYNC_STATUS === 'offline' ? 'Offline — will sync when connected' : 'Syncing…'}${si.pending ? ` · ${si.pending} pending` : ''}</div></div></div>
     <div class="li" data-act="logout"><div class="ava">🚪</div><div class="main"><div class="t">${t('logout')}</div></div></div>
   </div>`;
+
+  // A driver's own document vault
+  if (S.user.role === 'driver') {
+    const md = (S.cache.drivers || []).find((x) => x.userId === S.user.id);
+    if (md) { const ds = driverDocStatus(md);
+      body += `<div class="card" data-act="openDriverDocs" data-driver="${md.id}" style="cursor:pointer"><div class="row between">
+        <div class="row" style="gap:12px;align-items:center">${progressRing(ds.pct)}
+          <div><div style="font-weight:800">📂 My documents</div>
+            <div class="small muted">${ds.mandDone}/${ds.mandTotal} required uploaded${ds.mandDone < ds.mandTotal ? ' · ⚠️ finish these' : ' ✓'}</div></div></div>
+        <span class="tiny" style="color:var(--brand2)">open ›</span></div></div>`;
+    }
+  }
 
   // Phone alerts (web-push) — for owner/supervisor who receive misuse/safety alerts.
   if (['owner', 'supervisor'].includes(S.user.role)) {
@@ -2950,6 +2962,14 @@ function viewDriverDetail(id) {
     <div class="btnrow"><button class="btn sm" data-act="assignBus" data-driver="${d.id}">Change bus</button>
       <button class="btn sm" data-act="reportProblem" data-bus="${d.busId || ''}" data-driver="${d.id}">Log report</button></div></div>`;
 
+  // Document vault summary (tap to manage)
+  const ds = driverDocStatus(d);
+  body += `<div class="card" data-act="openDriverDocs" data-driver="${d.id}" style="cursor:pointer"><div class="row between">
+    <div class="row" style="gap:12px;align-items:center">${progressRing(ds.pct)}
+      <div><div style="font-weight:800">📂 Documents</div>
+        <div class="small muted">${ds.mandDone}/${ds.mandTotal} mandatory${ds.mandDone < ds.mandTotal ? ' · ⚠️ incomplete' : ' ✓'}</div></div></div>
+    <span class="tiny" style="color:var(--brand2)">open ›</span></div></div>`;
+
   body += `<div class="card"><div class="row between"><h3>Performance</h3>
     <button class="btn sm" data-act="addIncident" data-driver="${d.id}">+ Data point</button></div>`;
   if (Object.keys(byType).length) body += `<div class="row" style="flex-wrap:wrap;gap:6px;margin-bottom:10px">${
@@ -3044,6 +3064,96 @@ function viewDriverHome() {
     : `<div class="muted small">${t('noReportsYet')}</div>`;
   body += `</div>`;
   shell(t('myTrips'), body);
+}
+
+/* ===== Driver document vault ============================================= */
+const DRIVER_DOCS = [
+  { key: 'license', label: 'Driving License', icon: '🚗', mandatory: true, num: true, expiry: true },
+  { key: 'aadhaar', label: 'Aadhaar Card', icon: '🆔', mandatory: true, num: true },
+  { key: 'pan', label: 'PAN Card', icon: '💳', mandatory: true, num: true },
+  { key: 'police', label: 'Police Verification', icon: '👮', mandatory: false, expiry: true },
+  { key: 'photo', label: 'Photograph', icon: '📷', mandatory: false },
+  { key: 'medical', label: 'Medical Cert.', icon: '🩺', mandatory: false, expiry: true },
+];
+const docOf = (d, key) => (d.docs || {})[key];
+function driverDocStatus(d) {
+  const mand = DRIVER_DOCS.filter((x) => x.mandatory);
+  const mandDone = mand.filter((x) => docOf(d, x.key) && docOf(d, x.key).photo).length;
+  const allDone = DRIVER_DOCS.filter((x) => docOf(d, x.key) && docOf(d, x.key).photo).length;
+  return { mandDone, mandTotal: mand.length, allDone, allTotal: DRIVER_DOCS.length, pct: mand.length ? Math.round(mandDone / mand.length * 100) : 100 };
+}
+// Animated SVG completion ring. animate=true starts empty (filled after mount).
+function progressRing(pct, animate) {
+  const r = 30, c = 2 * Math.PI * r, p = Math.max(0, Math.min(100, pct)), off = c * (1 - p / 100);
+  const col = p >= 100 ? '#16a571' : '#2563eb';
+  return `<svg class="ring-svg" width="76" height="76" viewBox="0 0 76 76">
+    <circle cx="38" cy="38" r="${r}" fill="none" stroke="var(--line,#e6e9f0)" stroke-width="7"/>
+    <circle class="fg" cx="38" cy="38" r="${r}" fill="none" stroke="${col}" stroke-width="7" stroke-linecap="round"
+      stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${(animate ? c : off).toFixed(1)}" data-off="${off.toFixed(1)}" transform="rotate(-90 38 38)"/>
+    <text x="38" y="44" text-anchor="middle" font-size="16" font-weight="800" fill="var(--ink,#161922)">${Math.round(p)}%</text></svg>`;
+}
+function viewDriverDocs(driverId) {
+  const d = driverById(driverId); if (!d) return viewDrivers();
+  const docs = d.docs || {}, st = driverDocStatus(d);
+  let body = `<div class="card"><div class="ringwrap">${progressRing(st.pct, true)}
+    <div><div style="font-weight:800;font-size:17px">${esc(d.name)}</div>
+      <div class="small muted">${st.mandDone}/${st.mandTotal} mandatory · ${st.allDone}/${st.allTotal} total on file</div>
+      <div class="tiny" style="margin-top:5px;color:${st.mandDone < st.mandTotal ? '#ef4444' : '#16a571'};font-weight:700">${st.mandDone < st.mandTotal ? '⚠️ Mandatory documents missing' : '✓ All mandatory documents on file'}</div></div></div></div>`;
+  body += `<div class="docgrid">`;
+  body += DRIVER_DOCS.map((doc, i) => {
+    const cur = docs[doc.key], has = cur && cur.photo;
+    const exp = has && doc.expiry && cur.expiry, expSoon = exp && daysLeft(cur.expiry) <= 30;
+    const cls = has ? 'done' : (doc.mandatory ? 'missing' : '');
+    const stat = has ? (exp ? (expSoon ? `<span style="color:#f59e0b">expires ${fmtDate(cur.expiry)}</span>` : 'valid') : 'on file') : (doc.mandatory ? 'Required' : 'Add');
+    return `<div class="doccard ${cls}" data-act="driverDoc" data-driver="${d.id}" data-key="${doc.key}" style="animation-delay:${Math.min(i, 8) * 0.05}s">
+      ${has ? '<div class="dtick">✅</div>' : ''}
+      <div class="dicon">${doc.icon}</div>
+      <div class="dname">${doc.label}</div>
+      <div class="dstat" style="${has ? 'color:var(--muted,#8b91a0)' : 'color:' + (doc.mandatory ? '#ef4444' : '#8b91a0')}">${stat}</div>
+      ${doc.mandatory && !has ? '<div class="mand">MANDATORY</div>' : ''}</div>`;
+  }).join('');
+  body += `</div><div class="spacer"></div>`;
+  shell('Documents', body);
+  const fg = document.querySelector('.ring-svg .fg');
+  if (fg) requestAnimationFrame(() => requestAnimationFrame(() => { fg.style.strokeDashoffset = fg.getAttribute('data-off'); }));
+}
+let _docShot = null;
+function sheetDriverDoc(driverId, key) {
+  const doc = DRIVER_DOCS.find((x) => x.key === key); if (!doc) return;
+  const d = driverById(driverId); const cur = (d.docs || {})[key] || {};
+  _docShot = cur.photo || null;
+  openSheet(doc.label, `
+    <div class="tiny muted" style="margin-bottom:12px">${doc.icon} ${doc.mandatory ? 'Mandatory document — required for every driver.' : 'Optional document.'}</div>
+    <button class="btn" data-act="captureDoc">📷 ${cur.photo ? 'Replace photo' : 'Take photo of document'}</button>
+    <div id="doc-prev" class="thumbs" style="margin:10px 0">${cur.photo ? `<img class="thumb" src="${cur.photo}">` : ''}</div>
+    ${doc.num ? `<label class="field"><span class="lbl">🔢 ${doc.label} number</span><input id="doc-num" value="${esc(cur.number || '')}" placeholder="Enter or scan"></label>
+      <button class="btn sm ghost" data-act="scanDocNum" style="margin:-4px 0 10px">🤖 Scan number (AI)</button>` : ''}
+    ${doc.expiry ? `<label class="field"><span class="lbl">📅 Expiry date</span><input id="doc-exp" type="date" value="${cur.expiry ? new Date(cur.expiry).toISOString().slice(0, 10) : ''}"></label>` : ''}
+    <button class="btn primary" data-act="saveDriverDoc" data-driver="${driverId}" data-key="${key}">Save document</button>`);
+}
+async function captureDoc() {
+  const s = await capturePhoto(); if (!s) return;
+  _docShot = s; const p = document.getElementById('doc-prev'); if (p) p.innerHTML = `<img class="thumb" src="${s}">`;
+}
+async function scanDocNum() {
+  if (!_docShot) return toast('Take the document photo first');
+  const stop = showBusyOverlay('Reading number…');
+  const r = await Sync.aiVision(_docShot, 'Read the main identification number on this Indian ID document (Aadhaar / PAN / Driving Licence). Reply ONLY the number or code, nothing else.');
+  if (stop) stop();
+  if (!r || r.configured === false) return toast('AI vision not enabled on the server yet');
+  const el = document.getElementById('doc-num'); const s = (r.text || '').trim();
+  if (el && s) { el.value = s; toast('Read: ' + s); } else toast('Could not read it');
+}
+async function saveDriverDoc(driverId, key) {
+  const d = driverById(driverId); if (!d) return;
+  if (!_docShot) return toast('Take a photo of the document');
+  const photo = await Sync.uploadPhoto(_docShot) || _docShot;
+  const entry = { photo, at: Date.now(), by: S.user.id };
+  const numEl = document.getElementById('doc-num'); if (numEl) entry.number = numEl.value.trim();
+  const expEl = document.getElementById('doc-exp'); if (expEl && expEl.value) entry.expiry = new Date(expEl.value).getTime();
+  d.docs = Object.assign({}, d.docs, { [key]: entry });
+  await DB.put('drivers', d);
+  _docShot = null; await load(); closeSheet(); toast('Document saved ✓'); viewDriverDocs(driverId);
 }
 
 /* ----- Driver sheets ----- */
@@ -3558,6 +3668,16 @@ function computeInsights() {
         detail: `Replaced again after only ${Math.round(gap)} days. Verify it was genuinely needed.`, nav: { name: 'jobs', id: '' } }); }
   });
 
+  // Driver documents — mandatory missing or expiring soon
+  (S.cache.drivers || []).forEach((d) => {
+    const st = driverDocStatus(d);
+    if (st.mandDone < st.mandTotal) out.push({ sev: 'med', icon: '📂', title: `Driver docs incomplete — ${d.name}`,
+      detail: `${st.mandTotal - st.mandDone} mandatory document(s) missing (license/Aadhaar/PAN).`, nav: { name: 'driverdocs', id: d.id } });
+    DRIVER_DOCS.filter((x) => x.expiry).forEach((x) => { const c = docOf(d, x.key);
+      if (c && c.expiry && daysLeft(c.expiry) <= 30) out.push({ sev: daysLeft(c.expiry) < 0 ? 'high' : 'med', icon: '📄', title: `${x.label} ${daysLeft(c.expiry) < 0 ? 'expired' : 'expiring'} — ${d.name}`,
+        detail: `${x.label} ${daysLeft(c.expiry) < 0 ? 'expired' : 'expires'} ${fmtDate(c.expiry)}.`, nav: { name: 'driverdocs', id: d.id } }); });
+  });
+
   // Stock shrinkage from the latest physical count
   const lastAudit = (S.cache.audits || []).slice().sort((a, b) => b.at - a.at)[0];
   if (lastAudit && lastAudit.shrinkValue > 0) out.push({ sev: 'high', icon: '📦', title: `Stock shrinkage — ${money(lastAudit.shrinkValue)}`,
@@ -3699,6 +3819,7 @@ function render(r) {
     case 'storehealth': return viewStoreHealth();
     case 'linkgps': return viewLinkGps();
     case 'newjob': return viewNewJob(r.prefill || {});
+    case 'driverdocs': return viewDriverDocs(r.id);
     case 'scoreboard': return viewScoreboard();
     case 'scorecard': return viewScorecard(r.id);
     default: return viewHome();
@@ -3796,6 +3917,11 @@ function bind() {
       case 'scanSerial': return scanSerial(el.getAttribute('data-target'));
       case 'setPrio': return setPrio(el.getAttribute('data-v'));
       case 'busFilter': _busFilter = el.getAttribute('data-v'); return renderBusList();
+      case 'openDriverDocs': return push({ name: 'driverdocs', id: el.getAttribute('data-driver') });
+      case 'driverDoc': return sheetDriverDoc(el.getAttribute('data-driver'), el.getAttribute('data-key'));
+      case 'captureDoc': return captureDoc();
+      case 'scanDocNum': return scanDocNum();
+      case 'saveDriverDoc': return saveDriverDoc(el.getAttribute('data-driver'), el.getAttribute('data-key'));
       case 'returnCore': return sheetReturnCore(el.getAttribute('data-job'));
       case 'captureCore': return captureCore();
       case 'saveCoreReturn': return saveCoreReturn(el.getAttribute('data-job'));
