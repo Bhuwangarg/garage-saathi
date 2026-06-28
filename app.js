@@ -1634,11 +1634,11 @@ async function doAttendance(type) {
 /* ------------------------------- Sheets: forms ---------------------------- */
 function sheetAddBus() {
   openSheet(t('addBus'), `
-    <label class="field"><span class="lbl">Registration No.</span><input id="f-reg" placeholder="RJ14 PA 1234"></label>
-    <label class="field"><span class="lbl">Owning company</span><input id="f-co" placeholder="Pink City Travels"></label>
-    <label class="field"><span class="lbl">Model</span><input id="f-model" placeholder="Tata Starbus"></label>
+    <label class="field"><span class="lbl">🔢 Registration No.</span><input id="f-reg" placeholder="RJ14 PA 1234"></label>
+    <label class="field"><span class="lbl">🏢 Owning company</span><input id="f-co" placeholder="Pink City Travels"></label>
+    <label class="field"><span class="lbl">🚌 Model</span><input id="f-model" placeholder="Tata Starbus"></label>
     <div class="grid2">
-      <label class="field"><span class="lbl">Odometer (km)</span><input id="f-odo" type="number" inputmode="numeric"></label>
+      <label class="field"><span class="lbl">🛣️ Odometer (km)</span><input id="f-odo" type="number" inputmode="numeric"></label>
       <label class="field"><span class="lbl">Chassis No.</span><input id="f-chassis"></label>
     </div>
     <div class="grid2">
@@ -1807,9 +1807,9 @@ function sheetIssue(presetJob) {
     return openSheet(t('issuePart'), `<div class="banner warn">No open job card to issue against. Parts can only be issued to a job (anti-pilferage). Create a job first.</div>`);
   }
   openSheet(t('issuePart'), `
-    <label class="field"><span class="lbl">Part</span><select id="f-part">${parts.map((p) => `<option value="${p.id}">${esc(p.name)} (${p.qty} ${p.unit})</option>`).join('')}</select></label>
-    <label class="field"><span class="lbl">Issue to job card</span><select id="f-job">${openJobs.map((j) => `<option value="${j.id}" ${j.id===presetJob?'selected':''}>${esc(busName(j.busId))} — ${esc(j.problem.slice(0,28))}</option>`).join('')}</select></label>
-    <label class="field"><span class="lbl">Quantity</span><input id="f-qty" type="number" inputmode="numeric" value="1"></label>
+    <label class="field"><span class="lbl">🔩 Part</span><select id="f-part">${parts.map((p) => `<option value="${p.id}">${esc(p.name)} (${p.qty} ${p.unit})</option>`).join('')}</select></label>
+    <label class="field"><span class="lbl">🧾 Issue to job card</span><select id="f-job">${openJobs.map((j) => `<option value="${j.id}" ${j.id===presetJob?'selected':''}>${esc(busName(j.busId))} — ${esc(j.problem.slice(0,28))}</option>`).join('')}</select></label>
+    <label class="field"><span class="lbl"># Quantity</span><input id="f-qty" type="number" inputmode="numeric" value="1"></label>
     <div id="f-warr"></div>
     <div class="banner warn">🔒 Parts can only be issued against a job card. This stops untracked pilferage.</div>
     <button class="btn primary" data-act="confirmIssue">${t('issuePart')}</button>`,
@@ -2467,10 +2467,10 @@ function sheetAddFuel(busId) {
     ${b ? `<input type="hidden" id="f-fbus" value="${b.id}"><div class="small muted" style="margin-bottom:10px">Bus: <b>${esc(b.regNo)}</b></div>`
       : `<label class="field"><span class="lbl">Bus</span><select id="f-fbus">${buses.map((x) => `<option value="${x.id}">${esc(x.regNo)}</option>`).join('')}</select></label>`}
     <div class="grid2">
-      <label class="field"><span class="lbl">Litres</span><input id="f-flitres" type="number" inputmode="decimal" placeholder="e.g. 60"></label>
-      <label class="field"><span class="lbl">Amount (₹)</span><input id="f-fcost" type="number" inputmode="numeric"></label>
+      <label class="field"><span class="lbl">⛽ Litres</span><input id="f-flitres" type="number" inputmode="decimal" placeholder="e.g. 60"></label>
+      <label class="field"><span class="lbl">₹ Amount</span><input id="f-fcost" type="number" inputmode="numeric"></label>
     </div>
-    <label class="field"><span class="lbl">Odometer now (km)</span><input id="f-fodo" type="number" inputmode="numeric" value="${b ? (b.odometer || '') : ''}" placeholder="current reading"></label>
+    <label class="field"><span class="lbl">🛣️ Odometer now (km)</span><input id="f-fodo" type="number" inputmode="numeric" value="${b ? (b.odometer || '') : ''}" placeholder="current reading"></label>
     <label class="repcheck"><input type="checkbox" id="f-ffull" checked> <span>Filled to full (needed for accurate km/l)</span></label>
     <button class="btn primary" data-act="saveFuel">${t('save')}</button>`);
 }

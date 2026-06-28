@@ -201,15 +201,19 @@ img.ava{object-fit:cover}
   display:grid;place-items:center;color:var(--muted);font-size:26px;cursor:pointer}
 
 /* Bottom sheet */
-.sheetwrap{position:fixed;inset:0;background:rgba(20,24,40,.4);z-index:50;display:flex;align-items:flex-end;
-  justify-content:center;backdrop-filter:blur(2px)}
-.sheet{background:var(--bg);width:100%;max-width:520px;max-height:92vh;overflow:auto;
-  border-radius:26px 26px 0 0;padding:8px 16px 28px;box-shadow:0 -10px 40px rgba(20,24,40,.2)}
-.sheet::before{content:'';display:block;width:42px;height:5px;border-radius:3px;background:#d4d8e2;margin:8px auto 10px}
-.sheet h2{margin:2px 0 16px;font-size:19px;font-weight:800;letter-spacing:-.4px}
-.sheethead{display:flex;align-items:center;margin-bottom:4px}
+/* Forms present as their own full-screen page ("next window") */
+.sheetwrap{position:fixed;inset:0;background:rgba(20,24,40,.45);z-index:50;display:flex;align-items:stretch;
+  justify-content:center}
+.sheet{background:var(--bg);width:100%;max-width:520px;height:100dvh;max-height:100dvh;overflow:auto;
+  padding:0 16px calc(28px + env(safe-area-inset-bottom));box-shadow:0 0 40px rgba(20,24,40,.18);
+  animation:sheetin .22s cubic-bezier(.22,.61,.36,1)}
+@keyframes sheetin{from{transform:translateY(16px);opacity:.4}to{transform:none;opacity:1}}
+.sheet::before{display:none}
+.sheethead{position:sticky;top:0;z-index:3;display:flex;align-items:center;gap:8px;background:var(--bg);
+  padding:calc(12px + env(safe-area-inset-top)) 0 12px;margin-bottom:10px;border-bottom:1px solid var(--line)}
+.sheet h2{margin:0;font-size:20px;font-weight:800;letter-spacing:-.4px}
 .sheethead .x{margin-left:auto;background:var(--surface);border:1px solid var(--line);border-radius:50%;
-  width:30px;height:30px;color:var(--muted);font-size:20px;line-height:1}
+  width:32px;height:32px;color:var(--muted);font-size:20px;line-height:1;flex:none}
 
 /* Login */
 .login{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;
