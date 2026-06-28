@@ -812,8 +812,7 @@ function busLi(b) {
   </div>`;
 }
 function viewBuses() {
-  let body = '';
-  if (can(S.user.role, 'addBus')) body += `<div class="btnrow" style="margin-bottom:12px"><button class="btn" data-act="importFleet">📡 Import from AirFi</button><button class="btn" data-act="cleanupFleet">🧹 Clean up</button></div>`;
+  let body = '';   // AirFi import + de-dup run automatically in the background (autoReconcileFleet)
   body += `<input id="bus-search" class="searchbox" placeholder="Search reg, company, model…" autocomplete="off">`;
   body += `<div class="chiprow" id="bus-chips"></div>`;
   body += `<div class="card" id="bus-list"><div class="empty">Loading…</div></div>`;
@@ -823,8 +822,8 @@ function viewBuses() {
   loadBusStatuses();         // then refresh live running/idle/parked
 }
 // Remove demo/test buses and de-duplicate by registration (keeps the richest record).
-async function cleanupFleet() {
-  if (!confirm('Remove demo/test buses and any duplicate registrations?')) return;
+async function cleanupFleet(silent) {
+  if (!silent && !confirm('Remove demo/test buses and any duplicate registrations?')) return 0;
   const buses = S.cache.buses || [];
   const demoIds = new Set(['b1', 'b2', 'b3']);
   const score = (b) => (b.source === 'klm-linked' ? 100 : 0) + (b.source === 'klm-excel' ? 50 : 0) + (b.model ? 5 : 0) + ((b.docs || []).length ? 2 : 0);
@@ -834,9 +833,9 @@ async function cleanupFleet() {
   for (const k in groups) { const g = groups[k].slice().sort((a, b) => score(b) - score(a)); for (let i = 1; i < g.length; i++) toDel.add(g[i].id); }  // dupes
   buses.forEach((b) => { if (demoIds.has(b.id) || b.source === 'demo') toDel.add(b.id); });                                                            // demo/test
   for (const id of toDel) await DB.softDel('buses', id);
-  await load(); Sync.kick();
-  toast(toDel.size ? `Removed ${toDel.size} test/duplicate bus(es) ✓` : 'Fleet already clean 👍');
-  rerender();
+  if (toDel.size) { await load(); Sync.kick(); }
+  if (!silent) { toast(toDel.size ? `Removed ${toDel.size} test/duplicate bus(es) ✓` : 'Fleet already clean 👍'); rerender(); }
+  return toDel.size;
 }
 async function loadBusStatuses() {
   let fleet = []; try { fleet = await Sync.fleet(); } catch (e) { /* offline */ }
@@ -878,18 +877,16 @@ function attachSearch(inputId, listId) {
 // Pull the fleet AirFi is tracking and create a bus for any registration we
 // don't have yet. New buses then track live automatically via GpsProvider.
 const _normReg = (s) => (s || '').toUpperCase().replace(/[\s-]/g, '');
-async function importFleet() {
-  if (!can(S.user.role, 'addBus')) return toast('Not allowed');
-  toast('Pulling fleet from AirFi…');
+async function importFleet(silent) {
+  if (!can(S.user.role, 'addBus')) { if (!silent) toast('Not allowed'); return 0; }
+  if (!silent) toast('Pulling fleet from AirFi…');
   const fleet = await Sync.fleet();
-  if (!fleet.length) {
-    return toast('No buses from AirFi yet — they appear once trackers start pushing.');
-  }
+  if (!fleet.length) { if (!silent) toast('No buses from AirFi yet — they appear once trackers start pushing.'); return 0; }
   const have = new Set((S.cache.buses || []).map((b) => _normReg(b.regNo)));
   let added = 0;
   for (const f of fleet) {
     const reg = (f.reg || '').trim();
-    if (!reg || have.has(_normReg(reg))) continue;
+    if (!reg || have.has(_normReg(reg))) continue;     // already a bus with this plate → no duplicate
     const odo = Number(f.odometer) || 0;
     await DB.put('buses', {
       id: uid('b-'), regNo: reg, company: '', model: '', chassis: '', engine: '',
@@ -898,9 +895,22 @@ async function importFleet() {
     });
     have.add(_normReg(reg)); added++;
   }
-  await load();
-  toast(added ? `Imported ${added} bus(es) from AirFi ✓` : 'Fleet already up to date');
-  rerender();
+  if (added) await load();
+  if (!silent) { toast(added ? `Imported ${added} bus(es) from AirFi ✓` : 'Fleet already up to date'); rerender(); }
+  return added;
+}
+// Runs silently in the background: de-dupe + drop demo buses, then pull any new
+// AirFi plate as a bus. Throttled; owner/supervisor only. No UI, no buttons.
+let _fleetReconciledAt = 0;
+async function autoReconcileFleet() {
+  if (!S.user || !can(S.user.role, 'addBus')) return;
+  if (Date.now() - _fleetReconciledAt < 120000) return;          // at most every 2 min
+  _fleetReconciledAt = Date.now();
+  try {
+    const removed = await cleanupFleet(true);
+    const added = await importFleet(true);
+    if ((removed || 0) + (added || 0) > 0 && S.route && S.route.name === 'buses') rerender();
+  } catch (e) { /* background — ignore */ }
 }
 
 /* ----- Live map (Uber-style fleet tracking, Leaflet) ----- */
@@ -3441,7 +3451,12 @@ async function checkRoutes(opts = {}) {
 function startRouteMonitor() {
   if (_routeMonitorOn) return;
   _routeMonitorOn = true;
-  setInterval(() => { if (S.user && (S.cache.routes || []).length) checkRoutes({ alert: true }); }, 60000);
+  setInterval(() => {
+    if (!S.user) return;
+    autoReconcileFleet();                                          // silent AirFi import + de-dup
+    if ((S.cache.routes || []).length) checkRoutes({ alert: true });
+  }, 60000);
+  setTimeout(() => autoReconcileFleet(), 6000);                    // once shortly after first load/sync
 }
 
 /* ----- Routes UI ----- */
@@ -3872,7 +3887,6 @@ function bind() {
       case 'lang': LANG = LANG === 'en' ? 'hi' : 'en'; localStorage.setItem('lang', LANG); return rerender();
       case 'addBus': return sheetAddBus();
       case 'saveBus': return saveBus();
-      case 'importFleet': return importFleet();
       case 'addDoc': return sheetAddDoc(el.getAttribute('data-bus'), null);
       case 'editDoc': return sheetAddDoc(el.getAttribute('data-bus'), el.getAttribute('data-doc'));
       case 'saveDoc': return saveDoc(el.getAttribute('data-bus'));
@@ -3933,7 +3947,6 @@ function bind() {
       case 'scanSerial': return scanSerial(el.getAttribute('data-target'));
       case 'setPrio': return setPrio(el.getAttribute('data-v'));
       case 'busFilter': _busFilter = el.getAttribute('data-v'); return renderBusList();
-      case 'cleanupFleet': return cleanupFleet();
       case 'openDriverDocs': return push({ name: 'driverdocs', id: el.getAttribute('data-driver') });
       case 'driverDoc': return sheetDriverDoc(el.getAttribute('data-driver'), el.getAttribute('data-key'));
       case 'captureDoc': return captureDoc();
