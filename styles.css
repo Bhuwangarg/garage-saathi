@@ -215,6 +215,21 @@ img.ava{object-fit:cover}
 .sheethead .x{margin-left:auto;background:var(--surface);border:1px solid var(--line);border-radius:50%;
   width:32px;height:32px;color:var(--muted);font-size:20px;line-height:1;flex:none}
 
+/* Filter chips + search box */
+.chiprow{display:flex;gap:8px;overflow-x:auto;padding-bottom:8px;margin-bottom:6px;-webkit-overflow-scrolling:touch}
+.chiprow::-webkit-scrollbar{display:none}
+.chip{flex:none;padding:8px 14px;border-radius:999px;border:1.5px solid var(--line,#e6e9f0);background:var(--surface,#fff);
+  font-weight:700;font-size:13px;color:var(--muted,#8b91a0);cursor:pointer;white-space:nowrap;
+  transition:background .16s ease,border-color .16s ease,color .16s ease,transform .1s ease}
+.chip:active{transform:scale(.94)}
+.chip.active{border-color:var(--brand2,#2563eb);color:var(--ink,#161922);background:rgba(37,99,235,.10)}
+/* List filter/search animation — staggered fade-up of rows */
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.row-anim{animation:fadeUp .26s cubic-bezier(.22,.61,.36,1) both}
+.searchbox{width:100%;padding:11px 40px 11px 14px;border:1.5px solid var(--line,#e6e9f0);border-radius:12px;
+  background:var(--surface,#fff) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='18' height='18' fill='none' stroke='%238b91a0' stroke-width='2'><circle cx='8' cy='8' r='6'/><path d='M13 13l4 4'/></svg>") no-repeat right 12px center;
+  font-size:15px;margin-bottom:12px;-webkit-appearance:none}
+
 /* Login */
 .login{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;
   padding:28px;text-align:center}

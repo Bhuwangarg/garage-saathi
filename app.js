@@ -795,26 +795,69 @@ function viewHome() {
 }
 
 /* ----- Buses ----- */
+const BUS_STAT = { running: ['🟢', 'Running'], idle: ['🟡', 'Idle'], parked: ['⚪', 'Parked'] };
+let _busFilter = 'all', _busStatus = {};
+const busStatusOf = (b) => _busStatus[_normReg(b.regNo)] || 'parked';
 function busLi(b) {
   const alerts = (b.docs || []).filter((d) => daysLeft(d.expiry) <= 15).length;
+  const sd = BUS_STAT[busStatusOf(b)] || BUS_STAT.parked;
   // The row taps into bus detail; the Track button (its own data-act) taps into
   // the live tracking page — closest() matches the button first, so they don't clash.
   return `<div class="li" data-bus="${b.id}">
     ${avatar(busImg(b), '🚌')}
-    <div class="main"><div class="t">${esc(b.regNo)}</div>
+    <div class="main"><div class="t">${sd[0]} ${esc(b.regNo)}</div>
       <div class="s">${esc(b.company)} · ${esc(b.model)} · ${(b.odometer||0).toLocaleString('en-IN')} km</div></div>
     ${alerts ? `<span class="badge b-red">${alerts}!</span>` : ''}
     <button class="btn sm" data-act="trackBus" data-bus="${b.id}" style="width:auto" title="Live track">🛰️</button>
   </div>`;
 }
 function viewBuses() {
-  const list = [...S.cache.buses].sort((a, b) => a.regNo.localeCompare(b.regNo));
   let body = '';
-  if (can(S.user.role, 'addBus')) {
-    body += `<button class="btn" data-act="importFleet" style="margin-bottom:12px">📡 Import fleet from AirFi (GPS)</button>`;
-  }
-  body += `<div class="card">${list.length ? list.map(busLi).join('') : `<div class="empty">No buses yet</div>`}</div>`;
+  if (can(S.user.role, 'addBus')) body += `<button class="btn" data-act="importFleet" style="margin-bottom:12px">📡 Import fleet from AirFi (GPS)</button>`;
+  body += `<input id="bus-search" class="searchbox" placeholder="Search reg, company, model…" autocomplete="off">`;
+  body += `<div class="chiprow" id="bus-chips"></div>`;
+  body += `<div class="card" id="bus-list"><div class="empty">Loading…</div></div>`;
   shell(t('buses'), body, can(S.user.role, 'addBus') ? { act: 'addBus', icon: '+' } : null);
+  const s = document.getElementById('bus-search'); if (s) s.oninput = renderBusList;
+  renderBusList();           // paint immediately
+  loadBusStatuses();         // then refresh live running/idle/parked
+}
+async function loadBusStatuses() {
+  let fleet = []; try { fleet = await Sync.fleet(); } catch (e) { /* offline */ }
+  _busStatus = {};
+  fleet.forEach((f) => { const moving = (f.speedKph || 0) > 2 && f.ignition; _busStatus[_normReg(f.reg)] = !f.ignition ? 'parked' : (moving ? 'running' : 'idle'); });
+  renderBusList();
+}
+function renderBusList() {
+  const all = [...(S.cache.buses || [])].sort((a, b) => a.regNo.localeCompare(b.regNo));
+  const counts = { all: all.length, running: 0, idle: 0, parked: 0 };
+  all.forEach((b) => { counts[busStatusOf(b)]++; });
+  const chips = document.getElementById('bus-chips');
+  if (chips) chips.innerHTML = [['all', 'All'], ['running', '🟢 Running'], ['idle', '🟡 Idle'], ['parked', '⚪ Parked']]
+    .map(([v, label]) => `<button class="chip ${_busFilter === v ? 'active' : ''}" data-act="busFilter" data-v="${v}">${label} ${counts[v]}</button>`).join('');
+  const q = (document.getElementById('bus-search') || {}).value || '';
+  const ql = q.trim().toLowerCase();
+  const list = all.filter((b) => (_busFilter === 'all' || busStatusOf(b) === _busFilter)
+    && (!ql || (`${b.regNo} ${b.company} ${b.model}`).toLowerCase().includes(ql)));
+  const box = document.getElementById('bus-list');
+  if (!box) return;
+  box.innerHTML = list.length ? list.map(busLi).join('') : `<div class="empty">No ${_busFilter === 'all' ? '' : _busFilter + ' '}buses${ql ? ' match “' + esc(q) + '”' : ''}</div>`;
+  staggerRows(box);
+}
+// Staggered fade-up of list rows (capped so long lists don't crawl).
+function staggerRows(box) {
+  box.querySelectorAll('.li').forEach((li, i) => { li.classList.add('row-anim'); li.style.animationDelay = Math.min(i, 12) * 0.028 + 's'; });
+}
+// Reusable: live-filter a rendered list's .li rows by text, with re-animation.
+function attachSearch(inputId, listId) {
+  const inp = document.getElementById(inputId), box = document.getElementById(listId);
+  if (!inp || !box) return;
+  inp.oninput = () => {
+    const ql = inp.value.trim().toLowerCase();
+    let shown = 0;
+    box.querySelectorAll('.li').forEach((li) => { const ok = !ql || li.textContent.toLowerCase().includes(ql); li.style.display = ok ? '' : 'none'; if (ok) shown++; });
+    box.querySelectorAll('.li:not([style*="none"])').forEach((li, i) => { li.classList.remove('row-anim'); void li.offsetWidth; li.classList.add('row-anim'); li.style.animationDelay = Math.min(i, 12) * 0.028 + 's'; });
+  };
 }
 // Pull the fleet AirFi is tracking and create a bus for any registration we
 // don't have yet. New buses then track live automatically via GpsProvider.
@@ -947,7 +990,16 @@ async function trackTick(busId) {
   let d = null; try { d = await Sync.latest(b.regNo); } catch (e) { /* offline */ } finally { _trackBusy = false; }
   if (!_trackMap) return;                       // navigated away mid-await
   const panel = document.getElementById('track-panel');
-  if (!d || d.lat == null) { if (panel) panel.innerHTML = `<div class="card" style="margin:0"><div class="tiny muted">${esc(b.regNo)} · waiting for GPS fix…</div></div>`; return; }
+  if (!d || d.lat == null) {
+    const unlinked = /^unit\s/i.test(b.regNo);
+    if (panel) panel.innerHTML = `<div class="card" style="margin:0">
+      <div class="row between"><b>${esc(b.regNo)}</b><span class="badge b-low">no signal</span></div>
+      <div class="tiny muted" style="margin-top:6px">${unlinked
+        ? 'This bus isn\'t linked to its GPS device yet.'
+        : 'No live signal right now — the bus is likely parked or switched off (the GPS reports only while the engine is on).'}</div>
+      ${unlinked && ['owner', 'supervisor'].includes(S.user.role) ? '<div class="spacer"></div><button class="btn sm" data-act="openLinkGps">🛰️ Link GPS device</button>' : ''}</div>`;
+    return;
+  }
   const pos = [d.lat, d.lng];
   const moving = (d.speedKph || 0) > 2 && d.ignition;
   const color = !d.ignition ? '#8b91a0' : (moving ? '#16a571' : '#f59e0b');
@@ -1094,8 +1146,11 @@ function viewJobs() {
     : { open: 0, 'in-progress': 1, done: 2, verified: 3 };
   jobs.sort((a, b) => (order[a.status] - order[b.status]) || (b.createdAt - a.createdAt));
   let body = jobsFilterBar();
-  body += `<div class="card">${jobs.length ? jobs.map(jobLi).join('') : `<div class="empty">${t('noJobsMatch')}</div>`}</div>`;
+  body += `<input id="job-search" class="searchbox" placeholder="Search bus or problem…" autocomplete="off">`;
+  body += `<div class="card" id="job-list">${jobs.length ? jobs.map(jobLi).join('') : `<div class="empty">${t('noJobsMatch')}</div>`}</div>`;
   shell(t('jobs'), body, can(S.user.role, 'addJob') ? { act: 'addJob', icon: '+' } : null);
+  attachSearch('job-search', 'job-list');
+  const jl = document.getElementById('job-list'); if (jl) staggerRows(jl);
 }
 
 function photoStrip(job, field, editable) {
@@ -1485,16 +1540,19 @@ function viewStore() {
       <button class="btn" data-act="issueTo">📤 ${t('issuePart')}</button></div>`;
   }
 
-  body += `<div class="card"><h3>Parts</h3>`;
+  body += `<input id="part-search" class="searchbox" placeholder="Search part name, no. or category…" autocomplete="off">`;
+  body += `<div class="card"><h3>Parts</h3><div id="part-list">`;
   body += parts.map((p) => {
     const lowf = p.qty <= p.reorderLevel;
     return `<div class="li" data-part="${p.id}">${avatar(partImg(p), '🔩')}
       <div class="main"><div class="t">${esc(p.name)}</div><div class="s">${esc(p.partNo)} · ${esc(p.category)} · ${money(p.unitCost)}/${p.unit}</div></div>
       <div style="text-align:right"><b>${p.qty}</b> <span class="tiny muted">${p.unit}</span>${lowf?'<div class="badge b-amber tiny">LOW</div>':''}</div></div>`;
   }).join('');
-  body += `</div>`;
+  body += `</div></div>`;
 
   shell(t('store'), body, can(S.user.role,'addPurchase') ? { act: 'addPurchase', icon: '📄' } : null);
+  attachSearch('part-search', 'part-list');
+  const pl = document.getElementById('part-list'); if (pl) staggerRows(pl);
 }
 
 function viewPartDetail(id) {
@@ -3737,6 +3795,7 @@ function bind() {
       case 'aiGradeCore': return aiGradeCore(el.getAttribute('data-job'), el.getAttribute('data-cr'));
       case 'scanSerial': return scanSerial(el.getAttribute('data-target'));
       case 'setPrio': return setPrio(el.getAttribute('data-v'));
+      case 'busFilter': _busFilter = el.getAttribute('data-v'); return renderBusList();
       case 'returnCore': return sheetReturnCore(el.getAttribute('data-job'));
       case 'captureCore': return captureCore();
       case 'saveCoreReturn': return saveCoreReturn(el.getAttribute('data-job'));
