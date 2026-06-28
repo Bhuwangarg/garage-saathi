@@ -557,7 +557,7 @@ function topbar(title) {
 }
 
 // Which bottom tab should light up — sub-screens map back to their parent tab.
-const TAB_OF = { home: 'home', buses: 'buses', jobs: 'jobs', store: 'store', me: 'me', purchases: 'me', alerts: 'me', insights: 'home', drivers: 'home', assignments: 'home', company: 'home', routes: 'home', reports: 'home', busreport: 'home', livemap: 'home', track: 'home', fuel: 'home', safety: 'home', warranty: 'home', storehealth: 'store', linkgps: 'home', newjob: 'jobs', driverdocs: 'home' };
+const TAB_OF = { home: 'home', buses: 'buses', jobs: 'jobs', store: 'store', me: 'me', purchases: 'me', alerts: 'me', insights: 'home', drivers: 'home', assignments: 'home', company: 'home', routes: 'home', reports: 'home', busreport: 'home', livemap: 'home', track: 'home', fuel: 'home', safety: 'home', warranty: 'home', storehealth: 'store', linkgps: 'home', newjob: 'jobs', driverdocs: 'home', forecast: 'home' };
 function bottomnav() {
   const active = TAB_OF[S.route.name] || 'home';
   // Each role gets a focused nav matching what they actually do.
@@ -1246,13 +1246,17 @@ function viewJobDetail(id) {
       <div class="row between small"><span>${esc(j.externalVendor)}</span><b>${money(j.externalCost)}</b></div></div>`;
   }
 
-  // Cost summary
-  body += `<div class="card"><h3>Cost</h3>
+  // Cost summary — repair cost + the lost-revenue from downtime
+  const dDays = jobDownDays(j), dLost = Math.round(dDays * dailyRev(bus || {}));
+  const stillDown = ['open', 'in-progress'].includes(j.status);
+  body += `<div class="card"><h3>Cost &amp; impact</h3>
     <div class="row between small"><span>Parts</span><b>${money(cost.parts)}</b></div>
     <div class="row between small"><span>Labour (${j.labourHours||0} hr)</span><b>${money(cost.labour)}</b></div>
     ${cost.ext?`<div class="row between small"><span>Outside</span><b>${money(cost.ext)}</b></div>`:''}
+    <div class="row between small"><span>🕒 Downtime ${dDays.toFixed(1)}d${stillDown ? ' (ongoing)' : ''} · lost revenue</span><b style="color:#ef4444">${money(dLost)}</b></div>
     <div class="hr"></div>
-    <div class="row between"><b>Total</b><b style="color:var(--brand2)">${money(cost.total)}</b></div></div>`;
+    <div class="row between"><b>Repair cost</b><b style="color:var(--brand2)">${money(cost.total)}</b></div>
+    <div class="row between"><b>Total impact</b><b style="color:#ef4444">${money(cost.total + dLost)}</b></div></div>`;
 
   // Actions
   const actions = actionsForJob(j, editable);
@@ -1647,6 +1651,7 @@ function viewMe() {
          <div class="li" data-act="openStaff"><div class="ava">👥</div><div class="main"><div class="t">Staff</div><div class="s">${S.cache.users.length} accounts · add new</div></div></div>
          <div class="li" data-act="openLiveMap"><div class="ava">🗺️</div><div class="main"><div class="t">Live map</div><div class="s">Track every bus live, Uber-style</div></div></div>
          <div class="li" data-act="openReports"><div class="ava">📊</div><div class="main"><div class="t">Bus reports</div><div class="s">Total maintenance spend per bus + full detail</div></div></div>
+         <div class="li" data-act="openForecast"><div class="ava">🔧</div><div class="main"><div class="t">Maintenance &amp; uptime</div><div class="s">Predicts upcoming service/parts + downtime cost</div></div></div>
          <div class="li" data-act="openFuel"><div class="ava">⛽</div><div class="main"><div class="t">Fuel &amp; mileage</div><div class="s">Fills, km/l, fuel ₹/km &amp; mileage-drop alerts</div></div></div>
          <div class="li" data-act="openSafety"><div class="ava">🛡️</div><div class="main"><div class="t">Safety &amp; misuse</div><div class="s">Overspeed, harsh braking, night moves &amp; idling</div></div></div>
          <div class="li" data-act="openWarranty"><div class="ava">🧾</div><div class="main"><div class="t">Warranty register</div><div class="s">Parts under warranty — don't pay for free replacements</div></div></div>
@@ -1965,6 +1970,7 @@ function sheetAddPart() {
       <label class="field"><span class="lbl">Supplier (for warranty)</span><input id="f-psupp" placeholder="e.g. Bosch dealer"></label>
       <label class="field"><span class="lbl">Warranty (months)</span><input id="f-pwarr" type="number" inputmode="numeric" placeholder="0 = none"></label>
     </div>
+    <label class="field"><span class="lbl">⏳ Typical life (months) — for replacement forecasting</span><input id="f-plife" type="number" inputmode="numeric" placeholder="e.g. 18 (0 = skip)"></label>
     <button class="btn primary" data-act="saveAddPart">${t('save')}</button>`);
 }
 async function saveAddPart() {
@@ -1977,6 +1983,7 @@ async function saveAddPart() {
     unit: $('#f-punit').value, unitCost: Number($('#f-pcost').value) || 0,
     reorderLevel: Number($('#f-preorder').value) || 0, qty,
     supplier: ($('#f-psupp') || {}).value ? $('#f-psupp').value.trim() : '', warrantyMonths: Number(($('#f-pwarr') || {}).value) || 0,
+    lifeMonths: Number(($('#f-plife') || {}).value) || 0,
   });
   // An opening stock count is a stock-in movement — keep the ledger complete.
   if (qty > 0) await DB.put('ledger', { id: uid('l-'), partId, type: 'in', qty, jobId: null, reason: 'Opening stock', by: S.user.id, at: Date.now() });
@@ -2359,6 +2366,98 @@ function busReport(b, since) {
   jobs.forEach((j) => (j.partsUsed || []).forEach((l) => { const p = partMap[l.partId] || { qty: 0, cost: 0 }; p.qty += l.qty; p.cost += l.cost; partMap[l.partId] = p; }));
   const topParts = Object.entries(partMap).map(([pid, v]) => ({ pid, ...v })).sort((a, b) => b.cost - a.cost);
   return { jobs, cost, byStatus, downDays, topParts, extJobs: jobs.filter((j) => j.externalVendor).length, n: jobs.length };
+}
+
+/* ===== Preventive maintenance forecast + downtime cost engine =============
+ * Predicts upcoming work (service by km→date, part life by months, doc expiry)
+ * and values lost road-time: days a bus was down × its daily revenue. Turns
+ * maintenance into a rupee decision and gets ahead of breakdowns. */
+const dailyRev = (b) => Number(b.dailyRevenue) || Number((S.cache.garage || {}).dailyRevenue) || 8000;
+function avgDailyKm(b) {
+  const fills = (S.cache.fuel || []).filter((f) => f.busId === b.id).sort((x, y) => (x.odometer || 0) - (y.odometer || 0));
+  if (fills.length >= 2) {
+    const spanKm = (fills[fills.length - 1].odometer || 0) - (fills[0].odometer || 0);
+    const spanDays = Math.max(1, (fills[fills.length - 1].at - fills[0].at) / day);
+    if (spanKm > 0) return spanKm / spanDays;
+  }
+  return Number((S.cache.garage || {}).avgKmPerDay) || 250;
+}
+function serviceForecast(b) {
+  const sv = serviceInfo(b), akm = avgDailyKm(b);
+  const daysLeft = akm > 0 ? Math.round(sv.dueIn / akm) : null;
+  return Object.assign({}, sv, { daysLeft, dueDate: daysLeft != null ? Date.now() + daysLeft * day : null });
+}
+function partLifeForecast(b) {
+  const out = [];
+  (S.cache.parts || []).forEach((p) => {
+    const life = Number(p.lifeMonths) || 0; if (!life) return;
+    const fits = (S.cache.jobs || []).filter((j) => j.busId === b.id && (j.partsUsed || []).some((l) => l.partId === p.id))
+      .map((j) => j.closedAt || j.createdAt).sort((a, c) => c - a);
+    if (!fits.length) return;
+    const due = fits[0] + life * 30 * day, dl = Math.round((due - Date.now()) / day);
+    out.push({ label: p.name, due, daysLeft: dl, status: dl <= 0 ? 'overdue' : dl <= 14 ? 'soon' : 'ok' });
+  });
+  return out;
+}
+// Upcoming items within ~30 days (or overdue), ranked soonest-first.
+function maintForecast(b) {
+  const items = [];
+  const sf = serviceForecast(b);
+  if (sf.status !== 'ok' || (sf.daysLeft != null && sf.daysLeft <= 30)) items.push({ icon: '🛠️', label: 'Engine service',
+    detail: sf.dueIn <= 0 ? `overdue by ${-sf.dueIn} km` : `in ${sf.dueIn} km${sf.daysLeft != null ? ` · ~${sf.daysLeft}d` : ''}`,
+    daysLeft: sf.daysLeft != null ? sf.daysLeft : 999, status: sf.status });
+  partLifeForecast(b).forEach((p) => { if (p.status !== 'ok' || p.daysLeft <= 30) items.push({ icon: '🔩', label: p.label,
+    detail: p.daysLeft <= 0 ? `overdue ${-p.daysLeft}d` : `~${p.daysLeft}d left`, daysLeft: p.daysLeft, status: p.status }); });
+  (b.docs || []).forEach((d) => { const dl = daysLeft(d.expiry); if (dl <= 30) items.push({ icon: '📄', label: d.type,
+    detail: dl < 0 ? `expired ${-dl}d` : `expires in ${dl}d`, daysLeft: dl, status: dl < 0 ? 'overdue' : dl <= 14 ? 'soon' : 'ok' }); });
+  return items.sort((a, c) => a.daysLeft - c.daysLeft);
+}
+const jobDownDays = (j) => Math.max(0, ((j.closedAt || (['open', 'in-progress'].includes(j.status) ? Date.now() : j.createdAt)) - j.createdAt) / day);
+function busDownDays(b, since) {
+  return (S.cache.jobs || []).filter((j) => j.busId === b.id && (!since || (j.closedAt || j.createdAt) >= since))
+    .reduce((s, j) => s + jobDownDays(j), 0);
+}
+const busLostRev = (b, since) => Math.round(busDownDays(b, since) * dailyRev(b));
+const FC_COL = { overdue: 'b-red', soon: 'b-amber', ok: 'b-green' };
+function viewForecast() {
+  const buses = S.cache.buses || [];
+  let totalDown = 0, totalLost = 0;
+  buses.forEach((b) => { const d = busDownDays(b); totalDown += d; totalLost += d * dailyRev(b); });
+  const items = [];
+  buses.forEach((b) => maintForecast(b).forEach((it) => items.push(Object.assign({ bus: b }, it))));
+  items.sort((a, c) => a.daysLeft - c.daysLeft);
+  const overdue = items.filter((i) => i.status === 'overdue').length;
+
+  let body = `<div class="card"><div class="row between">
+      <div><div class="muted small">Lost to downtime</div><div class="stat" style="color:#ef4444">${money(totalLost)}</div>
+        <div class="tiny muted">${Math.round(totalDown)} bus-days off the road</div></div>
+      <div style="text-align:right"><div class="muted small">Needs attention</div><div class="stat" style="color:${overdue ? '#ef4444' : 'var(--green)'}">${items.length}</div>
+        <div class="tiny muted">${overdue} overdue</div></div></div>
+    <div class="tiny muted" style="margin-top:6px">Lost revenue = days down × daily earning (₹${dailyRev({}).toLocaleString('en-IN')}/bus default).${can(S.user.role, 'addBus') ? ' <a data-act="setFleetRev" style="color:var(--brand2);cursor:pointer">set ₹/day</a>' : ''}</div></div>`;
+
+  body += `<div class="card"><h3>🔧 Coming up &amp; overdue</h3>`;
+  body += items.length ? items.slice(0, 60).map((i) => `<div class="li" data-act="busReport" data-bus="${i.bus.id}" style="cursor:pointer">
+      <div class="ava">${i.icon}</div><div class="main"><div class="t">${esc(i.bus.regNo)} · ${esc(i.label)}</div>
+      <div class="s">${i.detail}</div></div><span class="badge ${FC_COL[i.status] || 'b-low'}">${i.status === 'overdue' ? 'OVERDUE' : i.status === 'soon' ? 'SOON' : 'plan'}</span></div>`).join('')
+    : `<div class="empty">Nothing due in the next 30 days 👍</div>`;
+  body += `</div>`;
+
+  // Worst downtime offenders (where the money's leaking)
+  const worst = [...buses].map((b) => ({ b, lost: busLostRev(b), days: busDownDays(b) })).filter((x) => x.days > 0).sort((a, c) => c.lost - a.lost).slice(0, 6);
+  if (worst.length) {
+    body += `<div class="card"><h3>💸 Most downtime cost</h3>` + worst.map((x) => `<div class="li" data-act="busReport" data-bus="${x.b.id}" style="cursor:pointer">${avatar(busImg(x.b), '🚌')}
+      <div class="main"><div class="t">${esc(x.b.regNo)}</div><div class="s">${x.days.toFixed(1)} days down · ₹${dailyRev(x.b).toLocaleString('en-IN')}/day</div></div>
+      <b style="color:#ef4444">${money(x.lost)}</b></div>`).join('') + `</div>`;
+  }
+  shell('Maintenance & uptime', body);
+}
+async function setFleetRev() {
+  const cur = Number((S.cache.garage || {}).dailyRevenue) || 8000;
+  const v = prompt('Average revenue a bus earns per running day (₹):', cur);
+  if (v == null) return;
+  const n = Math.max(0, Math.round(Number(v) || 0));
+  const g = Object.assign({}, S.cache.garage || { key: 'garage' }, { dailyRevenue: n });
+  await DB.put('meta', g); await load(); toast('Daily revenue set ✓'); viewForecast();
 }
 function viewReports() {
   const since = reportSinceMs();
@@ -3709,6 +3808,17 @@ function computeInsights() {
         detail: `${x.label} ${daysLeft(c.expiry) < 0 ? 'expired' : 'expires'} ${fmtDate(c.expiry)}.`, nav: { name: 'driverdocs', id: d.id } }); });
   });
 
+  // Preventive maintenance forecast — get ahead of breakdowns
+  buses.forEach((b) => {
+    const sf = serviceForecast(b);
+    if (sf.status === 'overdue') out.push({ sev: 'high', icon: '🛠️', title: `Service overdue — ${b.regNo}`,
+      detail: `${-sf.dueIn} km past due. Service it before it becomes a breakdown.`, nav: { name: 'buses', id: b.id } });
+    else if (sf.daysLeft != null && sf.daysLeft >= 0 && sf.daysLeft <= 10) out.push({ sev: 'med', icon: '🛠️', title: `Service due soon — ${b.regNo}`,
+      detail: `~${sf.dueIn} km (${sf.daysLeft}d) to next service. Plan it now to avoid downtime.`, nav: { name: 'buses', id: b.id } });
+    partLifeForecast(b).filter((p) => p.status === 'overdue' || p.daysLeft <= 7).slice(0, 1).forEach((p) => out.push({ sev: 'med', icon: '🔩',
+      title: `${p.label} due — ${b.regNo}`, detail: p.daysLeft <= 0 ? `Past its ~life by ${-p.daysLeft}d — inspect/replace.` : `~${p.daysLeft}d of life left.`, nav: { name: 'buses', id: b.id } }));
+  });
+
   // Stock shrinkage from the latest physical count
   const lastAudit = (S.cache.audits || []).slice().sort((a, b) => b.at - a.at)[0];
   if (lastAudit && lastAudit.shrinkValue > 0) out.push({ sev: 'high', icon: '📦', title: `Stock shrinkage — ${money(lastAudit.shrinkValue)}`,
@@ -3821,7 +3931,7 @@ async function askAi() {
  */
 const current = () => S.stack[S.stack.length - 1];
 // Role guard: routes restricted to certain roles fall back to home for others.
-const ROUTE_PERM = { insights: 'insights', drivers: 'manageDrivers', assignments: 'assignDriver', routes: 'manageRoutes', reports: 'dashboard', busreport: 'dashboard', livemap: 'dashboard', track: 'dashboard', fuel: 'addFuel', safety: 'dashboard', warranty: 'addFuel', storehealth: 'issuePart', linkgps: 'addBus', newjob: 'addJob' };
+const ROUTE_PERM = { insights: 'insights', drivers: 'manageDrivers', assignments: 'assignDriver', routes: 'manageRoutes', reports: 'dashboard', busreport: 'dashboard', livemap: 'dashboard', track: 'dashboard', fuel: 'addFuel', safety: 'dashboard', warranty: 'addFuel', storehealth: 'issuePart', linkgps: 'addBus', newjob: 'addJob', forecast: 'dashboard' };
 function render(r) {
   if (typeof stopMap === 'function') stopMap();   // leaving any screen halts the live-map refresh timer
   if (typeof stopTrack === 'function') stopTrack();
@@ -3851,6 +3961,7 @@ function render(r) {
     case 'linkgps': return viewLinkGps();
     case 'newjob': return viewNewJob(r.prefill || {});
     case 'driverdocs': return viewDriverDocs(r.id);
+    case 'forecast': return viewForecast();
     case 'scoreboard': return viewScoreboard();
     case 'scorecard': return viewScorecard(r.id);
     default: return viewHome();
@@ -3935,6 +4046,8 @@ function bind() {
       case 'confirmLogService': return confirmLogService(el.getAttribute('data-bus'));
       case 'openInsights': return push({ name: 'insights' });
       case 'openReports': return push({ name: 'reports' });
+      case 'openForecast': return push({ name: 'forecast' });
+      case 'setFleetRev': return setFleetRev();
       case 'openFuel': return push({ name: 'fuel' });
       case 'openSafety': return push({ name: 'safety' });
       case 'openWarranty': return push({ name: 'warranty' });
