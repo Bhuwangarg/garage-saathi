@@ -125,6 +125,8 @@ def db():
             endpoint TEXT PRIMARY KEY, sub TEXT, role TEXT, at INTEGER)""")
         # Private server-side key/value — NOT exposed via /pull (which only reads `records`).
         c.execute("""CREATE TABLE IF NOT EXISTS sys(k TEXT PRIMARY KEY, v TEXT)""")
+        # Latest live GPS position per bus — persisted so the map survives restarts.
+        c.execute("""CREATE TABLE IF NOT EXISTS gpslive(reg TEXT PRIMARY KEY, data TEXT, at INTEGER)""")
         try:
             c.commit()
         except Exception:
@@ -324,11 +326,17 @@ def _read_gps_token():
     t = os.environ.get("GPS_INGEST_TOKEN", "").strip()
     if t:
         return t
-    try:
-        with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".gps_ingest_token")) as f:
-            return f.read().strip()
-    except Exception:
-        return ""
+    # Fallbacks: a Render Secret File, or the local git-ignored file.
+    for p in (os.path.join(os.path.dirname(os.path.abspath(__file__)), ".gps_ingest_token"),
+              "/etc/secrets/GPS_INGEST_TOKEN", "/etc/secrets/.gps_ingest_token"):
+        try:
+            with open(p) as f:
+                v = f.read().strip()
+                if v:
+                    return v
+        except Exception:
+            pass
+    return ""
 GPS_INGEST_TOKEN = _read_gps_token()
 _GPS_TOKEN_OK = bool(GPS_INGEST_TOKEN) and "demo" not in GPS_INGEST_TOKEN.lower() and "change-me" not in GPS_INGEST_TOKEN.lower()
 
@@ -404,7 +412,37 @@ def ingest_gps(events):
         for ev in new_events:
             if ev["type"] == "night":
                 send_push("🌙 Night movement", f"{ev['reg']} is moving at night — confirm it's an authorised trip.", "/")
+    # Persist latest positions so the live map survives a server restart/spin-down.
+    if accepted:
+        try:
+            with _lock:
+                c = db(); now2 = now_ms()
+                for e in events or []:
+                    reg = norm_reg(e.get("vehicleReg") or e.get("deviceId"))
+                    if reg and reg in LIVE_GPS:
+                        c.execute("INSERT OR REPLACE INTO gpslive(reg,data,at) VALUES(?,?,?)", (reg, json.dumps(LIVE_GPS[reg]), now2))
+                c.commit(); c.close()
+        except Exception:
+            pass
     return {"ok": True, "accepted": accepted, "events": len(new_events)}
+
+
+def _load_live_gps():
+    """Repopulate LIVE_GPS from the persisted store at startup, so a fresh process
+    (Render cold start) still shows last-known positions before AirFi pushes again."""
+    try:
+        c = db()
+        rows = c.execute("SELECT reg,data FROM gpslive").fetchall()
+        c.close()
+        for reg, data in rows:
+            try:
+                LIVE_GPS[reg] = json.loads(data)
+            except Exception:
+                pass
+        if LIVE_GPS:
+            print(f"Loaded {len(LIVE_GPS)} live GPS position(s) from store")
+    except Exception as e:
+        print("gpslive load skipped:", e)
 
 
 def save_pushsub(sub, role):
@@ -523,7 +561,8 @@ class Handler(BaseHTTPRequestHandler):
         if u.path in ("/", "/health"):
             return self._send(200, {"ok": True, "service": "garage-saathi-sync", "db": "turso" if _USE_TURSO else "sqlite",
                                      "persistent": _USE_TURSO, "urlSet": bool(TURSO_URL), "tokenSet": bool(TURSO_TOKEN),
-                                     "aiKeySet": bool(ANTHROPIC_API_KEY), "vapidReady": _WEBPUSH and bool(_vapid_pem_path())})
+                                     "aiKeySet": bool(ANTHROPIC_API_KEY), "vapidReady": _WEBPUSH and bool(_vapid_pem_path()),
+                                     "gpsIngest": _GPS_TOKEN_OK, "gpsLiveRegs": len(LIVE_GPS)})
         if u.path.startswith("/uploads/"):
             name = os.path.basename(u.path)
             fp = os.path.join(UPLOADS, name)
@@ -715,6 +754,7 @@ class Handler(BaseHTTPRequestHandler):
 
 if __name__ == "__main__":
     db().close()
+    _load_live_gps()                 # restore last-known positions across restarts
     if ENABLE_DEMO_SEED:
         seed_users()
     else:
