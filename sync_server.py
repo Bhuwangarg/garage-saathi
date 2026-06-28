@@ -14,6 +14,8 @@ Run:  python3 sync_server.py        (listens on 0.0.0.0:8766)
 """
 import base64
 import hashlib
+import hmac
+import secrets as _secrets
 import json
 import math
 import os
@@ -121,12 +123,34 @@ def db():
             id TEXT PRIMARY KEY, name TEXT, role TEXT, salt TEXT, pin_hash TEXT)""")
         c.execute("""CREATE TABLE IF NOT EXISTS pushsubs(
             endpoint TEXT PRIMARY KEY, sub TEXT, role TEXT, at INTEGER)""")
+        # Private server-side key/value — NOT exposed via /pull (which only reads `records`).
+        c.execute("""CREATE TABLE IF NOT EXISTS sys(k TEXT PRIMARY KEY, v TEXT)""")
         try:
             c.commit()
         except Exception:
             pass
         _SCHEMA_OK = True
     return c
+
+
+_SECRET = None
+def _session_secret():
+    """Stable HMAC secret for signing session tokens. Persisted (Turso/SQLite) so
+    tokens survive server restarts — fixes the cold-start 401 storm on Render free."""
+    global _SECRET
+    if _SECRET:
+        return _SECRET
+    with _lock:
+        c = db()
+        row = c.execute("SELECT v FROM sys WHERE k='session_secret'").fetchone()
+        if row and row[0]:
+            _SECRET = row[0]
+        else:
+            _SECRET = _secrets.token_hex(32)
+            c.execute("INSERT OR REPLACE INTO sys(k,v) VALUES('session_secret',?)", (_SECRET,))
+            c.commit()
+        c.close()
+    return _SECRET
 
 
 def hash_pin(salt, pin):
@@ -193,20 +217,33 @@ def do_login(user_id, pin):
     c.close()
     if not row or hash_pin(row[3], pin) != row[4]:
         return None
-    token = uuid.uuid4().hex
-    SESSIONS[token] = {"uid": row[0], "exp": time.time() + SESSION_TTL}
-    return {"token": token, "user": {"id": row[0], "name": row[1], "role": row[2]}}
+    return {"token": _make_token(row[0]), "user": {"id": row[0], "name": row[1], "role": row[2]}}
+
+
+def _make_token(uid):
+    exp = int(time.time() + SESSION_TTL)
+    payload = f"{uid}.{exp}"
+    sig = hmac.new(_session_secret().encode(), payload.encode(), hashlib.sha256).hexdigest()
+    return f"{payload}.{sig}"
 
 
 def user_for_token(token):
-    s = SESSIONS.get(token or "")
-    if not s:
+    # Stateless: verify the HMAC signature + expiry — no in-memory session store,
+    # so tokens stay valid across server restarts (no cold-start 401 storm).
+    parts = (token or "").split(".")
+    if len(parts) != 3:
         return None
-    if s["exp"] < time.time():            # expired → force re-login
-        SESSIONS.pop(token, None)
+    uid, exp, sig = parts
+    try:
+        if int(exp) < time.time():
+            return None
+    except ValueError:
+        return None
+    good = hmac.new(_session_secret().encode(), f"{uid}.{exp}".encode(), hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(sig, good):
         return None
     c = db()
-    row = c.execute("SELECT id,name,role FROM users WHERE id=?", (s["uid"],)).fetchone()
+    row = c.execute("SELECT id,name,role FROM users WHERE id=?", (uid,)).fetchone()
     c.close()
     return {"id": row[0], "name": row[1], "role": row[2]} if row else None
 

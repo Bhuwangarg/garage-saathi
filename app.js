@@ -4209,7 +4209,7 @@ function enterApp(user) { S.user = user; route({ name: 'home' }); }
 /* -------------------------------- Boot ------------------------------------ */
 (async function boot() {
   try {
-  await seedIfEmpty();
+  await seedIfEmpty(isDemoMode());   // production seeds roster+config only, never demo buses/jobs
   seedCreds();
   await load();
   // Business name now comes from garage config (set in db.js seed for the demo,

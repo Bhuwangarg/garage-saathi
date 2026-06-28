@@ -141,7 +141,10 @@ function uid(prefix = '') {
  * A realistic slice of a Jaipur garage so the owner can click through every
  * flow on first open. Runs only once (guarded by a meta flag).
  */
-async function seedIfEmpty() {
+// demo=true seeds the full demo dataset (local/dev). On production (demo=false)
+// we seed ONLY the staff roster (so the login screen has names) + a default
+// garage config — never demo buses/jobs/drivers. Stops test data on real devices.
+async function seedIfEmpty(demo) {
   const seeded = await DB.get('meta', 'seeded');
   if (seeded) return;
 
@@ -252,16 +255,18 @@ async function seedIfEmpty() {
     { id: 'dr-3', driverId: 'd2', busId: 'b2', category: 'Engine', problem: 'Engine feels low on power on inclines', at: now - 1*day, status: 'open', jobId: null, resolvedAt: null },
   ];
 
-  for (const u of users) await DB.put('users', u);
-  for (const b of buses) await DB.put('buses', b);
-  for (const p of parts) await DB.put('parts', p);
-  for (const j of jobcards) await DB.put('jobcards', j);
-  for (const l of ledger) await DB.put('ledger', l);
-  for (const a of attendance) await DB.put('attendance', a);
-  for (const pu of purchases) await DB.put('purchases', pu);
-  for (const dv of drivers) await DB.put('drivers', dv);
-  for (const ic of incidents) await DB.put('incidents', ic);
-  for (const dr of driverreports) await DB.put('driverreports', dr);
+  for (const u of users) await DB.put('users', u);   // staff roster — bootstraps the login screen (always)
+  if (demo) {                                          // demo operational data — local/dev only
+    for (const b of buses) await DB.put('buses', b);
+    for (const p of parts) await DB.put('parts', p);
+    for (const j of jobcards) await DB.put('jobcards', j);
+    for (const l of ledger) await DB.put('ledger', l);
+    for (const a of attendance) await DB.put('attendance', a);
+    for (const pu of purchases) await DB.put('purchases', pu);
+    for (const dv of drivers) await DB.put('drivers', dv);
+    for (const ic of incidents) await DB.put('incidents', ic);
+    for (const dr of driverreports) await DB.put('driverreports', dr);
+  }
 
   // Garage location (geofence centre for attendance). Default: central Jaipur.
   await DB.put('meta', { key: 'garage', lat: 26.9124, lng: 75.7873, radiusM: 200, name: 'Mahalaxmi Travels Garage, Jaipur', biz: 'Mahalaxmi Travels', labourRate: 250 });
