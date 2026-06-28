@@ -813,7 +813,7 @@ function busLi(b) {
 }
 function viewBuses() {
   let body = '';
-  if (can(S.user.role, 'addBus')) body += `<button class="btn" data-act="importFleet" style="margin-bottom:12px">📡 Import fleet from AirFi (GPS)</button>`;
+  if (can(S.user.role, 'addBus')) body += `<div class="btnrow" style="margin-bottom:12px"><button class="btn" data-act="importFleet">📡 Import from AirFi</button><button class="btn" data-act="cleanupFleet">🧹 Clean up</button></div>`;
   body += `<input id="bus-search" class="searchbox" placeholder="Search reg, company, model…" autocomplete="off">`;
   body += `<div class="chiprow" id="bus-chips"></div>`;
   body += `<div class="card" id="bus-list"><div class="empty">Loading…</div></div>`;
@@ -821,6 +821,22 @@ function viewBuses() {
   const s = document.getElementById('bus-search'); if (s) s.oninput = renderBusList;
   renderBusList();           // paint immediately
   loadBusStatuses();         // then refresh live running/idle/parked
+}
+// Remove demo/test buses and de-duplicate by registration (keeps the richest record).
+async function cleanupFleet() {
+  if (!confirm('Remove demo/test buses and any duplicate registrations?')) return;
+  const buses = S.cache.buses || [];
+  const demoIds = new Set(['b1', 'b2', 'b3']);
+  const score = (b) => (b.source === 'klm-linked' ? 100 : 0) + (b.source === 'klm-excel' ? 50 : 0) + (b.model ? 5 : 0) + ((b.docs || []).length ? 2 : 0);
+  const groups = {};
+  buses.forEach((b) => { const k = _normReg(b.regNo); (groups[k] = groups[k] || []).push(b); });
+  const toDel = new Set();
+  for (const k in groups) { const g = groups[k].slice().sort((a, b) => score(b) - score(a)); for (let i = 1; i < g.length; i++) toDel.add(g[i].id); }  // dupes
+  buses.forEach((b) => { if (demoIds.has(b.id) || b.source === 'demo') toDel.add(b.id); });                                                            // demo/test
+  for (const id of toDel) await DB.softDel('buses', id);
+  await load(); Sync.kick();
+  toast(toDel.size ? `Removed ${toDel.size} test/duplicate bus(es) ✓` : 'Fleet already clean 👍');
+  rerender();
 }
 async function loadBusStatuses() {
   let fleet = []; try { fleet = await Sync.fleet(); } catch (e) { /* offline */ }
@@ -3917,6 +3933,7 @@ function bind() {
       case 'scanSerial': return scanSerial(el.getAttribute('data-target'));
       case 'setPrio': return setPrio(el.getAttribute('data-v'));
       case 'busFilter': _busFilter = el.getAttribute('data-v'); return renderBusList();
+      case 'cleanupFleet': return cleanupFleet();
       case 'openDriverDocs': return push({ name: 'driverdocs', id: el.getAttribute('data-driver') });
       case 'driverDoc': return sheetDriverDoc(el.getAttribute('data-driver'), el.getAttribute('data-key'));
       case 'captureDoc': return captureDoc();
