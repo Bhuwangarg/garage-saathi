@@ -861,7 +861,7 @@ function renderBusList() {
 }
 // Staggered fade-up of list rows (capped so long lists don't crawl).
 function staggerRows(box) {
-  box.querySelectorAll('.li').forEach((li, i) => { li.classList.add('row-anim'); li.style.animationDelay = Math.min(i, 12) * 0.028 + 's'; });
+  box.querySelectorAll('.li, .jobcard').forEach((li, i) => { li.classList.add('row-anim'); li.style.animationDelay = Math.min(i, 12) * 0.028 + 's'; });
 }
 // Reusable: live-filter a rendered list's .li rows by text, with re-animation.
 function attachSearch(inputId, listId) {
@@ -870,8 +870,8 @@ function attachSearch(inputId, listId) {
   inp.oninput = () => {
     const ql = inp.value.trim().toLowerCase();
     let shown = 0;
-    box.querySelectorAll('.li').forEach((li) => { const ok = !ql || li.textContent.toLowerCase().includes(ql); li.style.display = ok ? '' : 'none'; if (ok) shown++; });
-    box.querySelectorAll('.li:not([style*="none"])').forEach((li, i) => { li.classList.remove('row-anim'); void li.offsetWidth; li.classList.add('row-anim'); li.style.animationDelay = Math.min(i, 12) * 0.028 + 's'; });
+    box.querySelectorAll('.li, .jobcard').forEach((li) => { const ok = !ql || li.textContent.toLowerCase().includes(ql); li.style.display = ok ? '' : 'none'; if (ok) shown++; });
+    box.querySelectorAll('.li:not([style*="none"]), .jobcard:not([style*="none"])').forEach((li, i) => { li.classList.remove('row-anim'); void li.offsetWidth; li.classList.add('row-anim'); li.style.animationDelay = Math.min(i, 12) * 0.028 + 's'; });
   };
 }
 // Pull the fleet AirFi is tracking and create a bus for any registration we
@@ -1106,16 +1106,33 @@ function viewBusDetail(id) {
 }
 
 /* ----- Jobs ----- */
+const JOB_SC = { open: '#ef4444', 'in-progress': '#f59e0b', done: '#2563eb', verified: '#16a571' };
+const PRIO_PILL = { high: '🔴 High', medium: '🟡 Medium', low: '🟢 Low' };
 function jobLi(j) {
   const c = jobCost(j).total;
-  const bus = byId(S.cache.buses, j.busId);
-  return `<div class="li" data-job="${j.id}">
-    ${avatar(busImg(bus), '🛠️')}
-    <div class="main">
-      <div class="t">${esc(busName(j.busId))} — ${esc(j.problem)}</div>
-      <div class="s">${esc(userName(j.assignedTo))} · ${fmtDate(j.createdAt)} · ${money(c)}</div>
+  const sc = JOB_SC[j.status] || '#8b91a0';
+  const steps = ['open', 'in-progress', 'done', 'verified'];
+  const idx = steps.indexOf(j.status);
+  const dDays = jobDownDays(j);
+  const stillDown = ['open', 'in-progress'].includes(j.status);
+  return `<div class="jobcard" data-job="${j.id}" style="--sc:${sc}">
+    <div class="jc-top">
+      <div class="jc-bus">🚌 ${esc(busName(j.busId))}</div>
+      ${statusBadge(j.status)}
     </div>
-    <div style="text-align:right">${statusBadge(j.status)} ${j.externalVendor ? '<div class="tiny muted">outside</div>' : ''}</div>
+    <div class="jc-problem">${esc(j.problem)}</div>
+    <div class="jc-meta">
+      <span class="pp">${PRIO_PILL[j.priority] || ''}</span>
+      <span>· 👷 ${esc(userName(j.assignedTo))}</span>
+      <span>· ${fmtDate(j.createdAt)}</span>
+      ${j.externalVendor ? '<span>· 🏪 outside</span>' : ''}
+    </div>
+    <div class="jc-foot">
+      <span>💰 ${money(c)}</span>
+      ${dDays >= 1 ? `<span style="color:#ef4444">🕒 ${dDays.toFixed(0)}d${stillDown ? '+' : ''} down</span>` : ''}
+      ${(j.partsUsed || []).length ? `<span>🔩 ${j.partsUsed.length}</span>` : ''}
+    </div>
+    <div class="jc-prog">${steps.map((s, i) => `<i class="${i <= idx ? 'on' : ''}"></i>`).join('')}</div>
   </div>`;
 }
 // Jobs-list filter state (status + mechanic chips). Owned by supervisor dev.
@@ -1125,29 +1142,19 @@ const jobFilterState = { status: 'all', mech: 'all' };
 // to the top so the work waiting on their sign-off is impossible to miss.
 function isVerifierRole() { return can(S.user.role, 'verifyJob'); }
 
-// Renders the tappable status + mechanic filter chips above the jobs list.
+// Renders the animated status + mechanic filter chips above the jobs board.
 function jobsFilterBar() {
-  const verifier = isVerifierRole();
-  const toVerify = S.cache.jobs.filter((j) => j.status === 'done').length;
-  const chip = (act, attr, val, cur, label, badge) =>
-    `<button class="btn sm ${cur === val ? 'primary' : 'ghost'}" data-act="${act}" data-${attr}="${val}" style="border:1px solid var(--line)">${esc(label)}${badge ? ` <span class="badge b-done tiny" style="padding:1px 7px">${badge}</span>` : ''}</button>`;
-  const statuses = [
-    ['all', t('filterAll')], ['open', t('open')], ['in-progress', t('statusInProgress')],
-    ['done', t('toVerify')], ['verified', t('statusVerified')],
-  ];
-  let bar = '';
-  if (verifier && toVerify) {
-    bar += `<div class="banner" style="background:#fff3e0;color:#b9740a;cursor:pointer" data-act="filterStatus" data-fstatus="done">🔔 ${toVerify} ${t('jobsAwaitingVerify')}</div>`;
-  }
-  bar += `<div class="row" style="gap:7px;overflow-x:auto;padding-bottom:8px;flex-wrap:nowrap">`;
-  bar += statuses.map(([v, l]) => chip('filterStatus', 'fstatus', v, jobFilterState.status, l, v === 'done' ? toVerify : 0)).join('');
-  bar += `</div>`;
+  let scoped = [...S.cache.jobs];
+  if (S.user.role === 'mechanic') scoped = scoped.filter((j) => j.assignedTo === S.user.id);
+  if (jobFilterState.mech !== 'all') scoped = scoped.filter((j) => j.assignedTo === jobFilterState.mech);
+  const cnt = (s) => s === 'all' ? scoped.length : scoped.filter((j) => j.status === s).length;
+  const statuses = [['all', t('filterAll')], ['open', t('open')], ['in-progress', t('statusInProgress')], ['done', t('toVerify')], ['verified', t('statusVerified')]];
+  let bar = `<div class="chiprow">` + statuses.map(([v, l]) =>
+    `<button class="chip ${jobFilterState.status === v ? 'active' : ''}" data-act="filterStatus" data-fstatus="${v}">${esc(l)} ${cnt(v)}</button>`).join('') + `</div>`;
   const mechs = S.cache.users.filter((u) => u.role === 'mechanic');
   if (S.user.role !== 'mechanic' && mechs.length) {
-    bar += `<div class="row" style="gap:7px;overflow-x:auto;padding-bottom:8px;flex-wrap:nowrap">`;
-    bar += chip('filterMech', 'fmech', 'all', jobFilterState.mech, t('filterAllMechs'), 0);
-    bar += mechs.map((m) => chip('filterMech', 'fmech', m.id, jobFilterState.mech, m.name, 0)).join('');
-    bar += `</div>`;
+    bar += `<div class="chiprow"><button class="chip ${jobFilterState.mech === 'all' ? 'active' : ''}" data-act="filterMech" data-fmech="all">${t('filterAllMechs')}</button>` +
+      mechs.map((m) => `<button class="chip ${jobFilterState.mech === m.id ? 'active' : ''}" data-act="filterMech" data-fmech="${m.id}">${esc(m.name)}</button>`).join('') + `</div>`;
   }
   return bar;
 }
@@ -1173,7 +1180,7 @@ function viewJobs() {
   jobs.sort((a, b) => (order[a.status] - order[b.status]) || (b.createdAt - a.createdAt));
   let body = jobsFilterBar();
   body += `<input id="job-search" class="searchbox" placeholder="Search bus or problem…" autocomplete="off">`;
-  body += `<div class="card" id="job-list">${jobs.length ? jobs.map(jobLi).join('') : `<div class="empty">${t('noJobsMatch')}</div>`}</div>`;
+  body += jobs.length ? `<div id="job-list">${jobs.map(jobLi).join('')}</div>` : `<div class="card" id="job-list"><div class="empty">${t('noJobsMatch')}</div></div>`;
   shell(t('jobs'), body, can(S.user.role, 'addJob') ? { act: 'addJob', icon: '+' } : null);
   attachSearch('job-search', 'job-list');
   const jl = document.getElementById('job-list'); if (jl) staggerRows(jl);
