@@ -843,7 +843,11 @@ async function cleanupFleet(silent) {
   buses.forEach((b) => { const k = _normReg(b.regNo); (groups[k] = groups[k] || []).push(b); });
   const toDel = new Set();
   for (const k in groups) { const g = groups[k].slice().sort((a, b) => score(b) - score(a)); for (let i = 1; i < g.length; i++) toDel.add(g[i].id); }  // dupes
-  buses.forEach((b) => { if (demoIds.has(b.id) || b.source === 'demo') toDel.add(b.id); });                                                            // demo/test
+  // Strip demo/test buses ONLY once a real fleet exists to replace them — otherwise
+  // the background auto-reconcile would wipe the seeded demo fleet to nothing
+  // (offline/local installs have no AirFi import to bring buses back).
+  const realCount = buses.filter((b) => !demoIds.has(b.id) && b.source !== 'demo').length;
+  if (realCount > 0) buses.forEach((b) => { if (demoIds.has(b.id) || b.source === 'demo') toDel.add(b.id); });            // demo/test
   for (const id of toDel) await DB.softDel('buses', id);
   if (toDel.size) { await load(); Sync.kick(); }
   if (!silent) { toast(toDel.size ? `Removed ${toDel.size} test/duplicate bus(es) ✓` : 'Fleet already clean 👍'); rerender(); }
@@ -1756,6 +1760,8 @@ function viewMe() {
          <div class="li" data-act="openScoreboard"><div class="ava">🏆</div><div class="main"><div class="t">Mechanic scorecards</div><div class="s">Attendance, late penalties &amp; work-quality ratings</div></div></div>
          <div class="li" data-act="openRoutes"><div class="ava">🕒</div><div class="main"><div class="t">Routes &amp; timings</div><div class="s">Pickup geofences, go-times &amp; punctuality</div></div></div>
          <div class="li" data-act="openSetup"><div class="ava">⚙️</div><div class="main"><div class="t">Garage setup</div><div class="s">Location, geofence, shift time · start fresh</div></div></div>` : ''}
+    ${S.user.role === 'store'
+      ? `<div class="li" data-act="openStoreHealth"><div class="ava">📦</div><div class="main"><div class="t">Store health</div><div class="s">Reconciliation, stock counts &amp; shrinkage score</div></div></div>` : ''}
     <div class="li" data-act="changePin"><div class="ava">🔑</div><div class="main"><div class="t">${t('changePin')}</div><div class="s">Set a new 4-digit login PIN</div></div></div>
     <div class="li" data-act="openSync"><div class="ava">🔄</div><div class="main"><div class="t">${t('sync')}</div><div class="s">${SYNC_STATUS === 'synced' ? 'All devices up to date' : SYNC_STATUS === 'offline' ? 'Offline — will sync when connected' : 'Syncing…'}${si.pending ? ` · ${si.pending} pending` : ''}</div></div></div>
     <div class="li" data-act="logout"><div class="ava">🚪</div><div class="main"><div class="t">${t('logout')}</div></div></div>
@@ -4144,13 +4150,24 @@ function render(r) {
     default: return viewHome();
   }
 }
-function navTab(name) { S.stack = [{ name }]; render(current()); }
-function push(r) { S.stack.push(r); render(r); }
-function back() { if (S.stack.length > 1) S.stack.pop(); render(current()); }
+// Navigation is mirrored into the browser history so the phone/browser BACK
+// button does an in-app back instead of leaving the page (which dropped users
+// onto the login screen). Every forward nav pushes one history entry; popstate
+// is the single place the stack pops; at the root we re-push so back can never
+// exit the app to the login screen.
+function histPush() { try { history.pushState({ gs: S.stack.length }, ''); } catch (e) { /* ignore */ } }
+function navTab(name) { S.stack = [{ name }]; render(current()); histPush(); }
+function push(r) { S.stack.push(r); render(r); histPush(); }
+function back() { try { history.back(); } catch (e) { if (S.stack.length > 1) { S.stack.pop(); render(current()); } } }
 function rerender() { render(current()); }
 // Back-compat shim: existing callers that say route({name,...}) now reset to that
 // screen as a fresh root (used by login + a few in-view fallbacks).
-function route(r) { S.stack = [r]; render(r); }
+function route(r) { S.stack = [r]; render(r); histPush(); }
+window.addEventListener('popstate', () => {
+  if (!S.user) return;                                   // on the login screen — nothing to pop
+  if (S.stack.length > 1) { S.stack.pop(); render(current()); }
+  else histPush();                                       // trap at root: stay in the app, don't exit to login
+});
 
 /* ----------------------------- Event binding ------------------------------ */
 function bind() {
