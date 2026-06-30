@@ -1598,7 +1598,7 @@ function sheetAudit(mode) {
   openSheet(mode === 'blind' ? 'Blind count' : 'Full count', `
     <div class="tiny muted" style="margin-bottom:10px">${mode === 'blind' ? 'Physically count these parts and enter the actual number. System totals are hidden to keep it honest.' : 'Enter the physical count for each part.'}</div>
     ${parts.map((p) => `<label class="field"><span class="lbl">${esc(p.name)}${mode === 'full' ? ` <span class="tiny muted">(system ${p.qty} ${p.unit})</span>` : ''}</span>
-      <input class="au-count" data-part="${p.id}" type="number" inputmode="numeric" placeholder="counted ${esc(p.unit)}"></label>`).join('')}
+      <input class="au-count" data-pid="${p.id}" type="number" inputmode="numeric" placeholder="counted ${esc(p.unit)}"></label>`).join('')}
     <button class="btn primary" data-act="saveAudit" data-mode="${mode}">Submit count</button>`);
 }
 async function saveAudit(mode) {
@@ -1606,7 +1606,7 @@ async function saveAudit(mode) {
   const lines = []; let shrink = 0, found = 0;
   for (const inp of inputs) {
     if (inp.value === '') continue;
-    const p = byId(S.cache.parts, inp.getAttribute('data-part')); if (!p) continue;
+    const p = byId(S.cache.parts, inp.getAttribute('data-pid')); if (!p) continue;
     const counted = Math.max(0, Math.round(Number(inp.value) || 0));
     const system = p.qty, variance = counted - system, val = Math.abs(variance) * (p.unitCost || 0);
     lines.push({ partId: p.id, system, counted, variance, value: variance < 0 ? val : 0 });
@@ -4178,6 +4178,13 @@ function bind() {
     const nav = el.getAttribute('data-nav');
     if (nav) return navTab(nav);
     const act = el.getAttribute('data-act');
+
+    // Never treat a form control as a navigation target. An entity attr like
+    // data-part on an <input> is a data-carrier (e.g. stock-count rows), not a
+    // drill-in — without this guard, tapping the field navigates away and the
+    // entry is lost. data-act buttons are unaffected (handled below).
+    if (!act && /^(INPUT|SELECT|TEXTAREA|OPTION)$/.test((e.target.tagName || '')))
+      { if (!e.target.closest('[data-act]')) return; }
 
     // navigation by entity (lists) — drill in, keep history
     if (el.hasAttribute('data-job') && !act) return push({ name: 'jobs', id: el.getAttribute('data-job') });
