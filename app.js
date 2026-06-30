@@ -557,7 +557,7 @@ function topbar(title) {
 }
 
 // Which bottom tab should light up — sub-screens map back to their parent tab.
-const TAB_OF = { home: 'home', buses: 'buses', jobs: 'jobs', store: 'store', me: 'me', purchases: 'me', alerts: 'me', insights: 'home', drivers: 'home', assignments: 'home', company: 'home', routes: 'home', reports: 'home', busreport: 'home', livemap: 'home', track: 'home', fuel: 'home', safety: 'home', warranty: 'home', storehealth: 'store', linkgps: 'home', newjob: 'jobs', driverdocs: 'home', forecast: 'home' };
+const TAB_OF = { home: 'home', buses: 'buses', jobs: 'jobs', store: 'store', me: 'me', purchases: 'me', alerts: 'me', insights: 'home', drivers: 'home', assignments: 'home', company: 'home', routes: 'home', reports: 'home', busreport: 'home', livemap: 'home', track: 'home', fuel: 'home', safety: 'home', warranty: 'home', storehealth: 'store', linkgps: 'home', newjob: 'jobs', driverdocs: 'home', forecast: 'home', pilferage: 'home' };
 function bottomnav() {
   const active = TAB_OF[S.route.name] || 'home';
   // Each role gets a focused nav matching what they actually do.
@@ -737,6 +737,18 @@ function viewHome() {
         <div class="tiny" style="opacity:.85">Pilferage radar, cost savings & predictions</div></div>
       <span class="badge ${insightCount ? 'b-red' : 'b-green'}">${insightCount}</span>
     </div>`;
+
+    // Pilferage radar — surface the highest-risk mechanic right on home
+    if (['owner', 'supervisor'].includes(S.user.role)) {
+      const pf = pilferageRadar();
+      if (pf.length) { const top = pf[0];
+        body += `<div class="card" data-act="openPilferage" style="cursor:pointer;border:1.5px solid var(--red)">
+          <div class="row between"><h3>🕵️ Pilferage radar</h3><span class="badge b-red">${pf.length} flagged</span></div>
+          <div class="li" style="border:none;padding:8px 0 0"><div class="ava">🚨</div>
+            <div class="main"><div class="t">Highest risk: ${esc(top.u.name)}</div><div class="s">${esc(top.flags[0] ? top.flags[0].label : '')} · tap to review</div></div>
+            <span class="badge ${riskClass(top.risk)}">${top.risk}</span></div></div>`;
+      }
+    }
 
     // Service due (preventive maintenance) — from live GPS odometer
     const due = busesDueService();
@@ -1739,6 +1751,7 @@ function viewMe() {
          <div class="li" data-act="openSafety"><div class="ava">🛡️</div><div class="main"><div class="t">Safety &amp; misuse</div><div class="s">Overspeed, harsh braking, night moves &amp; idling</div></div></div>
          <div class="li" data-act="openWarranty"><div class="ava">🧾</div><div class="main"><div class="t">Warranty register</div><div class="s">Parts under warranty — don't pay for free replacements</div></div></div>
          <div class="li" data-act="openStoreHealth"><div class="ava">📦</div><div class="main"><div class="t">Store health</div><div class="s">Reconciliation, stock counts &amp; shrinkage score</div></div></div>
+         <div class="li" data-act="openPilferage"><div class="ava">🕵️</div><div class="main"><div class="t">Pilferage radar</div><div class="s">Who to watch — per-mechanic theft-risk score</div></div></div>
          <div class="li" data-act="openLinkGps"><div class="ava">🛰️</div><div class="main"><div class="t">Link GPS to buses</div><div class="s">Match live AirFi devices to fleet units → tracking on</div></div></div>
          <div class="li" data-act="openScoreboard"><div class="ava">🏆</div><div class="main"><div class="t">Mechanic scorecards</div><div class="s">Attendance, late penalties &amp; work-quality ratings</div></div></div>
          <div class="li" data-act="openRoutes"><div class="ava">🕒</div><div class="main"><div class="t">Routes &amp; timings</div><div class="s">Pickup geofences, go-times &amp; punctuality</div></div></div>
@@ -2711,6 +2724,83 @@ function viewScorecard(userId) {
     <div class="hr"></div><div class="row between small"><span class="muted">Jobs (90d) · verified first-time</span><b>${m.jobs} · ${m.verified}</b></div>
     <div class="tiny muted" style="margin-top:8px">${m.score >= 85 ? '👏 Great work — keep before+after photos on every job and check in on time.' : 'Raise your score: get jobs verified first time (no rework), always add before + after photos, and check in before the shift cutoff.'}</div></div>`;
   shell(esc(u.name), body);
+}
+
+/* ===== Anti-pilferage #4 — Pilferage Radar (people-level anomaly engine) ===
+ * #1–3 catch pilferage per JOB (missing core, suspect core, warranty charge,
+ * no proof). Theft is usually a PERSON, though — so this rolls those same
+ * signals up per mechanic, adds a peer-outlier check (parts ₹/job far above
+ * the team median), and ranks who to watch. Each signal is weighted + capped
+ * so one noisy mechanic with many jobs can't max out a single flag. Everything
+ * is attributed via j.assignedTo; no API key, all on-device. */
+const PILFER_FLAGS = {
+  suspect:   { label: 'Returned "old" part looked new', weight: 18, cap: 54 },
+  core:      { label: 'Old part not returned',          weight: 10, cap: 40 },
+  warranty:  { label: 'Charged for a warranty part',    weight: 12, cap: 36 },
+  proof:     { label: 'Parts billed, no proof photo',   weight: 8,  cap: 32 },
+  premature: { label: 'Premature re-replacement (<60d)',weight: 6,  cap: 24 },
+  costout:   { label: 'Parts spend well above peers',   weight: 20, cap: 20 },
+};
+const riskClass = (r) => (r >= 60 ? 'b-red' : r >= 30 ? 'b-amber' : 'b-low');
+const riskSev = (r) => (r >= 60 ? 'high' : r >= 30 ? 'med' : 'low');
+function pilferageRadar() {
+  const since = Date.now() - 180 * day;
+  const mechs = S.cache.users.filter((u) => u.role === 'mechanic');
+  const jobsOf = (id) => S.cache.jobs.filter((j) => j.assignedTo === id && ['done', 'verified'].includes(j.status) && (j.closedAt || j.createdAt) >= since);
+  // Peer baseline: median parts ₹/job across mechanics who bill parts.
+  const avgCost = {};
+  mechs.forEach((u) => { const js = jobsOf(u.id).filter((j) => jobCost(j).parts > 0); avgCost[u.id] = js.length ? js.reduce((s, j) => s + jobCost(j).parts, 0) / js.length : 0; });
+  const costs = Object.values(avgCost).filter((x) => x > 0).sort((a, b) => a - b);
+  const medCost = costs.length ? costs[Math.floor(costs.length / 2)] : 0;
+  // Premature re-replacement: same part re-fitted on the same bus <60d later —
+  // attribute the flag to the mechanic of the LATER job.
+  const fit = {};
+  S.cache.jobs.forEach((j) => (j.partsUsed || []).forEach((l) => { const k = j.busId + '|' + l.partId; (fit[k] = fit[k] || []).push({ t: j.closedAt || j.createdAt, jobId: j.id, mech: j.assignedTo }); }));
+  const prematureJobs = {};
+  Object.values(fit).forEach((arr) => { arr.sort((a, b) => a.t - b.t); for (let i = 1; i < arr.length; i++) { if (arr[i].mech && (arr[i].t - arr[i - 1].t) / day < 60) (prematureJobs[arr[i].mech] = prematureJobs[arr[i].mech] || []).push(arr[i].jobId); } });
+
+  const rows = mechs.map((u) => {
+    const js = jobsOf(u.id);
+    const flags = {};
+    const add = (key, jobId) => { const f = flags[key] || (flags[key] = { jobs: [] }); if (jobId && !f.jobs.includes(jobId)) f.jobs.push(jobId); else if (!jobId) f.flat = true; };
+    js.forEach((j) => {
+      if (!(j.afterPhotos || []).length && jobCost(j).parts > 0) add('proof', j.id);
+      if (coreMissing(j).length) add('core', j.id);
+      if ((j.coreReturns || []).some((c) => c.condition === 'suspect' || (c.ai && c.ai.verdict === 'suspect'))) add('suspect', j.id);
+      (j.partsUsed || []).some((l) => { if ((l.cost || 0) <= 0) return false; const at = j.closedAt || j.createdAt; const st = warrantyStatus(j.busId, l.partId, at, at); if (st && st.underWarranty) { add('warranty', j.id); return true; } return false; });
+    });
+    (prematureJobs[u.id] || []).filter((id) => js.some((j) => j.id === id)).forEach((id) => add('premature', id));
+    let costMult = 0;
+    if (avgCost[u.id] > 0 && medCost > 0 && js.length >= 3 && avgCost[u.id] > 1.8 * medCost) { costMult = Math.round(avgCost[u.id] / medCost * 10) / 10; add('costout'); }
+    const list = Object.entries(flags).map(([key, f]) => {
+      const def = PILFER_FLAGS[key], n = key === 'costout' ? 1 : f.jobs.length;
+      return { key, label: def.label + (key === 'costout' ? ` (${costMult}× median)` : ''), count: n, points: Math.min(def.cap, def.weight * n), jobs: f.jobs };
+    }).sort((a, b) => b.points - a.points);
+    const risk = Math.min(100, list.reduce((s, f) => s + f.points, 0));
+    return { u, risk, flags: list, jobCount: js.length };
+  }).filter((r) => r.risk > 0).sort((a, b) => b.risk - a.risk);
+  return rows;
+}
+function viewPilferage() {
+  const rows = pilferageRadar();
+  const lastAudit = (S.cache.audits || []).slice().sort((a, b) => b.at - a.at)[0];
+  let body = `<div class="card"><div class="tiny muted">Who to watch, last 180 days. Each mechanic's risk score rolls up the pilferage signals from their own jobs — missing/suspect old parts, warranty charges, no-proof billing, premature re-replacements — plus a check for parts spend far above the team. Tap a flag to see the job.</div></div>`;
+  if (lastAudit && lastAudit.shrinkValue > 0) body += `<div class="card insight" data-nav="storehealth" style="cursor:pointer"><div class="row" style="gap:11px;align-items:flex-start"><div class="ins-ic">📦</div>
+    <div style="flex:1"><div class="row between"><b style="font-size:14px">Store shrinkage — ${money(lastAudit.shrinkValue)}</b><span class="badge b-red">store</span></div>
+    <div class="small muted" style="margin-top:3px">Last stock count found ${money(lastAudit.shrinkValue)} of parts gone without a job. Tap for store health.</div></div></div></div>`;
+  if (!rows.length) {
+    body += `<div class="card" style="text-align:center;padding:26px"><div style="font-size:34px">✅</div><div style="font-weight:700;margin-top:6px">No pilferage signals</div><div class="tiny muted" style="margin-top:4px">No mechanic is showing fraud patterns in the last 180 days. Keep core returns + after-photos on every job.</div></div>`;
+    return shell('Pilferage radar', body);
+  }
+  body += rows.map((r, i) => `<div class="card">
+    <div class="row between" style="align-items:flex-start"><div class="row" style="gap:11px;align-items:center"><div class="ins-ic">${i === 0 ? '🚨' : '🕵️'}</div>
+      <div><b style="font-size:15px">${esc(r.u.name)}</b><div class="tiny muted">${r.jobCount} job(s) · ${r.flags.length} signal type(s)</div></div></div>
+      <span class="badge ${riskClass(r.risk)}" style="font-size:14px">${r.risk}</span></div>
+    <div class="hr" style="margin:8px 0"></div>
+    ${r.flags.map((f) => `<div class="row between small" ${f.jobs.length ? `data-job="${f.jobs[0]}" style="cursor:pointer;padding:4px 0"` : 'style="padding:4px 0"'}>
+      <span>${esc(f.label)}${f.count > 1 ? ` ×${f.count}` : ''}${f.jobs.length ? ' ›' : ''}</span><b style="color:var(--red)">+${f.points}</b></div>`).join('')}
+  </div>`).join('');
+  return shell('Pilferage radar', body);
 }
 
 /* ========================= Fuel & mileage =================================
@@ -4017,7 +4107,7 @@ async function askAi() {
  */
 const current = () => S.stack[S.stack.length - 1];
 // Role guard: routes restricted to certain roles fall back to home for others.
-const ROUTE_PERM = { insights: 'insights', drivers: 'manageDrivers', assignments: 'assignDriver', routes: 'manageRoutes', reports: 'dashboard', busreport: 'dashboard', livemap: 'dashboard', track: 'dashboard', fuel: 'addFuel', safety: 'dashboard', warranty: 'addFuel', storehealth: 'issuePart', linkgps: 'addBus', newjob: 'addJob', forecast: 'dashboard' };
+const ROUTE_PERM = { insights: 'insights', drivers: 'manageDrivers', assignments: 'assignDriver', routes: 'manageRoutes', reports: 'dashboard', busreport: 'dashboard', livemap: 'dashboard', track: 'dashboard', fuel: 'addFuel', safety: 'dashboard', warranty: 'addFuel', storehealth: 'issuePart', linkgps: 'addBus', newjob: 'addJob', forecast: 'dashboard', pilferage: 'insights' };
 function render(r) {
   if (typeof stopMap === 'function') stopMap();   // leaving any screen halts the live-map refresh timer
   if (typeof stopTrack === 'function') stopTrack();
@@ -4050,6 +4140,7 @@ function render(r) {
     case 'forecast': return viewForecast();
     case 'scoreboard': return viewScoreboard();
     case 'scorecard': return viewScorecard(r.id);
+    case 'pilferage': return viewPilferage();
     default: return viewHome();
   }
 }
@@ -4138,6 +4229,7 @@ function bind() {
       case 'openSafety': return push({ name: 'safety' });
       case 'openWarranty': return push({ name: 'warranty' });
       case 'openStoreHealth': return push({ name: 'storehealth' });
+      case 'openPilferage': return push({ name: 'pilferage' });
       case 'auditBlind': return sheetAudit('blind');
       case 'auditFull': return sheetAudit('full');
       case 'saveAudit': return saveAudit(el.getAttribute('data-mode'));
