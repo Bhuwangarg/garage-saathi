@@ -1239,7 +1239,7 @@ function viewJobDetail(id) {
     body += `<div class="card"><div class="row between"><h3>🔧 Old parts returned</h3>${editable && (j.partsUsed || []).length ? `<button class="btn sm" data-act="returnCore" data-job="${j.id}">📦 Return old part</button>` : ''}</div>`;
     body += crs.map((c) => { const p = byId(S.cache.parts, c.partId); const cc = CORE_COND[c.condition] || CORE_COND.worn;
       const ai = c.ai ? `<div class="tiny" style="margin-top:4px;color:${c.ai.verdict === 'suspect' ? '#ef4444' : '#5d6675'}">🤖 ${c.ai.wear}% worn · ${esc(c.ai.verdict)}${c.ai.note ? ' — ' + esc(c.ai.note) : ''}</div>` : '';
-      const gradeBtn = (!c.ai && ['owner', 'supervisor'].includes(S.user.role)) ? `<div style="margin-top:6px"><button class="btn sm ghost" data-act="aiGradeCore" data-job="${j.id}" data-cr="${c.id}">🤖 AI grade</button></div>` : '';
+      const gradeBtn = (!c.ai && ['owner', 'supervisor'].includes(S.user.role)) ? `<div style="margin-top:6px"><button class="btn sm ghost" data-act="aiGradeCore" data-job="${j.id}" data-cr="${c.id}">📷 Grade wear</button></div>` : '';
       return `<div class="li"><img class="thumb" src="${c.photo}" data-act="viewPhoto" data-src="${c.photo}">
         <div class="main"><div class="t">${esc(p ? p.name : (c.note || 'Old part'))}</div><div class="s">${fmtDate(c.at)} · ${esc(userName(c.by))}</div>${ai}</div>
         <div style="text-align:right"><span class="badge ${cc[1]}">${cc[0]}</span>${gradeBtn}</div></div>`; }).join('');
@@ -1344,7 +1344,7 @@ async function saveEditJob(jobId) {
  * To stop "replaced on paper only" + part-swap fraud, the OLD removed part must
  * be returned to store and photographed. The returner grades its wear; a part
  * billed as worn-out that looks new is the fraud signal the owner reviews.
- * (AI auto-grading of the photo slots in once the server vision update ships.) */
+ * (An on-device wear grade — see gradePartWear — gives a second opinion; no key.) */
 const CORE_COND = { worn: ['Worn out ✓', 'b-green'], partial: ['Part-worn', 'b-amber'], suspect: ['Looks new ⚠️', 'b-red'] };
 const coreMissing = (j) => {
   const ret = new Set((j.coreReturns || []).map((c) => c.partId).filter(Boolean));
@@ -1382,32 +1382,108 @@ async function saveCoreReturn(jobId) {
   await DB.put('jobcards', j);
   _coreShot = null; await load(); closeSheet(); toast('Old part recorded ✓'); viewJobDetail(jobId);
 }
-// AI vision: grade how worn a returned old part actually is (anti-swap fraud).
+/* ===== On-device vision (no API key, no Anthropic) =======================
+ * Replaces the old server /ai/vision (Anthropic) proxy with two free, fully
+ * client-side capabilities that run on the phone:
+ *   • OCR        — Tesseract.js (lazy-loaded from CDN, then cached) reads a
+ *                  serial / part number / ID number off a photo.
+ *   • Wear grade — a canvas pixel heuristic estimates how worn a returned old
+ *                  part looks: rust/corrosion + grime + a rough, pitted surface
+ *                  read as "worn"; a bright, shiny, smooth surface reads as
+ *                  "suspect" (too new to justify replacement — the swap signal).
+ * Both work offline once the OCR engine is cached and need no env keys. */
+let _tessLoad = null;
+function ensureTesseract() {
+  if (window.Tesseract) return Promise.resolve(true);
+  if (_tessLoad) return _tessLoad;
+  _tessLoad = new Promise((resolve) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
+    s.onload = () => resolve(!!window.Tesseract);
+    s.onerror = () => { _tessLoad = null; resolve(false); };
+    document.head.appendChild(s);
+  });
+  return _tessLoad;
+}
+// OCR a data-URL image → recognised text (trimmed). opts.whitelist restricts the
+// character set (e.g. serials). Returns '' if the engine can't load or read.
+async function localOcr(dataUrl, opts = {}) {
+  if (!(await ensureTesseract())) return '';
+  let worker = null;
+  try {
+    worker = await Tesseract.createWorker('eng');
+    if (opts.whitelist) await worker.setParameters({ tessedit_char_whitelist: opts.whitelist });
+    const { data } = await worker.recognize(dataUrl);
+    return (data && data.text || '').replace(/\s+/g, ' ').trim();
+  } catch (e) { return ''; }
+  finally { if (worker) { try { await worker.terminate(); } catch (e) {} } }
+}
+// Heuristic wear grade from a photo (data URL) → {wear:0-100, verdict, note} or
+// null. Samples a downscaled canvas: orange/brown corrosion + dark grime + a
+// rough (high-gradient) surface push wear up; bright specular highlights on a
+// smooth surface push it down (→ "suspect", looks too new).
+async function gradePartWear(dataUrl) {
+  const img = await new Promise((res) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => res(null); i.src = dataUrl; });
+  if (!img || !img.width) return null;
+  const W = 160, H = Math.max(1, Math.round(W * img.height / img.width));
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const ctx = c.getContext('2d'); ctx.drawImage(img, 0, 0, W, H);
+  let px; try { px = ctx.getImageData(0, 0, W, H).data; } catch (e) { return null; }
+  const N = W * H, lum = new Float32Array(N);
+  let rust = 0, dark = 0, shiny = 0;
+  for (let i = 0; i < N; i++) {
+    const r = px[i * 4], g = px[i * 4 + 1], b = px[i * 4 + 2];
+    const L = r * 0.299 + g * 0.587 + b * 0.114; lum[i] = L;
+    if (r > g && g >= b && r - b > 35 && L > 45 && L < 205) rust++;   // rust / corrosion / dirt (orange-brown)
+    if (L < 55) dark++;                                              // grime, oil, deep wear shadow
+    if (L > 225) shiny++;                                            // specular highlight → polished metal
+  }
+  let grad = 0, gc = 0;                                             // mean gradient = surface roughness (scratches/pitting)
+  for (let y = 1; y < H - 1; y++) for (let x = 1; x < W - 1; x++) {
+    const i = y * W + x, gx = lum[i + 1] - lum[i - 1], gy = lum[i + W] - lum[i - W];
+    grad += Math.sqrt(gx * gx + gy * gy); gc++;
+  }
+  const rustS = Math.min(1, (rust / N) * 5);
+  const grimeS = Math.min(1, (dark / N) * 3);
+  const texS = Math.min(1, (grad / Math.max(1, gc)) / 40);
+  const shineS = Math.min(1, (shiny / N) * 6);
+  const wear = Math.max(0, Math.min(100, Math.round(100 * (0.45 * rustS + 0.20 * grimeS + 0.25 * texS - 0.30 * shineS))));
+  let verdict = 'ok';
+  if (wear >= 55) verdict = 'worn';
+  else if (wear <= 22 || shineS > 0.6) verdict = 'suspect';
+  const bits = [];
+  if (rustS > 0.4) bits.push('corrosion/rust');
+  if (grimeS > 0.4) bits.push('heavy grime');
+  if (texS > 0.5) bits.push('rough/pitted surface');
+  if (shineS > 0.5) bits.push('shiny — looks little-used');
+  return { wear, verdict, note: (bits.join(', ') || 'moderately used surface').slice(0, 80) };
+}
+
+// On-device wear grade for a returned old part (anti-swap fraud) — no API key.
 async function aiGradeCore(jobId, crId) {
   const j = byId(S.cache.jobs, jobId); if (!j) return;
   const cr = (j.coreReturns || []).find((c) => c.id === crId); if (!cr || !cr.photo) return;
-  const p = byId(S.cache.parts, cr.partId);
-  const stop = showBusyOverlay('AI checking the part…');
-  const prompt = `This is an OLD vehicle part (${p ? p.name : 'part'}) removed from a bus, claimed worn-out and replaced. From the photo, rate how worn it really is. Reply ONLY compact JSON: {"wear":0-100,"verdict":"worn"|"ok"|"suspect","note":"short reason"}. 0=brand new, 100=fully worn. Use "suspect" if it looks too new to justify replacement.`;
-  const r = await Sync.aiVision(cr.photo, prompt);
+  const stop = showBusyOverlay('Checking the part…');
+  const v = await gradePartWear(cr.photo);
   if (stop) stop();
-  if (!r || r.configured === false) return toast('AI vision not enabled on the server yet (set ANTHROPIC_API_KEY)');
-  if (r.error) return toast(r.error);
-  let v = null; try { v = JSON.parse((r.text || '').match(/\{[\s\S]*\}/)[0]); } catch (e) {}
-  if (!v || v.wear == null) return toast('AI: ' + (r.text || 'no reading').slice(0, 70));
-  cr.ai = { wear: Math.round(v.wear), verdict: v.verdict || 'ok', note: (v.note || '').slice(0, 80), at: Date.now() };
-  await DB.put('jobcards', j); await load(); toast(`AI: ${cr.ai.wear}% worn (${cr.ai.verdict})`); viewJobDetail(jobId);
+  if (!v) return toast('Could not read the photo — try a clearer, closer shot');
+  cr.ai = { wear: v.wear, verdict: v.verdict, note: v.note, at: Date.now(), engine: 'on-device' };
+  await DB.put('jobcards', j); await load(); toast(`Est. ${v.wear}% worn (${v.verdict})`); viewJobDetail(jobId);
 }
-// AI vision OCR: read a part's serial/part number from a photo into a field.
+// On-device OCR: read a part's serial / part number from a photo into a field.
 async function scanSerial(targetId) {
   const shot = await capturePhoto(); if (!shot) return;
   const stop = showBusyOverlay('Reading serial…');
-  const r = await Sync.aiVision(shot, 'Read the serial number or part number printed on this automotive part. Reply ONLY the alphanumeric code, nothing else. If unreadable reply NONE.');
+  const text = await localOcr(shot, { whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-/' });
   if (stop) stop();
-  if (!r || r.configured === false) return toast('AI vision not enabled on the server yet (set ANTHROPIC_API_KEY)');
-  const s = (r.text || '').trim().split(/\s/)[0];
+  // A serial/part number almost always carries digits — prefer the longest
+  // digit-bearing token so we skip label words like "PART NO" / brand names.
+  const toks = (text.toUpperCase().match(/[A-Z0-9][A-Z0-9\-\/]{3,}/g) || []);
+  const withDigit = toks.filter((x) => /[0-9]/.test(x));
+  const s = (withDigit.length ? withDigit : toks).sort((a, b) => b.length - a.length)[0] || '';
   const el = document.getElementById(targetId);
-  if (el && s && s.toUpperCase() !== 'NONE') { el.value = s; toast('Serial: ' + s); } else toast('Could not read a serial');
+  if (el && s) { el.value = s; toast('Serial: ' + s); }
+  else toast(text ? 'Read "' + text.slice(0, 30) + '" — edit if wrong' : 'Could not read a serial — type it in');
 }
 
 /* ===== Anti-pilferage #2 — warranty register + guard =====================
@@ -1964,7 +2040,7 @@ function sheetAddPart() {
       <label class="field"><span class="lbl">Part no. / serial</span><input id="f-pno" placeholder="optional"></label>
       <label class="field"><span class="lbl">Category</span><input id="f-pcat" placeholder="e.g. Brakes"></label>
     </div>
-    <button class="btn sm ghost" data-act="scanSerial" data-target="f-pno" style="margin:-4px 0 8px">📷 Scan serial (AI)</button>
+    <button class="btn sm ghost" data-act="scanSerial" data-target="f-pno" style="margin:-4px 0 8px">📷 Scan serial</button>
     <div class="grid2">
       <label class="field"><span class="lbl">Unit</span><select id="f-punit">${PART_UNITS.map((u) => `<option value="${u}">${u}</option>`).join('')}</select></label>
       <label class="field"><span class="lbl">Unit cost (₹)</span><input id="f-pcost" type="number" inputmode="numeric"></label>
@@ -3259,7 +3335,7 @@ function sheetDriverDoc(driverId, key) {
     <button class="btn" data-act="captureDoc">📷 ${cur.photo ? 'Replace photo' : 'Take photo of document'}</button>
     <div id="doc-prev" class="thumbs" style="margin:10px 0">${cur.photo ? `<img class="thumb" src="${cur.photo}">` : ''}</div>
     ${doc.num ? `<label class="field"><span class="lbl">🔢 ${doc.label} number</span><input id="doc-num" value="${esc(cur.number || '')}" placeholder="Enter or scan"></label>
-      <button class="btn sm ghost" data-act="scanDocNum" style="margin:-4px 0 10px">🤖 Scan number (AI)</button>` : ''}
+      <button class="btn sm ghost" data-act="scanDocNum" style="margin:-4px 0 10px">📷 Scan number</button>` : ''}
     ${doc.expiry ? `<label class="field"><span class="lbl">📅 Expiry date</span><input id="doc-exp" type="date" value="${cur.expiry ? new Date(cur.expiry).toISOString().slice(0, 10) : ''}"></label>` : ''}
     <button class="btn primary" data-act="saveDriverDoc" data-driver="${driverId}" data-key="${key}">Save document</button>`);
 }
@@ -3270,11 +3346,14 @@ async function captureDoc() {
 async function scanDocNum() {
   if (!_docShot) return toast('Take the document photo first');
   const stop = showBusyOverlay('Reading number…');
-  const r = await Sync.aiVision(_docShot, 'Read the main identification number on this Indian ID document (Aadhaar / PAN / Driving Licence). Reply ONLY the number or code, nothing else.');
+  const text = await localOcr(_docShot, { whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 ' });
   if (stop) stop();
-  if (!r || r.configured === false) return toast('AI vision not enabled on the server yet');
-  const el = document.getElementById('doc-num'); const s = (r.text || '').trim();
-  if (el && s) { el.value = s; toast('Read: ' + s); } else toast('Could not read it');
+  // Pick the most ID-like token: PAN (AAAAA9999A), then a long digit run (Aadhaar/DL), else longest alnum word.
+  const up = text.toUpperCase();
+  const s = (up.match(/[A-Z]{5}[0-9]{4}[A-Z]/) || up.match(/[0-9]{4,}(?:\s?[0-9]{4,})*/) || up.match(/[A-Z0-9]{6,}/) || [''])[0].replace(/\s+/g, '');
+  const el = document.getElementById('doc-num');
+  if (el && s) { el.value = s; toast('Read: ' + s); }
+  else toast(text ? 'Read "' + text.slice(0, 30) + '" — edit if wrong' : 'Could not read it — type it in');
 }
 async function saveDriverDoc(driverId, key) {
   const d = driverById(driverId); if (!d) return;
