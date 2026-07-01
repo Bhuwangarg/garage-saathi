@@ -39,6 +39,30 @@ python3 sync_server.py             # sync/cloud (terminal 2)
   - Note: phone camera/GPS need `https`. For full phone testing, host it (Netlify/Vercel
     free tier) or use a tunnel like `cloudflared`. On `localhost` (the computer) everything works.
 
+## Development & tests
+
+**One-time setup after cloning** — enable the pre-deploy gate:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+This turns on a `pre-push` hook that runs an automated smoke + regression suite
+before any push to **`main`** (the GitHub Pages deploy branch) and **blocks the
+push if a deploy-critical flow breaks**. It's git-local config, so every fresh
+clone must run that line once.
+
+- **What it checks** (`scripts/predeploy-gate.sh`, ~60s, no network/LLM): all five
+  roles log in; the stock-count flow works (tapping a count field must not navigate
+  away, and a Full count must persist + close its sheet); form controls never trigger
+  navigation. Requires the [gstack](https://garryslist.org) `browse` binary; if it's
+  absent the gate warns and allows the push.
+- **Run it manually:** `bash scripts/predeploy-gate.sh`
+- **Bypass once** (e.g. hotfix): `git push --no-verify`
+- **Deeper, exploratory QA:** the `/g-saathi` Claude Code skill drives every role
+  through its screens and write flows and hunts for new bug classes. Run it
+  periodically; promote anything it finds into the gate above.
+
 ## See sync working (Phase 2)
 Each device keeps its own offline copy and reconciles through the sync server.
 The top bar shows **● Synced / ◐ Sync… / ○ Offline**.
