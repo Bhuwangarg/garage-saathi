@@ -5,7 +5,7 @@
  */
 
 const DB_NAME = 'garage-saathi';
-const DB_VERSION = 7;   // v7 adds the components store (onupgradeneeded creates any missing)
+const DB_VERSION = 8;   // v8 adds the def store (AdBlue/DEF fills) — onupgradeneeded creates any missing
 
 const STORES = {
   users: 'id',
@@ -24,6 +24,7 @@ const STORES = {
   gpsevents: 'id',       // auto safety/misuse events from live GPS (overspeed/harshbrake/night/idle)
   audits: 'id',          // physical stock counts → shrinkage reconciliation + store scorecard
   components: 'id',      // rotable/refurbishable units (tyres, alternators…) — per-unit life + send-out-for-repair history
+  def: 'id',            // AdBlue / DEF (diesel exhaust fluid) top-ups for BS6/Volvo SCR buses → consumption + cost
   meta: 'key',
 };
 
@@ -166,7 +167,7 @@ async function seedIfEmpty(demo) {
 
   const buses = [
     { id: 'b1', regNo: 'RJ14 PA 1023', company: 'Pink City Travels', model: 'Tata Starbus', chassis: 'MAT4470', engine: 'ENG88231', odometer: 184320,
-      serviceIntervalKm: 10000, lastServiceOdo: 178000,
+      serviceIntervalKm: 10000, lastServiceOdo: 178000, usesDef: true,
       docs: [
         { type: 'Insurance', number: 'INS-9921', expiry: now + 40*day },
         { type: 'Fitness',   number: 'FIT-3320', expiry: now + 9*day },
@@ -279,10 +280,19 @@ async function seedIfEmpty(demo) {
         { type: 'send-out', at: now - 3*day, odo: 184000, vendor: 'Sharma Auto Electricals', note: 'Weak charging — sent for rewind' }] },
   ];
 
+  // AdBlue / DEF top-ups for the SCR (BS6/Volvo) bus b1 — litres + ₹ + odometer,
+  // so consumption (L/100km) and cost can be tracked like fuel.
+  const def = [
+    { id: 'def-1', busId: 'b1', litres: 12, cost: 720, odometer: 176500, at: now - 34*day, by: 'u-store' },
+    { id: 'def-2', busId: 'b1', litres: 10, cost: 620, odometer: 180200, at: now - 16*day, by: 'u-store' },
+    { id: 'def-3', busId: 'b1', litres: 11, cost: 680, odometer: 183900, at: now - 3*day, by: 'u-store' },
+  ];
+
   for (const u of users) await DB.put('users', u);   // staff roster — bootstraps the login screen (always)
   if (demo) {                                          // demo operational data — local/dev only
     for (const b of buses) await DB.put('buses', b);
     for (const c of components) await DB.put('components', c);
+    for (const d of def) await DB.put('def', d);
     for (const p of parts) await DB.put('parts', p);
     for (const j of jobcards) await DB.put('jobcards', j);
     for (const l of ledger) await DB.put('ledger', l);

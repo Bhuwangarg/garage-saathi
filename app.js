@@ -323,13 +323,13 @@ function closeSheet() {
 
 /* ------------------------------ Data ops ---------------------------------- */
 async function load() {
-  const [users, buses, parts, jobs, ledger, att, purchases, drivers, incidents, driverreports, routes, triplog, fuel, gpsevents, audits, components, garage] = await Promise.all([
+  const [users, buses, parts, jobs, ledger, att, purchases, drivers, incidents, driverreports, routes, triplog, fuel, gpsevents, audits, components, def, garage] = await Promise.all([
     DB.all('users'), DB.all('buses'), DB.all('parts'), DB.all('jobcards'),
     DB.all('ledger'), DB.all('attendance'), DB.all('purchases'),
     DB.all('drivers'), DB.all('incidents'), DB.all('driverreports'),
-    DB.all('routes'), DB.all('triplog'), DB.all('fuel'), DB.all('gpsevents'), DB.all('audits'), DB.all('components'), DB.get('meta', 'garage'),
+    DB.all('routes'), DB.all('triplog'), DB.all('fuel'), DB.all('gpsevents'), DB.all('audits'), DB.all('components'), DB.all('def'), DB.get('meta', 'garage'),
   ]);
-  S.cache = { users, buses, parts, jobs, ledger, att, purchases, drivers, incidents, driverreports, routes, triplog, fuel, gpsevents, audits, components, garage };
+  S.cache = { users, buses, parts, jobs, ledger, att, purchases, drivers, incidents, driverreports, routes, triplog, fuel, gpsevents, audits, components, def, garage };
   refreshBiz();   // keep the displayed business name in sync with garage config
 }
 const byId = (arr, id) => arr.find((x) => x.id === id);
@@ -557,7 +557,7 @@ function topbar(title) {
 }
 
 // Which bottom tab should light up — sub-screens map back to their parent tab.
-const TAB_OF = { home: 'home', buses: 'buses', jobs: 'jobs', store: 'store', me: 'me', purchases: 'me', alerts: 'me', insights: 'home', drivers: 'home', assignments: 'home', company: 'home', routes: 'home', reports: 'home', busreport: 'home', livemap: 'home', track: 'home', fuel: 'home', safety: 'home', warranty: 'home', storehealth: 'store', linkgps: 'home', newjob: 'jobs', driverdocs: 'home', forecast: 'home', pilferage: 'home', components: 'store' };
+const TAB_OF = { home: 'home', buses: 'buses', jobs: 'jobs', store: 'store', me: 'me', purchases: 'me', alerts: 'me', insights: 'home', drivers: 'home', assignments: 'home', company: 'home', routes: 'home', reports: 'home', busreport: 'home', livemap: 'home', track: 'home', fuel: 'home', safety: 'home', warranty: 'home', storehealth: 'store', linkgps: 'home', newjob: 'jobs', driverdocs: 'home', forecast: 'home', pilferage: 'home', components: 'store', def: 'home' };
 function bottomnav() {
   const active = TAB_OF[S.route.name] || 'home';
   // Each role gets a focused nav matching what they actually do.
@@ -690,6 +690,19 @@ function viewHome() {
   }
 
   if (isBoss) {
+    // Driver complaints raised from the road — front-and-centre so the supervisor
+    // sees them the moment a driver reports, and can open the bus to raise a job.
+    const openReports = (S.cache.driverreports || []).filter((r) => r.status === 'open').sort((a, b) => b.at - a.at);
+    if (openReports.length) {
+      body += `<div class="card" style="border:1.5px solid var(--red)">
+        <div class="row between"><h3>🗣️ Driver complaints</h3><span class="badge b-red">${openReports.length} new</span></div>
+        ${openReports.slice(0, 4).map((r) => `<div class="li" data-bus="${r.busId}" style="border:none;padding:7px 0;cursor:pointer">
+          <div class="ava">🚨</div><div class="main"><div class="t">${esc(busName(r.busId))} · ${esc(r.category || 'Issue')}</div>
+          <div class="s">“${esc((r.problem || '').slice(0, 64))}” — ${esc(driverName(r.driverId))} · ${timeAgo(r.at)}</div></div>
+          <span class="tiny" style="color:var(--brand2)">open ›</span></div>`).join('')}
+        ${openReports.length > 4 ? `<div class="tiny muted" style="margin-top:4px">+${openReports.length - 4} more</div>` : ''}
+        <div class="tiny muted" style="margin-top:6px">Tap a complaint to open the bus and raise a job.</div></div>`;
+    }
     // 7-day repair-cost bar chart with a dark summary pill
     const series = costSeries(7);
     const max = Math.max(1, ...series.map((d) => d.value));
@@ -1074,7 +1087,8 @@ function viewBusDetail(id) {
         <span class="badge ${c}">${sv.status === 'overdue' ? 'OVERDUE ' + Math.abs(sv.dueIn).toLocaleString('en-IN') + ' km' : 'in ' + sv.dueIn.toLocaleString('en-IN') + ' km'}</span></div>`; })()}
     <div class="btnrow"><button class="btn sm" data-act="trackBus" data-bus="${b.id}">🛰️ Track live</button>
       <button class="btn sm" data-act="gps" data-bus="${b.id}">📍 GPS &amp; service</button></div>
-    ${can(S.user.role, 'addFuel') ? `<button class="btn sm" data-act="addFuel" data-bus="${b.id}" style="margin-top:8px">⛽ Log fuel</button>` : ''}
+    ${can(S.user.role, 'addFuel') ? `<div class="btnrow" style="margin-top:8px"><button class="btn sm" data-act="addFuel" data-bus="${b.id}">⛽ Log fuel</button>${busUsesDef(b) ? `<button class="btn sm" data-act="addDef" data-bus="${b.id}">🧪 Log AdBlue/DEF</button>` : ''}</div>` : ''}
+    ${busUsesDef(b) ? (() => { const ds = defStatus(b); return `<div class="row between small" style="margin-top:10px"><span class="muted">AdBlue / DEF</span><span data-act="openDef" style="cursor:pointer">${ds.perHundred != null ? ds.perHundred.toFixed(1) + ' L/100km · ' : ''}${money(ds.costTotal)} ›</span></div>${ds.flag ? `<div class="tiny" style="color:${ds.flag.sev === 'high' ? 'var(--red)' : 'var(--amber)'};margin-top:3px">⚠️ ${esc(ds.flag.msg)}</div>` : ''}`; })() : ''}
   </div>`;
 
   // Fitted tyres & rotable components + their life
@@ -2012,6 +2026,7 @@ function viewMe() {
          <div class="li" data-act="openReports"><div class="ava">📊</div><div class="main"><div class="t">Bus reports</div><div class="s">Total maintenance spend per bus + full detail</div></div></div>
          <div class="li" data-act="openForecast"><div class="ava">🔧</div><div class="main"><div class="t">Maintenance &amp; uptime</div><div class="s">Predicts upcoming service/parts + downtime cost</div></div></div>
          <div class="li" data-act="openFuel"><div class="ava">⛽</div><div class="main"><div class="t">Fuel &amp; mileage</div><div class="s">Fills, km/l, fuel ₹/km &amp; mileage-drop alerts</div></div></div>
+         <div class="li" data-act="openDef"><div class="ava">🧪</div><div class="main"><div class="t">AdBlue / DEF</div><div class="s">BS6/Volvo exhaust fluid — top-ups, L/100km &amp; cost</div></div></div>
          <div class="li" data-act="openSafety"><div class="ava">🛡️</div><div class="main"><div class="t">Safety &amp; misuse</div><div class="s">Overspeed, harsh braking, night moves &amp; idling</div></div></div>
          <div class="li" data-act="openWarranty"><div class="ava">🧾</div><div class="main"><div class="t">Warranty register</div><div class="s">Parts under warranty — don't pay for free replacements</div></div></div>
          <div class="li" data-act="openStoreHealth"><div class="ava">📦</div><div class="main"><div class="t">Store health</div><div class="s">Reconciliation, stock counts &amp; shrinkage score</div></div></div>
@@ -3136,6 +3151,79 @@ function viewFuel() {
     ${m.fuelPerKm != null ? `<b>₹${m.fuelPerKm.toFixed(1)}/km</b>` : ''}</div>`).join('') : `<div class="empty">No buses</div>`;
   body += `</div>`;
   shell('Fuel & mileage', body);
+}
+
+/* ===== AdBlue / DEF (diesel exhaust fluid) — SCR consumable for BS6/Volvo ====
+ * NOT the farm urea — this is automotive-grade DEF the SCR system injects to cut
+ * NOx on BS6/Volvo engines. Tracked like fuel (litres + ₹ + odometer) so
+ * consumption (L/100km) and cost are visible, and abnormal use (a faulty or
+ * tampered SCR/dosing unit) is flagged. */
+const busUsesDef = (b) => !!(b && (b.usesDef || /volvo|scania|benz|bharat.?benz|bs.?6|euro\s?6/i.test((b.model || '') + ' ' + (b.engine || ''))));
+const defEntries = (busId) => (S.cache.def || []).filter((d) => d.busId === busId).sort((a, b) => (a.odometer || 0) - (b.odometer || 0));
+function busDef(busId) {
+  const fills = defEntries(busId);
+  const litresTotal = fills.reduce((s, f) => s + (f.litres || 0), 0);
+  const costTotal = fills.reduce((s, f) => s + (f.cost || 0), 0);
+  const spanKm = fills.length > 1 ? (fills[fills.length - 1].odometer - fills[0].odometer) : 0;
+  const litresBetween = fills.slice(1).reduce((s, f) => s + (f.litres || 0), 0);   // tank-to-tank: exclude the first fill
+  const perHundred = spanKm > 0 && litresBetween > 0 ? (litresBetween / spanKm * 100) : null;   // L/100km
+  const last = fills.length ? fills[fills.length - 1] : null;
+  return { fills: fills.length, litresTotal, costTotal, spanKm, perHundred, last };
+}
+// DEF status vs the ~1.5 L/100km norm + distance since the last top-up.
+function defStatus(bus) {
+  const d = busDef(bus.id);
+  const kmSince = d.last ? Math.max(0, (bus.odometer || 0) - (d.last.odometer || 0)) : null;
+  let flag = null;
+  if (d.perHundred != null && d.perHundred > 3) flag = { sev: 'high', msg: `High DEF use (${d.perHundred.toFixed(1)} L/100km) — check the SCR/dosing unit.` };
+  else if (kmSince != null && kmSince > 4000) flag = { sev: 'med', msg: `No DEF top-up in ${kmSince.toLocaleString('en-IN')} km — tank may be low.` };
+  return Object.assign({}, d, { kmSince, flag });
+}
+function sheetAddDef(busId) {
+  const buses = (S.cache.buses || []);
+  const usable = buses.filter(busUsesDef);
+  const list = usable.length ? usable : buses;
+  if (!list.length) return openSheet('Log AdBlue/DEF', `<div class="banner warn">Add a bus first.</div>`);
+  const b = busId ? byId(buses, busId) : null;
+  openSheet('Log AdBlue / DEF', `
+    <div class="tiny muted" style="margin-bottom:10px">Automotive DEF (AdBlue) for the SCR exhaust system — not farm urea.</div>
+    ${b ? `<input type="hidden" id="d-bus" value="${b.id}"><div class="small muted" style="margin-bottom:10px">Bus: <b>${esc(b.regNo)}</b></div>`
+      : `<label class="field"><span class="lbl">Bus</span><select id="d-bus">${list.map((x) => `<option value="${x.id}">${esc(x.regNo)}</option>`).join('')}</select></label>`}
+    <div class="grid2">
+      <label class="field"><span class="lbl">🧪 Litres</span><input id="d-litres" type="number" inputmode="decimal" placeholder="e.g. 10"></label>
+      <label class="field"><span class="lbl">₹ Amount</span><input id="d-cost" type="number" inputmode="numeric"></label></div>
+    <label class="field"><span class="lbl">🛣️ Odometer now (km)</span><input id="d-odo" type="number" inputmode="numeric" value="${b ? (b.odometer || '') : ''}" placeholder="current reading"></label>
+    <button class="btn primary" data-act="saveDef">${t('save')}</button>`);
+}
+async function saveDef() {
+  const busId = ($('#d-bus') || {}).value;
+  const litres = Number(($('#d-litres') || {}).value) || 0, cost = Number(($('#d-cost') || {}).value) || 0, odo = Number(($('#d-odo') || {}).value) || 0;
+  if (!busId) return toast('Pick a bus');
+  if (litres <= 0) return toast('Enter litres');
+  if (odo <= 0) return toast('Enter the odometer reading');
+  await DB.put('def', { id: uid('def-'), busId, litres, cost, odometer: odo, at: Date.now(), by: S.user.id });
+  const b = byId(S.cache.buses, busId);
+  if (b) { let ch = false; if (!b.usesDef) { b.usesDef = true; ch = true; } if (odo > (b.odometer || 0)) { b.odometer = odo; ch = true; } if (ch) await DB.put('buses', b); }
+  await load(); closeSheet(); toast('AdBlue/DEF logged ✓'); rerender();
+}
+function viewDef() {
+  const buses = [...(S.cache.buses || [])];
+  const defBuses = buses.filter(busUsesDef);
+  const rows = (defBuses.length ? defBuses : buses).map((b) => ({ b, s: defStatus(b) })).sort((a, b) => b.s.costTotal - a.s.costTotal);
+  const fleetCost = rows.reduce((s, x) => s + x.s.costTotal, 0);
+  let body = '';
+  if (can(S.user.role, 'addFuel')) body += `<button class="btn primary" data-act="addDef" style="margin-bottom:12px">🧪 Log AdBlue / DEF</button>`;
+  body += `<div class="card"><div class="muted small">Total DEF spend (logged)</div><div class="stat" style="color:var(--brand2)">${money(fleetCost)}</div>
+    <div class="tiny muted">AdBlue for BS6/Volvo SCR engines — not farm urea. Log top-ups for consumption &amp; cost.</div></div>`;
+  if (!defBuses.length) body += `<div class="banner warn">No bus is marked as using DEF yet. Logging a top-up marks that bus automatically.</div>`;
+  body += `<div class="card"><h3>DEF by bus</h3>`;
+  body += rows.length ? rows.map(({ b, s }) => `<div class="li" data-act="addDef" data-bus="${b.id}" style="cursor:pointer">${avatar(busImg(b), '🚌')}
+    <div class="main"><div class="t">${esc(b.regNo)}${s.flag ? ` <span class="badge ${s.flag.sev === 'high' ? 'b-red' : 'b-amber'}">DEF ⚠️</span>` : ''}</div>
+      <div class="s">${s.perHundred != null ? s.perHundred.toFixed(1) + ' L/100km' : 'no data'} · ${money(s.costTotal)} · ${s.fills} top-up(s)</div>
+      ${s.flag ? `<div class="tiny" style="color:${s.flag.sev === 'high' ? 'var(--red)' : 'var(--amber)'}">${esc(s.flag.msg)}</div>` : ''}</div>
+    <span class="tiny" style="color:var(--brand2)">+ log ›</span></div>`).join('') : `<div class="empty">No buses</div>`;
+  body += `</div>`;
+  shell('AdBlue / DEF', body);
 }
 
 /* ========================= Safety & misuse (from live GPS) ================= */
@@ -4280,6 +4368,10 @@ function computeInsights() {
     icon: compKind(a.c)[0], title: `${compKind(a.c)[1]}${a.status === 'at-vendor' ? ' at vendor' : ' ' + (a.c.position || 'worn')} — ${a.c.busId ? busName(a.c.busId) : 'store'}`,
     detail: a.msg + (a.status === 'at-vendor' ? '. Follow up so the bus isn\'t short a part.' : '.'), nav: { name: 'components', id: a.c.id } }));
 
+  // AdBlue / DEF — abnormal consumption or a tank likely running low (SCR buses)
+  buses.filter(busUsesDef).forEach((b) => { const ds = defStatus(b); if (ds.flag) out.push({
+    sev: ds.flag.sev, icon: '🧪', title: `AdBlue/DEF — ${b.regNo}`, detail: ds.flag.msg, nav: { name: 'def' } }); });
+
   const rank = { high: 0, med: 1, low: 2 };
   return out.sort((a, b) => rank[a.sev] - rank[b.sev]);
 }
@@ -4383,7 +4475,7 @@ async function askAi() {
  */
 const current = () => S.stack[S.stack.length - 1];
 // Role guard: routes restricted to certain roles fall back to home for others.
-const ROUTE_PERM = { insights: 'insights', drivers: 'manageDrivers', assignments: 'assignDriver', routes: 'manageRoutes', reports: 'dashboard', busreport: 'dashboard', livemap: 'dashboard', track: 'dashboard', fuel: 'addFuel', safety: 'dashboard', warranty: 'addFuel', storehealth: 'issuePart', linkgps: 'addBus', newjob: 'addJob', forecast: 'dashboard', pilferage: 'insights', components: 'issuePart' };
+const ROUTE_PERM = { insights: 'insights', drivers: 'manageDrivers', assignments: 'assignDriver', routes: 'manageRoutes', reports: 'dashboard', busreport: 'dashboard', livemap: 'dashboard', track: 'dashboard', fuel: 'addFuel', safety: 'dashboard', warranty: 'addFuel', storehealth: 'issuePart', linkgps: 'addBus', newjob: 'addJob', forecast: 'dashboard', pilferage: 'insights', components: 'issuePart', def: 'addFuel' };
 function render(r) {
   if (typeof stopMap === 'function') stopMap();   // leaving any screen halts the live-map refresh timer
   if (typeof stopTrack === 'function') stopTrack();
@@ -4418,6 +4510,7 @@ function render(r) {
     case 'scorecard': return viewScorecard(r.id);
     case 'pilferage': return viewPilferage();
     case 'components': return r.id ? viewComponentDetail(r.id) : viewComponents();
+    case 'def': return viewDef();
     default: return viewHome();
   }
 }
@@ -4560,6 +4653,9 @@ function bind() {
       case 'testNotif': return testNotification();
       case 'addFuel': return sheetAddFuel(el.getAttribute('data-bus'));
       case 'saveFuel': return saveFuel();
+      case 'openDef': return push({ name: 'def' });
+      case 'addDef': return sheetAddDef(el.getAttribute('data-bus'));
+      case 'saveDef': return saveDef();
       case 'openLiveMap': return push({ name: 'livemap' });
       case 'trackBus': return push({ name: 'track', id: el.getAttribute('data-bus') });
       case 'openScoreboard': return push({ name: 'scoreboard' });
