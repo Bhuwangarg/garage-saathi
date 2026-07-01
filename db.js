@@ -5,7 +5,7 @@
  */
 
 const DB_NAME = 'garage-saathi';
-const DB_VERSION = 6;   // v6 adds the audits store (onupgradeneeded creates any missing)
+const DB_VERSION = 7;   // v7 adds the components store (onupgradeneeded creates any missing)
 
 const STORES = {
   users: 'id',
@@ -23,6 +23,7 @@ const STORES = {
   fuel: 'id',            // fuel fills (litres + ₹ + odometer) → mileage (km/l) & fuel ₹/km
   gpsevents: 'id',       // auto safety/misuse events from live GPS (overspeed/harshbrake/night/idle)
   audits: 'id',          // physical stock counts → shrinkage reconciliation + store scorecard
+  components: 'id',      // rotable/refurbishable units (tyres, alternators…) — per-unit life + send-out-for-repair history
   meta: 'key',
 };
 
@@ -255,9 +256,33 @@ async function seedIfEmpty(demo) {
     { id: 'dr-3', driverId: 'd2', busId: 'b2', category: 'Engine', problem: 'Engine feels low on power on inclines', at: now - 1*day, status: 'open', jobId: null, resolvedAt: null },
   ];
 
+  // Rotable/refurbishable components — durable units tracked per-piece with life
+  // + send-out-for-repair (remould / rewind) history. Tyres carry a life in km;
+  // an alternator sitting at an outside vendor for repair shows the send-out flow.
+  const components = [
+    { id: 'c-t1', kind: 'tyre', label: 'Tyre FR', serial: 'MRF-9921', busId: 'b1', position: 'FR', state: 'in-service',
+      installedAt: now - 120*day, installedOdo: 150000, lifeKm: 60000, maxRefurb: 2, refurbCount: 0, cost: 21500,
+      history: [{ type: 'install', at: now - 120*day, odo: 150000, busId: 'b1', position: 'FR', note: 'New tyre fitted' }] },
+    { id: 'c-t2', kind: 'tyre', label: 'Tyre FL', serial: 'MRF-9922', busId: 'b1', position: 'FL', state: 'in-service',
+      installedAt: now - 20*day, installedOdo: 179000, lifeKm: 45000, maxRefurb: 2, refurbCount: 1, cost: 21500,
+      history: [
+        { type: 'install', at: now - 300*day, odo: 120000, busId: 'b1', position: 'FL', note: 'New tyre fitted' },
+        { type: 'send-out', at: now - 26*day, odo: 178000, vendor: 'Jaipur Tyre Remould', note: 'Tread worn — sent for remould' },
+        { type: 'return', at: now - 20*day, odo: 179000, vendor: 'Jaipur Tyre Remould', cost: 4200, note: 'Remoulded, refitted' }] },
+    { id: 'c-t3', kind: 'tyre', label: 'Tyre (spare)', serial: 'CEAT-3310', busId: null, position: '', state: 'refurbished',
+      installedAt: null, installedOdo: 0, lifeKm: 45000, maxRefurb: 2, refurbCount: 1, cost: 20000,
+      history: [{ type: 'return', at: now - 8*day, vendor: 'Jaipur Tyre Remould', cost: 4000, note: 'Remoulded — ready as spare' }] },
+    { id: 'c-a1', kind: 'alternator', label: 'Alternator', serial: 'ALT-77120', busId: 'b1', position: '', state: 'sent-out',
+      installedAt: now - 200*day, installedOdo: 130000, lifeKm: 0, maxRefurb: 5, refurbCount: 1, cost: 8500,
+      history: [
+        { type: 'install', at: now - 200*day, odo: 130000, busId: 'b1', note: 'Fitted' },
+        { type: 'send-out', at: now - 3*day, odo: 184000, vendor: 'Sharma Auto Electricals', note: 'Weak charging — sent for rewind' }] },
+  ];
+
   for (const u of users) await DB.put('users', u);   // staff roster — bootstraps the login screen (always)
   if (demo) {                                          // demo operational data — local/dev only
     for (const b of buses) await DB.put('buses', b);
+    for (const c of components) await DB.put('components', c);
     for (const p of parts) await DB.put('parts', p);
     for (const j of jobcards) await DB.put('jobcards', j);
     for (const l of ledger) await DB.put('ledger', l);
