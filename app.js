@@ -323,13 +323,13 @@ function closeSheet() {
 
 /* ------------------------------ Data ops ---------------------------------- */
 async function load() {
-  const [users, buses, parts, jobs, ledger, att, purchases, drivers, incidents, driverreports, routes, triplog, fuel, gpsevents, audits, components, def, garage] = await Promise.all([
+  const [users, buses, parts, jobs, ledger, att, purchases, drivers, incidents, driverreports, routes, triplog, fuel, gpsevents, audits, components, def, vendors, garage] = await Promise.all([
     DB.all('users'), DB.all('buses'), DB.all('parts'), DB.all('jobcards'),
     DB.all('ledger'), DB.all('attendance'), DB.all('purchases'),
     DB.all('drivers'), DB.all('incidents'), DB.all('driverreports'),
-    DB.all('routes'), DB.all('triplog'), DB.all('fuel'), DB.all('gpsevents'), DB.all('audits'), DB.all('components'), DB.all('def'), DB.get('meta', 'garage'),
+    DB.all('routes'), DB.all('triplog'), DB.all('fuel'), DB.all('gpsevents'), DB.all('audits'), DB.all('components'), DB.all('def'), DB.all('vendors'), DB.get('meta', 'garage'),
   ]);
-  S.cache = { users, buses, parts, jobs, ledger, att, purchases, drivers, incidents, driverreports, routes, triplog, fuel, gpsevents, audits, components, def, garage };
+  S.cache = { users, buses, parts, jobs, ledger, att, purchases, drivers, incidents, driverreports, routes, triplog, fuel, gpsevents, audits, components, def, vendors, garage };
   refreshBiz();   // keep the displayed business name in sync with garage config
 }
 const byId = (arr, id) => arr.find((x) => x.id === id);
@@ -557,7 +557,7 @@ function topbar(title) {
 }
 
 // Which bottom tab should light up — sub-screens map back to their parent tab.
-const TAB_OF = { home: 'home', buses: 'buses', jobs: 'jobs', store: 'store', me: 'me', purchases: 'me', alerts: 'me', insights: 'home', drivers: 'home', assignments: 'home', company: 'home', routes: 'home', reports: 'home', busreport: 'home', livemap: 'home', track: 'home', fuel: 'home', safety: 'home', warranty: 'home', storehealth: 'store', linkgps: 'home', newjob: 'jobs', driverdocs: 'home', forecast: 'home', pilferage: 'home', components: 'store', def: 'home' };
+const TAB_OF = { home: 'home', buses: 'buses', jobs: 'jobs', store: 'store', me: 'me', purchases: 'me', alerts: 'me', insights: 'home', drivers: 'home', assignments: 'home', company: 'home', routes: 'home', reports: 'home', busreport: 'home', livemap: 'home', track: 'home', fuel: 'home', safety: 'home', warranty: 'home', storehealth: 'store', linkgps: 'home', newjob: 'jobs', driverdocs: 'home', forecast: 'home', pilferage: 'home', components: 'store', def: 'home', vendors: 'me' };
 function bottomnav() {
   const active = TAB_OF[S.route.name] || 'home';
   // Each role gets a focused nav matching what they actually do.
@@ -2017,6 +2017,7 @@ function viewMe() {
   const si = Sync.info();
   body += `<div class="card"><h3>${t('more')}</h3>
     <div class="li" data-act="openPurchases"><div class="ava">🧾</div><div class="main"><div class="t">${t('purchases')}</div><div class="s">${t('supplierBills')}</div></div></div>
+    ${can(S.user.role, 'addPurchase') ? `<div class="li" data-act="openVendors"><div class="ava">🏪</div><div class="main"><div class="t">Vendors</div><div class="s">Supplier registry · spend &amp; pending per vendor</div></div></div>` : ''}
     <div class="li" data-act="openAlerts"><div class="ava">📄</div><div class="main"><div class="t">${t('docAlerts')}</div><div class="s">${allDocAlerts().length} need attention</div></div></div>
     ${['owner', 'supervisor'].includes(S.user.role)
       ? `<div class="li" data-act="openDrivers"><div class="ava">🧑‍✈️</div><div class="main"><div class="t">Drivers</div><div class="s">${(S.cache.drivers || []).length} drivers · performance & reports</div></div></div>
@@ -2435,7 +2436,10 @@ function purchaseLineRow() {
 function sheetAddPurchase() {
   const hasParts = S.cache.parts.length > 0;
   openSheet(t('purchases'), `
-    <label class="field"><span class="lbl">Supplier</span><input id="f-sup" placeholder="Jaipur Auto Spares"></label>
+    <button class="btn" data-act="scanBill" style="margin-bottom:10px">📷 Scan bill — auto-fill</button>
+    <div class="tiny muted" style="margin:-4px 0 10px">Snap a printed or handwritten (kachaa) bill; it reads the amount &amp; supplier on-device.</div>
+    <label class="field"><span class="lbl">Supplier</span><input id="f-sup" list="f-suplist" placeholder="Jaipur Auto Spares" autocomplete="off">
+      <datalist id="f-suplist">${vendorNames().map((n) => `<option value="${esc(n)}">`).join('')}</datalist></label>
     <label class="field"><span class="lbl">Amount (₹)</span><input id="f-amt" type="number" inputmode="numeric"></label>
     ${hasParts ? `<div class="card" style="box-shadow:none;background:var(--tile);padding:12px">
       <div class="tiny muted" style="margin-bottom:6px">📦 Parts received (optional — adds to stock &amp; updates the ledger)</div>
@@ -2476,14 +2480,117 @@ async function savePurchase() {
   const lineText = lines.map((l) => { const p = byId(S.cache.parts, l.partId); return `${p ? p.name : l.partId} ×${l.qty}`; }).join(', ');
   const notes = $('#f-items') ? $('#f-items').value.trim() : '';
   const pay = $('#f-pay').value;
+  // Map the bill to a known vendor (exact name match) so spend/pending roll up per supplier.
+  const vend = (S.cache.vendors || []).find((v) => v.name.toLowerCase() === sup.toLowerCase());
   await DB.put('purchases', {
-    id: uid('pur-'), supplier: sup, amount,
+    id: uid('pur-'), supplier: sup, vendorId: vend ? vend.id : null, amount,
     items: [lineText, notes].filter(Boolean).join(' · '), lines,
     paymentStatus: pay, paidAt: pay === 'paid' ? Date.now() : null, billPhoto: _billPhoto, at: Date.now(),
   });
   for (const l of lines) await receiveStock({ partId: l.partId, qty: l.qty, cost: l.cost, reason: `Purchase from ${sup}`, silent: true });
   _billPhoto = '';
   await load(); closeSheet(); toast(lines.length ? `Bill saved · ${lines.length} part line(s) received` : 'Bill saved'); rerender();
+}
+/* ===== Phase B — bill automation: OCR pre-fill + vendor registry ===========
+ * Photograph a kachaa (handwritten) or printed bill → on-device Tesseract OCR
+ * (localOcr) pulls out the amount, date and a best-guess supplier so the
+ * purchase form is pre-filled. A vendor registry maps every bill (including the
+ * ones vendors email) back to a known supplier. No server, no API key. */
+const vendorNames = () => (S.cache.vendors || []).map((v) => v.name);
+function matchVendor(text) {
+  const t = (text || '').toLowerCase();
+  let best = null, bestLen = 0;
+  (S.cache.vendors || []).forEach((v) => { const n = v.name.toLowerCase(); if (t.includes(n) && n.length > bestLen) { best = v; bestLen = n.length; } });
+  if (best) return best;
+  (S.cache.vendors || []).forEach((v) => { if (best) return; v.name.toLowerCase().split(/\s+/).filter((w) => w.length >= 5).forEach((w) => { if (t.includes(w)) best = v; }); });
+  return best;
+}
+// Pull {amount, date, supplier} from OCR'd bill text (best-effort heuristics).
+function parseBill(text) {
+  const lines = (text || '').split(/\n/).map((l) => l.trim()).filter(Boolean);
+  const flat = lines.join(' ');
+  const numsOn = (re) => { let m; const out = []; const g = new RegExp(re, 'gi'); while ((m = g.exec(flat))) { const n = Number((m[1] || '').replace(/[,\s]/g, '')); if (n) out.push(n); } return out; };
+  let amount = 0;
+  const totalNums = numsOn('(?:grand\\s*total|total|net|amount|payable|bill)[^0-9]{0,12}(?:₹|rs\\.?|inr)?\\s*([0-9][0-9,]*\\.?[0-9]*)');
+  if (totalNums.length) amount = Math.max.apply(null, totalNums);
+  if (!amount) { const all = numsOn('(?:₹|rs\\.?|inr)\\s*([0-9][0-9,]{2,}\\.?[0-9]*)'); if (all.length) amount = Math.max.apply(null, all); }
+  if (!amount) { const all = (flat.match(/\b[0-9][0-9,]{2,}(?:\.[0-9]{1,2})?\b/g) || []).map((x) => Number(x.replace(/,/g, ''))).filter((n) => n >= 100); if (all.length) amount = Math.max.apply(null, all); }
+  let date = null; const dm = flat.match(/\b([0-3]?\d)[\/\-.]([01]?\d)[\/\-.](\d{2,4})\b/);
+  if (dm) { let y = Number(dm[3]); if (y < 100) y += 2000; const d = new Date(y, Number(dm[2]) - 1, Number(dm[1])); if (!isNaN(d.getTime())) date = d.getTime(); }
+  const v = matchVendor(text);
+  const supplier = v ? v.name : (lines.find((l) => /[a-z]/i.test(l) && l.replace(/[^a-z]/gi, '').length >= 4) || '');
+  return { amount, date, supplier, vendor: v };
+}
+async function scanBill() {
+  const shot = await capturePhoto(); if (!shot) return;
+  _billPhoto = await Sync.uploadPhoto(shot) || shot;
+  const tb = $('#f-billthumb'); if (tb) tb.innerHTML = `<img class="thumb" src="${_billPhoto}">`;
+  const stop = showBusyOverlay('Reading the bill…');
+  const text = await localOcr(shot);
+  if (stop) stop();
+  if (!text) return toast('Could not read the bill — type the details in');
+  const p = parseBill(text);
+  const sup = $('#f-sup'), amt = $('#f-amt');
+  if (sup && p.supplier && !sup.value) sup.value = p.supplier;
+  if (amt && p.amount && !amt.value) amt.value = p.amount;
+  toast(p.amount ? `Read ₹${p.amount}${p.supplier ? ' · ' + p.supplier : ''} — check & save` : 'Read the bill — fill any blanks');
+}
+const vendorBills = (vid) => { const v = byId(S.cache.vendors, vid); if (!v) return []; const n = v.name.toLowerCase(); return (S.cache.purchases || []).filter((p) => p.vendorId === vid || (p.supplier || '').toLowerCase() === n); };
+function viewVendors() {
+  const vendors = [...(S.cache.vendors || [])].sort((a, b) => a.name.localeCompare(b.name));
+  let body = `<div class="card"><div class="tiny muted">Suppliers you buy from or send work to. Map every bill — including the ones vendors email — to a vendor to see spend &amp; pending per supplier.</div></div>`;
+  body += `<div class="card"><h3>Vendors</h3>`;
+  body += vendors.length ? vendors.map((v) => { const bills = vendorBills(v.id); const pending = bills.filter((b) => b.paymentStatus !== 'paid').reduce((s, b) => s + (b.amount || 0), 0);
+    return `<div class="li" data-act="openVendor" data-id="${v.id}"><div class="ava">🏪</div>
+      <div class="main"><div class="t">${esc(v.name)}</div><div class="s">${esc(v.category || '')}${v.email ? ' · ' + esc(v.email) : ''}</div></div>
+      ${pending ? `<span class="badge b-amber">${money(pending)} due</span>` : `<span class="tiny muted">${bills.length} bill(s)</span>`}</div>`; }).join('') : `<div class="empty">No vendors yet — tap + to add one.</div>`;
+  body += `</div>`;
+  shell('Vendors', body, can(S.user.role, 'addPurchase') ? { act: 'addVendor', icon: '+' } : null);
+}
+function viewVendorDetail(id) {
+  const v = byId(S.cache.vendors, id); if (!v) return viewVendors();
+  const bills = vendorBills(id).sort((a, b) => b.at - a.at);
+  const total = bills.reduce((s, b) => s + (b.amount || 0), 0);
+  const pending = bills.filter((b) => b.paymentStatus !== 'paid').reduce((s, b) => s + (b.amount || 0), 0);
+  let body = `<div class="card"><div class="row between"><div><div style="font-weight:800;font-size:17px">${esc(v.name)}</div><div class="small muted">${esc(v.category || 'Vendor')}</div></div>
+    ${can(S.user.role, 'addPurchase') ? `<button class="btn sm" data-act="editVendor" data-id="${v.id}">Edit</button>` : ''}</div>
+    <div class="grid2" style="margin-top:10px">
+      <div><div class="tiny muted">Total billed</div><b>${money(total)}</b></div>
+      <div><div class="tiny muted">Pending</div><b style="color:var(--amber)">${money(pending)}</b></div>
+      ${v.phone ? `<div><div class="tiny muted">Phone</div><b>${esc(v.phone)}</b></div>` : ''}
+      ${v.email ? `<div><div class="tiny muted">Invoice email</div><b style="font-size:12px">${esc(v.email)}</b></div>` : ''}
+      ${v.gstin ? `<div><div class="tiny muted">GSTIN</div><b style="font-size:12px">${esc(v.gstin)}</b></div>` : ''}
+    </div>${v.notes ? `<div class="tiny muted" style="margin-top:8px">${esc(v.notes)}</div>` : ''}</div>`;
+  body += `<div class="card"><div class="row between"><h3>Bills</h3>${can(S.user.role, 'addPurchase') ? `<button class="btn sm" data-act="addPurchase">+ Bill</button>` : ''}</div>`;
+  body += bills.length ? bills.map((p) => `<div class="li"><div class="ava">🧾</div>
+    <div class="main"><div class="t">${money(p.amount)}</div><div class="s">${esc(p.items || '')} · ${fmtDate(p.at)}</div></div>
+    <span class="badge ${p.paymentStatus === 'paid' ? 'b-green' : 'b-amber'}">${p.paymentStatus}</span>
+    ${p.billPhoto ? `<img class="thumb" style="width:42px;height:42px" src="${p.billPhoto}" data-act="viewPhoto" data-src="${p.billPhoto}">` : ''}</div>`).join('') : `<div class="muted small">No bills mapped yet.</div>`;
+  body += `</div>`;
+  shell(esc(v.name), body);
+}
+const VENDOR_CATS = ['Parts', 'Tyre remould', 'Electricals', 'AdBlue/DEF', 'Lubricants', 'Fuel', 'Bodywork', 'Other'];
+function sheetAddVendor(id) {
+  const v = id ? byId(S.cache.vendors, id) : null;
+  openSheet(v ? 'Edit vendor' : 'Add vendor', `
+    <label class="field"><span class="lbl">Name</span><input id="v-name" value="${v ? esc(v.name) : ''}" placeholder="e.g. Jaipur Auto Spares"></label>
+    <label class="field"><span class="lbl">Category</span><select id="v-cat">${VENDOR_CATS.map((c) => `<option value="${c}" ${v && v.category === c ? 'selected' : ''}>${c}</option>`).join('')}</select></label>
+    <div class="grid2">
+      <label class="field"><span class="lbl">Phone</span><input id="v-phone" value="${v ? esc(v.phone || '') : ''}"></label>
+      <label class="field"><span class="lbl">GSTIN</span><input id="v-gstin" value="${v ? esc(v.gstin || '') : ''}"></label></div>
+    <label class="field"><span class="lbl">Invoice email <span class="tiny muted">(where they email bills)</span></span><input id="v-email" type="email" value="${v ? esc(v.email || '') : ''}" placeholder="billing@vendor.in"></label>
+    <label class="field"><span class="lbl">Notes</span><input id="v-notes" value="${v ? esc(v.notes || '') : ''}" placeholder="terms, turnaround…"></label>
+    <button class="btn primary" data-act="saveVendor"${v ? ` data-id="${v.id}"` : ''}>${t('save')}</button>`);
+}
+async function saveVendor(id) {
+  const name = (($('#v-name') || {}).value || '').trim(); if (!name) return toast('Enter a vendor name');
+  const v = id ? byId(S.cache.vendors, id) : null;
+  const rec = Object.assign(v || { id: uid('v-'), createdAt: Date.now() }, {
+    name, category: ($('#v-cat') || {}).value || 'Other',
+    phone: (($('#v-phone') || {}).value || '').trim(), gstin: (($('#v-gstin') || {}).value || '').trim(),
+    email: (($('#v-email') || {}).value || '').trim(), notes: (($('#v-notes') || {}).value || '').trim(), updatedAt: Date.now() });
+  await DB.put('vendors', rec); await load(); closeSheet(); toast('Vendor saved ✓');
+  if (id) viewVendorDetail(id); else push({ name: 'vendors', id: rec.id });
 }
 async function togglePaid(purId) {
   if (!can(S.user.role, 'addPurchase')) return toast('Not allowed');
@@ -4475,7 +4582,7 @@ async function askAi() {
  */
 const current = () => S.stack[S.stack.length - 1];
 // Role guard: routes restricted to certain roles fall back to home for others.
-const ROUTE_PERM = { insights: 'insights', drivers: 'manageDrivers', assignments: 'assignDriver', routes: 'manageRoutes', reports: 'dashboard', busreport: 'dashboard', livemap: 'dashboard', track: 'dashboard', fuel: 'addFuel', safety: 'dashboard', warranty: 'addFuel', storehealth: 'issuePart', linkgps: 'addBus', newjob: 'addJob', forecast: 'dashboard', pilferage: 'insights', components: 'issuePart', def: 'addFuel' };
+const ROUTE_PERM = { insights: 'insights', drivers: 'manageDrivers', assignments: 'assignDriver', routes: 'manageRoutes', reports: 'dashboard', busreport: 'dashboard', livemap: 'dashboard', track: 'dashboard', fuel: 'addFuel', safety: 'dashboard', warranty: 'addFuel', storehealth: 'issuePart', linkgps: 'addBus', newjob: 'addJob', forecast: 'dashboard', pilferage: 'insights', components: 'issuePart', def: 'addFuel', vendors: 'addPurchase' };
 function render(r) {
   if (typeof stopMap === 'function') stopMap();   // leaving any screen halts the live-map refresh timer
   if (typeof stopTrack === 'function') stopTrack();
@@ -4511,6 +4618,7 @@ function render(r) {
     case 'pilferage': return viewPilferage();
     case 'components': return r.id ? viewComponentDetail(r.id) : viewComponents();
     case 'def': return viewDef();
+    case 'vendors': return r.id ? viewVendorDetail(r.id) : viewVendors();
     default: return viewHome();
   }
 }
@@ -4597,6 +4705,12 @@ function bind() {
       case 'openAssignments': return push({ name: 'assignments' });
       case 'addPurchase': return sheetAddPurchase();
       case 'savePurchase': return savePurchase();
+      case 'scanBill': return scanBill();
+      case 'openVendors': return push({ name: 'vendors' });
+      case 'openVendor': return push({ name: 'vendors', id: el.getAttribute('data-id') });
+      case 'addVendor': return sheetAddVendor();
+      case 'editVendor': return sheetAddVendor(el.getAttribute('data-id'));
+      case 'saveVendor': return saveVendor(el.getAttribute('data-id'));
       case 'togglePaid': return togglePaid(el.getAttribute('data-pur'));
       case 'purchasePhoto': { const d = await capturePhoto(); if (d) { _billPhoto = await Sync.uploadPhoto(d) || d; $('#f-billthumb').innerHTML = `<img class="thumb" src="${_billPhoto}">`; } return; }
       case 'addPhoto': return addJobPhoto(el.getAttribute('data-job'), el.getAttribute('data-field'));

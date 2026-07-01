@@ -5,7 +5,7 @@
  */
 
 const DB_NAME = 'garage-saathi';
-const DB_VERSION = 8;   // v8 adds the def store (AdBlue/DEF fills) — onupgradeneeded creates any missing
+const DB_VERSION = 9;   // v9 adds the vendors store (supplier registry) — onupgradeneeded creates any missing
 
 const STORES = {
   users: 'id',
@@ -25,6 +25,7 @@ const STORES = {
   audits: 'id',          // physical stock counts → shrinkage reconciliation + store scorecard
   components: 'id',      // rotable/refurbishable units (tyres, alternators…) — per-unit life + send-out-for-repair history
   def: 'id',            // AdBlue / DEF (diesel exhaust fluid) top-ups for BS6/Volvo SCR buses → consumption + cost
+  vendors: 'id',        // supplier registry — maps bills/invoices (incl. emailed ones) to a known vendor
   meta: 'key',
 };
 
@@ -233,6 +234,15 @@ async function seedIfEmpty(demo) {
     { id: uid('pur-'), supplier: 'Jaipur Auto Spares', billPhoto: '', amount: 28400, items: 'Brake pads x10, Oil filters x6', paymentStatus: 'pending', at: now - 8*day },
   ];
 
+  // Vendor registry — suppliers we buy from / send work to. `email` is the address
+  // they send invoices from, so emailed bills can be mapped back to the vendor.
+  const vendors = [
+    { id: 'v-jas',  name: 'Jaipur Auto Spares',      category: 'Parts',        phone: '98290 40001', email: 'billing@jaipurautospares.in', gstin: '08ABCDE1234F1Z5', notes: '', createdAt: now - 300*day },
+    { id: 'v-tyre', name: 'Jaipur Tyre Remould',     category: 'Tyre remould', phone: '98290 40002', email: 'jaipurtyre@gmail.com',         gstin: '', notes: 'Remould turnaround ~5 days', createdAt: now - 260*day },
+    { id: 'v-elec', name: 'Sharma Auto Electricals', category: 'Electricals',  phone: '98290 40003', email: 'sharma.autoele@gmail.com',      gstin: '', notes: 'Alternator/starter rewind', createdAt: now - 220*day },
+    { id: 'v-def',  name: 'BluDEF Distributors',     category: 'AdBlue/DEF',   phone: '98290 40004', email: 'sales@bludef.in',             gstin: '08XYZAB6789K1Z2', notes: '', createdAt: now - 120*day },
+  ];
+
   // Drivers, each fixed to a bus (so reports & wear map to the same vehicle).
   const drivers = [
     { id: 'd1', name: 'Ramlal', phone: '98290 11111', license: 'RJ-DL-2210', busId: 'b1', userId: 'u-d1', tripsLogged: 142, joinedAt: now - 400*day, photo: '' },
@@ -293,6 +303,7 @@ async function seedIfEmpty(demo) {
     for (const b of buses) await DB.put('buses', b);
     for (const c of components) await DB.put('components', c);
     for (const d of def) await DB.put('def', d);
+    for (const vn of vendors) await DB.put('vendors', vn);
     for (const p of parts) await DB.put('parts', p);
     for (const j of jobcards) await DB.put('jobcards', j);
     for (const l of ledger) await DB.put('ledger', l);
