@@ -78,6 +78,22 @@ const DB = {
     if (typeof DB.onChange === 'function') DB.onChange(store, obj.id);
     return obj;
   },
+  // Bulk insert/update in ONE transaction — for Excel/master imports (thousands
+  // of rows). Stamps updatedAt and notifies onChange per record so they still sync.
+  async bulkPut(store, arr) {
+    if (!arr || !arr.length) return 0;
+    const now = Date.now();
+    const os = await tx(store, 'readwrite');
+    await new Promise((res, rej) => {
+      let i = 0;
+      const next = () => { if (i >= arr.length) return; const o = arr[i]; o.updatedAt = now; const r = os.put(o); r.onsuccess = () => { i++; next(); }; r.onerror = () => rej(r.error); };
+      os.transaction.oncomplete = () => res();
+      os.transaction.onerror = () => rej(os.transaction.error);
+      next();
+    });
+    if (typeof DB.onChange === 'function') arr.forEach((o) => DB.onChange(store, o.id));
+    return arr.length;
+  },
   // Remote write: applies a record from the server AS-IS (keeps its updatedAt,
   // does NOT re-notify the outbox) so sync never echoes a change back.
   async putRaw(store, obj) {

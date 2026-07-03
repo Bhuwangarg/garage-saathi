@@ -557,7 +557,7 @@ function topbar(title) {
 }
 
 // Which bottom tab should light up — sub-screens map back to their parent tab.
-const TAB_OF = { home: 'home', buses: 'buses', jobs: 'jobs', store: 'store', me: 'me', purchases: 'me', alerts: 'me', insights: 'home', drivers: 'home', assignments: 'home', company: 'home', routes: 'home', reports: 'home', busreport: 'home', livemap: 'home', track: 'home', fuel: 'home', safety: 'home', warranty: 'home', storehealth: 'store', linkgps: 'home', newjob: 'jobs', driverdocs: 'home', forecast: 'home', pilferage: 'home', components: 'store', def: 'home', vendors: 'me' };
+const TAB_OF = { home: 'home', buses: 'buses', jobs: 'jobs', store: 'store', me: 'me', purchases: 'me', alerts: 'me', insights: 'home', drivers: 'home', assignments: 'home', company: 'home', routes: 'home', reports: 'home', busreport: 'home', livemap: 'home', track: 'home', fuel: 'home', safety: 'home', warranty: 'home', storehealth: 'store', linkgps: 'home', newjob: 'jobs', driverdocs: 'home', forecast: 'home', pilferage: 'home', components: 'store', def: 'home', vendors: 'me', import: 'me' };
 function bottomnav() {
   const active = TAB_OF[S.route.name] || 'home';
   // Each role gets a focused nav matching what they actually do.
@@ -1698,18 +1698,27 @@ function viewStore() {
   }
 
   body += `<input id="part-search" class="searchbox" placeholder="Search part name, no. or category…" autocomplete="off">`;
-  body += `<div class="card"><h3>Parts</h3><div id="part-list">`;
-  body += parts.map((p) => {
-    const lowf = p.qty <= p.reorderLevel;
-    return `<div class="li" data-part="${p.id}">${avatar(partImg(p), '🔩')}
-      <div class="main"><div class="t">${esc(p.name)}</div><div class="s">${esc(p.partNo)} · ${esc(p.category)} · ${money(p.unitCost)}/${p.unit}</div></div>
-      <div style="text-align:right"><b>${p.qty}</b> <span class="tiny muted">${p.unit}</span>${lowf?'<div class="badge b-amber tiny">LOW</div>':''}</div></div>`;
-  }).join('');
-  body += `</div></div>`;
+  body += `<div class="card"><h3>Parts</h3><div id="part-list"></div></div>`;
 
   shell(t('store'), body, can(S.user.role,'addPurchase') ? { act: 'addPurchase', icon: '📄' } : null);
-  attachSearch('part-search', 'part-list');
-  const pl = document.getElementById('part-list'); if (pl) staggerRows(pl);
+  // Big catalogues (thousands of parts from an Excel import) render capped + search
+  // filters from the cache, so the store stays fast.
+  renderStorePartList('');
+  const inp = document.getElementById('part-search'); if (inp) inp.oninput = () => renderStorePartList(inp.value.trim().toLowerCase());
+}
+const STORE_LIST_CAP = 250;
+function renderStorePartList(ql) {
+  const box = document.getElementById('part-list'); if (!box) return;
+  let parts = [...(S.cache.parts || [])].sort((a, b) => (a.qty <= a.reorderLevel ? -1 : 1) - (b.qty <= b.reorderLevel ? -1 : 1));
+  if (ql) parts = parts.filter((p) => `${p.name} ${p.partNo || ''} ${p.category || ''}`.toLowerCase().includes(ql));
+  const total = parts.length, shown = parts.slice(0, STORE_LIST_CAP);
+  box.innerHTML = (shown.map((p) => {
+    const lowf = p.qty <= p.reorderLevel;
+    return `<div class="li" data-part="${p.id}">${avatar(partImg(p), '🔩')}
+      <div class="main"><div class="t">${esc(p.name)}</div><div class="s">${esc(p.partNo || '—')}${p.category ? ' · ' + esc(p.category) : ''}${p.reusable ? ' · ♻️ reusable' : ''} · ${money(p.unitCost)}/${p.unit}</div></div>
+      <div style="text-align:right"><b>${p.qty}</b> <span class="tiny muted">${p.unit}</span>${lowf ? '<div class="badge b-amber tiny">LOW</div>' : ''}</div></div>`;
+  }).join('')) + (total > STORE_LIST_CAP ? `<div class="tiny muted" style="padding:9px 2px">Showing ${STORE_LIST_CAP} of ${total.toLocaleString('en-IN')} parts — type to search the rest.</div>` : (total === 0 ? '<div class="empty">No matching parts</div>' : ''));
+  staggerRows(box);
 }
 
 function viewPartDetail(id) {
@@ -2017,7 +2026,8 @@ function viewMe() {
   const si = Sync.info();
   body += `<div class="card"><h3>${t('more')}</h3>
     <div class="li" data-act="openPurchases"><div class="ava">🧾</div><div class="main"><div class="t">${t('purchases')}</div><div class="s">${t('supplierBills')}</div></div></div>
-    ${can(S.user.role, 'addPurchase') ? `<div class="li" data-act="openVendors"><div class="ava">🏪</div><div class="main"><div class="t">Vendors</div><div class="s">Supplier registry · spend &amp; pending per vendor</div></div></div>` : ''}
+    ${can(S.user.role, 'addPurchase') ? `<div class="li" data-act="openVendors"><div class="ava">🏪</div><div class="main"><div class="t">Vendors</div><div class="s">Supplier registry · spend &amp; pending per vendor</div></div></div>
+      <div class="li" data-act="openImport"><div class="ava">📥</div><div class="main"><div class="t">Import from Excel</div><div class="s">Load your Parts Master &amp; Vendor Master (.xls)</div></div></div>` : ''}
     <div class="li" data-act="openAlerts"><div class="ava">📄</div><div class="main"><div class="t">${t('docAlerts')}</div><div class="s">${allDocAlerts().length} need attention</div></div></div>
     ${['owner', 'supervisor'].includes(S.user.role)
       ? `<div class="li" data-act="openDrivers"><div class="ava">🧑‍✈️</div><div class="main"><div class="t">Drivers</div><div class="s">${(S.cache.drivers || []).length} drivers · performance & reports</div></div></div>
@@ -2591,6 +2601,105 @@ async function saveVendor(id) {
     email: (($('#v-email') || {}).value || '').trim(), notes: (($('#v-notes') || {}).value || '').trim(), updatedAt: Date.now() });
   await DB.put('vendors', rec); await load(); closeSheet(); toast('Vendor saved ✓');
   if (id) viewVendorDetail(id); else push({ name: 'vendors', id: rec.id });
+}
+/* ===== Import from Excel — Parts Master & Vendor Master ====================
+ * Reads the .xls the garage's billing system exports (Excel 2003 "SpreadsheetML"
+ * XML — inline data, no zip/shared-strings) fully in-browser and bulk-loads it
+ * into the catalogue. Records key off the master's own Id (extId) so re-importing
+ * updates in place instead of duplicating. No server, no library. */
+function parseSpreadsheetML(text) {
+  const SS = 'urn:schemas-microsoft-com:office:spreadsheet';
+  let doc; try { doc = new DOMParser().parseFromString(text, 'application/xml'); } catch (e) { return null; }
+  if (!doc || doc.getElementsByTagName('parsererror').length) return null;
+  const rowEls = doc.getElementsByTagNameNS(SS, 'Row');
+  if (!rowEls.length) return null;
+  const rows = [];
+  for (let r = 0; r < rowEls.length; r++) {
+    const cells = rowEls[r].getElementsByTagNameNS(SS, 'Cell');
+    const arr = []; let col = 0;
+    for (let i = 0; i < cells.length; i++) {
+      const c = cells[i];
+      const idx = c.getAttributeNS(SS, 'Index') || c.getAttribute('ss:Index');
+      if (idx) col = parseInt(idx, 10) - 1;
+      const data = c.getElementsByTagNameNS(SS, 'Data');
+      arr[col] = data.length ? (data[0].textContent || '').trim() : '';
+      col++;
+    }
+    rows.push(arr);
+  }
+  return rows;
+}
+const _hidx = (headers) => { const m = {}; headers.forEach((h, i) => { m[(h || '').trim().toLowerCase()] = i; }); return m; };
+function mapVendorRows(headers, rows) {
+  const m = _hidx(headers), g = (r, k) => (r[m[k]] || '').trim();
+  return rows.map((r) => {
+    const name = g(r, 'vendor name'); if (!name) return null;
+    const repair = /^y/i.test(g(r, 'is repairvendor'));
+    const extId = g(r, 'id');
+    const notes = [g(r, 'contact person') ? 'Contact: ' + g(r, 'contact person') : '', g(r, 'address'), g(r, 'city name')].filter(Boolean).join(' · ');
+    return { id: extId ? 'vend-' + extId : uid('v-'), extId, name, category: repair ? 'Repair' : 'Parts', isRepairVendor: repair,
+      phone: g(r, 'contact number'), email: g(r, 'email id'), gstin: g(r, 'gst no'), city: g(r, 'city name'), notes, createdAt: Date.now() };
+  }).filter(Boolean);
+}
+function mapPartRows(headers, rows) {
+  const m = _hidx(headers), g = (r, k) => (r[m[k]] || '').trim();
+  return rows.map((r) => {
+    let name = g(r, 'parts name'); if (!name) return null;
+    let partNo = '';
+    const idm = name.match(/^ID\s+(\S+)\s+(.+)$/i);   // billing system prefixes "ID <oem-no> <desc>"
+    if (idm) { partNo = idm[1]; name = idm[2].trim(); }
+    const extId = g(r, 'id');
+    return { id: extId ? 'part-' + extId : uid('p-'), extId, name, partNo, category: '', unit: 'pc', qty: 0, reorderLevel: 0, unitCost: 0,
+      alertDays: Number(g(r, 'alert days')) || 0, serialTracked: /^y/i.test(g(r, 'serial no')), reusable: /^y/i.test(g(r, 're-useable')), createdAt: Date.now() };
+  }).filter(Boolean);
+}
+async function runImport(text) {
+  const rows = parseSpreadsheetML(text);
+  if (!rows || rows.length < 2) return { error: 'Could not read this file. Re-export it as “Excel 2003 XML (*.xls)” and try again.' };
+  const headers = rows[0].map((h) => (h || '').trim());
+  const hl = headers.map((h) => h.toLowerCase());
+  const data = rows.slice(1).filter((r) => r.some((c) => c && c.trim()));
+  if (hl.indexOf('vendor name') >= 0) {
+    const mapped = mapVendorRows(headers, data);
+    const have = new Set((S.cache.vendors || []).map((v) => v.id));
+    const haveName = new Set((S.cache.vendors || []).map((v) => (v.name || '').toLowerCase()));
+    const seen = new Set(), fresh = mapped.filter((v) => { const nm = v.name.toLowerCase(); if (have.has(v.id) || haveName.has(nm) || seen.has(nm)) return false; seen.add(nm); return true; });
+    await DB.bulkPut('vendors', fresh);
+    return { kind: 'vendors', total: mapped.length, added: fresh.length, skipped: mapped.length - fresh.length };
+  }
+  if (hl.indexOf('parts name') >= 0) {
+    const mapped = mapPartRows(headers, data);
+    const have = new Set((S.cache.parts || []).map((p) => p.id));
+    const key = (p) => ((p.name || '') + '|' + (p.partNo || '')).toLowerCase();
+    const haveKey = new Set((S.cache.parts || []).map(key));
+    const seen = new Set(), fresh = mapped.filter((p) => { if (have.has(p.id)) return false; const k = key(p); if (haveKey.has(k) || seen.has(k)) return false; seen.add(k); return true; });
+    await DB.bulkPut('parts', fresh);
+    return { kind: 'parts', total: mapped.length, added: fresh.length, skipped: mapped.length - fresh.length };
+  }
+  return { error: 'Unrecognised file — expected a Vendor Master (has “Vendor Name”) or Parts Master (has “Parts Name”).' };
+}
+let _lastImport = null;
+function viewImport() {
+  let body = `<div class="card"><div class="tiny muted">Import your <b>Parts Master</b> or <b>Vendor Master</b> — the .xls your billing system exports (“Excel 2003 XML”). Rows are matched by their master Id, so re-importing updates in place and won't duplicate.</div></div>`;
+  body += `<div class="card"><h3>Import a file</h3>
+    <input id="imp-file" type="file" accept=".xls,.xml,.txt" style="margin:6px 0 12px;width:100%">
+    ${_lastImport ? `<div class="banner ${_lastImport.error ? 'warn' : 'ok'}" style="margin-top:6px">${esc(_lastImport.error || `✓ ${_lastImport.kind}: ${_lastImport.added} added, ${_lastImport.skipped} already present (of ${_lastImport.total}).`)}</div>` : ''}
+  </div>`;
+  body += `<div class="card"><div class="row between small"><span class="muted">In catalogue now</span><b>${(S.cache.parts || []).length} parts · ${(S.cache.vendors || []).length} vendors</b></div></div>`;
+  shell('Import from Excel', body);
+  const inp = document.getElementById('imp-file');
+  if (inp) inp.onchange = () => { const f = inp.files && inp.files[0]; if (f) handleImportFile(f); };
+}
+async function handleImportFile(file) {
+  const stop = showBusyOverlay('Importing ' + file.name + '…');
+  try {
+    const text = await file.text();
+    _lastImport = await runImport(text);
+    if (stop) stop();
+    await load();
+    toast(_lastImport.error ? _lastImport.error : `Imported ${_lastImport.added} ${_lastImport.kind} ✓`);
+  } catch (e) { if (stop) stop(); _lastImport = { error: 'Import failed: ' + e.message }; toast(_lastImport.error); }
+  if (S.route && S.route.name === 'import') viewImport();
 }
 async function togglePaid(purId) {
   if (!can(S.user.role, 'addPurchase')) return toast('Not allowed');
@@ -4582,7 +4691,7 @@ async function askAi() {
  */
 const current = () => S.stack[S.stack.length - 1];
 // Role guard: routes restricted to certain roles fall back to home for others.
-const ROUTE_PERM = { insights: 'insights', drivers: 'manageDrivers', assignments: 'assignDriver', routes: 'manageRoutes', reports: 'dashboard', busreport: 'dashboard', livemap: 'dashboard', track: 'dashboard', fuel: 'addFuel', safety: 'dashboard', warranty: 'addFuel', storehealth: 'issuePart', linkgps: 'addBus', newjob: 'addJob', forecast: 'dashboard', pilferage: 'insights', components: 'issuePart', def: 'addFuel', vendors: 'addPurchase' };
+const ROUTE_PERM = { insights: 'insights', drivers: 'manageDrivers', assignments: 'assignDriver', routes: 'manageRoutes', reports: 'dashboard', busreport: 'dashboard', livemap: 'dashboard', track: 'dashboard', fuel: 'addFuel', safety: 'dashboard', warranty: 'addFuel', storehealth: 'issuePart', linkgps: 'addBus', newjob: 'addJob', forecast: 'dashboard', pilferage: 'insights', components: 'issuePart', def: 'addFuel', vendors: 'addPurchase', import: 'addPurchase' };
 function render(r) {
   if (typeof stopMap === 'function') stopMap();   // leaving any screen halts the live-map refresh timer
   if (typeof stopTrack === 'function') stopTrack();
@@ -4619,6 +4728,7 @@ function render(r) {
     case 'components': return r.id ? viewComponentDetail(r.id) : viewComponents();
     case 'def': return viewDef();
     case 'vendors': return r.id ? viewVendorDetail(r.id) : viewVendors();
+    case 'import': return viewImport();
     default: return viewHome();
   }
 }
@@ -4707,6 +4817,7 @@ function bind() {
       case 'savePurchase': return savePurchase();
       case 'scanBill': return scanBill();
       case 'openVendors': return push({ name: 'vendors' });
+      case 'openImport': return push({ name: 'import' });
       case 'openVendor': return push({ name: 'vendors', id: el.getAttribute('data-id') });
       case 'addVendor': return sheetAddVendor();
       case 'editVendor': return sheetAddVendor(el.getAttribute('data-id'));
