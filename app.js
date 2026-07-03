@@ -1735,7 +1735,20 @@ function viewPartDetail(id) {
       <div><div class="tiny muted">Unit cost</div><b>${money(p.unitCost)}</b></div>
       <div><div class="tiny muted">Reorder at</div><b>${p.reorderLevel}</b></div>
       <div><div class="tiny muted">Stock value</div><b>${money(p.qty*p.unitCost)}</b></div>
-    </div></div>`;
+    </div>${p.reusable ? '<div class="tiny" style="margin-top:8px;color:var(--brand2)">♻️ Reusable part — track each piece as a component (life + remould/repair history).</div>' : ''}</div>`;
+
+  // Reusable parts (tyres, alternators…) can be tracked per piece as components.
+  if (p.reusable) {
+    const comps = componentsOfPart(id);
+    body += `<div class="card"><div class="row between"><h3>🛞 Tracked pieces</h3>${can(S.user.role, 'issuePart') ? `<button class="btn sm" data-act="compFromPart" data-id="${p.id}">+ Track a piece</button>` : ''}</div>`;
+    body += comps.length ? comps.map((c) => { const lf = componentLife(c), km = compKind(c);
+      return `<div class="li" data-act="openComp" data-id="${c.id}"><div class="ava">${km[0]}</div>
+        <div class="main"><div class="t">${esc(c.label || km[1])}${c.serial ? ` <span class="tiny muted">${esc(c.serial)}</span>` : ''}</div>
+          <div class="s">${compSubtitle(c)}${lf.tracked && c.state === 'in-service' ? ' · ' + lf.pct + '% worn' : ''}</div></div>
+        <span class="badge ${COMP_STATE[c.state][1]}">${COMP_STATE[c.state][0]}</span></div>`; }).join('')
+      : `<div class="muted small">No pieces tracked yet. Tap “+ Track a piece” when you buy or fit one.</div>`;
+    body += `</div>`;
+  }
 
   body += `<div class="card"><h3>Stock ledger</h3><div class="tiny muted" style="margin-bottom:6px">Every movement is logged — this is your pilferage trail.</div>`;
   body += moves.length ? moves.map((m) => {
@@ -1835,9 +1848,11 @@ function viewComponentDetail(id) {
   const km = compKind(c), st = COMP_STATE[c.state] || COMP_STATE['in-service'], lf = componentLife(c), v = compVerb(c);
   const canEdit = can(S.user.role, 'issuePart');
   const atMax = c.refurbCount >= (c.maxRefurb || 0);
+  const srcPart = c.partId ? byId(S.cache.parts, c.partId) : null;
   let body = `<div class="card"><div class="row between"><div class="row" style="gap:10px"><div class="ava" style="font-size:24px">${km[0]}</div>
     <div><div style="font-weight:800;font-size:17px">${esc(c.label || km[1])}</div><div class="small muted">${km[1]}${c.serial ? ' · ' + esc(c.serial) : ''}</div></div></div>
-    <span class="badge ${st[1]}" style="font-size:14px">${st[0]}</span></div></div>`;
+    <span class="badge ${st[1]}" style="font-size:14px">${st[0]}</span></div>
+    ${srcPart ? `<div class="tiny" style="margin-top:8px"><span data-part="${srcPart.id}" style="color:var(--brand2);cursor:pointer">📦 From catalogue: ${esc(srcPart.name)} ›</span></div>` : ''}</div>`;
   // Life / placement
   body += `<div class="card"><h3>Life & placement</h3><div class="grid2">
     <div><div class="tiny muted">Fitted to</div><b>${c.busId ? esc(busName(c.busId)) : '—'}${c.position ? ' · ' + esc(c.position) : ''}</b></div>
@@ -1870,21 +1885,46 @@ function viewComponentDetail(id) {
   shell(esc(c.label || km[1]), body);
 }
 // ---- Component sheets + actions ----
-function sheetAddComponent() {
+// Guess the component kind from a catalogue part's name/category (for reusable parts).
+function kindFromPart(p) {
+  const t = (((p && p.name) || '') + ' ' + ((p && p.category) || '')).toLowerCase();
+  if (/tyre|tire/.test(t)) return 'tyre';
+  if (/altern/.test(t)) return 'alternator';
+  if (/starter|self\s?start/.test(t)) return 'starter';
+  if (/batter/.test(t)) return 'battery';
+  if (/injector|nozzle/.test(t)) return 'injector';
+  return 'other';
+}
+const componentsOfPart = (partId) => (S.cache.components || []).filter((c) => c.partId === partId);
+// partId (optional): create a tracked component FROM a reusable catalogue part — prefills kind/label/life.
+function sheetAddComponent(partId) {
   const buses = S.cache.buses || [];
+  const part = partId ? byId(S.cache.parts, partId) : null;
+  const reusables = (S.cache.parts || []).filter((p) => p.reusable && (!part || p.id !== part.id)).slice(0, 500);
+  const initKind = part ? kindFromPart(part) : 'tyre';
   openSheet('Add component', `
-    <label class="field"><span class="lbl">Type</span><select id="cp-kind">${Object.entries(COMP_KINDS).map(([k, m]) => `<option value="${k}">${m[0]} ${m[1]}</option>`).join('')}</select></label>
-    <label class="field"><span class="lbl">Label</span><input id="cp-label" placeholder="e.g. Tyre FR / Alternator"></label>
+    <input type="hidden" id="cp-partid" value="${part ? part.id : ''}">
+    ${part ? `<div class="banner ok" style="margin-bottom:10px">From catalogue: <b>${esc(part.name)}</b>${part.partNo ? ' · ' + esc(part.partNo) : ''}</div>`
+      : (reusables.length ? `<label class="field"><span class="lbl">Base on a reusable part (optional)</span><select id="cp-frompart"><option value="">— none —</option>${reusables.map((p) => `<option value="${p.id}">${esc(p.name)}</option>`).join('')}</select></label>` : '')}
+    <label class="field"><span class="lbl">Type</span><select id="cp-kind">${Object.entries(COMP_KINDS).map(([k, m]) => `<option value="${k}" ${k === initKind ? 'selected' : ''}>${m[0]} ${m[1]}</option>`).join('')}</select></label>
+    <label class="field"><span class="lbl">Label</span><input id="cp-label" value="${part ? esc(part.name) : ''}" placeholder="e.g. Tyre FR / Alternator"></label>
     <label class="field"><span class="lbl">Serial / marking (optional)</span><input id="cp-serial" placeholder="optional"></label>
     <div class="grid2">
-      <label class="field"><span class="lbl">Life (km, 0 = n/a)</span><input id="cp-life" type="number" inputmode="numeric" placeholder="e.g. 60000"></label>
-      <label class="field"><span class="lbl">Max ${'remoulds/repairs'}</span><input id="cp-max" type="number" inputmode="numeric" placeholder="e.g. 2"></label></div>
+      <label class="field"><span class="lbl">Life (km, 0 = n/a)</span><input id="cp-life" type="number" inputmode="numeric" value="${COMP_KINDS[initKind][3] || ''}" placeholder="e.g. 60000"></label>
+      <label class="field"><span class="lbl">Max ${'remoulds/repairs'}</span><input id="cp-max" type="number" inputmode="numeric" value="${COMP_KINDS[initKind][4] || ''}" placeholder="e.g. 2"></label></div>
     <label class="field"><span class="lbl">Cost (₹)</span><input id="cp-cost" type="number" inputmode="numeric" placeholder="purchase cost"></label>
     <label class="field"><span class="lbl">Fit to bus now? (optional)</span><select id="cp-bus"><option value="">— keep in store —</option>${buses.map((b) => `<option value="${b.id}">${esc(b.regNo)}</option>`).join('')}</select></label>
     <label class="field"><span class="lbl">Position (optional)</span><input id="cp-pos" placeholder="e.g. FR, FL, RR-outer"></label>
     <button class="btn primary" data-act="saveComponent">Save</button>`);
   const kindSel = document.getElementById('cp-kind');
-  if (kindSel) kindSel.onchange = () => { const m = COMP_KINDS[kindSel.value]; const lf = document.getElementById('cp-life'), mx = document.getElementById('cp-max'); if (lf && !lf.value) lf.value = m[3] || ''; if (mx && !mx.value) mx.value = m[4] || ''; };
+  const applyKind = (k, force) => { const m = COMP_KINDS[k]; const lf = document.getElementById('cp-life'), mx = document.getElementById('cp-max'); if (lf && (force || !lf.value)) lf.value = m[3] || ''; if (mx && (force || !mx.value)) mx.value = m[4] || ''; };
+  if (kindSel) kindSel.onchange = () => applyKind(kindSel.value, false);
+  const fp = document.getElementById('cp-frompart');
+  if (fp) fp.onchange = () => {
+    const p = byId(S.cache.parts, fp.value);
+    const hid = document.getElementById('cp-partid'); if (hid) hid.value = p ? p.id : '';
+    if (p) { const k = kindFromPart(p); if (kindSel) kindSel.value = k; const lbl = document.getElementById('cp-label'); if (lbl) lbl.value = p.name; applyKind(k, true); }
+  };
 }
 async function saveComponent() {
   const kind = ($('#cp-kind') || {}).value || 'other';
@@ -1892,7 +1932,10 @@ async function saveComponent() {
   const busId = ($('#cp-bus') || {}).value || null;
   const now = Date.now();
   const bus = busId ? byId(S.cache.buses, busId) : null;
+  const srcPartId = (($('#cp-partid') || {}).value) || null;
+  const srcPart = srcPartId ? byId(S.cache.parts, srcPartId) : null;
   const c = { id: uid('cmp-'), kind, label, serial: (($('#cp-serial') || {}).value || '').trim(),
+    partId: srcPartId, partExtId: srcPart ? (srcPart.extId || '') : '',
     busId: busId || null, position: (($('#cp-pos') || {}).value || '').trim(),
     state: busId ? 'in-service' : 'removed',
     installedAt: busId ? now : null, installedOdo: busId && bus ? (bus.odometer || 0) : 0,
@@ -4847,6 +4890,7 @@ function bind() {
       case 'openComp': return push({ name: 'components', id: el.getAttribute('data-id') });
       case 'compFilter': _compFilter = el.getAttribute('data-v'); return rerender();
       case 'addComponent': return sheetAddComponent();
+      case 'compFromPart': return sheetAddComponent(el.getAttribute('data-id'));
       case 'saveComponent': return saveComponent();
       case 'fitComp': return sheetFitComp(el.getAttribute('data-id'));
       case 'saveFitComp': return saveFitComp(el.getAttribute('data-id'));
