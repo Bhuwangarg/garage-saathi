@@ -1735,12 +1735,14 @@ function viewPartDetail(id) {
       <div><div class="tiny muted">Unit cost</div><b>${money(p.unitCost)}</b></div>
       <div><div class="tiny muted">Reorder at</div><b>${p.reorderLevel}</b></div>
       <div><div class="tiny muted">Stock value</div><b>${money(p.qty*p.unitCost)}</b></div>
-    </div>${p.reusable ? '<div class="tiny" style="margin-top:8px;color:var(--brand2)">♻️ Reusable part — track each piece as a component (life + remould/repair history).</div>' : ''}</div>`;
+    </div>${isTrackablePart(p) ? '<div class="tiny" style="margin-top:8px;color:var(--brand2)">🔧 Rotable part — track each piece as a component (life + remould/repair history).</div>' : ''}</div>`;
 
-  // Reusable parts (tyres, alternators…) can be tracked per piece as components.
-  if (p.reusable) {
-    const comps = componentsOfPart(id);
-    body += `<div class="card"><div class="row between"><h3>🛞 Tracked pieces</h3>${can(S.user.role, 'issuePart') ? `<button class="btn sm" data-act="compFromPart" data-id="${p.id}">+ Track a piece</button>` : ''}</div>`;
+  // Only sensible rotables (tyres, alternators…) offer per-piece tracking; a card
+  // still shows for any part that already has pieces tracked against it.
+  const _comps = componentsOfPart(id);
+  if (isTrackablePart(p) || _comps.length) {
+    const comps = _comps;
+    body += `<div class="card"><div class="row between"><h3>🛞 Tracked pieces</h3>${can(S.user.role, 'issuePart') && isTrackablePart(p) ? `<button class="btn sm" data-act="compFromPart" data-id="${p.id}">+ Track a piece</button>` : ''}</div>`;
     body += comps.length ? comps.map((c) => { const lf = componentLife(c), km = compKind(c);
       return `<div class="li" data-act="openComp" data-id="${c.id}"><div class="ava">${km[0]}</div>
         <div class="main"><div class="t">${esc(c.label || km[1])}${c.serial ? ` <span class="tiny muted">${esc(c.serial)}</span>` : ''}</div>
@@ -1895,12 +1897,19 @@ function kindFromPart(p) {
   if (/injector|nozzle/.test(t)) return 'injector';
   return 'other';
 }
+// A part offers per-piece tracking only if it's a mechanical/rotable component.
+// NB: the master's "Re-Useable" flag is unreliable for this — at Mahalaxmi it
+// marks reusable passenger AMENITIES (towels, pillows, blankets, snacks on the
+// Volvo sleepers), not rotables — so trackability keys off this name whitelist,
+// not that flag. Tyres, alternators, pumps, etc. qualify regardless.
+const TRACKABLE_PART_RE = /\b(tyre|tire|altern|dynamo|starter|self[\s-]?start|batter|injector|nozzle|turbo|turbocharger|compressor|radiator|intercooler|pump|motor|gear\s?box|differential|diff|clutch|brake|caliper|propeller|prop\s?shaft|drive\s?shaft|axle|steering|hub|fan\s?clutch|air\s?dryer|blower|silencer|muffler|shock|damper|absorber|spring|king\s?pin|valve|actuator|solenoid|horn|wiper|assembl|assy)\b/i;
+const isTrackablePart = (p) => !!(p && TRACKABLE_PART_RE.test(((p.name || '') + ' ' + (p.category || ''))));
 const componentsOfPart = (partId) => (S.cache.components || []).filter((c) => c.partId === partId);
 // partId (optional): create a tracked component FROM a reusable catalogue part — prefills kind/label/life.
 function sheetAddComponent(partId) {
   const buses = S.cache.buses || [];
   const part = partId ? byId(S.cache.parts, partId) : null;
-  const reusables = (S.cache.parts || []).filter((p) => p.reusable && (!part || p.id !== part.id)).slice(0, 500);
+  const reusables = (S.cache.parts || []).filter((p) => isTrackablePart(p) && (!part || p.id !== part.id)).slice(0, 500);
   const initKind = part ? kindFromPart(part) : 'tyre';
   openSheet('Add component', `
     <input type="hidden" id="cp-partid" value="${part ? part.id : ''}">
