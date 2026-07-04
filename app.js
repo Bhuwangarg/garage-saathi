@@ -1897,13 +1897,19 @@ function kindFromPart(p) {
   if (/injector|nozzle/.test(t)) return 'injector';
   return 'other';
 }
-// A part offers per-piece tracking only if it's a mechanical/rotable component.
-// NB: the master's "Re-Useable" flag is unreliable for this — at Mahalaxmi it
-// marks reusable passenger AMENITIES (towels, pillows, blankets, snacks on the
-// Volvo sleepers), not rotables — so trackability keys off this name whitelist,
-// not that flag. Tyres, alternators, pumps, etc. qualify regardless.
-const TRACKABLE_PART_RE = /\b(tyre|tire|altern|dynamo|starter|self[\s-]?start|batter|injector|nozzle|turbo|turbocharger|compressor|radiator|intercooler|pump|motor|gear\s?box|differential|diff|clutch|brake|caliper|propeller|prop\s?shaft|drive\s?shaft|axle|steering|hub|fan\s?clutch|air\s?dryer|blower|silencer|muffler|shock|damper|absorber|spring|king\s?pin|valve|actuator|solenoid|horn|wiper|assembl|assy)\b/i;
-const isTrackablePart = (p) => !!(p && TRACKABLE_PART_RE.test(((p.name || '') + ' ' + (p.category || ''))));
+// A part offers per-piece tracking only if it's a TRUE ROTABLE — a component you
+// send out to be reconditioned/rewound/remoulded/overhauled and refit, not a
+// consumable (pads, blades, filters, bulbs) that's simply replaced.
+// NB: the master's "Re-Useable" flag is unreliable — at Mahalaxmi it marks
+// reusable passenger AMENITIES (towels, pillows, blankets, snacks on the Volvo
+// sleepers), so trackability keys off this whitelist, not that flag.
+const TRACKABLE_PART_RE = /\b(tyre|tire|alternator|altern|dynamo|starter|self[\s-]?start|turbo(?:charger)?|compressor|radiator|gear\s?box|differential|injector|injection\s?pump|fuel\s?pump|water\s?pump|steering\s?(?:box|gear|pump)|power\s?steering|propeller\s?shaft|prop\s?shaft|drive\s?shaft|caliper)\b/i;
+// Reject rows that merely name a spare PART of a rotable (a housing/fork/gasket
+// "…, gearbox"), so only the whole reconditionable unit qualifies.
+const PART_ACCESSORY_RE = /\b(housing|kit|half|fork|wire|gasket|seal|sleeve|cover|glass|bracket|mount\w*|support|sensors?|bush\w*|ring|bolt|screw|nut|washer|pipe|hose|clamp|element|\w*filter|bearing|shim|belt|pulley|flange|stud|clip|lock|repair|damper|switch|relay|lamp|sender|solenoid|silencer|valve|plate|spring|bulb|blade|pad|pinion|chock|bellow|adjusting|clutch|battery|cap|cooler|outlet|line|impeller|piston|regulator|separator|tube|drive\s?gear|oils?|lubricant|grease|coolant|antifreeze|fan|rocker|arm|buffer|rubber|freewheel|brush\w*|connector|shield|liner|head)\b/i;
+// Also reject lubricants that name a component (e.g. an oil "…TURBO 15W-40").
+const OIL_GRADE_RE = /\b\d{1,2}\s?w[-\s]?\d{2}\b/i;
+const isTrackablePart = (p) => { const s = (p ? (p.name || '') + ' ' + (p.category || '') : ''); return !!(p && TRACKABLE_PART_RE.test(s) && !PART_ACCESSORY_RE.test(s) && !OIL_GRADE_RE.test(s)); };
 const componentsOfPart = (partId) => (S.cache.components || []).filter((c) => c.partId === partId);
 // partId (optional): create a tracked component FROM a reusable catalogue part — prefills kind/label/life.
 function sheetAddComponent(partId) {
