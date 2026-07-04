@@ -557,12 +557,13 @@ function topbar(title) {
 }
 
 // Which bottom tab should light up — sub-screens map back to their parent tab.
-const TAB_OF = { home: 'home', buses: 'buses', jobs: 'jobs', store: 'store', me: 'me', purchases: 'me', alerts: 'me', insights: 'home', drivers: 'home', assignments: 'home', company: 'home', routes: 'home', reports: 'home', busreport: 'home', livemap: 'home', track: 'home', fuel: 'home', safety: 'home', warranty: 'home', storehealth: 'store', linkgps: 'home', newjob: 'jobs', driverdocs: 'home', forecast: 'home', pilferage: 'home', components: 'store', def: 'home', vendors: 'me', import: 'me' };
+const TAB_OF = { home: 'home', buses: 'buses', jobs: 'jobs', store: 'store', me: 'me', purchases: 'me', alerts: 'me', insights: 'home', drivers: 'home', assignments: 'home', company: 'home', routes: 'home', reports: 'home', busreport: 'home', livemap: 'home', track: 'home', fuel: 'home', safety: 'home', warranty: 'home', storehealth: 'store', linkgps: 'home', newjob: 'jobs', driverdocs: 'home', forecast: 'home', pilferage: 'home', components: 'store', def: 'home', vendors: 'me', import: 'me', crewpins: 'me' };
 function bottomnav() {
   const active = TAB_OF[S.route.name] || 'home';
   // Each role gets a focused nav matching what they actually do.
   const NAVS = {
-    driver:   [['home', '🚌', 'My Bus'], ['me', '👤', t('me')]],
+    driver:    [['home', '🚌', 'My Bus'], ['me', '👤', t('me')]],
+    conductor: [['home', '🚌', 'My Bus'], ['me', '👤', t('me')]],
     store:    [['home', '🏠', t('home')], ['store', '📦', t('store')], ['jobs', '🛠️', t('jobs')], ['me', '👤', t('me')]],
     mechanic: [['home', '🏠', t('home')], ['jobs', '🛠️', t('jobs')], ['store', '📦', t('store')], ['me', '👤', t('me')]],
   };
@@ -663,6 +664,7 @@ function viewMechanicHome() {
 
 function viewHome() {
   if (S.user.role === 'driver') return viewDriverHome();
+  if (S.user.role === 'conductor') return viewConductorHome();
   if (S.user.role === 'store') return viewStoreHome();
   if (S.user.role === 'mechanic') return viewMechanicHome();
   const openJobs = S.cache.jobs.filter((j) => j.status === 'open' || j.status === 'in-progress');
@@ -2100,6 +2102,7 @@ function viewMe() {
     ${['owner', 'supervisor'].includes(S.user.role)
       ? `<div class="li" data-act="openDrivers"><div class="ava">🧑‍✈️</div><div class="main"><div class="t">Drivers</div><div class="s">${(S.cache.drivers || []).length} drivers · performance & reports</div></div></div>
          <div class="li" data-act="openAssignments"><div class="ava">🔁</div><div class="main"><div class="t">Driver ↔ Bus assignments</div><div class="s">Who drives which bus · reassign in one place</div></div></div>
+         <div class="li" data-act="openCrewPins"><div class="ava">🎫</div><div class="main"><div class="t">Crew logins &amp; PINs</div><div class="s">Driver &amp; conductor app accounts + login PINs</div></div></div>
          <div class="li" data-act="openStaff"><div class="ava">👥</div><div class="main"><div class="t">Staff</div><div class="s">${S.cache.users.length} accounts · add new</div></div></div>
          <div class="li" data-act="openLiveMap"><div class="ava">🗺️</div><div class="main"><div class="t">Live map</div><div class="s">Track every bus live, Uber-style</div></div></div>
          <div class="li" data-act="openReports"><div class="ava">📊</div><div class="main"><div class="t">Bus reports</div><div class="s">Total maintenance spend per bus + full detail</div></div></div>
@@ -2803,7 +2806,9 @@ async function runImportRows(rows) {
     });
     await DB.bulkPut('buses', busSave);
     if (drvSave.length) await DB.bulkPut('drivers', drvSave);
-    return { kind: 'buses & drivers', total: data.length, added: created, updated, drivers, skipped: 0 };
+    await load();
+    const crew = await createCrewLogins();   // give drivers + conductors app logins + PINs
+    return { kind: 'buses & drivers', total: data.length, added: created, updated, drivers, logins: crew.driverLogins + crew.conductorLogins, conductors: crew.conductorLogins, skipped: 0 };
   }
   if (hl.some((h) => h.indexOf('vendor name') >= 0)) {
     const mapped = mapVendorRows(headers, data);
@@ -2828,7 +2833,7 @@ let _lastImport = null;
 function viewImport() {
   let body = `<div class="card"><div class="tiny muted">Import your <b>Parts Master</b>, <b>Vendor Master</b> (.xls the billing system exports) or a <b>Bus/Route roster</b> (.xlsx). Parts/vendors match by their master Id; buses match by registration — so re-importing updates in place and won't duplicate.</div></div>`;
   const li = _lastImport;
-  const summary = li && !li.error ? `✓ ${li.kind}: ${li.added} added${li.updated ? ', ' + li.updated + ' updated' : ''}${li.drivers ? ', ' + li.drivers + ' drivers' : ''}${li.skipped ? ', ' + li.skipped + ' already present' : ''} (of ${li.total}).` : '';
+  const summary = li && !li.error ? `✓ ${li.kind}: ${li.added} added${li.updated ? ', ' + li.updated + ' updated' : ''}${li.drivers ? ', ' + li.drivers + ' drivers' : ''}${li.logins ? ', ' + li.logins + ' logins (' + li.conductors + ' conductors)' : ''}${li.skipped ? ', ' + li.skipped + ' already present' : ''} (of ${li.total}).` : '';
   body += `<div class="card"><h3>Import a file</h3>
     <input id="imp-file" type="file" accept=".xls,.xlsx,.xml,.txt" style="margin:6px 0 12px;width:100%">
     ${li ? `<div class="banner ${li.error ? 'warn' : 'ok'}" style="margin-top:6px">${esc(li.error || summary)}</div>` : ''}
@@ -4086,6 +4091,75 @@ function viewDriverHome() {
   shell(t('myTrips'), body);
 }
 
+// A conductor's bus is the one they're mapped to (bus.conductorUserId).
+const busForConductor = (userId) => (S.cache.buses || []).find((b) => b.conductorUserId === userId) || null;
+function viewConductorHome() {
+  const bus = busForConductor(S.user.id);
+  let body = `<div class="greet"><div class="greet-av">🎫</div>
+    <div><div class="greet-hi">${t('namaste')}, ${esc(S.user.name)} 👋</div><div class="muted small">${esc(BIZ)} · ${fmtToday()}</div></div></div>`;
+  if (bus) {
+    body += `<div class="hero cover"><img src="${busImg(bus)}" alt=""><div class="hero-cap"><div class="hero-t">${esc(bus.regNo)}</div><div class="hero-s">My bus</div></div></div>`;
+    body += `<div class="card"><h3>🧭 Route &amp; crew</h3>`;
+    if (bus.routeLabel) body += `<div class="row between small" style="padding:3px 0"><span class="muted">Route</span><b>${esc(expandRoute(bus.routeLabel))}</b></div>`;
+    if (bus.driverCrew) body += `<div class="row between small" style="padding:3px 0"><span class="muted">Driver(s)</span><b>${esc(_titleCase(bus.driverCrew))}</b></div>`;
+    if (bus.crewPhone) body += `<div class="row between small" style="padding:3px 0"><span class="muted">Contact</span><a href="tel:${esc((bus.crewPhone || '').replace(/\s/g, ''))}"><b>${esc(bus.crewPhone)}</b></a></div>`;
+    body += `</div>`;
+  } else body += `<div class="card"><div class="empty">No bus assigned yet. Ask your supervisor.</div></div>`;
+  shell(t('myTrips'), body);
+}
+
+/* ===== Crew logins & PINs — give imported drivers/conductors app accounts =====
+ * Creates a user account (role driver/conductor) + a device-local login PIN for
+ * each driver profile and each bus conductor, mapped to their bus. Idempotent:
+ * skips anyone who already has a login. PINs default to the last 4 of their
+ * phone (memorable) or a random 4-digit; the owner distributes them and staff
+ * can change theirs after first login. */
+const _pin4 = (phone) => { const d = (phone || '').replace(/\D/g, ''); return d.length >= 4 ? d.slice(-4) : String(1000 + Math.floor(Math.random() * 9000)); };
+async function createCrewLogins() {
+  const haveUser = new Set((S.cache.users || []).map((u) => u.id));
+  const newUsers = [], updDrivers = [], updBuses = []; let driverLogins = 0, conductorLogins = 0;
+  (S.cache.drivers || []).forEach((d) => {
+    if (d.userId && haveUser.has(d.userId)) return;
+    const uid2 = 'u-' + d.id;
+    if (!haveUser.has(uid2)) { newUsers.push({ id: uid2, name: d.name, role: 'driver' }); haveUser.add(uid2); }
+    if (!credGet(uid2)) credSet(uid2, _pin4(d.phone));
+    d.userId = uid2; updDrivers.push(d); driverLogins++;
+  });
+  (S.cache.buses || []).forEach((b) => {
+    const nm = (b.conductor || '').trim(); if (!nm || /^[-–—\s.]*$/.test(nm)) return;
+    if (b.conductorUserId && haveUser.has(b.conductorUserId)) return;
+    const uid2 = 'u-cond-' + _normReg(b.regNo);
+    if (!haveUser.has(uid2)) { newUsers.push({ id: uid2, name: _titleCase(nm), role: 'conductor' }); haveUser.add(uid2); }
+    if (!credGet(uid2)) credSet(uid2, _pin4(b.crewPhone));
+    b.conductorUserId = uid2; updBuses.push(b); conductorLogins++;
+  });
+  if (newUsers.length) await DB.bulkPut('users', newUsers);
+  if (updDrivers.length) await DB.bulkPut('drivers', updDrivers);
+  if (updBuses.length) await DB.bulkPut('buses', updBuses);
+  await load();
+  return { driverLogins, conductorLogins, created: newUsers.length };
+}
+async function makeCrewLogins() {
+  const stop = showBusyOverlay('Creating crew logins…');
+  const r = await createCrewLogins();
+  if (stop) stop();
+  toast(r.created ? `${r.driverLogins} driver + ${r.conductorLogins} conductor logins ready ✓` : 'All crew already have logins');
+  rerender();
+}
+function viewCrewPins() {
+  const users = [...(S.cache.users || [])].filter((u) => u.role === 'driver' || u.role === 'conductor')
+    .sort((a, b) => a.role.localeCompare(b.role) || a.name.localeCompare(b.name));
+  const busOf = (u) => { if (u.role === 'driver') { const d = (S.cache.drivers || []).find((x) => x.userId === u.id); return d ? busName(d.busId) : ''; } const b = busForConductor(u.id); return b ? b.regNo : ''; };
+  let body = `<div class="card"><div class="tiny muted">App login PINs for drivers &amp; conductors (stored on this device). Share each person their PIN — they can change it after first login in Me → Change PIN. Default PIN is the last 4 digits of their phone.</div>
+    <button class="btn primary" data-act="makeCrewLogins" style="margin-top:10px">👥 Create missing logins &amp; PINs</button></div>`;
+  body += `<div class="card"><h3>Drivers &amp; conductors (${users.length})</h3>`;
+  body += users.length ? users.map((u) => `<div class="li"><div class="ava">${ROLE_META[u.role][0]}</div>
+    <div class="main"><div class="t">${esc(u.name)}</div><div class="s">${u.role}${busOf(u) ? ' · ' + esc(busOf(u)) : ''}</div></div>
+    <span class="badge b-low" style="font-size:14px;letter-spacing:1px">${esc(credGet(u.id) || '— set —')}</span></div>`).join('') : `<div class="empty">No driver/conductor logins yet — tap “Create missing logins”.</div>`;
+  body += `</div>`;
+  shell('Crew logins & PINs', body);
+}
+
 /* ===== Driver document vault ============================================= */
 const DRIVER_DOCS = [
   { key: 'license', label: 'Driving License', icon: '🚗', mandatory: true, num: true, expiry: true },
@@ -4841,7 +4915,7 @@ async function askAi() {
  */
 const current = () => S.stack[S.stack.length - 1];
 // Role guard: routes restricted to certain roles fall back to home for others.
-const ROUTE_PERM = { insights: 'insights', drivers: 'manageDrivers', assignments: 'assignDriver', routes: 'manageRoutes', reports: 'dashboard', busreport: 'dashboard', livemap: 'dashboard', track: 'dashboard', fuel: 'addFuel', safety: 'dashboard', warranty: 'addFuel', storehealth: 'issuePart', linkgps: 'addBus', newjob: 'addJob', forecast: 'dashboard', pilferage: 'insights', components: 'issuePart', def: 'addFuel', vendors: 'addPurchase', import: 'addPurchase' };
+const ROUTE_PERM = { insights: 'insights', drivers: 'manageDrivers', assignments: 'assignDriver', routes: 'manageRoutes', reports: 'dashboard', busreport: 'dashboard', livemap: 'dashboard', track: 'dashboard', fuel: 'addFuel', safety: 'dashboard', warranty: 'addFuel', storehealth: 'issuePart', linkgps: 'addBus', newjob: 'addJob', forecast: 'dashboard', pilferage: 'insights', components: 'issuePart', def: 'addFuel', vendors: 'addPurchase', import: 'addPurchase', crewpins: 'manageDrivers' };
 function render(r) {
   if (typeof stopMap === 'function') stopMap();   // leaving any screen halts the live-map refresh timer
   if (typeof stopTrack === 'function') stopTrack();
@@ -4879,6 +4953,7 @@ function render(r) {
     case 'def': return viewDef();
     case 'vendors': return r.id ? viewVendorDetail(r.id) : viewVendors();
     case 'import': return viewImport();
+    case 'crewpins': return viewCrewPins();
     default: return viewHome();
   }
 }
@@ -4968,6 +5043,8 @@ function bind() {
       case 'scanBill': return scanBill();
       case 'openVendors': return push({ name: 'vendors' });
       case 'openImport': return push({ name: 'import' });
+      case 'openCrewPins': return push({ name: 'crewpins' });
+      case 'makeCrewLogins': return makeCrewLogins();
       case 'openVendor': return push({ name: 'vendors', id: el.getAttribute('data-id') });
       case 'addVendor': return sheetAddVendor();
       case 'editVendor': return sheetAddVendor(el.getAttribute('data-id'));
@@ -5124,7 +5201,7 @@ async function testNotification() {
   else toast('No subscribed devices yet — enable alerts first');
 }
 
-const ROLE_META = { owner: ['👑', 'Owner'], supervisor: ['🧑‍🔧', 'Supervisor'], store: ['📦', 'Store'], mechanic: ['🔧', 'Mechanic'], driver: ['🧑‍✈️', 'Driver'] };
+const ROLE_META = { owner: ['👑', 'Owner'], supervisor: ['🧑‍🔧', 'Supervisor'], store: ['📦', 'Store'], mechanic: ['🔧', 'Mechanic'], driver: ['🧑‍✈️', 'Driver'], conductor: ['🎫', 'Conductor'] };
 const roleEmoji = (r) => (ROLE_META[r] || ['🔧'])[0];
 // Step 1 — pick your role. (Keeps the list manageable across a big fleet.)
 function renderLogin() {
