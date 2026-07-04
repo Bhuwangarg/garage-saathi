@@ -1091,6 +1091,16 @@ function viewBusDetail(id) {
     ${busUsesDef(b) ? (() => { const ds = defStatus(b); return `<div class="row between small" style="margin-top:10px"><span class="muted">AdBlue / DEF</span><span data-act="openDef" style="cursor:pointer">${ds.perHundred != null ? ds.perHundred.toFixed(1) + ' L/100km · ' : ''}${money(ds.costTotal)} ›</span></div>${ds.flag ? `<div class="tiny" style="color:${ds.flag.sev === 'high' ? 'var(--red)' : 'var(--amber)'};margin-top:3px">⚠️ ${esc(ds.flag.msg)}</div>` : ''}`; })() : ''}
   </div>`;
 
+  // Route & crew (from the bus/route roster import)
+  if (b.routeLabel || b.driverCrew || b.conductor || b.crewPhone) {
+    body += `<div class="card"><h3>🧭 Route &amp; crew</h3>`;
+    if (b.routeLabel) body += `<div class="row between small" style="padding:3px 0"><span class="muted">Route</span><b>${esc(expandRoute(b.routeLabel))}</b></div>`;
+    if (b.driverCrew) body += `<div class="row between small" style="padding:3px 0"><span class="muted">Driver(s)</span><b>${esc(_titleCase(b.driverCrew))}</b></div>`;
+    if (b.conductor) body += `<div class="row between small" style="padding:3px 0"><span class="muted">Conductor</span><b>${esc(_titleCase(b.conductor))}</b></div>`;
+    if (b.crewPhone) body += `<div class="row between small" style="padding:3px 0"><span class="muted">Contact</span><a href="tel:${esc((b.crewPhone || '').replace(/\s/g, ''))}"><b>${esc(b.crewPhone)}</b></a></div>`;
+    body += `</div>`;
+  }
+
   // Fitted tyres & rotable components + their life
   const comps = componentsOfBus(b.id);
   if (comps.length || can(S.user.role, 'issuePart')) {
@@ -2687,6 +2697,43 @@ function parseSpreadsheetML(text) {
   }
   return rows;
 }
+// .xlsx (zipped OOXML) support — lazy-load a tiny unzip (fflate) only when needed.
+let _fflateLoad = null;
+function ensureFflate() {
+  if (window.fflate) return Promise.resolve(true);
+  if (_fflateLoad) return _fflateLoad;
+  _fflateLoad = new Promise((res) => { const s = document.createElement('script'); s.src = 'https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js'; s.onload = () => res(!!window.fflate); s.onerror = () => { _fflateLoad = null; res(false); }; document.head.appendChild(s); });
+  return _fflateLoad;
+}
+// Parse a .xlsx ArrayBuffer → rows (2D array of trimmed strings), resolving shared strings.
+async function parseXlsx(buf) {
+  if (!(await ensureFflate())) return null;
+  let files; try { files = fflate.unzipSync(new Uint8Array(buf)); } catch (e) { return null; }
+  const dec = (name) => files[name] ? new TextDecoder().decode(files[name]) : '';
+  const sst = [];
+  const sstXml = dec('xl/sharedStrings.xml');
+  if (sstXml) { const d = new DOMParser().parseFromString(sstXml, 'application/xml'); const sis = d.getElementsByTagName('si'); for (let i = 0; i < sis.length; i++) { const ts = sis[i].getElementsByTagName('t'); let s = ''; for (let j = 0; j < ts.length; j++) s += ts[j].textContent || ''; sst.push(s); } }
+  const sheetName = Object.keys(files).find((n) => /^xl\/worksheets\/sheet\d+\.xml$/.test(n));
+  if (!sheetName) return null;
+  const d = new DOMParser().parseFromString(dec(sheetName), 'application/xml');
+  const rowEls = d.getElementsByTagName('row');
+  const colOf = (ref) => { const m = /^([A-Z]+)/.exec(ref || 'A'); let c = 0; for (const ch of (m ? m[1] : 'A')) c = c * 26 + (ch.charCodeAt(0) - 64); return c - 1; };
+  const rows = [];
+  for (let i = 0; i < rowEls.length; i++) {
+    const cs = rowEls[i].getElementsByTagName('c'); const arr = [];
+    for (let j = 0; j < cs.length; j++) {
+      const c = cs[j], ci = colOf(c.getAttribute('r')), t = c.getAttribute('t');
+      const v = c.getElementsByTagName('v')[0], isn = c.getElementsByTagName('is')[0];
+      let val = '';
+      if (t === 's' && v) val = sst[parseInt(v.textContent, 10)] || '';
+      else if (isn) { const ts = isn.getElementsByTagName('t'); for (let k = 0; k < ts.length; k++) val += ts[k].textContent || ''; }
+      else if (v) val = v.textContent || '';
+      arr[ci] = (val || '').trim();
+    }
+    rows.push(arr);
+  }
+  return rows;
+}
 const _hidx = (headers) => { const m = {}; headers.forEach((h, i) => { m[(h || '').trim().toLowerCase()] = i; }); return m; };
 function mapVendorRows(headers, rows) {
   const m = _hidx(headers), g = (r, k) => (r[m[k]] || '').trim();
@@ -2711,13 +2758,48 @@ function mapPartRows(headers, rows) {
       alertDays: Number(g(r, 'alert days')) || 0, serialTracked: /^y/i.test(g(r, 'serial no')), reusable: /^y/i.test(g(r, 're-useable')), createdAt: Date.now() };
   }).filter(Boolean);
 }
-async function runImport(text) {
-  const rows = parseSpreadsheetML(text);
-  if (!rows || rows.length < 2) return { error: 'Could not read this file. Re-export it as “Excel 2003 XML (*.xls)” and try again.' };
-  const headers = rows[0].map((h) => (h || '').trim());
+const ROUTE_ABBR = { JPR: 'Jaipur', DDN: 'Dehradun' };
+const expandRoute = (s) => (s || '').replace(/\b[A-Z]{2,5}\b/g, (m) => ROUTE_ABBR[m] || m);
+const _titleCase = (s) => (s || '').toLowerCase().replace(/\b([a-z])/g, (m, c) => c.toUpperCase());
+async function runImportRows(rows) {
+  if (!rows || rows.length < 2) return { error: 'Could not read this file. Re-export it as “Excel 2003 XML (*.xls)” or a normal .xlsx and try again.' };
+  // Find the header row (some sheets have a title row above the column headers).
+  let hi = -1;
+  for (let i = 0; i < Math.min(rows.length, 10); i++) { const low = rows[i].map((c) => (c || '').toLowerCase()); if (low.some((c) => /vendor name|parts name|bus\s?no/.test(c))) { hi = i; break; } }
+  if (hi < 0) return { error: 'Unrecognised file — expected a Vendor Master, Parts Master, or Bus/Route sheet.' };
+  const headers = rows[hi].map((h) => (h || '').trim());
   const hl = headers.map((h) => h.toLowerCase());
-  const data = rows.slice(1).filter((r) => r.some((c) => c && c.trim()));
-  if (hl.indexOf('vendor name') >= 0) {
+  const data = rows.slice(hi + 1).filter((r) => r.some((c) => c && c.trim()));
+  // Bus / route / driver roster → upsert buses (route + crew) and their drivers.
+  if (hl.some((h) => /bus\s?no/.test(h))) {
+    const col = (kw) => hl.findIndex((h) => h.indexOf(kw) >= 0);
+    const iBus = col('bus'), iRoute = col('route'), iDrv = col('driver name'), iCond = col('conduct'), iPhone = col('contact');
+    const clean = (s) => { s = (s || '').trim(); return /^[-–—\s.]*$/.test(s) ? '' : s; };
+    const byReg = {}; (S.cache.buses || []).forEach((b) => { byReg[_normReg(b.regNo)] = b; });
+    const busSave = [], drvSave = []; let created = 0, updated = 0, drivers = 0; const seenReg = new Set();
+    data.forEach((r) => {
+      const reg = clean(iBus >= 0 ? r[iBus] : ''); if (!reg) return;
+      const nr = _normReg(reg); if (seenReg.has(nr)) return; seenReg.add(nr);
+      const routeLabel = iRoute >= 0 ? clean(r[iRoute]) : '', crewRaw = iDrv >= 0 ? clean(r[iDrv]) : '';
+      const conductor = iCond >= 0 ? clean(r[iCond]) : '', phone = iPhone >= 0 ? clean(r[iPhone]) : '';
+      let b = byReg[nr];
+      if (b) updated++; else { b = { id: 'bus-' + nr, regNo: reg.toUpperCase(), company: '', model: '', odometer: 0, serviceIntervalKm: SERVICE_INTERVAL_KM, docs: [], photos: [], source: 'route-import' }; byReg[nr] = b; created++; }
+      if (routeLabel) b.routeLabel = routeLabel;
+      if (crewRaw) b.driverCrew = crewRaw;
+      if (conductor) b.conductor = conductor;
+      if (phone) b.crewPhone = phone;
+      busSave.push(b);
+      // Up to 2 drivers, split on - or / ; assign to the bus (shared phone → driver 1).
+      crewRaw.split(/[-\/]| and /i).map((s) => clean(s)).filter(Boolean).slice(0, 2).forEach((name, idx) => {
+        drvSave.push({ id: 'drv-' + nr + '-' + idx, name: _titleCase(name).replace(/\s+/g, ' '), phone: idx === 0 ? phone : '', busId: b.id, userId: null, license: '', tripsLogged: 0, joinedAt: Date.now(), photo: '', source: 'route-import' });
+        drivers++;
+      });
+    });
+    await DB.bulkPut('buses', busSave);
+    if (drvSave.length) await DB.bulkPut('drivers', drvSave);
+    return { kind: 'buses & drivers', total: data.length, added: created, updated, drivers, skipped: 0 };
+  }
+  if (hl.some((h) => h.indexOf('vendor name') >= 0)) {
     const mapped = mapVendorRows(headers, data);
     const have = new Set((S.cache.vendors || []).map((v) => v.id));
     const haveName = new Set((S.cache.vendors || []).map((v) => (v.name || '').toLowerCase()));
@@ -2738,12 +2820,14 @@ async function runImport(text) {
 }
 let _lastImport = null;
 function viewImport() {
-  let body = `<div class="card"><div class="tiny muted">Import your <b>Parts Master</b> or <b>Vendor Master</b> — the .xls your billing system exports (“Excel 2003 XML”). Rows are matched by their master Id, so re-importing updates in place and won't duplicate.</div></div>`;
+  let body = `<div class="card"><div class="tiny muted">Import your <b>Parts Master</b>, <b>Vendor Master</b> (.xls the billing system exports) or a <b>Bus/Route roster</b> (.xlsx). Parts/vendors match by their master Id; buses match by registration — so re-importing updates in place and won't duplicate.</div></div>`;
+  const li = _lastImport;
+  const summary = li && !li.error ? `✓ ${li.kind}: ${li.added} added${li.updated ? ', ' + li.updated + ' updated' : ''}${li.drivers ? ', ' + li.drivers + ' drivers' : ''}${li.skipped ? ', ' + li.skipped + ' already present' : ''} (of ${li.total}).` : '';
   body += `<div class="card"><h3>Import a file</h3>
-    <input id="imp-file" type="file" accept=".xls,.xml,.txt" style="margin:6px 0 12px;width:100%">
-    ${_lastImport ? `<div class="banner ${_lastImport.error ? 'warn' : 'ok'}" style="margin-top:6px">${esc(_lastImport.error || `✓ ${_lastImport.kind}: ${_lastImport.added} added, ${_lastImport.skipped} already present (of ${_lastImport.total}).`)}</div>` : ''}
+    <input id="imp-file" type="file" accept=".xls,.xlsx,.xml,.txt" style="margin:6px 0 12px;width:100%">
+    ${li ? `<div class="banner ${li.error ? 'warn' : 'ok'}" style="margin-top:6px">${esc(li.error || summary)}</div>` : ''}
   </div>`;
-  body += `<div class="card"><div class="row between small"><span class="muted">In catalogue now</span><b>${(S.cache.parts || []).length} parts · ${(S.cache.vendors || []).length} vendors</b></div></div>`;
+  body += `<div class="card"><div class="row between small"><span class="muted">In the system now</span><b>${(S.cache.parts || []).length} parts · ${(S.cache.vendors || []).length} vendors · ${(S.cache.buses || []).length} buses · ${(S.cache.drivers || []).length} drivers</b></div></div>`;
   shell('Import from Excel', body);
   const inp = document.getElementById('imp-file');
   if (inp) inp.onchange = () => { const f = inp.files && inp.files[0]; if (f) handleImportFile(f); };
@@ -2751,11 +2835,13 @@ function viewImport() {
 async function handleImportFile(file) {
   const stop = showBusyOverlay('Importing ' + file.name + '…');
   try {
-    const text = await file.text();
-    _lastImport = await runImport(text);
+    let rows;
+    if (/\.xlsx$/i.test(file.name)) rows = await parseXlsx(await file.arrayBuffer());
+    else rows = parseSpreadsheetML(await file.text());
+    _lastImport = rows ? await runImportRows(rows) : { error: 'Could not read this file — is it a real Excel export?' };
     if (stop) stop();
     await load();
-    toast(_lastImport.error ? _lastImport.error : `Imported ${_lastImport.added} ${_lastImport.kind} ✓`);
+    toast(_lastImport.error ? _lastImport.error : `Imported ${_lastImport.added + (_lastImport.updated || 0)} ${_lastImport.kind} ✓`);
   } catch (e) { if (stop) stop(); _lastImport = { error: 'Import failed: ' + e.message }; toast(_lastImport.error); }
   if (S.route && S.route.name === 'import') viewImport();
 }
