@@ -2758,8 +2758,14 @@ function mapPartRows(headers, rows) {
       alertDays: Number(g(r, 'alert days')) || 0, serialTracked: /^y/i.test(g(r, 'serial no')), reusable: /^y/i.test(g(r, 're-useable')), createdAt: Date.now() };
   }).filter(Boolean);
 }
-const ROUTE_ABBR = { JPR: 'Jaipur', DDN: 'Dehradun' };
-const expandRoute = (s) => (s || '').replace(/\b[A-Z]{2,5}\b/g, (m) => ROUTE_ABBR[m] || m);
+// Route label abbreviations → full names (per-token, so it handles long names and
+// dotted tokens like "BAG.DHAM" that the old regex missed). "TO"/"VIA" lowercased.
+const ROUTE_ABBR = {
+  JPR: 'Jaipur', DDN: 'Dehradun', KHATU: 'Khatu', BHOPAL: 'Bhopal',
+  GURGAON: 'Gurgaon', 'BAG.DHAM': 'Bageshwar Dham', BAGDHAM: 'Bageshwar Dham',
+  TO: 'to', VIA: 'via',
+};
+const expandRoute = (s) => (s || '').split(/\s+/).map((tok) => ROUTE_ABBR[tok.toUpperCase().replace(/[^A-Z.]/g, '')] || tok).join(' ');
 const _titleCase = (s) => (s || '').toLowerCase().replace(/\b([a-z])/g, (m, c) => c.toUpperCase());
 async function runImportRows(rows) {
   if (!rows || rows.length < 2) return { error: 'Could not read this file. Re-export it as “Excel 2003 XML (*.xls)” or a normal .xlsx and try again.' };
