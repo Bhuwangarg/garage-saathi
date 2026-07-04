@@ -1631,8 +1631,10 @@ function viewStoreHealth() {
   shell('Store health', body);
 }
 function sheetAudit(mode) {
-  let parts = [...(S.cache.parts || [])];
-  if (!parts.length) return openSheet('Stock count', `<div class="banner warn">No parts to count yet.</div>`);
+  // Only count parts actually IN STOCK — a catalogue can hold thousands of parts
+  // at qty 0 (nothing to physically count until they're received).
+  let parts = (S.cache.parts || []).filter((p) => (p.qty || 0) > 0);
+  if (!parts.length) return openSheet('Stock count', `<div class="banner warn">No stock to count yet — receive parts into stock first.</div>`);
   if (mode === 'blind') parts = parts.sort(() => Math.random() - 0.5).slice(0, Math.min(5, parts.length));
   else parts = parts.sort((a, b) => a.name.localeCompare(b.name));
   openSheet(mode === 'blind' ? 'Blind count' : 'Full count', `
@@ -5317,6 +5319,26 @@ function seedCreds() {
     { 'u-owner': '1111', 'u-sup': '2222', 'u-store': '3333', 'u-m1': '0001', 'u-m2': '0002', 'u-m3': '0003', 'u-d1': '0010' }));
 }
 
+// Load the real fleet/parts/vendors/crew shipped in seed-data.js as the DEFAULT
+// data — no manual import needed. Versioned + idempotent (deterministic ids), so
+// it applies once per data version on every device (fresh AND already-seeded),
+// and never floods the sync outbox (notify=false). Crew login PINs are planted
+// locally so drivers/conductors can sign in.
+async function applyBundledSeed() {
+  const seed = window.GS_SEED; if (!seed) return;
+  const ver = 'gsSeed:' + (seed.version || '1');
+  if (localStorage.getItem('gsSeedVer') === ver) return;
+  try {
+    if (seed.vendors) await DB.bulkPut('vendors', seed.vendors, false);
+    if (seed.parts)   await DB.bulkPut('parts', seed.parts, false);
+    if (seed.buses)   await DB.bulkPut('buses', seed.buses, false);
+    if (seed.drivers) await DB.bulkPut('drivers', seed.drivers, false);
+    if (seed.users)   await DB.bulkPut('users', seed.users, false);
+    if (seed.creds) Object.keys(seed.creds).forEach((id) => { if (!credGet(id)) credSet(id, seed.creds[id]); });
+    localStorage.setItem('gsSeedVer', ver);
+  } catch (e) { console.error('Bundled seed failed:', e); }
+}
+
 // Offline brute-force guard: the server enforces lockout online, but offline a
 // stolen phone could try all 10000 PINs. Lock locally after 5 wrong tries.
 const OFFLINE_MAX = 5, OFFLINE_LOCK_MS = 60000;
@@ -5360,6 +5382,7 @@ function enterApp(user) { S.user = user; route({ name: 'home' }); }
   try {
   await seedIfEmpty(isDemoMode());   // production seeds roster+config only, never demo buses/jobs
   seedCreds();
+  await applyBundledSeed();           // load the real fleet/parts/vendors/crew from the bundled data
   await load();
   // Business name now comes from garage config (set in db.js seed for the demo,
   // and via Garage setup for a real garage) — refreshBiz() in load() applies it.

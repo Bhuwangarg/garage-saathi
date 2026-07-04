@@ -80,7 +80,7 @@ const DB = {
   },
   // Bulk insert/update in ONE transaction — for Excel/master imports (thousands
   // of rows). Stamps updatedAt and notifies onChange per record so they still sync.
-  async bulkPut(store, arr) {
+  async bulkPut(store, arr, notify = true) {
     if (!arr || !arr.length) return 0;
     const now = Date.now();
     const os = await tx(store, 'readwrite');
@@ -91,7 +91,9 @@ const DB = {
       os.transaction.onerror = () => rej(os.transaction.error);
       next();
     });
-    if (typeof DB.onChange === 'function') arr.forEach((o) => DB.onChange(store, o.id));
+    // notify=false for bundled-seed loads: every device gets the data from the
+    // bundle, so we must NOT re-broadcast thousands of rows into the sync outbox.
+    if (notify && typeof DB.onChange === 'function') arr.forEach((o) => DB.onChange(store, o.id));
     return arr.length;
   },
   // Remote write: applies a record from the server AS-IS (keeps its updatedAt,
