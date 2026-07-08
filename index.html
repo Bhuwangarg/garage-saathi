@@ -25,7 +25,18 @@
   <script src="app.js"></script>
   <script>
     if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(()=>{}));
+      // When a new worker takes control, reload once so the fresh app + data apply
+      // without the user having to clear anything.
+      let _reloaded = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (_reloaded) return; _reloaded = true; location.reload();
+      });
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js').then((reg) => {
+          reg.update();                              // force an update check on every open
+          setInterval(() => reg.update(), 3600000);  // and hourly while open
+        }).catch(() => {});
+      });
     }
   </script>
 </body>

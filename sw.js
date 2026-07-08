@@ -7,7 +7,7 @@
  * Cross-origin requests (the sync server, uploads, the Anthropic API) are NOT
  * intercepted — they go straight to the network.
  */
-const CACHE = 'garage-saathi-v56';
+const CACHE = 'garage-saathi-v57';
 const SHELL = [
   './',
   './index.html',
@@ -20,7 +20,13 @@ const SHELL = [
 ];
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
+  // Resilient (non-atomic) precache: one failed/slow asset (e.g. the large
+  // seed-data.js) must NOT fail the whole install, or the old worker gets stuck.
+  e.waitUntil(
+    caches.open(CACHE)
+      .then((c) => Promise.allSettled(SHELL.map((u) => c.add(u))))
+      .then(() => self.skipWaiting())
+  );
 });
 
 self.addEventListener('activate', (e) => {
