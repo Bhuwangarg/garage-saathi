@@ -1094,10 +1094,14 @@ function viewBusDetail(id) {
   </div>`;
 
   // Vehicle documents in Google Drive (RC, Permit, Fitness, Insurance…)
-  if (b.docsFolderId) {
-    body += `<div class="card"><h3>📄 Vehicle documents</h3>
-      <div class="tiny muted" style="margin:2px 0 10px">RC, Permit, Fitness, Insurance &amp; more — kept in the office Drive.</div>
-      <a class="btn" href="https://drive.google.com/drive/folders/${esc(b.docsFolderId)}" target="_blank" rel="noopener">📂 Open documents in Drive</a></div>`;
+  if (b.docsFolderId || (b.docs || []).length) {
+    body += `<div class="card"><h3>📄 Vehicle documents</h3>`;
+    const withExp = (b.docs || []).filter((x) => x.expiry).sort((a, c) => a.expiry - c.expiry);
+    body += withExp.map((x) => { const dl = Math.ceil((x.expiry - Date.now()) / day); const col = dl < 0 ? 'var(--red)' : dl <= 30 ? 'var(--amber)' : 'var(--green)';
+      return `<div class="row between small" style="padding:3px 0"><span class="muted">${esc(x.type)}</span><b style="color:${col}">${dl < 0 ? 'expired ' + fmtDate(x.expiry) : fmtDate(x.expiry)}</b></div>`; }).join('');
+    if (b.docsFolderId) body += `<div class="tiny muted" style="margin:8px 0 8px">RC, Permit, Fitness, Insurance &amp; more in the office Drive.</div>
+      <a class="btn" href="https://drive.google.com/drive/folders/${esc(b.docsFolderId)}" target="_blank" rel="noopener">📂 Open documents in Drive</a>`;
+    body += `</div>`;
   }
 
   // Route & crew (from the bus/route roster import)
@@ -5356,12 +5360,15 @@ async function applyDriveDocs() {
     // The route sheet is the final fleet — remove buses only ever created from a
     // Drive doc folder (old vehicles no longer owned).
     if (D.cleanupDriveBuses) { for (const b of buses.filter((b) => b.source === 'drive-doc')) await DB.softDel('buses', b.id); }
-    if (D.newBuses && D.newBuses.length) await DB.bulkPut('buses', D.newBuses, false);
-    if (D.docFolders) {
-      const upd = [];
-      buses.filter((b) => b.source !== 'drive-doc').forEach((b) => { const nr = _normReg(b.regNo), fid = D.docFolders[nr] || null; if (b.docsFolderId !== fid) { b.docsFolderId = fid; upd.push(b); } });
-      if (upd.length) await DB.bulkPut('buses', upd, false);
-    }
+    const folders = D.docFolders || {}, docs = D.busDocs || {}, upd = [];
+    buses.filter((b) => b.source !== 'drive-doc').forEach((b) => {
+      const nr = _normReg(b.regNo); let ch = false;
+      const fid = folders[nr] || null;
+      if (b.docsFolderId !== fid) { b.docsFolderId = fid; ch = true; }
+      if (docs[nr]) { b.docs = docs[nr].map((x) => ({ type: x.type, number: x.number || '', expiry: x.expiry ? new Date(x.expiry + 'T00:00:00').getTime() : null })); ch = true; }
+      if (ch) upd.push(b);
+    });
+    if (upd.length) await DB.bulkPut('buses', upd, false);
     localStorage.setItem('gsDocsVer', ver);
   } catch (e) { console.error('Drive docs link failed:', e); }
 }
