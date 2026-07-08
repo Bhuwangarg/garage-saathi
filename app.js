@@ -1093,6 +1093,13 @@ function viewBusDetail(id) {
     ${busUsesDef(b) ? (() => { const ds = defStatus(b); return `<div class="row between small" style="margin-top:10px"><span class="muted">AdBlue / DEF</span><span data-act="openDef" style="cursor:pointer">${ds.perHundred != null ? ds.perHundred.toFixed(1) + ' L/100km · ' : ''}${money(ds.costTotal)} ›</span></div>${ds.flag ? `<div class="tiny" style="color:${ds.flag.sev === 'high' ? 'var(--red)' : 'var(--amber)'};margin-top:3px">⚠️ ${esc(ds.flag.msg)}</div>` : ''}`; })() : ''}
   </div>`;
 
+  // Vehicle documents in Google Drive (RC, Permit, Fitness, Insurance…)
+  if (b.docsFolderId) {
+    body += `<div class="card"><h3>📄 Vehicle documents</h3>
+      <div class="tiny muted" style="margin:2px 0 10px">RC, Permit, Fitness, Insurance &amp; more — kept in the office Drive.</div>
+      <a class="btn" href="https://drive.google.com/drive/folders/${esc(b.docsFolderId)}" target="_blank" rel="noopener">📂 Open documents in Drive</a></div>`;
+  }
+
   // Route & crew (from the bus/route roster import)
   if (b.routeLabel || b.driverCrew || b.conductor || b.crewPhone) {
     body += `<div class="card"><h3>🧭 Route &amp; crew</h3>`;
@@ -5338,6 +5345,22 @@ async function applyBundledSeed() {
     localStorage.setItem('gsSeedVer', ver);
   } catch (e) { console.error('Bundled seed failed:', e); }
 }
+// Link each bus to its Google Drive document folder (RC/Permit/Fitness/Insurance),
+// and create buses that only exist in Drive. Versioned + idempotent like the seed.
+async function applyDriveDocs() {
+  const D = window.GS_DOCS; if (!D) return;
+  const ver = 'gsDocs:' + (D.version || '1');
+  if (localStorage.getItem('gsDocsVer') === ver) return;
+  try {
+    if (D.newBuses && D.newBuses.length) await DB.bulkPut('buses', D.newBuses, false);
+    if (D.docFolders) {
+      const buses = await DB.all('buses'), upd = [];
+      buses.forEach((b) => { const nr = _normReg(b.regNo); if (D.docFolders[nr] && b.docsFolderId !== D.docFolders[nr]) { b.docsFolderId = D.docFolders[nr]; upd.push(b); } });
+      if (upd.length) await DB.bulkPut('buses', upd, false);
+    }
+    localStorage.setItem('gsDocsVer', ver);
+  } catch (e) { console.error('Drive docs link failed:', e); }
+}
 
 // Offline brute-force guard: the server enforces lockout online, but offline a
 // stolen phone could try all 10000 PINs. Lock locally after 5 wrong tries.
@@ -5383,6 +5406,7 @@ function enterApp(user) { S.user = user; route({ name: 'home' }); }
   await seedIfEmpty(isDemoMode());   // production seeds roster+config only, never demo buses/jobs
   seedCreds();
   await applyBundledSeed();           // load the real fleet/parts/vendors/crew from the bundled data
+  await applyDriveDocs();             // link buses to their Google Drive document folders
   await load();
   // Business name now comes from garage config (set in db.js seed for the demo,
   // and via Garage setup for a real garage) — refreshBiz() in load() applies it.

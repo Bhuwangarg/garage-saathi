@@ -7,12 +7,13 @@
  * Cross-origin requests (the sync server, uploads, the Anthropic API) are NOT
  * intercepted — they go straight to the network.
  */
-const CACHE = 'garage-saathi-v57';
+const CACHE = 'garage-saathi-v58';
 const SHELL = [
   './',
   './index.html',
   './styles.css',
   './seed-data.js',
+  './seed-docs.js',
   './db.js',
   './sync.js',
   './app.js',
