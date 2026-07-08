@@ -11,11 +11,15 @@ const I18N = {
     costMonth: 'Repair cost (30 days)', addBus: 'Add Bus', addJob: 'New Job Card', issuePart: 'Issue Part',
     receiveStock: 'Receive Stock', checkin: 'Check In', checkout: 'Check Out', verify: 'Verify',
     markDone: 'Mark Done', beforePhotos: 'Before photos', afterPhotos: 'After photos', partsUsed: 'Parts used',
-    save: 'Save', cancel: 'Cancel', open: 'open', logout: 'Logout', lang: 'हिंदी', attendance: 'Attendance',
+    save: 'Save', cancel: 'Cancel', open: 'open', logout: 'Logout', lang: 'हिंदी', theme: 'Theme', attendance: 'Attendance',
+    today: 'Today', money: 'Money', fleet: 'Fleet', people: 'People', bills: 'Bills', myWork: 'My work', myDuty: 'My Duty',
+    needsYouNow: 'Needs you now', allClear: 'All clear', stockValue: 'Stock value', reorderSoon: 'Reorder soon', pendingSuppliers: 'Pending to suppliers', issuePartBtn: 'Issue part', storeHealth: 'Store health', openJobsParts: 'Open jobs (parts may be needed)', searchParts: 'Search a part…', fuel: 'Fuel',
+    thisMonth: 'This month', lastMonth: 'Last month', thisYear: 'This year', prevWindow: 'prev', runningCost: 'Running cost', youOwe: 'You owe', toCollect: 'To collect', billCompany: 'Bill a company', tapToBill: 'tap to bill', noBillable: 'No billable (verified) repairs yet. Assign buses to companies in Garage setup.', whereMoneyGoes: 'Where the money goes', reconciles: 'reconciles to', moneyPit: 'Money-pit buses', needsOdometer: 'Needs odometer data — link GPS or enter odometer on a bus to see ₹/km.', tripCash: 'Trip cash', shareWhatsapp: 'WhatsApp', copy: 'Copy', savePdf: 'Save PDF', itemised: 'Itemised — verified jobs',
     purchases: 'Purchases / Bills', serviceHistory: 'Service history', documents: 'Documents',
     addPhotoNote: 'Before AND after photos required to close a job (outside repairs: a bill photo)', noJobs: 'No jobs yet', expired: 'EXPIRED',
     // Login
     tagline: 'Garage maintenance, Jaipur', enterPin: 'Enter PIN', wrongPin: 'Wrong PIN',
+    recentHere: 'Recent on this phone', whoAreYou: 'Who are you?', selectName: 'Select your name', searchName: 'Search name…',
     // Menu (More)
     more: 'More', supplierBills: 'Supplier bills & payments', drivers: 'Drivers', staff: 'Staff', sync: 'Sync', changePin: 'Change my PIN',
     // Home / actions
@@ -53,11 +57,15 @@ const I18N = {
     costMonth: 'मरम्मत खर्च (30 दिन)', addBus: 'बस जोड़ें', addJob: 'नया जॉब कार्ड', issuePart: 'पुर्जा जारी करें',
     receiveStock: 'स्टॉक प्राप्त करें', checkin: 'हाज़िरी लगाएं', checkout: 'छुट्टी', verify: 'जाँचें',
     markDone: 'पूरा करें', beforePhotos: 'पहले की फोटो', afterPhotos: 'बाद की फोटो', partsUsed: 'इस्तेमाल पुर्जे',
-    save: 'सेव', cancel: 'रद्द', open: 'खुला', logout: 'लॉगआउट', lang: 'EN', attendance: 'हाज़िरी',
+    save: 'सेव', cancel: 'रद्द', open: 'खुला', logout: 'लॉगआउट', lang: 'EN', theme: 'थीम', attendance: 'हाज़िरी',
+    today: 'आज', money: 'पैसा', fleet: 'बेड़ा', people: 'लोग', bills: 'बिल', myWork: 'मेरा काम', myDuty: 'मेरी ड्यूटी',
+    needsYouNow: 'अभी ध्यान दें', allClear: 'सब ठीक है', stockValue: 'स्टॉक मूल्य', reorderSoon: 'जल्द मंगाएं', pendingSuppliers: 'सप्लायर को बकाया', issuePartBtn: 'पुर्जा जारी करें', storeHealth: 'स्टोर स्थिति', openJobsParts: 'खुले काम (पुर्जे चाहिए)', searchParts: 'पुर्जा खोजें…', fuel: 'ईंधन',
+    thisMonth: 'इस महीने', lastMonth: 'पिछले महीने', thisYear: 'इस साल', prevWindow: 'पिछला', runningCost: 'कुल खर्च', youOwe: 'आपको देना है', toCollect: 'वसूलना है', billCompany: 'कंपनी को बिल', tapToBill: 'बिल के लिए टैप करें', noBillable: 'अभी कोई बिल-योग्य (सत्यापित) मरम्मत नहीं। गैराज सेटअप में बसों को कंपनी से जोड़ें।', whereMoneyGoes: 'पैसा कहाँ जाता है', reconciles: 'कुल मिलाकर', moneyPit: 'ज़्यादा खर्च वाली बसें', needsOdometer: 'ओडोमीटर डेटा चाहिए — ₹/किमी देखने के लिए GPS जोड़ें या बस का ओडोमीटर डालें।', tripCash: 'ट्रिप कैश', shareWhatsapp: 'व्हाट्सएप', copy: 'कॉपी', savePdf: 'PDF सेव करें', itemised: 'विवरण — सत्यापित काम',
     purchases: 'खरीद / बिल', serviceHistory: 'सेवा इतिहास', documents: 'कागज़ात',
     addPhotoNote: 'काम बंद करने के लिए पहले और बाद दोनों की फोटो ज़रूरी हैं (बाहर मरम्मत: बिल की फोटो)', noJobs: 'अभी कोई काम नहीं', expired: 'समाप्त',
     // Login
     tagline: 'गैराज मरम्मत, जयपुर', enterPin: 'पिन डालें', wrongPin: 'गलत पिन',
+    recentHere: 'इस फ़ोन पर हाल के', whoAreYou: 'आप कौन हैं?', selectName: 'अपना नाम चुनें', searchName: 'नाम खोजें…',
     // Menu (More)
     more: 'और', supplierBills: 'सप्लायर बिल और भुगतान', drivers: 'ड्राइवर', staff: 'स्टाफ', sync: 'सिंक', changePin: 'मेरा पिन बदलें',
     // Home / actions
@@ -299,6 +307,11 @@ const PERMS = {
   logService: ['owner', 'supervisor'],       // resets service + writes a verified job
   manageRoutes: ['owner', 'supervisor'],     // routes, stops, go-times, punctuality
   addFuel: ['owner', 'supervisor', 'store'], // log fuel fills; view mileage
+  requestPart: ['mechanic', 'supervisor', 'owner'], // mechanic asks store for a part (button was unreachable without this)
+  money: ['owner', 'supervisor'],            // Money tab (owner-weighted)
+  fleet: ['owner', 'supervisor'],            // Fleet tab
+  people: ['owner', 'supervisor'],           // People tab (owner-weighted)
+  bills: ['owner', 'supervisor', 'store'],   // Bills tab (store manages supplier bills)
 };
 
 /* ------------------------------ Sheets ------------------------------------ */
@@ -355,7 +368,7 @@ function partImg(p) {
 // GPS/camera phase. Bus profile can also carry its own `photos[]`.
 function busImg(b) { return (b && b.photos && b.photos[0]) || PART_PHOTOS + 'bus.jpg'; }
 const avatar = (img, fallbackEmoji) => img
-  ? `<img class="ava" src="${img}" alt="">`
+  ? `<img class="ava" src="${esc(img)}" alt="">`
   : `<div class="ava">${fallbackEmoji}</div>`;
 
 // Anti-pilferage core: a part can ONLY leave stock against a job card.
@@ -426,6 +439,11 @@ function jobCost(job) {
   const ext = job.externalCost || 0;
   return { parts, labour, ext, total: parts + labour + ext };
 }
+// Honest low-stock: a part is "low" only if it HAS a reorder point set and is
+// at/below it. The imported parts master has ~2,384 catalog rows at qty:0,
+// reorderLevel:0 — those are NOT low stock (never stocked), and flagging them
+// buried the real signal (and rendered a 176,000px-tall home card).
+const isLow = (p) => (p.reorderLevel || 0) > 0 && p.qty <= p.reorderLevel;
 function costLast30() {
   const since = Date.now() - 30 * day;
   return S.cache.jobs.filter((j) => (j.closedAt || j.createdAt) >= since)
@@ -545,6 +563,12 @@ function statusBadge(s) {
 }
 function prioBadge(p) { return `<span class="badge b-${p}">${p}</span>`; }
 
+// Current effective theme: explicit user toggle wins, else follow the OS.
+function _isDark() {
+  const t = document.documentElement.dataset.theme;
+  if (t) return t === 'dark';
+  return matchMedia('(prefers-color-scheme:dark)').matches;
+}
 function topbar(title) {
   const canBack = S.stack.length > 1;
   return `<div class="topbar">
@@ -552,23 +576,42 @@ function topbar(title) {
       ? `<button class="backbtn" data-act="back" aria-label="Back">‹</button>`
       : `<div class="brandlogo">GS</div>`}</div>
     <h1 class="tb-title">${esc(title)}</h1>
-    <div class="tb-right">${syncChipHtml()}<button class="lang" data-act="lang">${t('lang')}</button></div>
+    <div class="tb-right">${syncChipHtml()}<button class="themebtn" data-act="theme" aria-label="${esc(t('theme'))}">${_isDark() ? '☀️' : '🌙'}</button><button class="lang" data-act="lang">${t('lang')}</button></div>
   </div>`;
 }
 
 // Which bottom tab should light up — sub-screens map back to their parent tab.
-const TAB_OF = { home: 'home', buses: 'buses', jobs: 'jobs', store: 'store', me: 'me', purchases: 'me', alerts: 'me', insights: 'home', drivers: 'home', assignments: 'home', company: 'home', routes: 'home', reports: 'home', busreport: 'home', livemap: 'home', track: 'home', fuel: 'home', safety: 'home', warranty: 'home', storehealth: 'store', linkgps: 'home', newjob: 'jobs', driverdocs: 'home', forecast: 'home', pilferage: 'home', components: 'store', def: 'home', vendors: 'me', import: 'me', crewpins: 'me', accounting: 'home', busacct: 'home' };
+// Reorganized (revamp B2) around jobs-to-be-done: money / fleet / people.
+const TAB_OF = {
+  home: 'home', jobs: 'jobs', store: 'store', me: 'me',
+  money: 'money', fleet: 'fleet', people: 'people', bills: 'bills',
+  newjob: 'jobs', storehealth: 'store', components: 'store', import: 'me',
+  // money
+  company: 'money', companybill: 'money', reports: 'money', fuel: 'money', purchases: 'money',
+  vendors: 'money', accounting: 'money', busacct: 'money', warranty: 'money',
+  // fleet
+  buses: 'fleet', alerts: 'fleet', driverdocs: 'fleet', def: 'fleet', linkgps: 'fleet',
+  livemap: 'fleet', track: 'fleet', routes: 'fleet', forecast: 'fleet', busreport: 'fleet',
+  // people
+  drivers: 'people', assignments: 'people', safety: 'people', scoreboard: 'people',
+  scorecard: 'people', crewpins: 'people',
+  // home triage entries
+  insights: 'home', pilferage: 'home',
+};
 function bottomnav() {
   const active = TAB_OF[S.route.name] || 'home';
-  // Each role gets a focused nav matching what they actually do.
+  // Each role gets a focused nav matching what they actually do. Owner is
+  // money/fleet/people (the real work); supervisor is jobs/fleet/store (the floor).
   const NAVS = {
-    driver:    [['home', '🚌', 'My Bus'], ['me', '👤', t('me')]],
-    conductor: [['home', '🚌', 'My Bus'], ['me', '👤', t('me')]],
-    store:    [['home', '🏠', t('home')], ['store', '📦', t('store')], ['jobs', '🛠️', t('jobs')], ['me', '👤', t('me')]],
-    mechanic: [['home', '🏠', t('home')], ['jobs', '🛠️', t('jobs')], ['store', '📦', t('store')], ['me', '👤', t('me')]],
+    owner:      [['home', '🏠', t('today')], ['money', '💰', t('money')], ['fleet', '🚌', t('fleet')], ['people', '🧑‍✈️', t('people')], ['me', '👤', t('me')]],
+    supervisor: [['home', '🏠', t('today')], ['jobs', '🛠️', t('jobs')], ['fleet', '🚌', t('fleet')], ['store', '📦', t('store')], ['me', '👤', t('me')]],
+    store:      [['home', '📦', t('store')], ['bills', '🧾', t('bills')], ['jobs', '🛠️', t('jobs')], ['me', '👤', t('me')]],
+    mechanic:   [['home', '🛠️', t('myWork')], ['store', '📦', t('store')], ['me', '👤', t('me')]],
+    driver:     [['home', '🚌', t('myBus')], ['me', '👤', t('me')]],
+    conductor:  [['home', '🚌', t('myDuty')], ['me', '👤', t('me')]],
   };
   const items = NAVS[S.user.role] ||
-    [['home', '🏠', t('home')], ['buses', '🚌', t('buses')], ['jobs', '🛠️', t('jobs')],
+    [['home', '🏠', t('today')], ['fleet', '🚌', t('fleet')], ['jobs', '🛠️', t('jobs')],
      ['store', '📦', t('store')], ['me', '👤', t('me')]];
   return `<div class="bottomnav">${items.map(([n, ic, lbl]) =>
     `<button data-nav="${n}" class="${active === n ? 'active' : ''}"><span class="ic">${ic}</span>${esc(lbl)}</button>`).join('')}</div>`;
@@ -603,27 +646,42 @@ function qtile(icon, value, label, nav) {
 // Storekeeper home — inventory first.
 function viewStoreHome() {
   const parts = S.cache.parts;
-  const low = parts.filter((p) => p.qty <= p.reorderLevel);
+  const low = parts.filter(isLow);
   const stockValue = parts.reduce((s, p) => s + p.qty * p.unitCost, 0);
   const pending = S.cache.purchases.filter((p) => p.paymentStatus === 'pending').reduce((s, p) => s + p.amount, 0);
   const openJobs = S.cache.jobs.filter((j) => j.status === 'open' || j.status === 'in-progress');
   let body = `<div class="greet"><div class="greet-av">📦</div>
     <div><div class="greet-hi">Namaste, ${esc(S.user.name.split(' ')[0])} 👋</div><div class="muted small">${esc(BIZ)} · ${fmtToday()}</div></div></div>`;
   body += `<div class="grid2">
-    <div class="card tile"><div class="muted small">Stock value</div><div class="stat">${money(stockValue)}</div></div>
-    <div class="card tile"><div class="muted small">Low stock</div><div class="stat">${low.length}</div></div></div>`;
+    <div class="card tile"><div class="muted small">${t('stockValue')}</div><div class="stat">${money(stockValue)}</div></div>
+    <div class="card tile"><div class="muted small">${t('lowStock')}</div><div class="stat">${low.length}</div></div></div>`;
   body += `<div class="btnrow" style="margin-bottom:14px">
     <button class="btn primary" data-act="addStock">📥 ${t('addStock')}</button>
-    <button class="btn" data-act="issueTo">📤 Issue part</button></div>`;
-  body += `<div class="btnrow" style="margin-bottom:14px"><button class="btn" data-act="openFuel">⛽ Fuel</button><button class="btn" data-act="openStoreHealth">📦 Store health</button></div>`;
-  body += `<div class="card"><div class="row between"><h3>Reorder soon</h3><span class="badge ${low.length ? 'b-amber' : 'b-green'}">${low.length}</span></div>`;
-  body += low.length ? low.map((p) => `<div class="li" data-part="${p.id}">${avatar(partImg(p), '🔩')}<div class="main"><div class="t">${esc(p.name)}</div><div class="s">${p.qty} ${p.unit} left · reorder at ${p.reorderLevel}</div></div><span class="badge b-amber">LOW</span></div>`).join('') : `<div class="muted small">Stock healthy 👍</div>`;
-  body += `</div>`;
-  body += `<div class="card" data-act="openPurchases" style="cursor:pointer"><div class="row between"><h3>Pending to suppliers</h3><b style="color:var(--amber)">${money(pending)}</b></div><div class="tiny muted">Tap to view bills</div></div>`;
-  body += `<div class="card"><h3>Open jobs (parts may be needed)</h3>`;
+    <button class="btn" data-act="issueTo">📤 ${t('issuePartBtn')}</button></div>`;
+  body += `<div class="btnrow" style="margin-bottom:14px"><button class="btn" data-act="openFuel">⛽ ${t('fuel')}</button><button class="btn" data-act="openStoreHealth">📦 ${t('storeHealth')}</button></div>`;
+  // Quick lookup across the whole catalogue, right on the home page.
+  body += `<input id="store-home-search" class="searchbox" placeholder="${t('searchParts')}" autocomplete="off"><div id="store-home-results"></div>`;
+  body += `<div id="store-home-reorder"><div class="card"><div class="row between"><h3>${t('reorderSoon')}</h3><span class="badge ${low.length ? 'b-amber' : 'b-green'}">${low.length}</span></div>`;
+  body += low.length ? low.slice(0, 12).map((p) => `<div class="li" data-part="${p.id}">${avatar(partImg(p), '🔩')}<div class="main"><div class="t">${esc(p.name)}</div><div class="s">${p.qty} ${esc(p.unit)} left · reorder at ${p.reorderLevel}</div></div><span class="badge b-amber">LOW</span></div>`).join('') + (low.length > 12 ? `<div class="tiny muted" style="margin-top:6px">+${low.length - 12} more · open Store ›</div>` : '') : `<div class="muted small">Stock healthy 👍</div>`;
+  body += `</div></div>`;
+  body += `<div class="card" data-act="openPurchases" style="cursor:pointer"><div class="row between"><h3>${t('pendingSuppliers')}</h3><b style="color:var(--amber)">${money(pending)}</b></div><div class="tiny muted">Tap to view bills</div></div>`;
+  body += `<div class="card"><h3>${t('openJobsParts')}</h3>`;
   body += openJobs.length ? openJobs.slice(0, 6).map(jobLi).join('') : `<div class="muted small">No open jobs.</div>`;
   body += `</div>`;
   shell(t('appName'), body);
+  // Live catalogue search: type → matching parts; clear → back to the reorder list.
+  const si = $('#store-home-search'), res = $('#store-home-results'), reorder = $('#store-home-reorder');
+  if (si && res && reorder) {
+    si.oninput = () => {
+      const ql = si.value.trim().toLowerCase();
+      if (!ql) { res.innerHTML = ''; reorder.style.display = ''; return; }
+      reorder.style.display = 'none';
+      const hits = parts.filter((p) => (`${p.name} ${p.partNo || ''}`).toLowerCase().includes(ql)).slice(0, 25);
+      res.innerHTML = `<div class="card"><div class="row between"><h3>${esc(si.value)}</h3><span class="tiny muted">${hits.length} found</span></div>`
+        + (hits.length ? hits.map((p) => `<div class="li" data-part="${p.id}">${avatar(partImg(p), '🔩')}<div class="main"><div class="t">${esc(p.name)}</div><div class="s">${p.qty} ${esc(p.unit)} in stock${p.partNo ? ' · ' + esc(p.partNo) : ''}</div></div>${isLow(p) ? '<span class="badge b-amber">LOW</span>' : ''}</div>`).join('') : `<div class="muted small">No part matches “${esc(si.value)}”.</div>`)
+        + `</div>`;
+    };
+  }
 }
 
 // Mechanic home — my work first.
@@ -662,13 +720,263 @@ function viewMechanicHome() {
   shell(t('appName'), body);
 }
 
+/* ===== Revamp B3: jobs-to-be-done tab overviews ==========================
+ * Each is a triage-ordered OVERVIEW that surfaces the top of every sub-area and
+ * drills into the EXISTING viewX screens (reused, never rewritten). */
+function plateChip(bus) { return `<span class="plate">${esc((bus && bus.regNo) || '—')}</span>`; }
+
+// A running-cost window: this month / last month / this year, plus the matching
+// previous window (for the trend arrow).
+function moneyWindow(win) {
+  const now = new Date(), y = now.getFullYear(), m = now.getMonth();
+  const M = (yy, mm) => new Date(yy, mm, 1).getTime();
+  if (win === 'lastmonth') return { start: M(y, m - 1), end: M(y, m), prevStart: M(y, m - 2), prevEnd: M(y, m - 1), label: t('lastMonth') };
+  if (win === 'year') return { start: M(y, 0), end: M(y + 1, 0), prevStart: M(y - 1, 0), prevEnd: M(y, 0), label: t('thisYear') };
+  return { start: M(y, m), end: M(y, m + 1), prevStart: M(y, m - 1), prevEnd: M(y, m), label: t('thisMonth') };
+}
+// Total running cost broken into components that ALWAYS reconcile:
+// Fuel&AdBlue + Parts + Labour + Outside + Misc = total.
+function costComposition(w) {
+  let parts = 0, labour = 0, outside = 0;
+  S.cache.jobs.forEach((j) => { const ts = j.closedAt || j.createdAt; if (ts >= w.start && ts < w.end) { const c = jobCost(j); parts += c.parts; labour += c.labour; outside += c.ext; } });
+  const fuelFills = (S.cache.fuel || []).filter((f) => (f.at || 0) >= w.start && (f.at || 0) < w.end).reduce((s, f) => s + (f.cost || 0), 0);
+  const defFills = (S.cache.def || []).filter((d) => (d.at || 0) >= w.start && (d.at || 0) < w.end).reduce((s, d) => s + (d.cost || 0), 0);
+  let tripDiesel = 0, tripMisc = 0;
+  (S.cache.trips || []).forEach((tp) => (tp.expenses || []).forEach((e) => { const ts = e.at || tp.startedAt || 0; if (ts >= w.start && ts < w.end) { if (e.cat === 'diesel') tripDiesel += (e.amount || 0); else tripMisc += (e.amount || 0); } }));
+  const fuel = fuelFills + defFills + tripDiesel;
+  return { parts, labour, outside, repairs: parts + labour + outside, fuel, misc: tripMisc, total: parts + labour + outside + fuel + tripMisc };
+}
+// Billable (verified only) repair cost per company, within a window.
+function billableByCompany(w) {
+  const map = {};
+  for (const j of S.cache.jobs) {
+    if (j.status !== 'verified') continue;
+    const ts = j.verifiedAt || j.closedAt || j.createdAt;
+    if (ts < w.start || ts >= w.end) continue;
+    const bus = byId(S.cache.buses, j.busId); if (!bus || !bus.company) continue;
+    map[bus.company] = (map[bus.company] || 0) + jobCost(j).total;
+  }
+  return Object.entries(map).sort((a, b) => b[1] - a[1]);
+}
+
+// MONEY — the owner's money surface. Seven triage-ordered zones (revamp Update 2).
+let _moneyWin = 'month';
+function viewMoney() {
+  const w = moneyWindow(_moneyWin);
+  const comp = costComposition(w);
+  const prev = costComposition({ start: w.prevStart, end: w.prevEnd });
+  const total = comp.total, trendPct = prev.total > 0 ? Math.round((total - prev.total) / prev.total * 100) : null;
+  const pending = S.cache.purchases.filter((p) => p.paymentStatus === 'pending').reduce((s, p) => s + (p.amount || 0), 0);
+  const lastM = moneyWindow('lastmonth');
+  const bill = billableByCompany(lastM);
+  const collect = bill.reduce((s, [, v]) => s + v, 0);
+  const trips = S.cache.trips || [];
+  const cardSpend = trips.reduce((s, t) => s + tripCash(t).card, 0);
+  const cashOwed = trips.filter((t) => t.status !== 'closed').reduce((s, t) => s + Math.max(0, -tripCash(t).remaining), 0);
+
+  let body = `<div class="greet"><div class="greet-av">💰</div>
+    <div><div class="greet-hi">${t('money')}</div><div class="muted small">${esc(BIZ)} · ${fmtToday()}</div></div></div>`;
+
+  // Window selector.
+  body += `<div class="chiprow">${[['month', t('thisMonth')], ['lastmonth', t('lastMonth')], ['year', t('thisYear')]]
+    .map(([k, l]) => `<button class="chip ${_moneyWin === k ? 'active' : ''}" data-act="moneyWin" data-win="${k}">${l}</button>`).join('')}</div>`;
+
+  // ZONE 1 — hero: one honest total, trend vs previous window (down = good = green), 6-month bars.
+  // Bars share the hero's basis: TOTAL running cost/month (repairs + fuel + misc), not repairs alone.
+  const months = _monthlyRunningCost(6), mmax = Math.max(1, ...months.map((m) => m.value));
+  const trendTxt = trendPct == null ? '' : `<span class="schip ${trendPct <= 0 ? 'ok' : 'crit'}"><i></i>${trendPct <= 0 ? '▼' : '▲'} ${Math.abs(trendPct)}% vs ${t('prevWindow')}</span>`;
+  body += `<div class="card">
+    <div class="row between"><h3>${t('runningCost')}</h3>${trendTxt}</div>
+    <div class="stat money">${money(total)}</div>
+    <div class="tiny muted">${w.label}</div>
+    <div class="chart" style="height:74px">${months.map((m) => `<div class="bar"><i style="height:${Math.round(m.value / mmax * 100)}%"></i><span>${m.label}</span></div>`).join('')}</div></div>`;
+
+  // ZONE 2 — Owe ↔ Collect (two directions, never conflated).
+  body += `<div class="grid2">
+    <div class="card tile" data-act="openPurchases" style="cursor:pointer"><div class="muted small">${t('youOwe')}</div><div class="stat money" style="color:var(--red)">${money(pending)}</div><div class="tiny muted">suppliers · pending</div></div>
+    <div class="card tile"><div class="muted small">${t('toCollect')}</div><div class="stat money" style="color:var(--accent-700)">${money(collect)}</div><div class="tiny muted">companies · last month</div></div></div>`;
+
+  // ZONE 3 — Bill a company (last closed month; drills to the worksheet, WhatsApp primary).
+  body += `<div class="card"><div class="row between"><h3>🧾 ${t('billCompany')}</h3><span class="tiny muted">${lastM.label}</span></div>`;
+  body += bill.length ? bill.slice(0, 6).map(([c, v]) => `<div class="trow info" data-act="billCompany" data-company="${esc(c)}">
+      <div class="ti">🏢</div><div class="tm"><div class="tt">${esc(c)}</div><div class="ts">${t('tapToBill')}</div></div>
+      <div class="tc money">${money(v)}</div></div>`).join('')
+    : `<div class="muted small">${t('noBillable')}</div>`;
+  body += `</div>`;
+
+  // ZONE 4 — Where the money goes (parts-of-whole, neutral teal ramp; reconciles with the hero).
+  const segs = [['Fuel & AdBlue', comp.fuel], ['Parts', comp.parts], [`Labour @₹${labourRate()}/hr`, comp.labour], ['Outside', comp.outside], ['Misc', comp.misc]];
+  const opac = [1, .78, .58, .42, .3];
+  body += `<div class="card"><h3>${t('whereMoneyGoes')}</h3>`;
+  if (total > 0) {
+    body += `<div style="display:flex;height:14px;border-radius:7px;overflow:hidden;margin:4px 0 10px">${segs.map(([, v], i) => v > 0 ? `<i style="width:${(v / total * 100).toFixed(1)}%;background:var(--accent);opacity:${opac[i]}"></i>` : '').join('')}</div>`;
+    body += segs.filter(([, v]) => v > 0).map(([lbl, v], i) => `<div class="row between small" style="padding:3px 0"><span><i style="display:inline-block;width:10px;height:10px;border-radius:3px;background:var(--accent);opacity:${opac[segs.findIndex((s) => s[0] === lbl)]};margin-right:7px"></i>${esc(lbl)}</span><b class="money">${money(v)}</b></div>`).join('');
+    body += `<div class="tiny muted" style="margin-top:6px">✓ ${t('reconciles')} ${money(total)}</div>`;
+  } else body += `<div class="muted small">No spend in ${w.label.toLowerCase()} yet.</div>`;
+  body += `</div>`;
+
+  // ZONE 5 — Money-pit buses (₹/km). Honest empty state until odometers exist.
+  const withOdo = S.cache.buses.filter((b) => (b.odometer || 0) > 0);
+  body += `<div class="card"><h3>🕳️ ${t('moneyPit')}</h3>`;
+  if (!withOdo.length) {
+    body += `<div class="muted small">${t('needsOdometer')}</div>`;
+  } else {
+    const ranked = withOdo.map((b) => ({ b, v: busCostPerKm(b) })).sort((a, b) => b.v - a.v);
+    const sorted = ranked.map((x) => x.v).sort((a, b) => a - b);
+    const median = sorted[Math.floor(sorted.length / 2)] || 0;
+    body += ranked.slice(0, 5).map(({ b, v }) => `<div class="li" data-bus="${b.id}"><div style="flex:none">${plateChip(b)}</div>
+      <div class="main"><div class="s">${esc(b.company || 'Unassigned')}</div></div>
+      <span class="schip ${v > median * 1.3 ? 'crit' : 'ok'}"><i></i>₹${v.toFixed(1)}/km</span></div>`).join('');
+    body += `<div class="tiny muted" style="margin-top:6px">Fleet median ₹${median.toFixed(1)}/km.</div>`;
+  }
+  body += `</div>`;
+
+  // ZONE 6 — Trip cash roll-up.
+  body += `<div class="card" data-act="openAccounting" style="cursor:pointer"><div class="row between"><h3>🚌 ${t('tripCash')}</h3><span class="tiny muted">per-bus ›</span></div>
+    <div class="grid2" style="margin-top:4px">
+      <div><div class="tiny muted">On company card (diesel/FASTag)</div><b class="money">${money(cardSpend)}</b></div>
+      <div><div class="tiny muted">Cash over allowance</div><b class="money" style="color:${cashOwed > 0 ? 'var(--red)' : 'var(--text)'}">${money(cashOwed)}</b></div></div></div>`;
+
+  // ZONE 7 — Quick row.
+  body += `<div class="card"><h3>${t('more')}</h3>
+    <div class="trow" data-act="openPurchases"><div class="ti">🧾</div><div class="tm"><div class="tt">${t('bills')}</div></div><div class="tc">${(S.cache.purchases || []).length}</div></div>
+    <div class="trow" data-act="openVendors"><div class="ti">🏪</div><div class="tm"><div class="tt">Vendors</div></div><div class="tc">${(S.cache.vendors || []).length}</div></div>
+    <div class="trow" data-act="openFuel"><div class="ti">⛽</div><div class="tm"><div class="tt">${t('fuel')} & mileage</div></div><div class="tc">${(S.cache.fuel || []).length}</div></div>
+    <div class="trow" data-act="openReports"><div class="ti">📊</div><div class="tm"><div class="tt">Reports</div></div><div class="tc">›</div></div></div>`;
+  shell(t('money'), body);
+}
+
+// Billing worksheet — one company, one billing period (defaults to the closed
+// prior month). Itemised, every verified job traceable; share to WhatsApp / PDF.
+function billTextForCompany(company, w) {
+  const jobs = companyJobs(company).filter((j) => j.status === 'verified' && (j.verifiedAt || j.closedAt || j.createdAt) >= w.start && (j.verifiedAt || j.closedAt || j.createdAt) < w.end);
+  const grand = jobs.reduce((s, j) => s + jobCost(j).total, 0);
+  const lines = [`${BIZ} — Repair bill for ${company}`, w.label, ''];
+  jobs.forEach((j) => { const b = byId(S.cache.buses, j.busId); lines.push(`• ${(b && b.regNo) || '—'} · ${fmtDate(j.verifiedAt || j.closedAt || j.createdAt)} · ${j.problem} — ${money(jobCost(j).total)}`); });
+  lines.push('', `TOTAL: ${money(grand)}`);
+  return lines.join('\n');
+}
+function viewCompanyBill(company, winKey) {
+  winKey = winKey || 'lastmonth';
+  const w = moneyWindow(winKey);
+  const jobs = companyJobs(company)
+    .filter((j) => j.status === 'verified' && (j.verifiedAt || j.closedAt || j.createdAt) >= w.start && (j.verifiedAt || j.closedAt || j.createdAt) < w.end)
+    .sort((a, b) => (a.busId || '').localeCompare(b.busId || '') || a.createdAt - b.createdAt);
+  const grand = jobs.reduce((s, j) => s + jobCost(j).total, 0);
+  let body = `<div class="card"><div class="muted small">${esc(company)} · ${w.label}</div>
+    <div class="stat money" style="color:var(--accent-700)">${money(grand)}</div>
+    <div class="tiny muted">${jobs.length} verified job(s) · billed for the closed month</div>
+    <div class="btnrow" style="margin-top:12px">
+      <button class="btn primary" data-act="billWhatsapp" data-company="${esc(company)}" data-win="${winKey}">🟢 ${t('shareWhatsapp')}</button>
+      <button class="btn" data-act="billCopy" data-company="${esc(company)}" data-win="${winKey}">📋 ${t('copy')}</button></div>
+    <button class="btn" data-act="billPdf" style="margin-top:10px">📄 ${t('savePdf')}</button></div>`;
+  if (!jobs.length) {
+    body += `<div class="card"><div class="empty">No verified jobs for ${esc(company)} in ${w.label.toLowerCase()}. Only verified work is billable.</div></div>`;
+  } else {
+    body += `<div class="card"><h3>${t('itemised')}</h3>` + jobs.map((j) => {
+      const b = byId(S.cache.buses, j.busId), c = jobCost(j);
+      return `<div class="li" data-job="${j.id}"><div style="flex:none">${plateChip(b)}</div>
+        <div class="main"><div class="t">${esc(j.problem)}</div>
+        <div class="s">${fmtDate(j.verifiedAt || j.closedAt || j.createdAt)} · parts ${money(c.parts)} · labour ${money(c.labour)}${c.ext ? ' · outside ' + money(c.ext) : ''}</div></div>
+        <b class="money">${money(c.total)}</b></div>`;
+    }).join('') + `</div>`;
+  }
+  shell(esc(company), body);
+}
+// Monthly TOTAL running-cost buckets (repairs + fuel + misc) — shares the Money
+// hero's basis so the headline number and its sparkline agree.
+function _monthlyRunningCost(n) {
+  const out = [];
+  const now = new Date(); now.setDate(1); now.setHours(0, 0, 0, 0);
+  for (let i = n - 1; i >= 0; i--) {
+    const start = new Date(now.getFullYear(), now.getMonth() - i, 1).getTime();
+    const end = new Date(now.getFullYear(), now.getMonth() - i + 1, 1).getTime();
+    out.push({ label: new Date(start).toLocaleDateString('en-IN', { month: 'narrow' }), value: costComposition({ start, end }).total });
+  }
+  return out;
+}
+// Monthly repair-cost buckets for the last n months (hero mini-bars).
+function _monthlyCost(n) {
+  const out = [];
+  const now = new Date(); now.setDate(1); now.setHours(0, 0, 0, 0);
+  for (let i = n - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const start = d.getTime(), end = new Date(now.getFullYear(), now.getMonth() - i + 1, 1).getTime();
+    const value = S.cache.jobs.filter((j) => { const ts = j.closedAt || j.createdAt; return ts >= start && ts < end; }).reduce((s, j) => s + jobCost(j).total, 0);
+    out.push({ label: d.toLocaleDateString('en-IN', { month: 'narrow' }), value });
+  }
+  return out;
+}
+
+// FLEET — buses, service-due, document expiry, live map.
+function viewFleet() {
+  const buses = [...(S.cache.buses || [])].sort((a, b) => (a.regNo || '').localeCompare(b.regNo || ''));
+  const due = busesDueService();
+  const overdue = due.filter((x) => x.sv.status === 'overdue');
+  const docAlerts = allDocAlerts();
+  const docCrit = docAlerts.filter((a) => a.st.dl <= 0);
+
+  let body = `<div class="greet"><div class="greet-av">🚌</div>
+    <div><div class="greet-hi">${t('fleet')}</div><div class="muted small">${buses.length} buses · ${esc(BIZ)}</div></div></div>`;
+
+  // Triage rows first.
+  if (overdue.length) body += `<div class="trow crit" data-bus="${overdue[0].b.id}"><div class="ti">🔧</div>
+    <div class="tm"><div class="tt">Service overdue</div><div class="ts">${overdue.slice(0, 3).map((x) => esc(x.b.regNo)).join(', ')}${overdue.length > 3 ? ' +' + (overdue.length - 3) : ''}</div></div><div class="tc">${overdue.length}</div></div>`;
+  if (docAlerts.length) body += `<div class="trow ${docCrit.length ? 'crit' : 'warn'}" data-act="openAlerts"><div class="ti">📄</div>
+    <div class="tm"><div class="tt">Documents expiring</div><div class="ts">${docCrit.length ? docCrit.length + ' expired' : docAlerts.length + ' within 15 days'}</div></div><div class="tc">${docAlerts.length}</div></div>`;
+  body += `<div class="trow info" data-act="openLiveMap"><div class="ti">🗺️</div><div class="tm"><div class="tt">Live map</div><div class="ts">Track every bus, Uber-style</div></div><div class="tc">›</div></div>`;
+
+  // Searchable bus list on number-plate chips.
+  body += `<input id="fleet-search" class="searchbox" placeholder="Search plate, company, model…" style="margin-top:12px">`;
+  body += `<div class="card" id="fleet-list">${buses.map((b) => {
+    const sv = serviceInfo(b);
+    const cls = sv.status === 'overdue' ? 'crit' : sv.status === 'soon' ? 'warn' : 'ok';
+    const word = sv.status === 'overdue' ? 'Service due' : sv.status === 'soon' ? 'Service soon' : 'OK';
+    return `<div class="li" data-bus="${b.id}"><div style="flex:none">${plateChip(b)}</div>
+      <div class="main"><div class="t">${esc(b.company || 'Unassigned')} · ${esc(b.model || '')}</div>
+      <div class="s">${(b.odometer || 0).toLocaleString('en-IN')} km</div></div>
+      <span class="schip ${cls}"><i></i>${word}</span></div>`;
+  }).join('')}</div>`;
+  shell(t('fleet'), body);
+  attachSearch('fleet-search', 'fleet-list');
+}
+
+// PEOPLE — drivers worst-first, staff, attendance, scorecards, safety, assignments.
+function viewPeople() {
+  const drivers = [...(S.cache.drivers || [])].map((d) => ({ d, score: driverScore(d.id) })).sort((a, b) => a.score - b.score);
+  const inToday = (S.cache.att || []).filter((a) => a.type === 'in' && isToday(a.at)).map((a) => a.userId);
+  const presentCount = new Set(inToday).size;
+
+  let body = `<div class="greet"><div class="greet-av">🧑‍✈️</div>
+    <div><div class="greet-hi">${t('people')}</div><div class="muted small">${drivers.length} drivers · ${presentCount} checked in today</div></div></div>`;
+
+  // Drivers ranked worst-first (the ones who need attention).
+  body += `<div class="card"><div class="row between"><h3>Drivers · needs attention first</h3><span class="tiny muted" data-act="openScoreboard" style="cursor:pointer">scoreboard ›</span></div>`;
+  body += drivers.length ? drivers.slice(0, 8).map(({ d, score }) => `<div class="li" data-driver="${d.id}">
+      <div class="ava">${score < 70 ? '🔴' : score < 85 ? '🟡' : '🟢'}</div>
+      <div class="main"><div class="t">${esc(d.name)}</div><div class="s">${esc(busName(d.busId) || 'No bus')} · ${starStr(scoreStars(score))}</div></div>
+      <span class="badge ${scoreClass(score)}">${score}</span></div>`).join('')
+      + (drivers.length > 8 ? `<div class="tiny muted" style="margin-top:6px" data-act="openDrivers">+${drivers.length - 8} more · all drivers ›</div>` : '')
+    : `<div class="muted small">No drivers yet.</div>`;
+  body += `</div>`;
+
+  // Drill rows to the existing people screens.
+  body += `<div class="card"><h3>Manage</h3>
+    <div class="trow" data-act="openAssignments"><div class="ti">🔗</div><div class="tm"><div class="tt">Driver ↔ bus assignments</div></div><div class="tc">›</div></div>
+    <div class="trow" data-act="openSafety"><div class="ti">🛡️</div><div class="tm"><div class="tt">Safety & GPS events</div></div><div class="tc">›</div></div>
+    <div class="trow" data-act="openScoreboard"><div class="ti">🏆</div><div class="tm"><div class="tt">Scoreboard</div></div><div class="tc">›</div></div>
+    <div class="trow" data-act="openCrewPins"><div class="ti">🔑</div><div class="tm"><div class="tt">Crew logins & PINs</div></div><div class="tc">›</div></div>
+    <div class="trow" data-act="openStaff"><div class="ti">🧑‍🔧</div><div class="tm"><div class="tt">Staff</div></div><div class="tc">›</div></div></div>`;
+  shell(t('people'), body);
+}
+
 function viewHome() {
   if (S.user.role === 'driver') return viewDriverHome();
   if (S.user.role === 'conductor') return viewConductorHome();
   if (S.user.role === 'store') return viewStoreHome();
   if (S.user.role === 'mechanic') return viewMechanicHome();
   const openJobs = S.cache.jobs.filter((j) => j.status === 'open' || j.status === 'in-progress');
-  const low = S.cache.parts.filter((p) => p.qty <= p.reorderLevel);
+  const low = S.cache.parts.filter(isLow);
   const alerts = allDocAlerts();
   const cost = costLast30();
   const myAtt = S.cache.att.filter((a) => a.userId === S.user.id);
@@ -692,9 +1000,27 @@ function viewHome() {
   }
 
   if (isBoss) {
+    // Triage-first: "what needs you now", ranked by urgency. Replaces the old
+    // equal-weight scroll — each row drills straight to where the work is done.
+    const toVerify = S.cache.jobs.filter((j) => j.status === 'done');
+    const openReports = (S.cache.driverreports || []).filter((r) => r.status === 'open').sort((a, b) => b.at - a.at);
+    const pf = pilferageRadar();
+    const overdue = busesDueService().filter((x) => x.sv.status === 'overdue');
+    const expired = alerts.filter((a) => a.st.dl <= 0);
+    const triage = [];
+    if (toVerify.length) triage.push(['crit', '☑️', 'Jobs to verify', 'sign off completed work', 'data-nav="jobs"', toVerify.length]);
+    if (openReports.length) triage.push(['crit', '🗣️', 'Driver complaints', esc(busName(openReports[0].busId)) + (openReports.length > 1 ? ' +' + (openReports.length - 1) : ''), `data-bus="${esc(openReports[0].busId)}"`, openReports.length]);
+    if (pf.length) triage.push(['crit', '🕵️', 'Pilferage flags', 'review high-risk staff', 'data-act="openPilferage"', pf.length]);
+    if (alerts.length) triage.push([expired.length ? 'crit' : 'warn', '📄', 'Documents expiring', expired.length ? expired.length + ' expired' : 'within 15 days', 'data-act="openAlerts"', alerts.length]);
+    if (overdue.length) triage.push(['warn', '🔧', 'Service overdue', esc(overdue.slice(0, 2).map((x) => x.b.regNo).join(', ')), 'data-nav="fleet"', overdue.length]);
+    body += `<div class="card"><h3>🔔 ${t('needsYouNow')}</h3>`;
+    body += triage.length ? triage.map(([cls, ic, tt, ts, attr, ct]) =>
+      `<div class="trow ${cls}" ${attr}><div class="ti">${ic}</div><div class="tm"><div class="tt">${tt}</div><div class="ts">${ts}</div></div><div class="tc">${ct}</div></div>`).join('')
+      : `<div class="trow ok"><div class="ti">✓</div><div class="tm"><div class="tt">${t('allClear')}</div><div class="ts">nothing needs you right now</div></div></div>`;
+    body += `</div>`;
+
     // Driver complaints raised from the road — front-and-centre so the supervisor
     // sees them the moment a driver reports, and can open the bus to raise a job.
-    const openReports = (S.cache.driverreports || []).filter((r) => r.status === 'open').sort((a, b) => b.at - a.at);
     if (openReports.length) {
       body += `<div class="card" style="border:1.5px solid var(--red)">
         <div class="row between"><h3>🗣️ Driver complaints</h3><span class="badge b-red">${openReports.length} new</span></div>
@@ -716,7 +1042,7 @@ function viewHome() {
         <i style="height:${Math.round(d.value / max * 100)}%"></i><span>${d.label}</span></div>`).join('')}</div>
       <div class="feature-pill"><div class="fp-dot">₹</div>
         <div><div class="fp-big">${money(total7)}</div>
-        <div class="fp-sub">last 7 days · ${money(cost)} this month</div></div></div>
+        <div class="fp-sub">last 7 days · ${money(cost)} in last 30 days</div></div></div>
     </div>`;
 
     // Quick-stat tiles (tappable → their tabs)
@@ -753,39 +1079,8 @@ function viewHome() {
       <span class="badge ${insightCount ? 'b-red' : 'b-green'}">${insightCount}</span>
     </div>`;
 
-    // Pilferage radar — surface the highest-risk mechanic right on home
-    if (['owner', 'supervisor'].includes(S.user.role)) {
-      const pf = pilferageRadar();
-      if (pf.length) { const top = pf[0];
-        body += `<div class="card" data-act="openPilferage" style="cursor:pointer;border:1.5px solid var(--red)">
-          <div class="row between"><h3>🕵️ Pilferage radar</h3><span class="badge b-red">${pf.length} flagged</span></div>
-          <div class="li" style="border:none;padding:8px 0 0"><div class="ava">🚨</div>
-            <div class="main"><div class="t">Highest risk: ${esc(top.u.name)}</div><div class="s">${esc(top.flags[0] ? top.flags[0].label : '')} · tap to review</div></div>
-            <span class="badge ${riskClass(top.risk)}">${top.risk}</span></div></div>`;
-      }
-    }
-
-    // Service due (preventive maintenance) — from live GPS odometer
-    const due = busesDueService();
-    if (due.length) {
-      body += `<div class="card"><div class="row between"><h3>Service due</h3><span class="badge b-amber">${due.length}</span></div>`;
-      body += due.map(({ b, sv }) => `<div class="li" data-bus="${b.id}"><div class="ava">🛢️</div>
-        <div class="main"><div class="t">${esc(b.regNo)}</div><div class="s">${esc(b.company)}</div></div>
-        <span class="badge ${sv.status === 'overdue' ? 'b-red' : 'b-amber'}">${sv.status === 'overdue' ? 'OVERDUE ' + Math.abs(sv.dueIn).toLocaleString('en-IN') + 'km' : sv.dueIn.toLocaleString('en-IN') + 'km'}</span></div>`).join('');
-      body += `<div class="tiny muted" style="margin-top:8px">Service on time → fewer breakdowns → lower cost.</div></div>`;
-    }
-
-    // Drivers — performance + open trip reports
-    const drv = S.cache.drivers || [];
-    if (drv.length) {
-      const worst = [...drv].sort((a, b) => driverScore(a.id) - driverScore(b.id))[0];
-      const openReps = (S.cache.driverreports || []).filter((r) => r.status === 'open').length;
-      body += `<div class="card" data-act="openDrivers" style="cursor:pointer">
-        <div class="row between"><h3>Drivers</h3><span class="badge ${openReps ? 'b-amber' : 'b-green'}">${openReps} open reports</span></div>
-        <div class="li" style="border:none;padding:8px 0 0"><div class="ava">🧑‍✈️</div>
-          <div class="main"><div class="t">Lowest rated: ${esc(worst.name)}</div><div class="s">tap to manage ${drv.length} drivers</div></div>
-          <span class="badge ${scoreClass(driverScore(worst.id))}">${driverScore(worst.id)}</span></div></div>`;
-    }
+    // (Pilferage, service-due and driver-performance now surface as rows in the
+    // "Needs you now" triage stack above, and live in full on the Fleet/People tabs.)
 
     // Cost by company — horizontal bars; tap a company → billing worksheet
     const cc = costByCompany();
@@ -811,11 +1106,15 @@ function viewHome() {
   else body += openJobs.slice(0, 6).map(jobLi).join('');
   body += `</div>`;
 
-  // Low stock
-  body += `<div class="card"><div class="row between"><h3>${t('lowStock')}</h3><span class="badge ${low.length ? 'b-amber' : 'b-green'}">${low.length}</span></div>`;
+  // Low stock (honest filter; capped so it can never dominate the home page)
+  const lowTop = low.slice(0, 8);
+  body += `<div class="card" data-nav="store" style="cursor:pointer"><div class="row between"><h3>${t('lowStock')}</h3><span class="badge ${low.length ? 'b-amber' : 'b-green'}">${low.length}</span></div>`;
   if (!low.length) body += `<div class="muted small">Stock healthy 👍</div>`;
-  else body += low.map((p) =>
-    `<div class="li" data-part="${p.id}">${avatar(partImg(p), '🔩')}<div class="main"><div class="t">${esc(p.name)}</div><div class="s">${p.qty} ${p.unit} left · reorder at ${p.reorderLevel}</div></div><span class="badge b-amber">LOW</span></div>`).join('');
+  else {
+    body += lowTop.map((p) =>
+      `<div class="li" data-part="${p.id}">${avatar(partImg(p), '🔩')}<div class="main"><div class="t">${esc(p.name)}</div><div class="s">${p.qty} ${esc(p.unit)} left · reorder at ${p.reorderLevel}</div></div><span class="badge b-amber">LOW</span></div>`).join('');
+    if (low.length > lowTop.length) body += `<div class="tiny muted" style="margin-top:6px">+${low.length - lowTop.length} more · open Store ›</div>`;
+  }
   body += `</div>`;
 
   shell(t('appName'), body);
@@ -1072,7 +1371,7 @@ function viewBusDetail(id) {
   const jobs = S.cache.jobs.filter((j) => j.busId === id).sort((a, b2) => (b2.createdAt) - (a.createdAt));
   const totalCost = jobs.reduce((s, j) => s + jobCost(j).total, 0);
 
-  let body = `<div class="hero cover"><img src="${busImg(b)}" alt="">
+  let body = `<div class="hero cover"><img src="${esc(busImg(b))}" alt="">
     <div class="hero-cap"><div class="hero-t">${esc(b.regNo)}</div><div class="hero-s">${esc(b.company)} · ${esc(b.model)}</div></div></div>`;
   body += `<div class="card">
     <div class="row between"><h3>${esc(b.regNo)}</h3>${prioBadge('low')}</div>
@@ -1177,17 +1476,21 @@ const JOB_SC = { open: '#ef4444', 'in-progress': '#f59e0b', done: '#2563eb', ver
 const PRIO_PILL = { high: '🔴 High', medium: '🟡 Medium', low: '🟢 Low' };
 function jobLi(j) {
   const c = jobCost(j).total;
-  const sc = JOB_SC[j.status] || '#8b91a0';
+  const sc = JOB_SC[j.status] || 'var(--faint)';
   const steps = ['open', 'in-progress', 'done', 'verified'];
   const idx = steps.indexOf(j.status);
   const dDays = jobDownDays(j);
   const stillDown = ['open', 'in-progress'].includes(j.status);
+  // The driver's own words — show the complaint that triggered this job right on
+  // the card so the mechanic knows WHY, not just what was typed into the job.
+  const rep = (S.cache.driverreports || []).find((r) => r.jobId === j.id);
   return `<div class="jobcard" data-job="${j.id}" style="--sc:${sc}">
     <div class="jc-top">
       <div class="jc-bus">🚌 ${esc(busName(j.busId))}</div>
       ${statusBadge(j.status)}
     </div>
     <div class="jc-problem">${esc(j.problem)}</div>
+    ${rep ? `<div class="jc-complaint">🗣️ ${esc(driverName(rep.driverId))}: “${esc((rep.problem || '').slice(0, 90))}”</div>` : ''}
     <div class="jc-meta">
       <span class="pp">${PRIO_PILL[j.priority] || ''}</span>
       <span>· 👷 ${esc(userName(j.assignedTo))}</span>
@@ -1196,7 +1499,7 @@ function jobLi(j) {
     </div>
     <div class="jc-foot">
       <span>💰 ${money(c)}</span>
-      ${dDays >= 1 ? `<span style="color:#ef4444">🕒 ${dDays.toFixed(0)}d${stillDown ? '+' : ''} down</span>` : ''}
+      ${dDays >= 1 ? `<span style="color:var(--red)">🕒 ${dDays.toFixed(0)}d${stillDown ? '+' : ''} down</span>` : ''}
       ${(j.partsUsed || []).length ? `<span>🔩 ${j.partsUsed.length}</span>` : ''}
     </div>
     <div class="jc-prog">${steps.map((s, i) => `<i class="${i <= idx ? 'on' : ''}"></i>`).join('')}</div>
@@ -1256,7 +1559,7 @@ function viewJobs() {
 function photoStrip(job, field, editable) {
   const arr = job[field] || [];
   let h = `<div class="lbl">${field === 'beforePhotos' ? t('beforePhotos') : t('afterPhotos')}</div><div class="thumbs">`;
-  h += arr.map((src, i) => `<img class="thumb" src="${src}" data-act="viewPhoto" data-src="${src}">`).join('');
+  h += arr.map((src, i) => `<img class="thumb" src="${esc(src)}" data-act="viewPhoto" data-src="${esc(src)}">`).join('');
   if (editable) h += `<div class="photoadd" data-act="addPhotoSafe" data-job="${job.id}" data-field="${field}">＋</div>`;
   h += `</div>`;
   return h;
@@ -1274,7 +1577,7 @@ function viewJobDetail(id) {
   const canAddProof = ['owner', 'supervisor'].includes(S.user.role);
   const bus = byId(S.cache.buses, j.busId);
 
-  let body = `<div class="hero cover"><img src="${busImg(bus)}" alt="">
+  let body = `<div class="hero cover"><img src="${esc(busImg(bus))}" alt="">
     <div class="hero-badge">${statusBadge(j.status)}</div>
     <div class="hero-cap"><div class="hero-t">${esc(busName(j.busId))}</div>
       <div class="hero-s">${esc(j.problem)}</div></div></div>`;
@@ -1307,7 +1610,7 @@ function viewJobDetail(id) {
     body += crs.map((c) => { const p = byId(S.cache.parts, c.partId); const cc = CORE_COND[c.condition] || CORE_COND.worn;
       const ai = c.ai ? `<div class="tiny" style="margin-top:4px;color:${c.ai.verdict === 'suspect' ? '#ef4444' : '#5d6675'}">🤖 ${c.ai.wear}% worn · ${esc(c.ai.verdict)}${c.ai.note ? ' — ' + esc(c.ai.note) : ''}</div>` : '';
       const gradeBtn = (!c.ai && ['owner', 'supervisor'].includes(S.user.role)) ? `<div style="margin-top:6px"><button class="btn sm ghost" data-act="aiGradeCore" data-job="${j.id}" data-cr="${c.id}">📷 Grade wear</button></div>` : '';
-      return `<div class="li"><img class="thumb" src="${c.photo}" data-act="viewPhoto" data-src="${c.photo}">
+      return `<div class="li"><img class="thumb" src="${esc(c.photo)}" data-act="viewPhoto" data-src="${esc(c.photo)}">
         <div class="main"><div class="t">${esc(p ? p.name : (c.note || 'Old part'))}</div><div class="s">${fmtDate(c.at)} · ${esc(userName(c.by))}</div>${ai}</div>
         <div style="text-align:right"><span class="badge ${cc[1]}">${cc[0]}</span>${gradeBtn}</div></div>`; }).join('');
     if (missing.length) body += `<div class="banner warn" style="margin-top:8px">⚠️ Old part not returned for: ${missing.map((l) => { const p = byId(S.cache.parts, l.partId); return esc(p ? p.name : l.partId); }).join(', ')}. Get the worn part back before paying.</div>`;
@@ -1355,7 +1658,7 @@ function actionsForJob(j, editable) {
       <button class="btn" data-act="rejectJob" data-job="${j.id}">↩️ Send back for rework</button>`;
   }
   if (j.status === 'verified') {
-    actions += `<div class="banner" style="background:#123a2c;color:var(--green)">✓ Verified by ${esc(userName(j.verifiedBy))} on ${fmtDate(j.verifiedAt)}</div>`;
+    actions += `<div class="banner" style="background:var(--green-wash);color:var(--green)">✓ Verified by ${esc(userName(j.verifiedBy))} on ${fmtDate(j.verifiedAt)}</div>`;
   }
   return actions;
 }
@@ -1738,7 +2041,7 @@ function renderStorePartList(ql) {
   if (ql) parts = parts.filter((p) => `${p.name} ${p.partNo || ''} ${p.category || ''}`.toLowerCase().includes(ql));
   const total = parts.length, shown = parts.slice(0, STORE_LIST_CAP);
   box.innerHTML = (shown.map((p) => {
-    const lowf = p.qty <= p.reorderLevel;
+    const lowf = isLow(p);
     return `<div class="li" data-part="${p.id}">${avatar(partImg(p), '🔩')}
       <div class="main"><div class="t">${esc(p.name)}</div><div class="s">${esc(p.partNo || '—')}${p.category ? ' · ' + esc(p.category) : ''}${p.reusable ? ' · ♻️ reusable' : ''} · ${money(p.unitCost)}/${p.unit}</div></div>
       <div style="text-align:right"><b>${p.qty}</b> <span class="tiny muted">${p.unit}</span>${lowf ? '<div class="badge b-amber tiny">LOW</div>' : ''}</div></div>`;
@@ -1751,7 +2054,7 @@ function viewPartDetail(id) {
   if (!p) return viewStore();
   const moves = S.cache.ledger.filter((l) => l.partId === id).sort((a, b) => b.at - a.at);
   const img = partImg(p);
-  let body = img ? `<div class="hero contain"><img src="${img}" alt="">
+  let body = img ? `<div class="hero contain"><img src="${esc(img)}" alt="">
     <div class="hero-tag">${esc(p.category)}</div></div>` : '';
   body += `<div class="card"><h3>${esc(p.name)}</h3>
     <div class="small muted">${esc(p.partNo)} · ${esc(p.category)}</div>
@@ -1907,7 +2210,7 @@ function viewComponentDetail(id) {
     <div class="ava">${HIST_ICON[h.type] || '•'}</div>
     <div class="main"><div class="t" style="font-size:14px">${h.type === 'send-out' ? 'Sent for ' + v : h.type === 'return' ? 'Returned' + (h.cost ? ' · ' + money(h.cost) : '') : h.type === 'install' ? 'Fitted' + (h.busId ? ' to ' + esc(busName(h.busId)) : '') : h.type === 'remove' ? 'Removed from bus' : 'Scrapped'}</div>
       <div class="s">${h.vendor ? esc(h.vendor) + ' · ' : ''}${h.odo ? h.odo.toLocaleString('en-IN') + ' km · ' : ''}${fmtDate(h.at)}${h.note ? ' · ' + esc(h.note) : ''}</div></div>
-    ${h.billPhoto ? `<img class="thumb" src="${h.billPhoto}" data-act="viewPhoto" data-src="${h.billPhoto}">` : ''}</div>`).join('') : `<div class="muted small">No history yet</div>`;
+    ${h.billPhoto ? `<img class="thumb" src="${esc(h.billPhoto)}" data-act="viewPhoto" data-src="${esc(h.billPhoto)}">` : ''}</div>`).join('') : `<div class="muted small">No history yet</div>`;
   body += `</div>`;
   shell(esc(c.label || km[1]), body);
 }
@@ -2092,49 +2395,27 @@ function viewMe() {
     <div class="tiny muted" style="margin-top:8px;text-align:center">Selfie + GPS confirms you are at the garage.</div>
   </div>`;
 
-  // Attendance log (owner/supervisor see everyone; mechanic sees self)
-  const showAll = ['owner', 'supervisor'].includes(S.user.role);
-  const att = (showAll ? S.cache.att : myAtt).sort((a, b) => b.at - a.at).slice(0, 20);
+  // Attendance log — self only. (Owner/supervisor see the fleet-wide "checked in
+  // today" summary in the People tab; this stays personal to the settings page.)
+  const att = myAtt.slice(0, 12);
   body += `<div class="card"><h3>${t('attendance')}</h3>`;
   body += att.length ? att.map((a) => `<div class="li">
     <div class="ava">${a.type==='in'?'🟢':'🔴'}</div>
-    <div class="main"><div class="t">${esc(userName(a.userId))} — ${a.type==='in'?'In':'Out'}</div>
+    <div class="main"><div class="t">${a.type==='in'?'In':'Out'}</div>
       <div class="s">${fmtDateTime(a.at)} ${a.dist!=null?`· ${Math.round(a.dist)}m from garage`:''}</div></div>
     ${a.late?'<span class="badge b-amber">LATE</span>':''}
-    ${a.selfie?`<img class="thumb" style="width:42px;height:42px" src="${a.selfie}" data-act="viewPhoto" data-src="${a.selfie}">`:''}
+    ${a.selfie?`<img class="thumb" style="width:42px;height:42px" src="${esc(a.selfie)}" data-act="viewPhoto" data-src="${esc(a.selfie)}">`:''}
   </div>`).join('') : `<div class="muted small">No records</div>`;
   body += `</div>`;
 
-  // Menu
+  // Settings menu — trimmed to real settings (revamp B4). Feature entries now
+  // live in the Money / Fleet / People tabs.
   const si = Sync.info();
   body += `<div class="card"><h3>${t('more')}</h3>
-    <div class="li" data-act="openPurchases"><div class="ava">🧾</div><div class="main"><div class="t">${t('purchases')}</div><div class="s">${t('supplierBills')}</div></div></div>
-    ${can(S.user.role, 'addPurchase') ? `<div class="li" data-act="openVendors"><div class="ava">🏪</div><div class="main"><div class="t">Vendors</div><div class="s">Supplier registry · spend &amp; pending per vendor</div></div></div>
-      <div class="li" data-act="openImport"><div class="ava">📥</div><div class="main"><div class="t">Import from Excel</div><div class="s">Load your Parts Master &amp; Vendor Master (.xls)</div></div></div>` : ''}
-    <div class="li" data-act="openAlerts"><div class="ava">📄</div><div class="main"><div class="t">${t('docAlerts')}</div><div class="s">${allDocAlerts().length} need attention</div></div></div>
-    ${['owner', 'supervisor'].includes(S.user.role)
-      ? `<div class="li" data-act="openDrivers"><div class="ava">🧑‍✈️</div><div class="main"><div class="t">Drivers</div><div class="s">${(S.cache.drivers || []).length} drivers · performance & reports</div></div></div>
-         <div class="li" data-act="openAssignments"><div class="ava">🔁</div><div class="main"><div class="t">Driver ↔ Bus assignments</div><div class="s">Who drives which bus · reassign in one place</div></div></div>
-         <div class="li" data-act="openCrewPins"><div class="ava">🎫</div><div class="main"><div class="t">Crew logins &amp; PINs</div><div class="s">Driver &amp; conductor app accounts + login PINs</div></div></div>
-         <div class="li" data-act="openStaff"><div class="ava">👥</div><div class="main"><div class="t">Staff</div><div class="s">${S.cache.users.length} accounts · add new</div></div></div>
-         <div class="li" data-act="openLiveMap"><div class="ava">🗺️</div><div class="main"><div class="t">Live map</div><div class="s">Track every bus live, Uber-style</div></div></div>
-         <div class="li" data-act="openReports"><div class="ava">📊</div><div class="main"><div class="t">Bus reports</div><div class="s">Total maintenance spend per bus + full detail</div></div></div>
-         <div class="li" data-act="openAccounting"><div class="ava">📒</div><div class="main"><div class="t">Accounting</div><div class="s">Per-bus running cost — trip cash, diesel, FASTag, fuel, salary</div></div></div>
-         <div class="li" data-act="openForecast"><div class="ava">🔧</div><div class="main"><div class="t">Maintenance &amp; uptime</div><div class="s">Predicts upcoming service/parts + downtime cost</div></div></div>
-         <div class="li" data-act="openFuel"><div class="ava">⛽</div><div class="main"><div class="t">Fuel &amp; mileage</div><div class="s">Fills, km/l, fuel ₹/km &amp; mileage-drop alerts</div></div></div>
-         <div class="li" data-act="openDef"><div class="ava">🧪</div><div class="main"><div class="t">AdBlue / DEF</div><div class="s">BS6/Volvo exhaust fluid — top-ups, L/100km &amp; cost</div></div></div>
-         <div class="li" data-act="openSafety"><div class="ava">🛡️</div><div class="main"><div class="t">Safety &amp; misuse</div><div class="s">Overspeed, harsh braking, night moves &amp; idling</div></div></div>
-         <div class="li" data-act="openWarranty"><div class="ava">🧾</div><div class="main"><div class="t">Warranty register</div><div class="s">Parts under warranty — don't pay for free replacements</div></div></div>
-         <div class="li" data-act="openStoreHealth"><div class="ava">📦</div><div class="main"><div class="t">Store health</div><div class="s">Reconciliation, stock counts &amp; shrinkage score</div></div></div>
-         <div class="li" data-act="openPilferage"><div class="ava">🕵️</div><div class="main"><div class="t">Pilferage radar</div><div class="s">Who to watch — per-mechanic theft-risk score</div></div></div>
-         <div class="li" data-act="openComponents"><div class="ava">🛞</div><div class="main"><div class="t">Tyres &amp; components</div><div class="s">Per-piece life + send-out for remould/repair &amp; bills</div></div></div>
-         <div class="li" data-act="openLinkGps"><div class="ava">🛰️</div><div class="main"><div class="t">Link GPS to buses</div><div class="s">Match live AirFi devices to fleet units → tracking on</div></div></div>
-         <div class="li" data-act="openScoreboard"><div class="ava">🏆</div><div class="main"><div class="t">Mechanic scorecards</div><div class="s">Attendance, late penalties &amp; work-quality ratings</div></div></div>
-         <div class="li" data-act="openRoutes"><div class="ava">🕒</div><div class="main"><div class="t">Routes &amp; timings</div><div class="s">Pickup geofences, go-times &amp; punctuality</div></div></div>
-         <div class="li" data-act="openSetup"><div class="ava">⚙️</div><div class="main"><div class="t">Garage setup</div><div class="s">Location, geofence, shift time · start fresh</div></div></div>` : ''}
-    ${S.user.role === 'store'
-      ? `<div class="li" data-act="openStoreHealth"><div class="ava">📦</div><div class="main"><div class="t">Store health</div><div class="s">Reconciliation, stock counts &amp; shrinkage score</div></div></div>
-         <div class="li" data-act="openComponents"><div class="ava">🛞</div><div class="main"><div class="t">Tyres &amp; components</div><div class="s">Per-piece life + send-out for remould/repair &amp; bills</div></div></div>` : ''}
+    ${can(S.user.role, 'addPurchase') ? `<div class="li" data-act="openImport"><div class="ava">📥</div><div class="main"><div class="t">Import from Excel</div><div class="s">Load your Parts Master &amp; Vendor Master (.xls)</div></div></div>` : ''}
+    ${['owner', 'supervisor'].includes(S.user.role) ? `<div class="li" data-act="openSetup"><div class="ava">⚙️</div><div class="main"><div class="t">Garage setup</div><div class="s">Location, geofence, shift time · start fresh</div></div></div>` : ''}
+    <div class="li" data-act="lang"><div class="ava">🌐</div><div class="main"><div class="t">${t('lang') === 'हिंदी' ? 'भाषा / Language' : 'Language / भाषा'}</div><div class="s">${LANG === 'en' ? 'English' : 'हिंदी'} · tap to switch</div></div></div>
+    <div class="li" data-act="theme"><div class="ava">${_isDark() ? '☀️' : '🌙'}</div><div class="main"><div class="t">${t('theme')}</div><div class="s">${_isDark() ? 'Dark' : 'Light'} · tap to switch</div></div></div>
     <div class="li" data-act="changePin"><div class="ava">🔑</div><div class="main"><div class="t">${t('changePin')}</div><div class="s">Set a new 4-digit login PIN</div></div></div>
     <div class="li" data-act="openSync"><div class="ava">🔄</div><div class="main"><div class="t">${t('sync')}</div><div class="s">${SYNC_STATUS === 'synced' ? 'All devices up to date' : SYNC_STATUS === 'offline' ? 'Offline — will sync when connected' : 'Syncing…'}${si.pending ? ` · ${si.pending} pending` : ''}</div></div></div>
     <div class="li" data-act="logout"><div class="ava">🚪</div><div class="main"><div class="t">${t('logout')}</div></div></div>
@@ -2660,7 +2941,7 @@ function viewVendorDetail(id) {
   body += bills.length ? bills.map((p) => `<div class="li"><div class="ava">🧾</div>
     <div class="main"><div class="t">${money(p.amount)}</div><div class="s">${esc(p.items || '')} · ${fmtDate(p.at)}</div></div>
     <span class="badge ${p.paymentStatus === 'paid' ? 'b-green' : 'b-amber'}">${p.paymentStatus}</span>
-    ${p.billPhoto ? `<img class="thumb" style="width:42px;height:42px" src="${p.billPhoto}" data-act="viewPhoto" data-src="${p.billPhoto}">` : ''}</div>`).join('') : `<div class="muted small">No bills mapped yet.</div>`;
+    ${p.billPhoto ? `<img class="thumb" style="width:42px;height:42px" src="${esc(p.billPhoto)}" data-act="viewPhoto" data-src="${esc(p.billPhoto)}">` : ''}</div>`).join('') : `<div class="muted small">No bills mapped yet.</div>`;
   body += `</div>`;
   shell(esc(v.name), body);
 }
@@ -3041,7 +3322,7 @@ function viewPurchases() {
     ${p.paymentStatus !== 'paid' && canPay
       ? `<button class="btn sm" data-act="togglePaid" data-pur="${p.id}">Mark paid</button>`
       : `<span class="badge ${p.paymentStatus==='paid'?'b-green':'b-amber'}">${p.paymentStatus}</span>`}
-    ${p.billPhoto?`<img class="thumb" style="width:42px;height:42px" src="${p.billPhoto}" data-act="viewPhoto" data-src="${p.billPhoto}">`:''}
+    ${p.billPhoto?`<img class="thumb" style="width:42px;height:42px" src="${esc(p.billPhoto)}" data-act="viewPhoto" data-src="${esc(p.billPhoto)}">`:''}
   </div>`).join('') : `<div class="muted small">No bills yet</div>`;
   body += `</div>`;
   shell(t('purchases'), body, can(S.user.role,'addPurchase') ? { act: 'addPurchase', icon: '+' } : null);
@@ -3315,6 +3596,11 @@ async function shareText(title, text) {
   try { if (navigator.share) { await navigator.share({ title, text }); return; } } catch (e) { /* fall through */ }
   try { await navigator.clipboard.writeText(text); toast('Copied — paste into WhatsApp'); }
   catch (e) { openSheet(title, `<textarea style="width:100%;height:240px" readonly>${esc(text)}</textarea>`); }
+}
+// Draft a WhatsApp message with the text pre-filled (opens WhatsApp app/web).
+function waShare(text) {
+  const url = 'https://wa.me/?text=' + encodeURIComponent(text);
+  try { window.open(url, '_blank'); } catch (e) { shareText('WhatsApp', text); }
 }
 
 /* ========================= Mechanic Scorecard =============================
@@ -3863,7 +4149,7 @@ async function rejectJob(jobId) {
 }
 
 function viewPhoto(src) {
-  openSheet('Photo', `<img src="${src}" style="width:100%;border-radius:12px">`);
+  openSheet('Photo', `<img src="${esc(src)}" style="width:100%;border-radius:12px">`);
 }
 async function showGps(busId) {
   const b = byId(S.cache.buses, busId);
@@ -4066,7 +4352,7 @@ function viewDriverHome() {
   const bus = byId(S.cache.buses, d.busId), score = driverScore(d.id);
   let body = `<div class="greet"><div class="greet-av">🧑‍✈️</div>
     <div><div class="greet-hi">${t('namaste')}, ${esc(d.name)} 👋</div><div class="muted small">${esc(BIZ)} · ${fmtToday()}</div></div></div>`;
-  if (bus) body += `<div class="hero cover"><img src="${busImg(bus)}" alt="">
+  if (bus) body += `<div class="hero cover"><img src="${esc(busImg(bus))}" alt="">
     <div class="hero-cap"><div class="hero-t">${esc(bus.regNo)}</div><div class="hero-s">${t('myBus')}</div></div></div>`;
   // Explain the score so it isn't a mystery number: what pulled it down + a tip.
   const recent = driverIncidents(d.id).filter((i) => i.at >= Date.now() - 90 * day);
@@ -4113,7 +4399,7 @@ function viewConductorHome() {
   let body = `<div class="greet"><div class="greet-av">🎫</div>
     <div><div class="greet-hi">${t('namaste')}, ${esc(S.user.name)} 👋</div><div class="muted small">${esc(BIZ)} · ${fmtToday()}</div></div></div>`;
   if (bus) {
-    body += `<div class="hero cover"><img src="${busImg(bus)}" alt=""><div class="hero-cap"><div class="hero-t">${esc(bus.regNo)}</div><div class="hero-s">My bus</div></div></div>`;
+    body += `<div class="hero cover"><img src="${esc(busImg(bus))}" alt=""><div class="hero-cap"><div class="hero-t">${esc(bus.regNo)}</div><div class="hero-s">My bus</div></div></div>`;
     body += `<div class="card"><h3>🧭 Route &amp; crew</h3>`;
     if (bus.routeLabel) body += `<div class="row between small" style="padding:3px 0"><span class="muted">Route</span><b>${esc(expandRoute(bus.routeLabel))}</b></div>`;
     if (bus.driverCrew) body += `<div class="row between small" style="padding:3px 0"><span class="muted">Driver(s)</span><b>${esc(_titleCase(bus.driverCrew))}</b></div>`;
@@ -4368,7 +4654,7 @@ function sheetDriverDoc(driverId, key) {
   openSheet(doc.label, `
     <div class="tiny muted" style="margin-bottom:12px">${doc.icon} ${doc.mandatory ? 'Mandatory document — required for every driver.' : 'Optional document.'}</div>
     <button class="btn" data-act="captureDoc">📷 ${cur.photo ? 'Replace photo' : 'Take photo of document'}</button>
-    <div id="doc-prev" class="thumbs" style="margin:10px 0">${cur.photo ? `<img class="thumb" src="${cur.photo}">` : ''}</div>
+    <div id="doc-prev" class="thumbs" style="margin:10px 0">${cur.photo ? `<img class="thumb" src="${esc(cur.photo)}">` : ''}</div>
     ${doc.num ? `<label class="field"><span class="lbl">🔢 ${doc.label} number</span><input id="doc-num" value="${esc(cur.number || '')}" placeholder="Enter or scan"></label>
       <button class="btn sm ghost" data-act="scanDocNum" style="margin:-4px 0 10px">📷 Scan number</button>` : ''}
     ${doc.expiry ? `<label class="field"><span class="lbl">📅 Expiry date</span><input id="doc-exp" type="date" value="${cur.expiry ? new Date(cur.expiry).toISOString().slice(0, 10) : ''}"></label>` : ''}
@@ -4840,7 +5126,7 @@ function computeInsights() {
   });
 
   // Reorder forecast
-  const low = parts.filter((p) => p.qty <= p.reorderLevel);
+  const low = parts.filter(isLow);
   if (low.length) out.push({ sev: 'med', icon: '🛒', title: `Reorder ${low.length} part${low.length > 1 ? 's' : ''}`,
     detail: `${low.slice(0, 3).map((p) => p.name).join(', ')}${low.length > 3 ? '…' : ''} below reorder level. Buying ahead avoids costly emergency runs.`,
     nav: { name: 'store' } });
@@ -4999,7 +5285,7 @@ function viewInsights() {
 // Compact garage snapshot fed to Claude as grounding context.
 function aiContext() {
   const due = busesDueService();
-  const low = S.cache.parts.filter((p) => p.qty <= p.reorderLevel);
+  const low = S.cache.parts.filter(isLow);
   return [
     `Buses: ${S.cache.buses.length}`,
     `Open jobs: ${S.cache.jobs.filter((j) => j.status === 'open' || j.status === 'in-progress').length}`,
@@ -5064,7 +5350,7 @@ async function askAi() {
  */
 const current = () => S.stack[S.stack.length - 1];
 // Role guard: routes restricted to certain roles fall back to home for others.
-const ROUTE_PERM = { insights: 'insights', drivers: 'manageDrivers', assignments: 'assignDriver', routes: 'manageRoutes', reports: 'dashboard', busreport: 'dashboard', livemap: 'dashboard', track: 'dashboard', fuel: 'addFuel', safety: 'dashboard', warranty: 'addFuel', storehealth: 'issuePart', linkgps: 'addBus', newjob: 'addJob', forecast: 'dashboard', pilferage: 'insights', components: 'issuePart', def: 'addFuel', vendors: 'addPurchase', import: 'addPurchase', crewpins: 'manageDrivers', accounting: 'dashboard', busacct: 'dashboard' };
+const ROUTE_PERM = { money: 'money', companybill: 'money', fleet: 'fleet', people: 'people', bills: 'bills', insights: 'insights', drivers: 'manageDrivers', assignments: 'assignDriver', routes: 'manageRoutes', reports: 'dashboard', busreport: 'dashboard', livemap: 'dashboard', track: 'dashboard', fuel: 'addFuel', safety: 'dashboard', warranty: 'addFuel', storehealth: 'issuePart', linkgps: 'addBus', newjob: 'addJob', forecast: 'dashboard', pilferage: 'insights', components: 'issuePart', def: 'addFuel', vendors: 'addPurchase', import: 'addPurchase', crewpins: 'manageDrivers', accounting: 'dashboard', busacct: 'dashboard' };
 function render(r) {
   if (typeof stopMap === 'function') stopMap();   // leaving any screen halts the live-map refresh timer
   if (typeof stopTrack === 'function') stopTrack();
@@ -5072,6 +5358,11 @@ function render(r) {
   S.route = r;
   switch (r.name) {
     case 'home': return viewHome();
+    case 'money': return viewMoney();
+    case 'companybill': return viewCompanyBill(r.id, r.win);
+    case 'fleet': return viewFleet();
+    case 'people': return viewPeople();
+    case 'bills': return viewPurchases();
     case 'buses': return r.id ? viewBusDetail(r.id) : viewBuses();
     case 'jobs': return r.id ? viewJobDetail(r.id) : viewJobs();
     case 'store': return r.id ? viewPartDetail(r.id) : viewStore();
@@ -5155,6 +5446,14 @@ function bind() {
     switch (act) {
       case 'back': return back();
       case 'lang': LANG = LANG === 'en' ? 'hi' : 'en'; localStorage.setItem('lang', LANG); return rerender();
+      case 'theme': {
+        const cur = document.documentElement.dataset.theme
+          || (matchMedia('(prefers-color-scheme:dark)').matches ? 'dark' : 'light');
+        const next = cur === 'dark' ? 'light' : 'dark';
+        document.documentElement.dataset.theme = next;
+        try { localStorage.setItem('gs-theme', next); } catch (e) {}
+        return rerender();
+      }
       case 'addBus': return sheetAddBus();
       case 'saveBus': return saveBus();
       case 'addDoc': return sheetAddDoc(el.getAttribute('data-bus'), null);
@@ -5278,6 +5577,11 @@ function bind() {
       case 'reportPeriod': { S.reportDays = Number(el.getAttribute('data-days')); return rerender(); }
       case 'shareBusReport': return shareText(busName(el.getAttribute('data-bus')) + ' report', busReportText(el.getAttribute('data-bus')));
       case 'shareBill': return shareBill(el.getAttribute('data-company'));
+      case 'moneyWin': _moneyWin = el.getAttribute('data-win') || 'month'; return rerender();
+      case 'billCompany': return push({ name: 'companybill', id: el.getAttribute('data-company'), win: 'lastmonth' });
+      case 'billWhatsapp': return waShare(billTextForCompany(el.getAttribute('data-company'), moneyWindow(el.getAttribute('data-win') || 'lastmonth')));
+      case 'billCopy': return shareText(`Bill — ${el.getAttribute('data-company')}`, billTextForCompany(el.getAttribute('data-company'), moneyWindow(el.getAttribute('data-win') || 'lastmonth')));
+      case 'billPdf': { try { window.print(); } catch (e) { toast('Use your browser menu → Print → Save as PDF'); } return; }
       case 'askAi': return askAi();
       case 'openPurchases': return push({ name: 'purchases' });
       case 'openAlerts': return push({ name: 'alerts' });
@@ -5364,27 +5668,48 @@ async function testNotification() {
 const ROLE_META = { owner: ['👑', 'Owner'], supervisor: ['🧑‍🔧', 'Supervisor'], store: ['📦', 'Store'], mechanic: ['🔧', 'Mechanic'], driver: ['🧑‍✈️', 'Driver'], conductor: ['🎫', 'Conductor'] };
 const roleEmoji = (r) => (ROLE_META[r] || ['🔧'])[0];
 // Step 1 — pick your role. (Keeps the list manageable across a big fleet.)
+// Prominent bilingual switch shown on every login step (spec C5).
+function langSwitch() {
+  return `<div class="langseg" role="group" aria-label="Language">
+    <button data-setlang="en" class="${LANG === 'en' ? 'on' : ''}">EN</button>
+    <button data-setlang="hi" class="${LANG === 'hi' ? 'on' : ''}">हिं</button></div>`;
+}
+// Shared click handler for the language switch on any login step. Returns true
+// if it handled the event (so callers can early-return).
+function handleLoginLang(e, redraw) {
+  const ls = e.target.closest('[data-setlang]');
+  if (ls) { LANG = ls.getAttribute('data-setlang'); localStorage.setItem('lang', LANG); redraw(); return true; }
+  if (e.target.closest('[data-loginlang]')) { LANG = LANG === 'en' ? 'hi' : 'en'; localStorage.setItem('lang', LANG); redraw(); return true; }
+  return false;
+}
 function renderLogin() {
   _pinUser = null; _pin = '';
   const users = S.cache.users || [];
   const counts = {}; users.forEach((u) => { counts[u.role] = (counts[u.role] || 0) + 1; });
   const roles = Object.keys(ROLE_META).filter((r) => counts[r]);
+  const recent = recentUsers();
   root().innerHTML = `<div class="login">
-    <div class="row between" style="width:100%;max-width:420px"><span></span>
-      <button class="lang" data-loginlang>${t('lang')}</button></div>
+    <div class="row" style="width:100%;max-width:420px;justify-content:center">${langSwitch()}</div>
     <div class="bigicon">🚌</div>
     <h1 style="margin:0">${esc(BIZ)}</h1>
     <div class="muted small">${t('appName')} · ${t('tagline')}</div>
-    <div class="muted small" style="margin-top:18px">Who are you?</div>
+    ${recent.length ? `<div class="muted small" style="margin-top:16px">${t('recentHere')}</div>
+      <div class="userpick">${recent.map((u) => `<div class="u" data-recent="${u.id}">
+        ${userPhoto(u) ? `<img class="ava" style="margin:0 auto 6px" src="${esc(userPhoto(u))}" alt="">` : `<div style="font-size:22px">${ROLE_META[u.role] ? ROLE_META[u.role][0] : '👤'}</div>`}
+        <div style="font-weight:700;font-size:14px">${esc(u.name.split(' ')[0])}</div>
+        <div class="tiny muted">${ROLE_META[u.role] ? ROLE_META[u.role][1] : esc(u.role)}</div></div>`).join('')}</div>` : ''}
+    <div class="muted small" style="margin-top:18px">${t('whoAreYou')}</div>
     <div class="userpick">${roles.map((r) => `<div class="u" data-role="${r}">
       <div style="font-size:22px">${ROLE_META[r][0]}</div>
       <div style="font-weight:700;font-size:14px">${ROLE_META[r][1]}</div>
       <div class="tiny muted">${counts[r]} ${counts[r] > 1 ? 'people' : 'person'}</div></div>`).join('')}</div>
-    ${isDemoMode() && /^(localhost|127\.|192\.168\.|10\.|172\.1[6-9]\.|172\.2\d\.|172\.3[01]\.)/.test(location.hostname)
+    ${isDemoMode() && isLocalHost()
       ? `<div class="tiny muted" style="margin-top:14px">Demo PINs — Owner 1111 · Store 3333 · Mechanic 0001</div>` : ''}
   </div>`;
   root().onclick = (e) => {
-    if (e.target.closest('[data-loginlang]')) { LANG = LANG === 'en' ? 'hi' : 'en'; localStorage.setItem('lang', LANG); return renderLogin(); }
+    if (handleLoginLang(e, renderLogin)) return;
+    const rec = e.target.closest('[data-recent]');
+    if (rec) { const u = byId(users, rec.getAttribute('data-recent')); if (u) return renderPin(u); }
     const r = e.target.closest('[data-role]');
     if (r) return renderRolePick(r.getAttribute('data-role'));
   };
@@ -5396,10 +5721,10 @@ function renderRolePick(role) {
   root().innerHTML = `<div class="login">
     <div class="row between" style="width:100%;max-width:420px">
       <button class="backbtn" data-loginback aria-label="Back">‹</button>
-      <span class="muted small">${ROLE_META[role][1]}</span><span style="width:36px"></span></div>
+      <span class="muted small">${ROLE_META[role][1]}</span>${langSwitch()}</div>
     <div class="bigicon">${ROLE_META[role][0]}</div>
-    <div style="font-weight:700">Select your name</div>
-    ${list.length > 6 ? `<input id="login-search" placeholder="Search name…" autocomplete="off" style="max-width:420px;margin:10px 0">` : '<div class="spacer"></div>'}
+    <div style="font-weight:700">${t('selectName')}</div>
+    ${list.length > 6 ? `<input id="login-search" placeholder="${t('searchName')}" autocomplete="off" style="max-width:420px;margin:10px 0">` : '<div class="spacer"></div>'}
     <div class="userpick" id="namelist"></div>
   </div>`;
   const renderList = (q) => {
@@ -5412,6 +5737,7 @@ function renderRolePick(role) {
   renderList('');
   const s = $('#login-search'); if (s) { s.oninput = () => renderList(s.value.trim().toLowerCase()); s.focus(); }
   root().onclick = (e) => {
+    if (handleLoginLang(e, () => renderRolePick(role))) return;
     if (e.target.closest('[data-loginback]')) return renderLogin();
     const u = e.target.closest('[data-login]');
     if (u) return renderPin(byId(S.cache.users, u.getAttribute('data-login')));
@@ -5421,6 +5747,7 @@ function renderPin(user) {
   _pinUser = user; _pin = '';
   const draw = () => {
     root().innerHTML = `<div class="login">
+      <div class="row" style="width:100%;max-width:420px;justify-content:center">${langSwitch()}</div>
       <div class="bigicon">🔒</div>
       <div style="font-weight:700">${esc(user.name)}</div>
       <div class="muted small">${t('enterPin')}</div>
@@ -5432,6 +5759,7 @@ function renderPin(user) {
       <button class="btn ghost sm" data-k="cancel" style="margin-top:14px">${t('cancel')}</button>
     </div>`;
     root().onclick = async (e) => {
+      if (handleLoginLang(e, draw)) return;
       const k = e.target.closest('[data-k]'); if (!k) return;
       const key = k.getAttribute('data-k');
       if (key === 'cancel') return _pinUser ? renderRolePick(_pinUser.role) : renderLogin();
@@ -5559,10 +5887,21 @@ async function attemptLogin(user, pin, redraw) {
   offlineFail(user.id);
   toast(t('wrongPin')); _pin = ''; redraw();
 }
-function enterApp(user) { S.user = user; route({ name: 'home' }); }
+function enterApp(user) { pushRecent(user.id); S.user = user; route({ name: 'home' }); }
+
+/* "Recent on this phone" — remembers who has signed in on THIS device so a
+ * personal phone can skip role→name and go straight to the PIN pad. Just ids in
+ * localStorage; no secret is stored (the PIN is still required). */
+function recentIds() { try { return JSON.parse(localStorage.getItem('gs-recent') || '[]'); } catch (e) { return []; } }
+function pushRecent(id) { let a = recentIds().filter((x) => x !== id); a.unshift(id); a = a.slice(0, 4); try { localStorage.setItem('gs-recent', JSON.stringify(a)); } catch (e) { /* ignore */ } }
+function recentUsers() { const users = S.cache.users || []; return recentIds().map((id) => byId(users, id)).filter(Boolean).slice(0, 4); }
+// A user's face photo, if we have one (drivers carry a photo); else null.
+function userPhoto(u) { const d = driverForUser(u.id); return (d && d.photo) || null; }
 
 /* -------------------------------- Boot ------------------------------------ */
 (async function boot() {
+  // Apply the saved theme before first paint so there's no light-mode flash.
+  try { const s = localStorage.getItem('gs-theme'); if (s) document.documentElement.dataset.theme = s; } catch (e) {}
   try {
   await seedIfEmpty(isDemoMode());   // production seeds roster+config only, never demo buses/jobs
   seedCreds();
