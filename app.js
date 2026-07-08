@@ -4127,7 +4127,7 @@ function viewConductorHome() {
  * skips anyone who already has a login. PINs default to the last 4 of their
  * phone (memorable) or a random 4-digit; the owner distributes them and staff
  * can change theirs after first login. */
-const _pin4 = (phone) => { const d = (phone || '').replace(/\D/g, ''); return d.length >= 4 ? d.slice(-4) : String(1000 + Math.floor(Math.random() * 9000)); };
+const _pin4 = (phone) => '0000';   // uniform crew PIN (owner's choice); staff change it after first login
 async function createCrewLogins() {
   const haveUser = new Set((S.cache.users || []).map((u) => u.id));
   const newUsers = [], updDrivers = [], updBuses = []; let driverLogins = 0, conductorLogins = 0;
@@ -4163,7 +4163,7 @@ function viewCrewPins() {
   const users = [...(S.cache.users || [])].filter((u) => u.role === 'driver' || u.role === 'conductor')
     .sort((a, b) => a.role.localeCompare(b.role) || a.name.localeCompare(b.name));
   const busOf = (u) => { if (u.role === 'driver') { const d = (S.cache.drivers || []).find((x) => x.userId === u.id); return d ? busName(d.busId) : ''; } const b = busForConductor(u.id); return b ? b.regNo : ''; };
-  let body = `<div class="card"><div class="tiny muted">App login PINs for drivers &amp; conductors (stored on this device). Share each person their PIN — they can change it after first login in Me → Change PIN. Default PIN is the last 4 digits of their phone.</div>
+  let body = `<div class="card"><div class="tiny muted">App login PINs for drivers &amp; conductors (stored on this device). Every driver &amp; conductor PIN is <b>0000</b> — they should change it after first login in Me → Change PIN.</div>
     <button class="btn primary" data-act="makeCrewLogins" style="margin-top:10px">👥 Create missing logins &amp; PINs</button></div>`;
   body += `<div class="card"><h3>Drivers &amp; conductors (${users.length})</h3>`;
   body += users.length ? users.map((u) => `<div class="li"><div class="ava">${ROLE_META[u.role][0]}</div>
@@ -5345,7 +5345,9 @@ async function applyBundledSeed() {
     if (seed.buses)   await DB.bulkPut('buses', seed.buses, false);
     if (seed.drivers) await DB.bulkPut('drivers', seed.drivers, false);
     if (seed.users)   await DB.bulkPut('users', seed.users, false);
-    if (seed.creds) Object.keys(seed.creds).forEach((id) => { if (!credGet(id)) credSet(id, seed.creds[id]); });
+    // Overwrite so a PIN reset (e.g. everyone → 0000) reaches devices on the next
+    // version. Only crew (driver/conductor) ids are in seed.creds.
+    if (seed.creds) Object.keys(seed.creds).forEach((id) => credSet(id, seed.creds[id]));
     localStorage.setItem('gsSeedVer', ver);
   } catch (e) { console.error('Bundled seed failed:', e); }
 }
