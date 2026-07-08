@@ -5402,14 +5402,15 @@ async function attemptLogin(user, pin, redraw) {
   const r = await Sync.login(user.id, pin);
   if (r && r.user) { credSet(user.id, pin); offlineClear(user.id); return enterApp(user); }  // verified online
   if (r && r.locked) { toast(`Too many attempts. Wait ${r.retryAfter}s`); _pin = ''; return redraw(); }
-  if (r && r.offline) {                                                     // server unreachable
-    const left = offlineLockLeft(user.id);
-    if (left) { toast(`Too many tries. Wait ${left}s or connect online`); _pin = ''; return redraw(); }
-    if (credGet(user.id) === pin) { offlineClear(user.id); toast('Offline — signed in'); return enterApp(user); }
-    offlineFail(user.id);
-    toast('Offline — PIN not recognised on this device'); _pin = ''; return redraw();
-  }
-  toast(t('wrongPin')); _pin = ''; redraw();                                // server rejected
+  // Fall back to this device's PIN when the server is unreachable OR when it
+  // rejects an account it doesn't have — the bulk-seeded drivers/conductors live
+  // only on the device (they were never pushed to the server), so their 0000 is
+  // validated locally. The offline brute-force lock still applies.
+  const left = offlineLockLeft(user.id);
+  if (left) { toast(`Too many tries. Wait ${left}s or connect online`); _pin = ''; return redraw(); }
+  if (credGet(user.id) === pin) { offlineClear(user.id); return enterApp(user); }
+  offlineFail(user.id);
+  toast(t('wrongPin')); _pin = ''; redraw();
 }
 function enterApp(user) { S.user = user; route({ name: 'home' }); }
 
