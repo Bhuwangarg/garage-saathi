@@ -323,13 +323,13 @@ function closeSheet() {
 
 /* ------------------------------ Data ops ---------------------------------- */
 async function load() {
-  const [users, buses, parts, jobs, ledger, att, purchases, drivers, incidents, driverreports, routes, triplog, fuel, gpsevents, audits, components, def, vendors, garage] = await Promise.all([
+  const [users, buses, parts, jobs, ledger, att, purchases, drivers, incidents, driverreports, routes, triplog, fuel, gpsevents, audits, components, def, vendors, trips, garage] = await Promise.all([
     DB.all('users'), DB.all('buses'), DB.all('parts'), DB.all('jobcards'),
     DB.all('ledger'), DB.all('attendance'), DB.all('purchases'),
     DB.all('drivers'), DB.all('incidents'), DB.all('driverreports'),
-    DB.all('routes'), DB.all('triplog'), DB.all('fuel'), DB.all('gpsevents'), DB.all('audits'), DB.all('components'), DB.all('def'), DB.all('vendors'), DB.get('meta', 'garage'),
+    DB.all('routes'), DB.all('triplog'), DB.all('fuel'), DB.all('gpsevents'), DB.all('audits'), DB.all('components'), DB.all('def'), DB.all('vendors'), DB.all('trips'), DB.get('meta', 'garage'),
   ]);
-  S.cache = { users, buses, parts, jobs, ledger, att, purchases, drivers, incidents, driverreports, routes, triplog, fuel, gpsevents, audits, components, def, vendors, garage };
+  S.cache = { users, buses, parts, jobs, ledger, att, purchases, drivers, incidents, driverreports, routes, triplog, fuel, gpsevents, audits, components, def, vendors, trips, garage };
   refreshBiz();   // keep the displayed business name in sync with garage config
 }
 const byId = (arr, id) => arr.find((x) => x.id === id);
@@ -557,7 +557,7 @@ function topbar(title) {
 }
 
 // Which bottom tab should light up — sub-screens map back to their parent tab.
-const TAB_OF = { home: 'home', buses: 'buses', jobs: 'jobs', store: 'store', me: 'me', purchases: 'me', alerts: 'me', insights: 'home', drivers: 'home', assignments: 'home', company: 'home', routes: 'home', reports: 'home', busreport: 'home', livemap: 'home', track: 'home', fuel: 'home', safety: 'home', warranty: 'home', storehealth: 'store', linkgps: 'home', newjob: 'jobs', driverdocs: 'home', forecast: 'home', pilferage: 'home', components: 'store', def: 'home', vendors: 'me', import: 'me', crewpins: 'me' };
+const TAB_OF = { home: 'home', buses: 'buses', jobs: 'jobs', store: 'store', me: 'me', purchases: 'me', alerts: 'me', insights: 'home', drivers: 'home', assignments: 'home', company: 'home', routes: 'home', reports: 'home', busreport: 'home', livemap: 'home', track: 'home', fuel: 'home', safety: 'home', warranty: 'home', storehealth: 'store', linkgps: 'home', newjob: 'jobs', driverdocs: 'home', forecast: 'home', pilferage: 'home', components: 'store', def: 'home', vendors: 'me', import: 'me', crewpins: 'me', accounting: 'home', busacct: 'home' };
 function bottomnav() {
   const active = TAB_OF[S.route.name] || 'home';
   // Each role gets a focused nav matching what they actually do.
@@ -2119,6 +2119,7 @@ function viewMe() {
          <div class="li" data-act="openStaff"><div class="ava">👥</div><div class="main"><div class="t">Staff</div><div class="s">${S.cache.users.length} accounts · add new</div></div></div>
          <div class="li" data-act="openLiveMap"><div class="ava">🗺️</div><div class="main"><div class="t">Live map</div><div class="s">Track every bus live, Uber-style</div></div></div>
          <div class="li" data-act="openReports"><div class="ava">📊</div><div class="main"><div class="t">Bus reports</div><div class="s">Total maintenance spend per bus + full detail</div></div></div>
+         <div class="li" data-act="openAccounting"><div class="ava">📒</div><div class="main"><div class="t">Accounting</div><div class="s">Per-bus running cost — trip cash, diesel, FASTag, fuel, salary</div></div></div>
          <div class="li" data-act="openForecast"><div class="ava">🔧</div><div class="main"><div class="t">Maintenance &amp; uptime</div><div class="s">Predicts upcoming service/parts + downtime cost</div></div></div>
          <div class="li" data-act="openFuel"><div class="ava">⛽</div><div class="main"><div class="t">Fuel &amp; mileage</div><div class="s">Fills, km/l, fuel ₹/km &amp; mileage-drop alerts</div></div></div>
          <div class="li" data-act="openDef"><div class="ava">🧪</div><div class="main"><div class="t">AdBlue / DEF</div><div class="s">BS6/Volvo exhaust fluid — top-ups, L/100km &amp; cost</div></div></div>
@@ -4076,6 +4077,7 @@ function viewDriverHome() {
       <div><div class="muted small">${t('yourRating')}</div><div class="stat">${score}<span style="font-size:14px"> /100</span></div></div>
       <div style="text-align:right"><div class="stars big">${starStr(scoreStars(score))}</div><div class="tiny muted">${d.tripsLogged || 0} ${t('trips')}</div></div></div>
       <div class="tiny muted" style="margin-top:8px">${recent.length ? `${t('drvLast90')}: ${reasons}. ` : ''}${tip}</div></div>`;
+  body += driverTripCard();   // trip cash + expenses
   if (d.busId) {
     body += `<button class="btn primary" data-act="reportProblem" data-bus="${d.busId}" data-driver="${d.id}">🛠️ ${t('reportProblem')}</button><div class="spacer"></div>`;
   } else {
@@ -4119,6 +4121,140 @@ function viewConductorHome() {
     body += `</div>`;
   } else body += `<div class="card"><div class="empty">No bus assigned yet. Ask your supervisor.</div></div>`;
   shell(t('myTrips'), body);
+}
+
+/* ===== Trip cash & expenses → per-bus accounting ==========================
+ * A driver starts a TRIP (a cash session) for their bus with a ₹ allowance
+ * (default ₹5000 for on-road emergencies — breakdown, checkposts, etc.). They
+ * log each expense tagged by how it's paid: COMPANY CARD (diesel, FASTag — the
+ * company pays) or CASH (from the allowance). The trip shows cash remaining, and
+ * every expense rolls up into per-bus accounting alongside fuel, maintenance and
+ * driver salary. (GPS auto-start of a trip is a later addition — for now the
+ * driver taps "Start trip".) */
+const DEFAULT_ALLOWANCE = 5000;
+const EXPENSE_CATS = {
+  diesel:    { label: 'Diesel',      icon: '⛽', mode: 'card' },
+  fastag:    { label: 'FASTag',      icon: '🛣️', mode: 'card' },
+  food:      { label: 'Food',        icon: '🍱', mode: 'cash' },
+  breakdown: { label: 'Breakdown',   icon: '🔧', mode: 'cash' },
+  police:    { label: 'Police',      icon: '👮', mode: 'cash' },
+  rto:       { label: 'RTO',         icon: '🚧', mode: 'cash' },
+  toll:      { label: 'Toll (cash)', icon: '🎫', mode: 'cash' },
+  other:     { label: 'Other',       icon: '💸', mode: 'cash' },
+};
+const catMeta = (c) => EXPENSE_CATS[c] || EXPENSE_CATS.other;
+const activeTripFor = (driverId) => (S.cache.trips || []).find((t) => t.driverId === driverId && t.status === 'active') || null;
+function tripCash(t) {
+  const cash = (t.expenses || []).filter((e) => e.mode === 'cash').reduce((s, e) => s + (e.amount || 0), 0);
+  const card = (t.expenses || []).filter((e) => e.mode === 'card').reduce((s, e) => s + (e.amount || 0), 0);
+  return { cash, card, remaining: (t.allowance || 0) - cash, total: cash + card };
+}
+function busAccounting(busId, sinceMs) {
+  const since = sinceMs || 0;
+  const trips = (S.cache.trips || []).filter((t) => t.busId === busId && (t.startedAt || 0) >= since);
+  const byCat = {}; let cash = 0, card = 0;
+  trips.forEach((t) => (t.expenses || []).forEach((e) => { byCat[e.cat] = (byCat[e.cat] || 0) + (e.amount || 0); if (e.mode === 'card') card += e.amount || 0; else cash += e.amount || 0; }));
+  const fuelCost = (S.cache.fuel || []).filter((f) => f.busId === busId && (f.at || 0) >= since).reduce((s, f) => s + (f.cost || 0), 0);
+  const maint = (S.cache.jobs || []).filter((j) => j.busId === busId && (j.closedAt || j.createdAt || 0) >= since).reduce((s, j) => s + jobCost(j).total, 0);
+  const drv = driverOfBus(busId);
+  const salary = drv ? (Number(drv.salaryMonthly) || 0) : 0;
+  return { trips: trips.length, byCat, cash, card, fuelCost, maint, salary,
+    allowance: trips.reduce((s, t) => s + (t.allowance || 0), 0), total: cash + card + fuelCost + maint };
+}
+// Rendered on the driver's home — start a trip, or the live cash card of the active one.
+function driverTripCard() {
+  const d = driverForUser(S.user.id); if (!d) return '';
+  const t = activeTripFor(d.id);
+  if (!t) return `<button class="btn primary" data-act="startTrip" data-driver="${d.id}">🚌 Start trip &amp; cash</button><div class="spacer"></div>`;
+  const c = tripCash(t);
+  return `<div class="card" style="border:1.5px solid var(--brand2)"><div class="row between"><h3>💰 Trip cash</h3><span class="tiny muted">${esc(t.fromTo || 'Trip')}</span></div>
+    <div class="grid2" style="margin-top:6px">
+      <div><div class="tiny muted">Cash allowance</div><b>${money(t.allowance)}</b></div>
+      <div><div class="tiny muted">Cash spent</div><b>${money(c.cash)}</b></div>
+      <div><div class="tiny muted">Cash left</div><b style="color:${c.remaining < 0 ? 'var(--red)' : 'var(--green)'}">${money(c.remaining)}</b></div>
+      <div><div class="tiny muted">On card (diesel/FASTag)</div><b>${money(c.card)}</b></div></div>
+    <div class="btnrow" style="margin-top:10px"><button class="btn primary" data-act="addTripExp" data-trip="${t.id}">+ Add expense</button>
+      <button class="btn" data-act="closeTrip" data-trip="${t.id}">End trip</button></div>
+    ${(t.expenses || []).length ? '<div class="hr"></div>' + t.expenses.slice().reverse().map((e) => `<div class="row between small" style="padding:3px 0"><span>${catMeta(e.cat).icon} ${catMeta(e.cat).label}${e.note ? ' · ' + esc(e.note) : ''} <span class="tiny muted">${e.mode}</span></span><b>${money(e.amount)}</b></div>`).join('') : ''}
+    </div>`;
+}
+function sheetStartTrip(driverId) {
+  const d = driverById(driverId), bus = d ? byId(S.cache.buses, d.busId) : null;
+  openSheet('Start trip', `
+    <div class="tiny muted" style="margin-bottom:10px">Bus: <b>${bus ? esc(bus.regNo) : '—'}</b></div>
+    <label class="field"><span class="lbl">Route (from → to)</span><input id="tp-route" value="${bus && bus.routeLabel ? esc(expandRoute(bus.routeLabel)) : ''}" placeholder="e.g. Jaipur to Delhi"></label>
+    <label class="field"><span class="lbl">Cash allowance (₹)</span><input id="tp-allow" type="number" inputmode="numeric" value="${DEFAULT_ALLOWANCE}"></label>
+    <button class="btn primary" data-act="saveStartTrip" data-driver="${driverId}">Start trip</button>`);
+}
+async function saveStartTrip(driverId) {
+  const d = driverById(driverId); if (!d) return;
+  if (activeTripFor(driverId)) return toast('You already have an active trip');
+  const t = { id: uid('trip-'), busId: d.busId, driverId, fromTo: (($('#tp-route') || {}).value || '').trim(),
+    allowance: Number(($('#tp-allow') || {}).value) || DEFAULT_ALLOWANCE, startedAt: Date.now(), closedAt: null, status: 'active', expenses: [], by: S.user.id };
+  await DB.put('trips', t); await load(); closeSheet(); toast('Trip started ✓'); rerender();
+}
+let _expShot = null;
+function sheetAddTripExp(tripId) {
+  _expShot = null;
+  openSheet('Add expense', `
+    <label class="field"><span class="lbl">Category</span><select id="ex-cat">${Object.entries(EXPENSE_CATS).map(([k, m]) => `<option value="${k}">${m.icon} ${m.label} · ${m.mode}</option>`).join('')}</select></label>
+    <label class="field"><span class="lbl">Amount (₹)</span><input id="ex-amt" type="number" inputmode="numeric"></label>
+    <label class="field"><span class="lbl">Note (optional)</span><input id="ex-note" placeholder="e.g. tyre puncture near Kishangarh"></label>
+    <button class="btn" data-act="captureExpPhoto">📷 Bill photo (optional)</button><div id="ex-prev" class="thumbs" style="margin:8px 0"></div>
+    <button class="btn primary" data-act="saveTripExp" data-trip="${tripId}">Add</button>`);
+}
+async function captureExpPhoto() { const s = await capturePhoto(); if (!s) return; _expShot = await Sync.uploadPhoto(s) || s; const p = $('#ex-prev'); if (p) p.innerHTML = `<img class="thumb" src="${_expShot}">`; }
+async function saveTripExp(tripId) {
+  const t = byId(S.cache.trips, tripId); if (!t) return;
+  const cat = ($('#ex-cat') || {}).value || 'other', amount = Number(($('#ex-amt') || {}).value) || 0;
+  if (amount <= 0) return toast('Enter the amount');
+  t.expenses = [...(t.expenses || []), { id: uid('e-'), cat, mode: catMeta(cat).mode, amount, note: (($('#ex-note') || {}).value || '').trim(), photo: _expShot || '', at: Date.now(), by: S.user.id }];
+  _expShot = null; await DB.put('trips', t); await load(); closeSheet(); toast('Expense added ✓'); rerender();
+}
+async function closeTrip(tripId) {
+  const t = byId(S.cache.trips, tripId); if (!t) return;
+  if (!confirm('End this trip? It stays in accounting.')) return;
+  t.status = 'closed'; t.closedAt = Date.now(); await DB.put('trips', t); await load(); toast('Trip ended ✓'); rerender();
+}
+function viewAccounting() {
+  const rows = (S.cache.buses || []).map((b) => ({ b, a: busAccounting(b.id) })).filter((x) => x.a.trips || x.a.fuelCost || x.a.maint).sort((a, c) => c.a.total - a.a.total);
+  const grand = rows.reduce((s, x) => s + x.a.total, 0);
+  let body = `<div class="card"><div class="muted small">Running cost — all buses</div><div class="stat" style="color:var(--brand2)">${money(grand)}</div>
+    <div class="tiny muted">Trip cash + card (diesel/FASTag) + fuel + maintenance. Driver salary shown per bus.</div></div>`;
+  body += `<div class="card"><h3>By bus</h3>`;
+  body += rows.length ? rows.map(({ b, a }) => `<div class="li" data-act="openBusAcct" data-id="${b.id}"><div class="ava">🚌</div>
+    <div class="main"><div class="t">${esc(b.regNo)}</div><div class="s">${a.trips} trip(s) · fuel ${money(a.fuelCost)} · maint ${money(a.maint)}${a.salary ? ' · salary/mo ' + money(a.salary) : ''}</div></div>
+    <b>${money(a.total)}</b></div>`).join('') : `<div class="empty">No expenses logged yet — drivers add them from their home screen.</div>`;
+  body += `</div>`;
+  shell('Accounting', body);
+}
+function viewBusAccounting(busId) {
+  const b = byId(S.cache.buses, busId); if (!b) return viewAccounting();
+  const a = busAccounting(busId);
+  const trips = (S.cache.trips || []).filter((t) => t.busId === busId).sort((x, y) => (y.startedAt || 0) - (x.startedAt || 0));
+  const drv = driverOfBus(busId);
+  let body = `<div class="card"><div class="row between"><h3>${esc(b.regNo)}</h3><b>${money(a.total)}</b></div>
+    <div class="grid2" style="margin-top:8px">
+      <div><div class="tiny muted">Diesel + FASTag (card)</div><b>${money(a.card)}</b></div>
+      <div><div class="tiny muted">Cash expenses</div><b>${money(a.cash)}</b></div>
+      <div><div class="tiny muted">Fuel logs</div><b>${money(a.fuelCost)}</b></div>
+      <div><div class="tiny muted">Maintenance</div><b>${money(a.maint)}</b></div>
+      <div><div class="tiny muted">Cash given out</div><b>${money(a.allowance)}</b></div>
+      <div><div class="tiny muted">Driver salary /mo</div><b>${money(a.salary)}</b></div></div>
+    ${drv && can(S.user.role, 'manageDrivers') ? `<button class="btn sm" data-act="setSalary" data-driver="${drv.id}" style="margin-top:10px">💵 Set ${esc(drv.name)}'s monthly salary</button>` : ''}</div>`;
+  const catRows = Object.entries(a.byCat).sort((x, y) => y[1] - x[1]).map(([c, v]) => `<div class="row between small" style="padding:3px 0"><span>${catMeta(c).icon} ${catMeta(c).label}</span><b>${money(v)}</b></div>`).join('');
+  body += `<div class="card"><h3>By category</h3>${catRows || '<div class="muted small">No expenses yet</div>'}</div>`;
+  body += `<div class="card"><h3>Trips</h3>` + (trips.length ? trips.map((t) => { const c = tripCash(t); return `<div class="li"><div class="ava">🧾</div>
+    <div class="main"><div class="t">${esc(t.fromTo || 'Trip')} ${t.status === 'active' ? '<span class="badge b-green">active</span>' : ''}</div>
+      <div class="s">${fmtDate(t.startedAt)} · ${esc(driverName(t.driverId))} · ${(t.expenses || []).length} expense(s) · cash left ${money(c.remaining)}</div></div>
+    <b>${money(c.total)}</b></div>`; }).join('') : `<div class="empty">No trips yet</div>`) + `</div>`;
+  shell(esc(b.regNo) + ' — accounting', body);
+}
+async function setSalary(driverId) {
+  const d = driverById(driverId); if (!d) return;
+  const v = prompt(`Monthly salary for ${d.name} (₹):`, d.salaryMonthly || '');
+  if (v == null) return;
+  d.salaryMonthly = Number(v) || 0; await DB.put('drivers', d); await load(); toast('Salary saved ✓'); rerender();
 }
 
 /* ===== Crew logins & PINs — give imported drivers/conductors app accounts =====
@@ -4928,7 +5064,7 @@ async function askAi() {
  */
 const current = () => S.stack[S.stack.length - 1];
 // Role guard: routes restricted to certain roles fall back to home for others.
-const ROUTE_PERM = { insights: 'insights', drivers: 'manageDrivers', assignments: 'assignDriver', routes: 'manageRoutes', reports: 'dashboard', busreport: 'dashboard', livemap: 'dashboard', track: 'dashboard', fuel: 'addFuel', safety: 'dashboard', warranty: 'addFuel', storehealth: 'issuePart', linkgps: 'addBus', newjob: 'addJob', forecast: 'dashboard', pilferage: 'insights', components: 'issuePart', def: 'addFuel', vendors: 'addPurchase', import: 'addPurchase', crewpins: 'manageDrivers' };
+const ROUTE_PERM = { insights: 'insights', drivers: 'manageDrivers', assignments: 'assignDriver', routes: 'manageRoutes', reports: 'dashboard', busreport: 'dashboard', livemap: 'dashboard', track: 'dashboard', fuel: 'addFuel', safety: 'dashboard', warranty: 'addFuel', storehealth: 'issuePart', linkgps: 'addBus', newjob: 'addJob', forecast: 'dashboard', pilferage: 'insights', components: 'issuePart', def: 'addFuel', vendors: 'addPurchase', import: 'addPurchase', crewpins: 'manageDrivers', accounting: 'dashboard', busacct: 'dashboard' };
 function render(r) {
   if (typeof stopMap === 'function') stopMap();   // leaving any screen halts the live-map refresh timer
   if (typeof stopTrack === 'function') stopTrack();
@@ -4967,6 +5103,8 @@ function render(r) {
     case 'vendors': return r.id ? viewVendorDetail(r.id) : viewVendors();
     case 'import': return viewImport();
     case 'crewpins': return viewCrewPins();
+    case 'accounting': return viewAccounting();
+    case 'busacct': return viewBusAccounting(r.id);
     default: return viewHome();
   }
 }
@@ -5058,6 +5196,15 @@ function bind() {
       case 'openImport': return push({ name: 'import' });
       case 'openCrewPins': return push({ name: 'crewpins' });
       case 'makeCrewLogins': return makeCrewLogins();
+      case 'openAccounting': return push({ name: 'accounting' });
+      case 'openBusAcct': return push({ name: 'busacct', id: el.getAttribute('data-id') });
+      case 'startTrip': return sheetStartTrip(el.getAttribute('data-driver'));
+      case 'saveStartTrip': return saveStartTrip(el.getAttribute('data-driver'));
+      case 'addTripExp': return sheetAddTripExp(el.getAttribute('data-trip'));
+      case 'captureExpPhoto': return captureExpPhoto();
+      case 'saveTripExp': return saveTripExp(el.getAttribute('data-trip'));
+      case 'closeTrip': return closeTrip(el.getAttribute('data-trip'));
+      case 'setSalary': return setSalary(el.getAttribute('data-driver'));
       case 'openVendor': return push({ name: 'vendors', id: el.getAttribute('data-id') });
       case 'addVendor': return sheetAddVendor();
       case 'editVendor': return sheetAddVendor(el.getAttribute('data-id'));

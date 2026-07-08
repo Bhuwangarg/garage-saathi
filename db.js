@@ -5,7 +5,7 @@
  */
 
 const DB_NAME = 'garage-saathi';
-const DB_VERSION = 9;   // v9 adds the vendors store (supplier registry) — onupgradeneeded creates any missing
+const DB_VERSION = 10;  // v10 adds the trips store (driver trip cash + expenses) — onupgradeneeded creates any missing
 
 const STORES = {
   users: 'id',
@@ -26,6 +26,7 @@ const STORES = {
   components: 'id',      // rotable/refurbishable units (tyres, alternators…) — per-unit life + send-out-for-repair history
   def: 'id',            // AdBlue / DEF (diesel exhaust fluid) top-ups for BS6/Volvo SCR buses → consumption + cost
   vendors: 'id',        // supplier registry — maps bills/invoices (incl. emailed ones) to a known vendor
+  trips: 'id',          // a driver's trip = cash session (₹ allowance + categorised expenses) → per-bus accounting
   meta: 'key',
 };
 
