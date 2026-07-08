@@ -5352,10 +5352,14 @@ async function applyDriveDocs() {
   const ver = 'gsDocs:' + (D.version || '1');
   if (localStorage.getItem('gsDocsVer') === ver) return;
   try {
+    const buses = await DB.all('buses');
+    // The route sheet is the final fleet — remove buses only ever created from a
+    // Drive doc folder (old vehicles no longer owned).
+    if (D.cleanupDriveBuses) { for (const b of buses.filter((b) => b.source === 'drive-doc')) await DB.softDel('buses', b.id); }
     if (D.newBuses && D.newBuses.length) await DB.bulkPut('buses', D.newBuses, false);
     if (D.docFolders) {
-      const buses = await DB.all('buses'), upd = [];
-      buses.forEach((b) => { const nr = _normReg(b.regNo); if (D.docFolders[nr] && b.docsFolderId !== D.docFolders[nr]) { b.docsFolderId = D.docFolders[nr]; upd.push(b); } });
+      const upd = [];
+      buses.filter((b) => b.source !== 'drive-doc').forEach((b) => { const nr = _normReg(b.regNo), fid = D.docFolders[nr] || null; if (b.docsFolderId !== fid) { b.docsFolderId = fid; upd.push(b); } });
       if (upd.length) await DB.bulkPut('buses', upd, false);
     }
     localStorage.setItem('gsDocsVer', ver);
