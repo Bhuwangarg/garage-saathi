@@ -19,6 +19,7 @@ import secrets as _secrets
 import json
 import math
 import os
+import re
 import sqlite3
 import threading
 import time
@@ -64,7 +65,30 @@ PORT = int(os.environ.get("PORT", "8766"))      # cloud hosts inject $PORT
 _lock = threading.Lock()
 SESSIONS = {}          # token -> {uid, exp}
 SESSION_TTL = int(os.environ.get("SESSION_TTL_SEC", str(12 * 3600)))   # 12h
-ALLOWED_ORIGIN = os.environ.get("ALLOWED_ORIGIN", "*")
+# CORS allow-list. Default = the production PWA (GitHub Pages) only; any
+# localhost/127.0.0.1 port is also allowed for dev. Override with ALLOWED_ORIGIN
+# env: a comma-separated list of exact origins, or "*" to allow any (not for prod).
+PROD_ORIGIN = "https://bhuwangarg.github.io"
+_env_origin = os.environ.get("ALLOWED_ORIGIN", "").strip()
+if _env_origin == "*":
+    ALLOWED_ORIGINS = "*"
+elif _env_origin:
+    ALLOWED_ORIGINS = [o.strip().rstrip("/") for o in _env_origin.split(",") if o.strip()]
+else:
+    ALLOWED_ORIGINS = [PROD_ORIGIN]
+_LOCALHOST_ORIGIN = re.compile(r"^http://(localhost|127\.0\.0\.1)(:\d+)?$")
+
+def cors_origin_for(origin):
+    """Echo the request Origin when it's allowed (so other sites are blocked);
+    otherwise fall back to the production origin (a browser from a disallowed
+    site then sees a mismatch and blocks the response)."""
+    if ALLOWED_ORIGINS == "*":
+        return origin or "*"
+    if origin:
+        o = origin.rstrip("/")
+        if o in ALLOWED_ORIGINS or _LOCALHOST_ORIGIN.match(o):
+            return origin
+    return ALLOWED_ORIGINS[0]
 # Launch hardening knobs (safe defaults preserve dev behaviour):
 #   ENABLE_DEMO_SEED=0  → do NOT seed the demo staff accounts (real deployment)
 #   MAX_UPLOAD_MB       → reject oversized photo uploads (DoS guard)
@@ -568,7 +592,8 @@ class Handler(BaseHTTPRequestHandler):
         else:
             body = json.dumps(payload).encode() if payload is not None else b""
         self.send_response(code)
-        self.send_header("Access-Control-Allow-Origin", ALLOWED_ORIGIN)
+        self.send_header("Access-Control-Allow-Origin", cors_origin_for(self.headers.get("Origin")))
+        self.send_header("Vary", "Origin")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
         self.send_header("Content-Type", ctype)
@@ -802,8 +827,10 @@ if __name__ == "__main__":
     else:
         print("ENABLE_DEMO_SEED=0 → skipping demo staff accounts (real deployment)")
     os.makedirs(UPLOADS, exist_ok=True)
-    if ALLOWED_ORIGIN == "*":
-        print("WARNING: ALLOWED_ORIGIN=* (open CORS). Set it to your PWA domain before production.")
+    if ALLOWED_ORIGINS == "*":
+        print("WARNING: ALLOWED_ORIGIN=* (open CORS). Unset it to lock to the PWA domain before production.")
+    else:
+        print("CORS locked to: " + ", ".join(ALLOWED_ORIGINS) + " (+ any localhost port for dev)")
     if not _GPS_TOKEN_OK:
         print("NOTE: GPS_INGEST_TOKEN not set (or demo) → /gps/ingest is disabled.")
     print(f"AI advisor proxy: {'ENABLED (/ai)' if ANTHROPIC_API_KEY else 'disabled (set ANTHROPIC_API_KEY)'}")
