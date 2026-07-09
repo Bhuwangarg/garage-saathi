@@ -624,6 +624,11 @@ class Handler(BaseHTTPRequestHandler):
                                      "persistent": _USE_TURSO, "urlSet": bool(TURSO_URL), "tokenSet": bool(TURSO_TOKEN),
                                      "aiKeySet": bool(ANTHROPIC_API_KEY), "vapidReady": _WEBPUSH and bool(_vapid_pem_path()),
                                      "photos": "r2" if _USE_R2 else "disk", "photosPersistent": _USE_R2,
+                                     # Per-var presence (booleans only, no secrets) so a missing/misnamed
+                                     # R2 env var can be pinpointed without dashboard access.
+                                     "r2Vars": {"R2_ACCOUNT_ID": bool(R2_ACCOUNT_ID), "R2_ACCESS_KEY_ID": bool(R2_ACCESS_KEY),
+                                                "R2_SECRET_ACCESS_KEY": bool(R2_SECRET_KEY), "R2_BUCKET": bool(R2_BUCKET),
+                                                "R2_PUBLIC_URL": bool(R2_PUBLIC_URL)},
                                      "gpsIngest": _GPS_TOKEN_OK, "gpsLiveRegs": len(LIVE_GPS)})
         if u.path.startswith("/uploads/"):
             name = os.path.basename(u.path)
