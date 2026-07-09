@@ -20,6 +20,7 @@ const I18N = {
     // Login
     tagline: 'Garage maintenance, Jaipur', enterPin: 'Enter PIN', wrongPin: 'Wrong PIN',
     recentHere: 'Recent on this phone', whoAreYou: 'Who are you?', selectName: 'Select your name', searchName: 'Search name…',
+    cantReach: "Can't reach the server — check internet and try again",
     // Menu (More)
     more: 'More', supplierBills: 'Supplier bills & payments', drivers: 'Drivers', staff: 'Staff', sync: 'Sync', changePin: 'Change my PIN',
     // Home / actions
@@ -66,6 +67,7 @@ const I18N = {
     // Login
     tagline: 'गैराज मरम्मत, जयपुर', enterPin: 'पिन डालें', wrongPin: 'गलत पिन',
     recentHere: 'इस फ़ोन पर हाल के', whoAreYou: 'आप कौन हैं?', selectName: 'अपना नाम चुनें', searchName: 'नाम खोजें…',
+    cantReach: 'सर्वर से संपर्क नहीं — इंटरनेट जाँचें और फिर कोशिश करें',
     // Menu (More)
     more: 'और', supplierBills: 'सप्लायर बिल और भुगतान', drivers: 'ड्राइवर', staff: 'स्टाफ', sync: 'सिंक', changePin: 'मेरा पिन बदलें',
     // Home / actions
@@ -5813,6 +5815,12 @@ async function attemptLogin(user, pin, redraw) {
   const left = offlineLockLeft(user.id);
   if (left) { toast(`Too many tries. Wait ${left}s or connect online`); _pin = ''; return redraw(); }
   if (credGet(user.id) === pin) { offlineClear(user.id); return enterApp(user); }
+  // Server was UNREACHABLE (cold start / no internet) and we have no saved PIN
+  // for this account on this device — we genuinely can't verify. This is NOT a
+  // wrong PIN, so don't say so and don't count it as a brute-force attempt
+  // (that used to lock out the correct PIN during a server cold start).
+  if (r && r.offline) { toast(t('cantReach')); _pin = ''; return redraw(); }
+  // Server explicitly rejected the PIN and no local match → genuinely wrong.
   offlineFail(user.id);
   toast(t('wrongPin')); _pin = ''; redraw();
 }

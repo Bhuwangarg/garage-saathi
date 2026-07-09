@@ -54,10 +54,16 @@ const Sync = (function () {
   // Authenticate against the server. Returns {user} on success, {offline:true}
   // if the server is unreachable, or null on wrong PIN.
   async function login(userId, pin) {
+    // Bound the request: a spun-down/cold server (Render free tier) must not hang
+    // the login for a minute — time out fast and let the caller fall back to the
+    // device PIN. 12s is enough for a warm round-trip on a slow phone network.
+    const ctl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+    const to = ctl ? setTimeout(() => ctl.abort(), 12000) : null;
     try {
       const res = await fetch(baseUrl() + '/auth/login', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId, pin }),
+        signal: ctl ? ctl.signal : undefined,
       });
       if (res.status === 401) return null;       // wrong PIN (server says so)
       if (res.status === 429) {                  // locked out — too many attempts
@@ -71,6 +77,8 @@ const Sync = (function () {
       return { user: j.user };
     } catch (e) {
       return { offline: true };                  // can't reach server → caller falls back
+    } finally {
+      if (to) clearTimeout(to);
     }
   }
   function logout() { token = ''; ls.removeItem('token'); }

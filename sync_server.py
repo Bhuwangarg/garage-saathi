@@ -514,14 +514,16 @@ def gps_telemetry(bus_id, odo, reg=None):
             "odometer": odometer, "lastPing": int(t * 1000)}
 
 
-def save_upload(data_url, host):
+def save_upload(data_url, host, proto="http"):
     head, _, b64 = data_url.partition(",")
     ext = "png" if "image/png" in head else "jpg"
     name = uuid.uuid4().hex + "." + ext
     os.makedirs(UPLOADS, exist_ok=True)
     with open(os.path.join(UPLOADS, name), "wb") as f:
         f.write(base64.b64decode(b64))
-    return {"url": f"http://{host}/uploads/{name}"}
+    # Must be HTTPS in production: the PWA is served over HTTPS (GitHub Pages), so
+    # an http:// image URL is blocked as mixed content and the photo never shows.
+    return {"url": f"{proto}://{host}/uploads/{name}"}
 
 
 # ------------------------------- HTTP --------------------------------------
@@ -660,7 +662,12 @@ class Handler(BaseHTTPRequestHandler):
             data = self._body().get("data") or ""
             if not data.startswith("data:"):
                 return self._send(400, {"error": "expected data URL"})
-            return self._send(200, save_upload(data, self.headers.get("Host", f"localhost:{PORT}")))
+            _host = self.headers.get("Host", f"localhost:{PORT}")
+            # Behind Render/any TLS proxy the request arrives as https; honor
+            # X-Forwarded-Proto, and default to https for any non-local host.
+            _proto = (self.headers.get("X-Forwarded-Proto")
+                      or ("http" if _host.startswith(("localhost", "127.")) else "https"))
+            return self._send(200, save_upload(data, _host, _proto))
 
         if u.path == "/ai":          # server-side Anthropic proxy — keeps the API key OFF devices
             if not self._auth_user():
