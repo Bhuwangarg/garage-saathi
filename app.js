@@ -14,7 +14,7 @@ const I18N = {
     save: 'Save', cancel: 'Cancel', open: 'open', logout: 'Logout', lang: 'हिंदी', theme: 'Theme', attendance: 'Attendance',
     today: 'Today', money: 'Money', fleet: 'Fleet', people: 'People', bills: 'Bills', myWork: 'My work', myDuty: 'My Duty',
     needsYouNow: 'Needs you now', allClear: 'All clear', stockValue: 'Stock value', reorderSoon: 'Reorder soon', pendingSuppliers: 'Pending to suppliers', issuePartBtn: 'Issue part', storeHealth: 'Store health', openJobsParts: 'Open jobs (parts may be needed)', searchParts: 'Search a part…', fuel: 'Fuel',
-    thisMonth: 'This month', lastMonth: 'Last month', thisYear: 'This year', prevWindow: 'prev', runningCost: 'Running cost', youOwe: 'You owe', toCollect: 'To collect', billCompany: 'Bill a company', tapToBill: 'tap to bill', noBillable: 'No billable (verified) repairs yet. Assign buses to companies in Garage setup.', whereMoneyGoes: 'Where the money goes', reconciles: 'reconciles to', moneyPit: 'Money-pit buses', needsOdometer: 'Needs odometer data — link GPS or enter odometer on a bus to see ₹/km.', tripCash: 'Trip cash', shareWhatsapp: 'WhatsApp', copy: 'Copy', savePdf: 'Save PDF', itemised: 'Itemised — verified jobs',
+    thisMonth: 'This month', lastMonth: 'Last month', thisYear: 'This year', prevWindow: 'prev', runningCost: 'Running cost', youOwe: 'You owe', whereMoneyGoes: 'Where the money goes', reconciles: 'reconciles to', moneyPit: 'Money-pit buses', needsOdometer: 'Needs odometer data — link GPS or enter odometer on a bus to see ₹/km.', tripCash: 'Trip cash',
     purchases: 'Purchases / Bills', serviceHistory: 'Service history', documents: 'Documents',
     addPhotoNote: 'Before AND after photos required to close a job (outside repairs: a bill photo)', noJobs: 'No jobs yet', expired: 'EXPIRED',
     // Login
@@ -60,7 +60,7 @@ const I18N = {
     save: 'सेव', cancel: 'रद्द', open: 'खुला', logout: 'लॉगआउट', lang: 'EN', theme: 'थीम', attendance: 'हाज़िरी',
     today: 'आज', money: 'पैसा', fleet: 'बेड़ा', people: 'लोग', bills: 'बिल', myWork: 'मेरा काम', myDuty: 'मेरी ड्यूटी',
     needsYouNow: 'अभी ध्यान दें', allClear: 'सब ठीक है', stockValue: 'स्टॉक मूल्य', reorderSoon: 'जल्द मंगाएं', pendingSuppliers: 'सप्लायर को बकाया', issuePartBtn: 'पुर्जा जारी करें', storeHealth: 'स्टोर स्थिति', openJobsParts: 'खुले काम (पुर्जे चाहिए)', searchParts: 'पुर्जा खोजें…', fuel: 'ईंधन',
-    thisMonth: 'इस महीने', lastMonth: 'पिछले महीने', thisYear: 'इस साल', prevWindow: 'पिछला', runningCost: 'कुल खर्च', youOwe: 'आपको देना है', toCollect: 'वसूलना है', billCompany: 'कंपनी को बिल', tapToBill: 'बिल के लिए टैप करें', noBillable: 'अभी कोई बिल-योग्य (सत्यापित) मरम्मत नहीं। गैराज सेटअप में बसों को कंपनी से जोड़ें।', whereMoneyGoes: 'पैसा कहाँ जाता है', reconciles: 'कुल मिलाकर', moneyPit: 'ज़्यादा खर्च वाली बसें', needsOdometer: 'ओडोमीटर डेटा चाहिए — ₹/किमी देखने के लिए GPS जोड़ें या बस का ओडोमीटर डालें।', tripCash: 'ट्रिप कैश', shareWhatsapp: 'व्हाट्सएप', copy: 'कॉपी', savePdf: 'PDF सेव करें', itemised: 'विवरण — सत्यापित काम',
+    thisMonth: 'इस महीने', lastMonth: 'पिछले महीने', thisYear: 'इस साल', prevWindow: 'पिछला', runningCost: 'कुल खर्च', youOwe: 'आपको देना है', whereMoneyGoes: 'पैसा कहाँ जाता है', reconciles: 'कुल मिलाकर', moneyPit: 'ज़्यादा खर्च वाली बसें', needsOdometer: 'ओडोमीटर डेटा चाहिए — ₹/किमी देखने के लिए GPS जोड़ें या बस का ओडोमीटर डालें।', tripCash: 'ट्रिप कैश',
     purchases: 'खरीद / बिल', serviceHistory: 'सेवा इतिहास', documents: 'कागज़ात',
     addPhotoNote: 'काम बंद करने के लिए पहले और बाद दोनों की फोटो ज़रूरी हैं (बाहर मरम्मत: बिल की फोटो)', noJobs: 'अभी कोई काम नहीं', expired: 'समाप्त',
     // Login
@@ -587,7 +587,7 @@ const TAB_OF = {
   money: 'money', fleet: 'fleet', people: 'people', bills: 'bills',
   newjob: 'jobs', storehealth: 'store', components: 'store', import: 'me',
   // money
-  company: 'money', companybill: 'money', reports: 'money', fuel: 'money', purchases: 'money',
+  company: 'money', reports: 'money', fuel: 'money', purchases: 'money',
   vendors: 'money', accounting: 'money', busacct: 'money', warranty: 'money',
   // fleet
   buses: 'fleet', alerts: 'fleet', driverdocs: 'fleet', def: 'fleet', linkgps: 'fleet',
@@ -747,19 +747,8 @@ function costComposition(w) {
   return { parts, labour, outside, repairs: parts + labour + outside, fuel, misc: tripMisc, total: parts + labour + outside + fuel + tripMisc };
 }
 // Billable (verified only) repair cost per company, within a window.
-function billableByCompany(w) {
-  const map = {};
-  for (const j of S.cache.jobs) {
-    if (j.status !== 'verified') continue;
-    const ts = j.verifiedAt || j.closedAt || j.createdAt;
-    if (ts < w.start || ts >= w.end) continue;
-    const bus = byId(S.cache.buses, j.busId); if (!bus || !bus.company) continue;
-    map[bus.company] = (map[bus.company] || 0) + jobCost(j).total;
-  }
-  return Object.entries(map).sort((a, b) => b[1] - a[1]);
-}
-
-// MONEY — the owner's money surface. Seven triage-ordered zones (revamp Update 2).
+// MONEY — the owner's money surface (revamp Update 2). Money-OUT only: the owner
+// runs their own buses, so there's no "bill a company" — just what it costs.
 let _moneyWin = 'month';
 function viewMoney() {
   const w = moneyWindow(_moneyWin);
@@ -767,9 +756,6 @@ function viewMoney() {
   const prev = costComposition({ start: w.prevStart, end: w.prevEnd });
   const total = comp.total, trendPct = prev.total > 0 ? Math.round((total - prev.total) / prev.total * 100) : null;
   const pending = S.cache.purchases.filter((p) => p.paymentStatus === 'pending').reduce((s, p) => s + (p.amount || 0), 0);
-  const lastM = moneyWindow('lastmonth');
-  const bill = billableByCompany(lastM);
-  const collect = bill.reduce((s, [, v]) => s + v, 0);
   const trips = S.cache.trips || [];
   const cardSpend = trips.reduce((s, t) => s + tripCash(t).card, 0);
   const cashOwed = trips.filter((t) => t.status !== 'closed').reduce((s, t) => s + Math.max(0, -tripCash(t).remaining), 0);
@@ -791,20 +777,10 @@ function viewMoney() {
     <div class="tiny muted">${w.label}</div>
     <div class="chart" style="height:74px">${months.map((m) => `<div class="bar"><i style="height:${Math.round(m.value / mmax * 100)}%"></i><span>${m.label}</span></div>`).join('')}</div></div>`;
 
-  // ZONE 2 — Owe ↔ Collect (two directions, never conflated).
-  body += `<div class="grid2">
-    <div class="card tile" data-act="openPurchases" style="cursor:pointer"><div class="muted small">${t('youOwe')}</div><div class="stat money" style="color:var(--red)">${money(pending)}</div><div class="tiny muted">suppliers · pending</div></div>
-    <div class="card tile"><div class="muted small">${t('toCollect')}</div><div class="stat money" style="color:var(--accent-700)">${money(collect)}</div><div class="tiny muted">companies · last month</div></div></div>`;
+  // ZONE 2 — You owe (suppliers). Money OUT only — the owner doesn't invoice companies.
+  body += `<div class="card tile" data-act="openPurchases" style="cursor:pointer"><div class="muted small">${t('youOwe')}</div><div class="stat money" style="color:var(--red)">${money(pending)}</div><div class="tiny muted">suppliers · pending bills</div></div>`;
 
-  // ZONE 3 — Bill a company (last closed month; drills to the worksheet, WhatsApp primary).
-  body += `<div class="card"><div class="row between"><h3>🧾 ${t('billCompany')}</h3><span class="tiny muted">${lastM.label}</span></div>`;
-  body += bill.length ? bill.slice(0, 6).map(([c, v]) => `<div class="trow info" data-act="billCompany" data-company="${esc(c)}">
-      <div class="ti">🏢</div><div class="tm"><div class="tt">${esc(c)}</div><div class="ts">${t('tapToBill')}</div></div>
-      <div class="tc money">${money(v)}</div></div>`).join('')
-    : `<div class="muted small">${t('noBillable')}</div>`;
-  body += `</div>`;
-
-  // ZONE 4 — Where the money goes (parts-of-whole, neutral teal ramp; reconciles with the hero).
+  // ZONE 3 — Where the money goes (parts-of-whole, neutral teal ramp; reconciles with the hero).
   const segs = [['Fuel & AdBlue', comp.fuel], ['Parts', comp.parts], [`Labour @₹${labourRate()}/hr`, comp.labour], ['Outside', comp.outside], ['Misc', comp.misc]];
   const opac = [1, .78, .58, .42, .3];
   body += `<div class="card"><h3>${t('whereMoneyGoes')}</h3>`;
@@ -846,43 +822,6 @@ function viewMoney() {
   shell(t('money'), body);
 }
 
-// Billing worksheet — one company, one billing period (defaults to the closed
-// prior month). Itemised, every verified job traceable; share to WhatsApp / PDF.
-function billTextForCompany(company, w) {
-  const jobs = companyJobs(company).filter((j) => j.status === 'verified' && (j.verifiedAt || j.closedAt || j.createdAt) >= w.start && (j.verifiedAt || j.closedAt || j.createdAt) < w.end);
-  const grand = jobs.reduce((s, j) => s + jobCost(j).total, 0);
-  const lines = [`${BIZ} — Repair bill for ${company}`, w.label, ''];
-  jobs.forEach((j) => { const b = byId(S.cache.buses, j.busId); lines.push(`• ${(b && b.regNo) || '—'} · ${fmtDate(j.verifiedAt || j.closedAt || j.createdAt)} · ${j.problem} — ${money(jobCost(j).total)}`); });
-  lines.push('', `TOTAL: ${money(grand)}`);
-  return lines.join('\n');
-}
-function viewCompanyBill(company, winKey) {
-  winKey = winKey || 'lastmonth';
-  const w = moneyWindow(winKey);
-  const jobs = companyJobs(company)
-    .filter((j) => j.status === 'verified' && (j.verifiedAt || j.closedAt || j.createdAt) >= w.start && (j.verifiedAt || j.closedAt || j.createdAt) < w.end)
-    .sort((a, b) => (a.busId || '').localeCompare(b.busId || '') || a.createdAt - b.createdAt);
-  const grand = jobs.reduce((s, j) => s + jobCost(j).total, 0);
-  let body = `<div class="card"><div class="muted small">${esc(company)} · ${w.label}</div>
-    <div class="stat money" style="color:var(--accent-700)">${money(grand)}</div>
-    <div class="tiny muted">${jobs.length} verified job(s) · billed for the closed month</div>
-    <div class="btnrow" style="margin-top:12px">
-      <button class="btn primary" data-act="billWhatsapp" data-company="${esc(company)}" data-win="${winKey}">🟢 ${t('shareWhatsapp')}</button>
-      <button class="btn" data-act="billCopy" data-company="${esc(company)}" data-win="${winKey}">📋 ${t('copy')}</button></div>
-    <button class="btn" data-act="billPdf" style="margin-top:10px">📄 ${t('savePdf')}</button></div>`;
-  if (!jobs.length) {
-    body += `<div class="card"><div class="empty">No verified jobs for ${esc(company)} in ${w.label.toLowerCase()}. Only verified work is billable.</div></div>`;
-  } else {
-    body += `<div class="card"><h3>${t('itemised')}</h3>` + jobs.map((j) => {
-      const b = byId(S.cache.buses, j.busId), c = jobCost(j);
-      return `<div class="li" data-job="${j.id}"><div style="flex:none">${plateChip(b)}</div>
-        <div class="main"><div class="t">${esc(j.problem)}</div>
-        <div class="s">${fmtDate(j.verifiedAt || j.closedAt || j.createdAt)} · parts ${money(c.parts)} · labour ${money(c.labour)}${c.ext ? ' · outside ' + money(c.ext) : ''}</div></div>
-        <b class="money">${money(c.total)}</b></div>`;
-    }).join('') + `</div>`;
-  }
-  shell(esc(company), body);
-}
 // Monthly TOTAL running-cost buckets (repairs + fuel + misc) — shares the Money
 // hero's basis so the headline number and its sparkline agree.
 function _monthlyRunningCost(n) {
@@ -3597,11 +3536,6 @@ async function shareText(title, text) {
   try { await navigator.clipboard.writeText(text); toast('Copied — paste into WhatsApp'); }
   catch (e) { openSheet(title, `<textarea style="width:100%;height:240px" readonly>${esc(text)}</textarea>`); }
 }
-// Draft a WhatsApp message with the text pre-filled (opens WhatsApp app/web).
-function waShare(text) {
-  const url = 'https://wa.me/?text=' + encodeURIComponent(text);
-  try { window.open(url, '_blank'); } catch (e) { shareText('WhatsApp', text); }
-}
 
 /* ========================= Mechanic Scorecard =============================
  * Each mechanic sees their attendance, late penalty, and a 0–100 work-quality
@@ -5350,7 +5284,7 @@ async function askAi() {
  */
 const current = () => S.stack[S.stack.length - 1];
 // Role guard: routes restricted to certain roles fall back to home for others.
-const ROUTE_PERM = { money: 'money', companybill: 'money', fleet: 'fleet', people: 'people', bills: 'bills', insights: 'insights', drivers: 'manageDrivers', assignments: 'assignDriver', routes: 'manageRoutes', reports: 'dashboard', busreport: 'dashboard', livemap: 'dashboard', track: 'dashboard', fuel: 'addFuel', safety: 'dashboard', warranty: 'addFuel', storehealth: 'issuePart', linkgps: 'addBus', newjob: 'addJob', forecast: 'dashboard', pilferage: 'insights', components: 'issuePart', def: 'addFuel', vendors: 'addPurchase', import: 'addPurchase', crewpins: 'manageDrivers', accounting: 'dashboard', busacct: 'dashboard' };
+const ROUTE_PERM = { money: 'money', fleet: 'fleet', people: 'people', bills: 'bills', insights: 'insights', drivers: 'manageDrivers', assignments: 'assignDriver', routes: 'manageRoutes', reports: 'dashboard', busreport: 'dashboard', livemap: 'dashboard', track: 'dashboard', fuel: 'addFuel', safety: 'dashboard', warranty: 'addFuel', storehealth: 'issuePart', linkgps: 'addBus', newjob: 'addJob', forecast: 'dashboard', pilferage: 'insights', components: 'issuePart', def: 'addFuel', vendors: 'addPurchase', import: 'addPurchase', crewpins: 'manageDrivers', accounting: 'dashboard', busacct: 'dashboard' };
 function render(r) {
   if (typeof stopMap === 'function') stopMap();   // leaving any screen halts the live-map refresh timer
   if (typeof stopTrack === 'function') stopTrack();
@@ -5359,7 +5293,6 @@ function render(r) {
   switch (r.name) {
     case 'home': return viewHome();
     case 'money': return viewMoney();
-    case 'companybill': return viewCompanyBill(r.id, r.win);
     case 'fleet': return viewFleet();
     case 'people': return viewPeople();
     case 'bills': return viewPurchases();
@@ -5578,10 +5511,6 @@ function bind() {
       case 'shareBusReport': return shareText(busName(el.getAttribute('data-bus')) + ' report', busReportText(el.getAttribute('data-bus')));
       case 'shareBill': return shareBill(el.getAttribute('data-company'));
       case 'moneyWin': _moneyWin = el.getAttribute('data-win') || 'month'; return rerender();
-      case 'billCompany': return push({ name: 'companybill', id: el.getAttribute('data-company'), win: 'lastmonth' });
-      case 'billWhatsapp': return waShare(billTextForCompany(el.getAttribute('data-company'), moneyWindow(el.getAttribute('data-win') || 'lastmonth')));
-      case 'billCopy': return shareText(`Bill — ${el.getAttribute('data-company')}`, billTextForCompany(el.getAttribute('data-company'), moneyWindow(el.getAttribute('data-win') || 'lastmonth')));
-      case 'billPdf': { try { window.print(); } catch (e) { toast('Use your browser menu → Print → Save as PDF'); } return; }
       case 'askAi': return askAi();
       case 'openPurchases': return push({ name: 'purchases' });
       case 'openAlerts': return push({ name: 'alerts' });
