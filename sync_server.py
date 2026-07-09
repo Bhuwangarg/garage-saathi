@@ -37,6 +37,29 @@ TURSO_URL = os.environ.get("TURSO_URL", "") or os.environ.get("TURSO_DATABASE_UR
 TURSO_TOKEN = os.environ.get("TURSO_AUTH_TOKEN", "")
 _USE_TURSO = bool(TURSO_URL and TURSO_TOKEN)
 _SCHEMA_OK = False
+
+# Free, persistent photo storage: Cloudflare R2 (S3-compatible, 10 GB free).
+# Activated only when all of these are set; otherwise photos go to local disk
+# (fine for dev, ephemeral on a free host). The bucket must have public read
+# (an r2.dev URL or a custom domain) so the PWA can display the images.
+R2_ACCOUNT_ID = os.environ.get("R2_ACCOUNT_ID", "")
+R2_ACCESS_KEY = os.environ.get("R2_ACCESS_KEY_ID", "")
+R2_SECRET_KEY = os.environ.get("R2_SECRET_ACCESS_KEY", "")
+R2_BUCKET = os.environ.get("R2_BUCKET", "")
+R2_PUBLIC_URL = os.environ.get("R2_PUBLIC_URL", "").rstrip("/")   # e.g. https://pub-xxxx.r2.dev
+_USE_R2 = bool(R2_ACCOUNT_ID and R2_ACCESS_KEY and R2_SECRET_KEY and R2_BUCKET and R2_PUBLIC_URL)
+_r2 = None
+def _r2_client():
+    global _r2
+    if _r2 is None:
+        import boto3  # lazy — only needed when R2 is configured
+        _r2 = boto3.client(
+            "s3",
+            endpoint_url=f"https://{R2_ACCOUNT_ID}.r2.cloudflarestorage.com",
+            aws_access_key_id=R2_ACCESS_KEY, aws_secret_access_key=R2_SECRET_KEY,
+            region_name="auto",
+        )
+    return _r2
 PORT = int(os.environ.get("PORT", "8766"))      # cloud hosts inject $PORT
 _lock = threading.Lock()
 SESSIONS = {}          # token -> {uid, exp}
@@ -517,10 +540,21 @@ def gps_telemetry(bus_id, odo, reg=None):
 def save_upload(data_url, host, proto="http"):
     head, _, b64 = data_url.partition(",")
     ext = "png" if "image/png" in head else "jpg"
+    ctype = "image/png" if ext == "png" else "image/jpeg"
     name = uuid.uuid4().hex + "." + ext
+    raw = base64.b64decode(b64)
+    # Cloudflare R2 (free, persistent) when configured — the image lives in object
+    # storage and its permanent public URL syncs in the record. Falls back to local
+    # disk otherwise (ephemeral on a free host).
+    if _USE_R2:
+        try:
+            _r2_client().put_object(Bucket=R2_BUCKET, Key=name, Body=raw, ContentType=ctype)
+            return {"url": f"{R2_PUBLIC_URL}/{name}"}
+        except Exception as e:
+            print("R2 upload failed, falling back to local disk:", e)
     os.makedirs(UPLOADS, exist_ok=True)
     with open(os.path.join(UPLOADS, name), "wb") as f:
-        f.write(base64.b64decode(b64))
+        f.write(raw)
     # Must be HTTPS in production: the PWA is served over HTTPS (GitHub Pages), so
     # an http:// image URL is blocked as mixed content and the photo never shows.
     return {"url": f"{proto}://{host}/uploads/{name}"}
@@ -564,6 +598,7 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, {"ok": True, "service": "garage-saathi-sync", "db": "turso" if _USE_TURSO else "sqlite",
                                      "persistent": _USE_TURSO, "urlSet": bool(TURSO_URL), "tokenSet": bool(TURSO_TOKEN),
                                      "aiKeySet": bool(ANTHROPIC_API_KEY), "vapidReady": _WEBPUSH and bool(_vapid_pem_path()),
+                                     "photos": "r2" if _USE_R2 else "disk", "photosPersistent": _USE_R2,
                                      "gpsIngest": _GPS_TOKEN_OK, "gpsLiveRegs": len(LIVE_GPS)})
         if u.path.startswith("/uploads/"):
             name = os.path.basename(u.path)
