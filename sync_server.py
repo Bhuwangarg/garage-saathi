@@ -147,15 +147,27 @@ SEED_USERS = [
 ]
 
 
+_TURSO_OK = None   # None = not yet probed, True = auth works, False = failed → SQLite
+
 def _connect():
-    """A SQLite-compatible connection — Turso (remote, persistent) when configured,
-    otherwise the local SQLite file (ephemeral on Render free)."""
-    if _USE_TURSO:
+    """A SQLite-compatible connection — Turso (remote, persistent) when configured
+    AND reachable, otherwise the local SQLite file. libsql.connect() is lazy (it
+    authenticates on the first query), so we probe once with SELECT 1: a bad token
+    then fails HERE and we fall back cleanly instead of crashing mid-request."""
+    global _TURSO_OK
+    if _USE_TURSO and _TURSO_OK is not False:
         try:
             import libsql_experimental as libsql
-            return libsql.connect(database=TURSO_URL, auth_token=TURSO_TOKEN)
+            conn = libsql.connect(database=TURSO_URL, auth_token=TURSO_TOKEN)
+            if _TURSO_OK is None:
+                conn.execute("SELECT 1")          # force auth now (one-time probe)
+                _TURSO_OK = True
+                print("Turso connected OK (persistent).")
+            return conn
         except Exception as e:
-            print("WARNING: Turso connect failed, using local SQLite:", e)
+            _TURSO_OK = False
+            print("WARNING: Turso unavailable — falling back to local SQLite "
+                  "(data will NOT persist across restarts until fixed):", e)
     return sqlite3.connect(DB)
 
 
@@ -620,8 +632,10 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         u = urlparse(self.path)
         if u.path in ("/", "/health"):
-            return self._send(200, {"ok": True, "service": "garage-saathi-sync", "db": "turso" if _USE_TURSO else "sqlite",
-                                     "persistent": _USE_TURSO, "urlSet": bool(TURSO_URL), "tokenSet": bool(TURSO_TOKEN),
+            _turso_live = bool(_USE_TURSO and _TURSO_OK)   # actually connected, not just configured
+            return self._send(200, {"ok": True, "service": "garage-saathi-sync", "db": "turso" if _turso_live else "sqlite",
+                                     "persistent": _turso_live, "tursoConfigured": _USE_TURSO, "tursoConnected": _TURSO_OK,
+                                     "urlSet": bool(TURSO_URL), "tokenSet": bool(TURSO_TOKEN),
                                      "aiKeySet": bool(ANTHROPIC_API_KEY), "vapidReady": _WEBPUSH and bool(_vapid_pem_path()),
                                      "photos": "r2" if _USE_R2 else "disk", "photosPersistent": _USE_R2,
                                      # Per-var presence (booleans only, no secrets) so a missing/misnamed
