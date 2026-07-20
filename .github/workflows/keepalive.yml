@@ -1,0 +1,34 @@
+name: Keep Render awake
+
+# Pings the sync server's /health every ~10 minutes so the Render free instance
+# doesn't spin down (it sleeps after 15 min idle → cold-start login lag). Free:
+# GitHub Actions is unlimited on public repos. Scheduled runs can be delayed a
+# few minutes under load, so the step wakes-and-retries to cover a cold start.
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch: {}          # lets you run it manually from the Actions tab
+
+# Don't pile up runs if one is slow waking a cold server.
+concurrency:
+  group: keepalive
+  cancel-in-progress: false
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping /health (wake + retry)
+        run: |
+          URL="https://garage-saathi-sync.onrender.com/health"
+          for i in 1 2 3 4; do
+            code=$(curl -s -o /tmp/h.json -w "%{http_code}" --max-time 90 "$URL" || echo 000)
+            if [ "$code" = "200" ]; then
+              echo "OK ($code): $(cat /tmp/h.json)"
+              exit 0
+            fi
+            echo "attempt $i got HTTP $code — server may be cold, retrying in 20s"
+            sleep 20
+          done
+          echo "health check failed after retries"
+          exit 1
