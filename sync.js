@@ -15,7 +15,12 @@
 const Sync = (function () {
   // Only real business data syncs — local-only meta (seed flag, garage config) stays put.
   const STORES = ['users', 'buses', 'parts', 'jobcards', 'ledger', 'attendance', 'purchases',
-                  'drivers', 'incidents', 'driverreports', 'routes', 'triplog', 'fuel', 'gpsevents', 'audits'];
+                  'drivers', 'incidents', 'driverreports', 'routes', 'triplog', 'fuel', 'gpsevents', 'audits',
+                  // Added 2026-07-29: these four shipped without a sync mapping, so the
+                  // vendor registry, rotable components, DEF log and every trip cash
+                  // session lived on exactly one phone with no backup. Now synced;
+                  // backfillOnce() below pushes any records that predate this change.
+                  'components', 'def', 'vendors', 'trips'];
 
   const ls = window.localStorage;
   // Default sync backend: a device's explicit setting always wins. Otherwise, on
@@ -82,6 +87,21 @@ const Sync = (function () {
     }
   }
   function logout() { token = ''; ls.removeItem('token'); }
+
+  // Owner/supervisor: materialize server login accounts for the whole synced crew
+  // roster (drivers/conductors) so they can authenticate online (PIN 0000) and
+  // their writes carry a real, server-verified identity. Idempotent server-side.
+  // Returns { created } or throws (offline / not authed).
+  async function registerRoster(crew) {
+    // The bundled seed loads crew with notify=false (never pushed), so the server
+    // has no crew records to scan — we SEND the roster the owner device holds.
+    const res = await fetch(baseUrl() + '/auth/register-roster', {
+      method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ crew: crew || [] }),
+    });
+    if (!res.ok) throw new Error('registerRoster ' + res.status);
+    return await res.json();
+  }
 
   // Owner/supervisor: create a staff account on the server.
   async function addStaff({ name, role, pin }) {
@@ -293,12 +313,32 @@ const Sync = (function () {
     if (conflicts && cbConflict) await cbConflict(conflicts);
   }
 
+  // One-time backfill for stores that were added to STORES after records already
+  // existed locally (they never went through markDirty, so they're absent from the
+  // outbox and stranded on this device). Enumerate the newly-synced stores and
+  // enqueue every live record so it reaches the server exactly once. Gated by a
+  // version flag; if it throws, the flag stays unset so it retries next start.
+  async function backfillOnce() {
+    const V = 'syncBackfill_compdefvendtrip_v1';
+    if (ls.getItem(V)) return;
+    const NEW = ['components', 'def', 'vendors', 'trips'];
+    try {
+      for (const store of NEW) {
+        const rows = (DB && DB.all) ? await DB.all(store) : [];
+        for (const r of rows) { if (r && r.id) outbox.add(store + '|' + r.id); }
+      }
+      saveOutbox();
+      ls.setItem(V, String(Date.now()));
+    } catch (e) { /* leave flag unset → retry on next start */ }
+  }
+
   function start(opts = {}) {
     cbStatus = opts.onStatus; cbApplied = opts.onApplied; cbConflict = opts.onConflict;
     DB.onChange = markDirty;                 // wire the outbox to local writes
     window.addEventListener('online', tick);
     clearInterval(pollTimer);
     pollTimer = setInterval(tick, 4000);     // background reconcile
+    backfillOnce().then(kick);               // enqueue any stranded records, then sync
     tick();
   }
 
@@ -330,7 +370,7 @@ const Sync = (function () {
     } catch (e) { return null; }
   }
 
-  return { start, tick, kick, setUrl, reset, info, login, logout, addStaff, setPin, ai, aiVision, fleet, latest, uploadPhoto,
+  return { start, tick, kick, setUrl, reset, info, login, logout, addStaff, registerRoster, setPin, ai, aiVision, fleet, latest, uploadPhoto,
            queuePhoto, remove, clearQuarantine, subscribePush, pushTest,
            get status() { return status; } };
 })();

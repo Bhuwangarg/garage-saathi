@@ -333,7 +333,10 @@ async function seedIfEmpty(demo) {
     for (const dr of driverreports) await DB.put('driverreports', dr);
   }
 
-  // Garage location (geofence centre for attendance). Default: central Jaipur.
-  await DB.put('meta', { key: 'garage', lat: 26.9124, lng: 75.7873, radiusM: 200, name: 'Mahalaxmi Travels Garage, Jaipur', biz: 'Mahalaxmi Travels', labourRate: 250 });
+  // Garage location (geofence centre for attendance). Default: central Jaipur —
+  // a PLACEHOLDER, not a real capture. locSet:false marks it as unconfigured so the
+  // UI nags to set it and attendance never trusts distance-from-Jaipur as if it
+  // were real. Owner sets the true point via Garage setup → "Use my current location".
+  await DB.put('meta', { key: 'garage', lat: 26.9124, lng: 75.7873, radiusM: 200, locSet: false, name: 'Mahalaxmi Travels Garage, Jaipur', biz: 'Mahalaxmi Travels', labourRate: 250 });
   await DB.put('meta', { key: 'seeded', value: true });
 }

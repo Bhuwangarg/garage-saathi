@@ -2404,7 +2404,10 @@ async function doAttendance(type) {
       navigator.geolocation.getCurrentPosition(res, rej, { enableHighAccuracy: true, timeout: 8000 }));
     lat = pos.coords.latitude; lng = pos.coords.longitude;
     const g = S.cache.garage;
-    if (g) dist = haversineM(g.lat, g.lng, lat, lng);
+    // Only measure distance against a REAL garage point. Until the owner captures
+    // it (locSet), the stored coords are a Jaipur placeholder — computing distance
+    // off it produces a meaningless number, so leave dist null instead of lying.
+    if (g && g.locSet) dist = haversineM(g.lat, g.lng, lat, lng);
   } catch (e) { /* no GPS — confirm below before recording */ }
 
   // No location at all → can't confirm they're at the garage. Record only on confirm.
@@ -2417,9 +2420,14 @@ async function doAttendance(type) {
   const late = type === 'in' && (d.getHours() > ch || (d.getHours() === ch && d.getMinutes() > cmin));
 
   const g = S.cache.garage;
-  const tooFar = g && dist != null && dist > g.radiusM;
+  const tooFar = g && g.locSet && dist != null && dist > g.radiusM;
   if (tooFar) {
     if (!confirm(`You are ${Math.round(dist)}m from the garage (limit ${g.radiusM}m). Record anyway?`)) return;
+  }
+  // Geofence not configured yet → tell owner/supervisor once so it gets set; for
+  // crew just record without a bogus distance (dist stays null above).
+  if (g && !g.locSet && ['owner', 'supervisor'].includes(S.user.role)) {
+    toast('⚠️ Set the garage location in Garage setup — attendance distance is off until then');
   }
 
   const selfieRef = selfie ? (await Sync.uploadPhoto(selfie) || selfie) : '';
@@ -3111,7 +3119,7 @@ function sheetGarageSetup() {
     <label class="field"><span class="lbl">Garage full name</span><input id="f-gname" value="${esc(g.name || '')}" placeholder="My Garage, Jaipur"></label>
     <div class="card" style="box-shadow:none;background:var(--tile);padding:12px">
       <div class="tiny muted" style="margin-bottom:6px">📍 Attendance geofence — staff must be within this distance of the garage to check in.</div>
-      <div id="f-gloc" class="small">${g.lat != null ? `Current: ${g.lat.toFixed(5)}, ${g.lng.toFixed(5)}` : '⚠️ Not set — set it from the garage, or attendance distance will be wrong.'}</div>
+      <div id="f-gloc" class="small">${g.locSet && g.lat != null ? `Current: ${g.lat.toFixed(5)}, ${g.lng.toFixed(5)}` : '⚠️ Not set — stand in the garage and capture it below, or attendance distance is meaningless.'}</div>
       <button class="btn sm" data-act="captureGarageLoc" style="margin-top:8px">📍 Use my current location as the garage</button>
     </div>
     <div class="grid2">
@@ -3146,7 +3154,7 @@ async function saveGarage() {
   g.key = 'garage';
   g.name = $('#f-gname').value.trim() || g.name || 'My Garage';
   g.biz = ($('#f-gbiz') ? $('#f-gbiz').value.trim() : '') || g.biz || g.name;
-  if (_setupLat != null) { g.lat = _setupLat; g.lng = _setupLng; }
+  if (_setupLat != null) { g.lat = _setupLat; g.lng = _setupLng; g.locSet = true; }
   g.radiusM = Number($('#f-gradius').value) || 200;
   const cut = $('#f-gcutoff').value.trim();
   g.lateCutoff = /^\d{1,2}:\d{2}$/.test(cut) ? cut : (g.lateCutoff || '09:30');
@@ -4517,12 +4525,48 @@ async function makeCrewLogins() {
   toast(r.created ? `${r.driverLogins} driver + ${r.conductorLogins} conductor logins ready ✓` : 'All crew already have logins');
   rerender();
 }
+
+// Device-bound identity: turn the synced crew roster into REAL server accounts
+// (PIN 0000) so every driver/conductor gets a server-verified token on login and
+// their writes are attributable + enforceable. Owner/supervisor only; idempotent.
+// The roster is read from this device's cache and SENT (the seed never pushes it).
+function crewRoster() {
+  return (S.cache.users || [])
+    .filter((u) => u.role === 'driver' || u.role === 'conductor')
+    .map((u) => ({ id: u.id, name: u.name, role: u.role }));
+}
+async function activateCrewServer() {
+  if (!Sync.info().authed) return toast('Sign in online first (needs a live connection)');
+  const stop = showBusyOverlay('Activating crew server logins…');
+  try {
+    const r = await Sync.registerRoster(crewRoster());
+    try { localStorage.setItem('gsRosterActivated', String(Date.now())); } catch (e) { /* ignore */ }
+    if (stop) stop();
+    toast(r && r.created ? `Activated ${r.created} crew server logins ✓` : 'All crew already activated ✓');
+  } catch (e) {
+    if (stop) stop();
+    toast('Could not reach server — try again when online');
+  }
+}
+// Fire the activation once automatically for a signed-in manager, so the roster is
+// materialized server-side without anyone having to find the button. Best-effort.
+function maybeAutoActivateCrew(user) {
+  if (!user || !['owner', 'supervisor'].includes(user.role)) return;
+  let done = false;
+  try { done = !!localStorage.getItem('gsRosterActivated'); } catch (e) { /* ignore */ }
+  if (done || !Sync.info().authed) return;
+  Sync.registerRoster(crewRoster())
+    .then((r) => { try { localStorage.setItem('gsRosterActivated', String(Date.now())); } catch (e) {} if (r && r.created) toast(`Activated ${r.created} crew server logins ✓`); })
+    .catch(() => { /* offline / not authed — the manual button remains */ });
+}
 function viewCrewPins() {
   const users = [...(S.cache.users || [])].filter((u) => u.role === 'driver' || u.role === 'conductor')
     .sort((a, b) => a.role.localeCompare(b.role) || a.name.localeCompare(b.name));
   const busOf = (u) => { if (u.role === 'driver') { const d = (S.cache.drivers || []).find((x) => x.userId === u.id); return d ? busName(d.busId) : ''; } const b = busForConductor(u.id); return b ? b.regNo : ''; };
   let body = `<div class="card"><div class="tiny muted">App login PINs for drivers &amp; conductors (stored on this device). Every driver &amp; conductor PIN is <b>0000</b> — they should change it after first login in Me → Change PIN.</div>
-    <button class="btn primary" data-act="makeCrewLogins" style="margin-top:10px">👥 Create missing logins &amp; PINs</button></div>`;
+    <button class="btn primary" data-act="makeCrewLogins" style="margin-top:10px">👥 Create missing logins &amp; PINs</button>
+    <button class="btn" data-act="activateCrewServer" style="margin-top:8px">🔐 Activate crew server logins</button>
+    <div class="tiny muted" style="margin-top:6px">Activation registers each crew member on the server so their check-ins, trips &amp; work carry a verified identity (not just a shared 0000). Runs once automatically; use this if any crew still can't sync.</div></div>`;
   body += `<div class="card"><h3>Drivers &amp; conductors (${users.length})</h3>`;
   body += users.length ? users.map((u) => `<div class="li"><div class="ava">${ROLE_META[u.role][0]}</div>
     <div class="main"><div class="t">${esc(u.name)}</div><div class="s">${u.role}${busOf(u) ? ' · ' + esc(busOf(u)) : ''}</div></div>
@@ -5430,6 +5474,7 @@ function bind() {
       case 'openImport': return push({ name: 'import' });
       case 'openCrewPins': return push({ name: 'crewpins' });
       case 'makeCrewLogins': return makeCrewLogins();
+      case 'activateCrewServer': return activateCrewServer();
       case 'openAccounting': return push({ name: 'accounting' });
       case 'openBusAcct': return push({ name: 'busacct', id: el.getAttribute('data-id') });
       case 'startTrip': return sheetStartTrip(el.getAttribute('data-driver'));
@@ -5824,7 +5869,7 @@ async function attemptLogin(user, pin, redraw) {
   offlineFail(user.id);
   toast(t('wrongPin')); _pin = ''; redraw();
 }
-function enterApp(user) { pushRecent(user.id); S.user = user; route({ name: 'home' }); }
+function enterApp(user) { pushRecent(user.id); S.user = user; maybeAutoActivateCrew(user); route({ name: 'home' }); }
 
 /* "Recent on this phone" — remembers who has signed in on THIS device so a
  * personal phone can skip role→name and go straight to the PIN pad. Just ids in

@@ -339,23 +339,121 @@ def set_pin(user_id, pin):
 
 
 # ----------------------------- sync helpers --------------------------------
-def push(records):
+# Server-side write enforcement (mirrors the client PERMS matrix in app.js so no
+# legitimate flow is denied). Allow-list: a role may push to a store only if listed.
+# owner passes everything. An unknown store, or a role not listed, → denied (the
+# record is rejected, the client quarantines it — it never wedges the outbox).
+# This is the teeth behind the anti-pilferage gate: a driver/conductor/mechanic
+# token can no longer forge a ledger/vendor/fleet row via a crafted request.
+WRITE_ROLES = {
+    "ledger":        {"owner", "supervisor", "store"},
+    "purchases":     {"owner", "supervisor", "store"},
+    "vendors":       {"owner", "supervisor", "store"},
+    "components":    {"owner", "supervisor", "store"},
+    "def":           {"owner", "supervisor", "store"},
+    "fuel":          {"owner", "supervisor", "store"},
+    "parts":         {"owner", "supervisor", "store"},
+    "audits":        {"owner", "supervisor", "store"},
+    "buses":         {"owner", "supervisor"},
+    "routes":        {"owner", "supervisor"},
+    "drivers":       {"owner", "supervisor"},
+    "incidents":     {"owner", "supervisor"},
+    "users":         {"owner", "supervisor"},
+    "jobcards":      {"owner", "supervisor", "store", "mechanic"},
+    "trips":         {"owner", "supervisor", "driver"},
+    "triplog":       {"owner", "supervisor", "driver"},
+    # Operational stores every role legitimately writes:
+    "attendance":    {"owner", "supervisor", "store", "mechanic", "driver", "conductor"},
+    "driverreports": {"owner", "supervisor", "store", "mechanic", "driver", "conductor"},
+    # Server-ingest only — no client ever pushes these (AirFi → ingest_gps):
+    "gpsevents":     set(),
+    "gpslive":       set(),
+}
+
+
+def may_write(role, store):
+    if role == "owner":
+        return True
+    allowed = WRITE_ROLES.get(store)
+    if allowed is None:
+        return False            # unknown store → deny (allow-list)
+    return role in allowed
+
+
+def push(records, actor=None):
+    """Apply pushed records. When `actor` (the authenticated user) is given, enforce
+    the write matrix and stamp immutable server-truth provenance (_by/_byRole/_org)
+    that the client cannot set — so attribution and tenant scope come from the token,
+    not the request body. Returns applied + rejected counts so the caller can 403 a
+    fully-rejected (single-record) push and let the client quarantine it."""
     with _lock:
         c = db()
         rev = c.execute("SELECT COALESCE(MAX(rev),0) FROM records").fetchone()[0]
         applied = 0
+        rejected = 0
         for r in records:
             store, rid = r.get("store"), r.get("id")
             upd = int(r.get("updatedAt") or 0)
             if not store or not rid:
                 continue
+            if actor and not may_write(actor["role"], store):
+                rejected += 1
+                continue
+            data = r.get("data")
+            # Overwrite reserved provenance fields from the TOKEN (never trust the
+            # body). _by is the trust anchor the Pilferage Radar / audits read.
+            if actor and isinstance(data, dict):
+                data["_by"] = actor["id"]
+                data["_byRole"] = actor["role"]
+                data["_org"] = "mahalaxmi"
             row = c.execute("SELECT updatedAt FROM records WHERE store=? AND id=?", (store, rid)).fetchone()
             if row is None or upd > (row[0] or 0):
-                rev = _upsert_record(c, store, rid, r.get("data"), upd, rev)
+                rev = _upsert_record(c, store, rid, data, upd, rev)
                 applied += 1
         c.commit()
         c.close()
-        return {"ok": True, "applied": applied, "maxRev": rev}
+        return {"ok": True, "applied": applied, "rejected": rejected, "maxRev": rev}
+
+
+def register_roster(crew=None, default_pin="0000"):
+    """Materialize server login accounts (PIN 0000) for every crew (driver/conductor)
+    who has none yet, so they can server-authenticate and their writes carry a real,
+    attributable identity.
+
+    The roster is normally SENT by the owner device (`crew` = list of {id,name,role}),
+    because the bundled seed loads crew with notify=false and never pushes them — so
+    the server has no crew records to scan. When `crew` is omitted we fall back to
+    any store='users' records that WERE pushed. Only driver/conductor roles are ever
+    created (management accounts keep their real PINs). Idempotent: an existing
+    account is never touched; tombstones are skipped."""
+    with _lock:
+        c = db()
+        if crew:
+            items = [(x.get("id"), x.get("name"), x.get("role")) for x in crew
+                     if isinstance(x, dict) and x.get("role") in ("driver", "conductor") and x.get("id")]
+        else:
+            items = []
+            for rid, data in c.execute("SELECT id,data FROM records WHERE store='users'").fetchall():
+                try:
+                    d = json.loads(data)
+                except Exception:
+                    continue
+                if d.get("_deleted") or d.get("role") not in ("driver", "conductor"):
+                    continue
+                items.append((rid, d.get("name"), d.get("role")))
+        created = 0
+        for rid, name, role in items:
+            if not rid:
+                continue
+            if c.execute("SELECT 1 FROM users WHERE id=?", (rid,)).fetchone():
+                continue
+            salt = uuid.uuid4().hex
+            c.execute("INSERT INTO users(id,name,role,salt,pin_hash) VALUES(?,?,?,?,?)",
+                      (rid, name or rid, role, salt, hash_pin(salt, default_pin)))
+            created += 1
+        c.commit()
+        c.close()
+    return created
 
 
 def pull(since):
@@ -414,7 +512,27 @@ def iso_ms(s):
 def _ist_hour(ms):
     return int(((ms / 1000 + 5.5 * 3600) % 86400) // 3600)
 
+def _gps_hydrate():
+    """Serverless-safe refresh: reload the latest positions from the persisted
+    `gpslive` store into LIVE_GPS. On a single long-lived process this is a no-op
+    after startup, but on serverless (Vercel) each request may hit a fresh
+    container whose in-memory LIVE_GPS is empty — so ingest's delta calc and the
+    /gps read endpoints must re-read the source of truth (Turso) every request."""
+    try:
+        c = db()
+        rows = c.execute("SELECT reg,data FROM gpslive").fetchall()
+        c.close()
+        for reg, data in rows:
+            try:
+                LIVE_GPS[reg] = json.loads(data)
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+
 def ingest_gps(events):
+    _gps_hydrate()           # see prior sample for overspeed/harshbrake/idle deltas
     accepted = 0
     new_events = []          # safety/misuse events detected this batch
     for e in events or []:
@@ -632,6 +750,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         u = urlparse(self.path)
         if u.path in ("/", "/health"):
+            _gps_hydrate()                                 # accurate live count on serverless (fresh container)
             _turso_live = bool(_USE_TURSO and _TURSO_OK)   # actually connected, not just configured
             return self._send(200, {"ok": True, "service": "garage-saathi-sync", "db": "turso" if _turso_live else "sqlite",
                                      "persistent": _turso_live, "tursoConfigured": _USE_TURSO, "tursoConnected": _TURSO_OK,
@@ -664,6 +783,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(400, {"error": "busId required"})
             odo = float((q.get("odo") or ["0"])[0] or 0)
             reg = (q.get("reg") or [""])[0]
+            _gps_hydrate()
             return self._send(200, gps_telemetry(bus_id, odo, reg))
         if u.path == "/push/vapid":                   # public VAPID key for the browser to subscribe
             return self._send(200, {"publicKey": VAPID_PUBLIC, "enabled": _WEBPUSH and bool(_vapid_pem_path()),
@@ -672,11 +792,13 @@ class Handler(BaseHTTPRequestHandler):
                                     "secretFile": os.path.exists("/etc/secrets/vapid_private.pem")})
         if u.path == "/gps/latest":                  # provider self-check
             reg = (parse_qs(u.query).get("reg") or [""])[0]
+            _gps_hydrate()
             data = LIVE_GPS.get(norm_reg(reg))
             return self._send(200 if data else 404, data or {"error": "no telemetry for reg"})
         if u.path == "/gps/fleet":                    # every registration AirFi has pushed
             if not self._auth_user():
                 return self._send(401, {"error": "unauthorized"})
+            _gps_hydrate()
             buses = [{"reg": v.get("reg") or k, "odometer": v.get("odometer"), "lastPing": v.get("lastPing"),
                       "lat": v.get("lat"), "lng": v.get("lng"), "speedKph": v.get("speedKph"), "ignition": v.get("ignition")}
                      for k, v in LIVE_GPS.items()]
@@ -728,10 +850,24 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(404, {"error": "no such user"})
             return self._send(200, {"ok": True})
 
-        if u.path == "/push":
-            if not self._auth_user():
+        if u.path == "/auth/register-roster":   # materialize crew server accounts (owner/supervisor)
+            me = self._auth_user()
+            if not me:
                 return self._send(401, {"error": "unauthorized"})
-            return self._send(200, push(self._body().get("records") or []))
+            if me["role"] not in ("owner", "supervisor"):
+                return self._send(403, {"error": "forbidden"})
+            return self._send(200, {"ok": True, "created": register_roster(self._body().get("crew"))})
+
+        if u.path == "/push":
+            me = self._auth_user()
+            if not me:
+                return self._send(401, {"error": "unauthorized"})
+            res = push(self._body().get("records") or [], me)
+            # A push the actor's role may not make → 403 so the client quarantines it
+            # (single-record pushes, so applied==0 with rejects means this write was denied).
+            if res.get("applied", 0) == 0 and res.get("rejected", 0):
+                return self._send(403, dict(res, error="role not permitted to write this record"))
+            return self._send(200, res)
 
         if u.path == "/upload":
             if not self._auth_user():
@@ -836,6 +972,13 @@ class Handler(BaseHTTPRequestHandler):
 
     def log_message(self, *a):
         pass
+
+
+# Vercel's Python runtime serves a module-level `BaseHTTPRequestHandler` subclass
+# named `handler`. The api/index.py entry re-exports this. On serverless there's
+# no long-lived process: schema lives in the shared Turso DB (created already),
+# live GPS is re-read per request via _gps_hydrate(), so no startup step is run.
+handler = Handler
 
 
 if __name__ == "__main__":
