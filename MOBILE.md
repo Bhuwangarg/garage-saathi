@@ -76,6 +76,33 @@ A device-level override (`localStorage.syncUrl`) still wins in both cases.
 - Disables service-worker registration on native — the assets are already on disk, and a
   stale SW cache would silently pin an old `app.js` across updates.
 
+## The apps cannot reach the backend until the server is redeployed
+
+The packaged app sends `Origin: https://localhost` (Android) or `capacitor://localhost`
+(iOS) on every request. The **currently deployed** server answers every one of them with
+`Access-Control-Allow-Origin: https://bhuwangarg.github.io`, so the browser engine drops
+the response before the app sees it. Confirmed from inside the running app:
+
+```
+SENT    https://garage-saathi-sync.onrender.com/health
+FAILED  {"errorText":"net::ERR_FAILED",
+         "corsErrorStatus":{"corsError":"AllowOriginMismatch",
+                            "failedParameter":"https://bhuwangarg.github.io"}}
+```
+
+`sync_server.py` already fixes this (`_NATIVE_APP_ORIGIN`) — verified against the new code
+running locally:
+
+| request `Origin` | `Access-Control-Allow-Origin` |
+| --- | --- |
+| `https://localhost` (Android app) | `https://localhost` |
+| `capacitor://localhost` (iOS app) | `capacitor://localhost` |
+| `https://bhuwangarg.github.io` (PWA) | `https://bhuwangarg.github.io` |
+| `https://evil.example.com` | `https://bhuwangarg.github.io` → browser blocks |
+
+So **the Render Manual Deploy is a hard prerequisite for the phone apps**, not just for the
+Fix C enforcement work. Until it happens the apps run fine offline and sync nothing.
+
 ## Permissions
 `AndroidManifest.xml`: `INTERNET`, `CAMERA`, `ACCESS_FINE_LOCATION`,
 `ACCESS_COARSE_LOCATION`, `POST_NOTIFICATIONS`; camera and GPS declared
