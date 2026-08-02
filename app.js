@@ -314,6 +314,17 @@ const PERMS = {
   fleet: ['owner', 'supervisor'],            // Fleet tab
   people: ['owner', 'supervisor'],           // People tab (owner-weighted)
   bills: ['owner', 'supervisor', 'store'],   // Bills tab (store manages supplier bills)
+  // Sheet-only actions. These have no route of their own, so ROUTE_PERM never
+  // sees them — they must be checked inside their own functions.
+  garageSetup: ['owner', 'supervisor'],      // Garage setup sheet + saveGarage
+  manageStaff: ['owner', 'supervisor'],      // Staff accounts sheet + saveStaff
+  // Read-only screens that were reachable by any role because ROUTE_PERM had no
+  // entry for them. Mechanics genuinely use these (store is a bottom tab, jobs is
+  // their work list, the scoreboard is their leaderboard); drivers and conductors
+  // never do — their nav is home + me.
+  viewStore: ['owner', 'supervisor', 'store', 'mechanic'],
+  viewJobs: ['owner', 'supervisor', 'store', 'mechanic'],
+  viewScoreboard: ['owner', 'supervisor', 'store', 'mechanic'],
 };
 
 /* ------------------------------ Sheets ------------------------------------ */
@@ -1541,6 +1552,12 @@ function viewJobDetail(id) {
     const p = byId(S.cache.parts, l.partId);
     return `<div class="row between small" style="padding:5px 0"><span>${esc(p ? p.name : l.partId)} × ${l.qty}</span><b>${money(l.cost)}</b></div>`;
   }).join('')) : `<div class="muted small">No parts issued</div>`;
+  // The mechanic-facing half of this card: request-a-part, the pending-request
+  // list with the store's Fulfil action, the before/after photo gate, and
+  // close-with-hours. Without this call the mechanic only ever gets markDone,
+  // which records no labourHours — so every mechanic-closed job billed the
+  // default hours.
+  body += partsCardExtras(j);
   body += `</div>`;
 
   // Old-part return (core) — anti-swap / anti-warranty-fraud
@@ -1617,7 +1634,15 @@ function sheetEditJob(jobId) {
   }
   const prioOpt = (v, label) => `<option value="${v}" ${j.priority === v ? 'selected' : ''}>${label}</option>`;
   openSheet(t('editReassign'), `
-    <label class="field"><span class="lbl">Bus</span><select id="fe-bus">${buses.map((b) => `<option value="${b.id}" ${b.id === j.busId ? 'selected' : ''}>${esc(b.regNo)} — ${esc(b.company)}</option>`).join('')}</select></label>
+    <label class="field"><span class="lbl">Bus</span><select id="fe-bus">${
+      // If the job's busId doesn't resolve to a real bus (older records point at
+      // ids that no longer exist), no option would be selected and the browser
+      // would silently default to the first bus — so saving a *mechanic* change
+      // would quietly re-bill the repair to an unrelated vehicle. Offer an
+      // explicit unresolved entry instead, and leave busId alone unless the user
+      // picks a real one.
+      byId(buses, j.busId) ? '' : `<option value="__keep__" selected>⚠️ Unknown bus (${esc(j.busId || 'not set')}) — pick one to fix</option>`
+    }${buses.map((b) => `<option value="${b.id}" ${b.id === j.busId ? 'selected' : ''}>${esc(b.regNo)} — ${esc(b.company)}</option>`).join('')}</select></label>
     <label class="field"><span class="lbl">Problem reported</span><textarea id="fe-prob">${esc(j.problem || '')}</textarea></label>
     <div class="grid2">
       <label class="field"><span class="lbl">Assign to</span><select id="fe-mech">${assignees.map((m) => `<option value="${m.id}" ${m.id === j.assignedTo ? 'selected' : ''}>${esc(m.name)}</option>`).join('')}</select></label>
@@ -1639,7 +1664,8 @@ async function saveEditJob(jobId) {
   const assignedTo = $('#fe-mech').value;
   if (!assignedTo) return toast(t('pickAssignee'));
   // Mutate the SAME record (same id) — reassign/edit, never create a new job.
-  j.busId = $('#fe-bus').value;
+  const busPick = $('#fe-bus').value;
+  if (busPick !== '__keep__') j.busId = busPick;   // '__keep__' = unresolved id, leave it be
   j.problem = prob;
   j.assignedTo = assignedTo;
   j.priority = $('#fe-prio').value;
@@ -3112,6 +3138,10 @@ async function togglePaid(purId) {
 /* --------------------------- Garage setup & reset ------------------------- */
 let _setupLat = null, _setupLng = null;
 function sheetGarageSetup() {
+  // Guarded here, not at the dispatch arm: this sheet carries the attendance
+  // geofence and the late-penalty policy, so a mechanic or driver reaching it by
+  // any path could widen the radius that polices their own check-in.
+  if (!can(S.user.role, 'garageSetup')) return toast('Only the owner or supervisor can do this');
   const g = S.cache.garage || {};
   _setupLat = null; _setupLng = null;
   openSheet('Garage setup', `
@@ -3150,6 +3180,7 @@ async function captureGarageLocation() {
   } catch (e) { toast('Could not get location — check GPS permission'); }
 }
 async function saveGarage() {
+  if (!can(S.user.role, 'garageSetup')) return toast('Only the owner or supervisor can do this');
   const g = Object.assign({ key: 'garage', radiusM: 200 }, S.cache.garage || {});
   g.key = 'garage';
   g.name = $('#f-gname').value.trim() || g.name || 'My Garage';
@@ -3219,6 +3250,9 @@ function sheetSync() {
 }
 
 function sheetStaff() {
+  // Guarded here for the same reason as sheetGarageSetup: no route, so
+  // ROUTE_PERM can't cover it, and the sheet lists the whole crew roster.
+  if (!can(S.user.role, 'manageStaff')) return toast('Only the owner or supervisor can do this');
   const users = [...S.cache.users].sort((a, b) => a.role.localeCompare(b.role));
   openSheet('Staff accounts', `
     <div class="card"><h3>Team (${users.length})</h3>
@@ -3238,6 +3272,7 @@ function sheetStaff() {
     </div>`);
 }
 async function saveStaff() {
+  if (!can(S.user.role, 'manageStaff')) return toast('Only the owner or supervisor can do this');
   const name = $('#f-sname').value.trim();
   let role = $('#f-srole').value;
   const pin = $('#f-spin').value.trim();
@@ -5330,7 +5365,11 @@ async function askAi() {
  */
 const current = () => S.stack[S.stack.length - 1];
 // Role guard: routes restricted to certain roles fall back to home for others.
-const ROUTE_PERM = { money: 'money', fleet: 'fleet', people: 'people', bills: 'bills', insights: 'insights', drivers: 'manageDrivers', assignments: 'assignDriver', routes: 'manageRoutes', reports: 'dashboard', busreport: 'dashboard', livemap: 'dashboard', track: 'dashboard', fuel: 'addFuel', safety: 'dashboard', warranty: 'addFuel', storehealth: 'issuePart', linkgps: 'addBus', newjob: 'addJob', forecast: 'dashboard', pilferage: 'insights', components: 'issuePart', def: 'addFuel', vendors: 'addPurchase', import: 'addPurchase', crewpins: 'manageDrivers', accounting: 'dashboard', busacct: 'dashboard' };
+const ROUTE_PERM = { money: 'money', fleet: 'fleet', people: 'people', bills: 'bills', insights: 'insights', drivers: 'manageDrivers', assignments: 'assignDriver', routes: 'manageRoutes', reports: 'dashboard', busreport: 'dashboard', livemap: 'dashboard', track: 'dashboard', fuel: 'addFuel', safety: 'dashboard', warranty: 'addFuel', storehealth: 'issuePart', linkgps: 'addBus', newjob: 'addJob', forecast: 'dashboard', pilferage: 'insights', components: 'issuePart', def: 'addFuel', vendors: 'addPurchase', import: 'addPurchase', crewpins: 'manageDrivers', accounting: 'dashboard', busacct: 'dashboard',
+  // `purchases` renders the same view as `bills`; without its own entry the
+  // `bills` permission was bypassable just by using the other route name.
+  purchases: 'bills', alerts: 'dashboard', buses: 'fleet',
+  store: 'viewStore', jobs: 'viewJobs', scoreboard: 'viewScoreboard' };
 function render(r) {
   if (typeof stopMap === 'function') stopMap();   // leaving any screen halts the live-map refresh timer
   if (typeof stopTrack === 'function') stopTrack();
