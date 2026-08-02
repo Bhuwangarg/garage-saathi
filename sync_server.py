@@ -77,6 +77,13 @@ elif _env_origin:
 else:
     ALLOWED_ORIGINS = [PROD_ORIGIN]
 _LOCALHOST_ORIGIN = re.compile(r"^http://(localhost|127\.0\.0\.1)(:\d+)?$")
+# The packaged iOS/Android app serves its bundled shell from a fixed synthetic
+# origin — capacitor://localhost on iOS, https://localhost on Android — and
+# sends it on every sync request. Without these the native apps get a CORS
+# failure on /auth/login and never sync at all. These are not addressable by a
+# remote site: a page would have to be served from the device's own localhost
+# to claim one, the same assumption the http://localhost dev rule already makes.
+_NATIVE_APP_ORIGIN = re.compile(r"^(capacitor|ionic)://localhost$|^https://localhost$")
 
 def cors_origin_for(origin):
     """Echo the request Origin when it's allowed (so other sites are blocked);
@@ -86,7 +93,7 @@ def cors_origin_for(origin):
         return origin or "*"
     if origin:
         o = origin.rstrip("/")
-        if o in ALLOWED_ORIGINS or _LOCALHOST_ORIGIN.match(o):
+        if o in ALLOWED_ORIGINS or _LOCALHOST_ORIGIN.match(o) or _NATIVE_APP_ORIGIN.match(o):
             return origin
     return ALLOWED_ORIGINS[0]
 # Launch hardening knobs (safe defaults preserve dev behaviour):
