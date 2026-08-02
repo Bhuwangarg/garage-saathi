@@ -1,0 +1,20 @@
+{
+  "appId": "com.mahalaxmi.garagesaathi",
+  "appName": "Garage Saathi",
+  "webDir": "www",
+  "android": {
+    "allowMixedContent": false
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchAutoHide": false,
+      "backgroundColor": "#0f1720",
+      "androidSplashResourceName": "splash",
+      "showSpinner": false
+    },
+    "StatusBar": {
+      "style": "DARK",
+      "backgroundColor": "#0f1720"
+    }
+  }
+}

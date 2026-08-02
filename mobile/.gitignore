@@ -1,0 +1,31 @@
+# Generated — rebuild with `npm run www`
+www/
+.vendor-cache/
+
+node_modules/
+
+# Android build output
+android/build/
+android/app/build/
+android/.gradle/
+android/local.properties
+android/capacitor-cordova-android-plugins/
+android/app/src/main/assets/public/
+android/app/src/main/assets/capacitor.config.json
+android/app/src/main/assets/capacitor.plugins.json
+
+# iOS build output
+ios/build/
+ios/App/App/public/
+ios/App/App/capacitor.config.json
+ios/App/App/config.xml
+ios/App/Pods/
+ios/App/App.xcworkspace/xcuserdata/
+ios/App/App.xcodeproj/xcuserdata/
+ios/App/App.xcodeproj/project.xcworkspace/xcuserdata/
+DerivedData/
+
+# Generated icon/splash sources (regenerate with `node make-assets.mjs`)
+assets/icon.png
+assets/splash.png
+assets/splash-dark.png

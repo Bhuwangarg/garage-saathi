@@ -1,0 +1,25 @@
+{
+  "name": "garage-saathi-mobile",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Capacitor iOS + Android shell around the Garage Saathi PWA. The web app lives in the repo root; build-www.mjs copies it into www/.",
+  "type": "module",
+  "scripts": {
+    "www": "node build-www.mjs",
+    "sync": "npm run www && npx cap sync",
+    "apk": "npm run sync && cd android && ./gradlew assembleDebug",
+    "ios": "npm run sync && npx cap open ios"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.5.0",
+    "@capacitor/app": "^8.1.1",
+    "@capacitor/camera": "^8.2.2",
+    "@capacitor/cli": "^8.5.0",
+    "@capacitor/core": "^8.5.0",
+    "@capacitor/geolocation": "^8.2.0",
+    "@capacitor/ios": "^8.5.0",
+    "@capacitor/local-notifications": "^8.2.1",
+    "@capacitor/splash-screen": "^8.0.2",
+    "@capacitor/status-bar": "^8.0.3"
+  }
+}
