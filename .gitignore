@@ -9,3 +9,6 @@ __pycache__/
 .gstack/
 
 .octogent
+
+# Local Xcode device-build output (CI builds its own)
+mobile/ios/build-device/
