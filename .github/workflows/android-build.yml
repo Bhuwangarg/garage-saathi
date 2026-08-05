@@ -1,0 +1,101 @@
+# Builds an installable Android APK.
+#
+# Unlike the iOS workflow this needs no Apple account, no signing secrets and no
+# paid membership — a debug APK is signed with the auto-generated debug keystore
+# and sideloads onto any device with "install from unknown sources" enabled.
+#
+# Runs on ubuntu, which is free for public repos, so it's cheap enough to fire on
+# every push to main as well as on demand.
+name: Android build
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      # Only rebuild when something that ends up in the APK actually changes.
+      - "app.js"
+      - "index.html"
+      - "styles.css"
+      - "db.js"
+      - "sync.js"
+      - "seed-data.js"
+      - "seed-docs.js"
+      - "manifest.webmanifest"
+      - "icons/**"
+      - "vendor/**"
+      - "mobile/**"
+      - ".github/workflows/android-build.yml"
+
+concurrency:
+  group: android-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Install JS dependencies
+        working-directory: mobile
+        run: npm ci
+
+      # build-www.mjs copies the PWA from the repo root into mobile/www, then
+      # `cap sync` pushes it into the native project. Without this the APK ships
+      # a stale copy of the web app.
+      - name: Build web assets and sync into the native project
+        working-directory: mobile
+        run: npm run sync
+
+      # Guard against the failure mode that is invisible until someone installs
+      # the APK: a green build that silently packaged the wrong web bundle.
+      - name: Verify the synced bundle matches the repo
+        run: |
+          for f in app.js index.html styles.css db.js sync.js; do
+            if ! diff -q "$f" "mobile/android/app/src/main/assets/public/$f" >/dev/null; then
+              echo "::error::$f in the APK differs from the repo copy — cap sync did not take"
+              exit 1
+            fi
+          done
+          echo "web bundle matches the repo"
+
+      - name: Build debug APK
+        working-directory: mobile/android
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: Report APK details
+        id: apk
+        run: |
+          apk=$(find mobile/android -name "*-debug.apk" | head -1)
+          echo "path=$apk" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Android build ${{ github.run_number }}"
+            echo ""
+            echo "- size: $(du -h "$apk" | cut -f1)"
+            echo "- commit: \`${GITHUB_SHA:0:7}\`"
+            echo "- install: \`adb install -r <downloaded>.apk\`, or open the file on the phone"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: GarageSaathi-debug-${{ github.run_number }}
+          path: ${{ steps.apk.outputs.path }}
+          if-no-files-found: error
+          retention-days: 30
