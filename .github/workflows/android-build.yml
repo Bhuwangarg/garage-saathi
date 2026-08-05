@@ -65,15 +65,33 @@ jobs:
 
       # Guard against the failure mode that is invisible until someone installs
       # the APK: a green build that silently packaged the wrong web bundle.
-      - name: Verify the synced bundle matches the repo
+      - name: Verify the synced bundle
         run: |
-          for f in app.js index.html styles.css db.js sync.js; do
-            if ! diff -q "$f" "mobile/android/app/src/main/assets/public/$f" >/dev/null; then
+          pub=mobile/android/app/src/main/assets/public
+
+          # These are copied byte-for-byte, so any difference means a stale sync.
+          for f in app.js styles.css db.js sync.js seed-data.js seed-docs.js; do
+            if ! diff -q "$f" "$pub/$f" >/dev/null; then
               echo "::error::$f in the APK differs from the repo copy — cap sync did not take"
               exit 1
             fi
           done
-          echo "web bundle matches the repo"
+
+          # index.html is deliberately rewritten for native: CDN URLs are swapped
+          # for vendored copies so the map and face detection work offline, the
+          # native bridge shim is injected, and the service worker is disabled
+          # (it would shadow the Capacitor scheme). Assert the rewrite happened
+          # rather than that the file matches — equality here would mean
+          # build-www.mjs silently did nothing.
+          fail=0
+          grep -q 'src="vendor/leaflet.js"'      "$pub/index.html" || { echo "::error::leaflet not vendored"; fail=1; }
+          grep -q 'src="vendor/face-api.js"'     "$pub/index.html" || { echo "::error::face-api not vendored"; fail=1; }
+          grep -q 'native-bridge-shim.js'        "$pub/index.html" || { echo "::error::native bridge shim missing"; fail=1; }
+          grep -q 'isNativePlatform'             "$pub/index.html" || { echo "::error::service worker not disabled for native"; fail=1; }
+          grep -q 'unpkg.com\|cdn.jsdelivr.net'  "$pub/index.html" && { echo "::error::a CDN URL survived — the app would need the network to render"; fail=1; }
+          [ "$fail" = 0 ] || exit 1
+
+          echo "web bundle is current and the native rewrite is intact"
 
       - name: Build debug APK
         working-directory: mobile/android
