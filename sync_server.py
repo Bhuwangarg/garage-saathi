@@ -71,6 +71,12 @@ def _r2_client():
 ECHALLAN_API_KEY = os.environ.get("ECHALLAN_API_KEY", "")
 ECHALLAN_BASE = os.environ.get("ECHALLAN_BASE", "https://api.echallan.app")
 
+# Bumped by hand whenever a server change needs to be confirmed live. Render's
+# auto-deploy is off, so setting an env var restarts the process with the OLD
+# code — /health reporting a stale build is the only way to tell that apart from
+# a missing route, without dashboard access.
+BUILD_TAG = "2026-08-10-challans"
+
 PORT = int(os.environ.get("PORT", "8766"))      # cloud hosts inject $PORT
 _lock = threading.Lock()
 SESSIONS = {}          # token -> {uid, exp}
@@ -865,6 +871,12 @@ class Handler(BaseHTTPRequestHandler):
                                      "persistent": _turso_live, "tursoConfigured": _USE_TURSO, "tursoConnected": _TURSO_OK,
                                      "urlSet": bool(TURSO_URL), "tokenSet": bool(TURSO_TOKEN),
                                      "aiKeySet": bool(ANTHROPIC_API_KEY), "vapidReady": _WEBPUSH and bool(_vapid_pem_path()),
+                                     # Two separate facts, because they fail separately and the
+                                     # symptom is identical from outside: `build` is the commit
+                                     # actually running (auto-deploy is off, so a restart can pick
+                                     # up a new env var while still serving old code), and
+                                     # echallanKeySet is whether the key reached the process.
+                                     "build": BUILD_TAG, "echallanKeySet": bool(ECHALLAN_API_KEY),
                                      "photos": "r2" if _USE_R2 else "disk", "photosPersistent": _USE_R2,
                                      # Per-var presence (booleans only, no secrets) so a missing/misnamed
                                      # R2 env var can be pinpointed without dashboard access.
