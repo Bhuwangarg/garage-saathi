@@ -75,7 +75,7 @@ ECHALLAN_BASE = os.environ.get("ECHALLAN_BASE", "https://api.echallan.app")
 # auto-deploy is off, so setting an env var restarts the process with the OLD
 # code — /health reporting a stale build is the only way to tell that apart from
 # a missing route, without dashboard access.
-BUILD_TAG = "2026-08-10-challans"
+BUILD_TAG = "2026-08-10-challans-sync"
 
 PORT = int(os.environ.get("PORT", "8766"))      # cloud hosts inject $PORT
 _lock = threading.Lock()
@@ -391,10 +391,25 @@ WRITE_ROLES = {
     # Server-ingest only — no client ever pushes these (AirFi → ingest_gps):
     "gpsevents":     set(),
     "gpslive":       set(),
+    # Written by the /challans proxy from the upstream response. A client must
+    # never be able to push these: forged "no pending challans" rows would hide a
+    # real liability, and the data is billable to fetch.
+    "challans":      set(),
 }
+
+# Stores the server alone writes, from an upstream it controls. Enforced ahead of
+# every role check, owner included — see may_write().
+SERVER_INGEST_ONLY = {"gpsevents", "gpslive", "challans"}
 
 
 def may_write(role, store):
+    # Checked before the owner short-circuit: these stores are written only by the
+    # server from an upstream source (GPS telemetry, the eChallan proxy). A client
+    # push is always forged, and "owner" is not an exemption — a stolen owner
+    # session could otherwise file a clean challan record over a real liability,
+    # or invent GPS history.
+    if store in SERVER_INGEST_ONLY:
+        return False
     if role == "owner":
         return True
     allowed = WRITE_ROLES.get(store)
@@ -781,6 +796,24 @@ def _norm_challan(c):
     }
 
 
+def store_challan_snapshot(payload):
+    """Write one bus's snapshot into the synced record set, keyed by registration.
+
+    Goes through the same records table every other store uses, so it rides the
+    normal /pull to every device with no extra plumbing. Failure here must not
+    fail the caller's lookup — they already paid the credit and should still get
+    their answer.
+    """
+    try:
+        with _lock:
+            c = db()
+            rev = c.execute("SELECT COALESCE(MAX(rev),0) FROM records").fetchone()[0]
+            _upsert_record(c, "challans", payload["rc"], payload, payload["updatedAt"], rev)
+            c.commit(); c.close()
+    except Exception:
+        pass
+
+
 def echallan_lookup(rc_no):
     """One upstream challan lookup. Returns (payload, error_tuple_or_None)."""
     rc = re.sub(r"[^A-Za-z0-9]", "", (rc_no or "")).upper()
@@ -812,6 +845,10 @@ def echallan_lookup(rc_no):
     billing = j.get("_billing") or {}
     return {
         "rc": rc,
+        # `updatedAt` is what the client's last-write-wins comparison reads. Without
+        # it every pulled refresh would compare 0 > 0 and be silently discarded, so
+        # a device would keep its first snapshot forever.
+        "updatedAt": now_ms(),
         "fetchedAt": now_ms(),
         # A repeat lookup inside their cache window bills 0, and a provider outage
         # bills 0 too — so cost is per-fetch, not per-call. Surfaced so the app can
@@ -939,6 +976,10 @@ class Handler(BaseHTTPRequestHandler):
             payload, err = echallan_lookup(rc)
             if err:
                 return self._send(err[0], err[1])
+            # Persist so the whole fleet's snapshot is fetched once, not once per
+            # device. Lookups are billable, and challan liability is something the
+            # supervisor needs to see without re-paying for it on their own phone.
+            store_challan_snapshot(payload)
             return self._send(200, payload)
 
         self._send(404, {"error": "not found"})

@@ -20,7 +20,12 @@ const Sync = (function () {
                   // vendor registry, rotable components, DEF log and every trip cash
                   // session lived on exactly one phone with no backup. Now synced;
                   // backfillOnce() below pushes any records that predate this change.
-                  'components', 'def', 'vendors', 'trips'];
+                  'components', 'def', 'vendors', 'trips',
+                  // Server-ingest only, like gpsevents: written by the /challans
+                  // proxy, pulled by every device, never pushed. Without it here the
+                  // same mistake as the four above repeats — one phone sweeps the
+                  // fleet and nobody else ever sees the liability.
+                  'challans'];
 
   const ls = window.localStorage;
   // Default sync backend: a device's explicit setting always wins. Otherwise, on

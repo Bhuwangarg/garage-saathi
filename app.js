@@ -3465,7 +3465,10 @@ async function checkChallan(busId, quiet) {
   const r = await Sync.challans(normReg(b.regNo));
   if (r.configured === false) { if (!quiet) toast('Challan lookup is not set up on the server'); return false; }
   if (r.error) { if (!quiet) toast(r.error); return false; }
-  await DB.put('challans', r);
+  // putRaw, not put: the server already stored this snapshot when it served the
+  // lookup. Queueing a push would echo it straight back and be rejected — the
+  // challans store is server-ingest only.
+  await DB.putRaw('challans', r);
   await load();
   if (!quiet) {
     toast(r.pendingCount ? `${b.regNo}: ${r.pendingCount} pending · ${money(r.pendingFine)}` : `${b.regNo}: no pending challans ✓`);
