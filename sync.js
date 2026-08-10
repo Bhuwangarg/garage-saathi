@@ -133,6 +133,24 @@ const Sync = (function () {
       return { text: (await res.json()).text || '' };
     } catch (e) { return { configured: false }; }
   }
+  // eChallan lookup for one registration. Server-side proxy — the API key never
+  // reaches the device. Each call spends a billable credit upstream, so callers
+  // must be user-initiated, never a background refresh.
+  //   { challans, pendingCount, pendingFine, creditsLeft, ... } on success
+  //   { configured:false } when the server has no key or we aren't signed in
+  //   { error }            for upstream failures, incl. credits exhausted
+  async function challans(rc) {
+    try {
+      const res = await fetch(baseUrl() + '/challans?rc_no=' + encodeURIComponent(rc), {
+        headers: authHeaders(),
+      });
+      if (res.status === 501 || res.status === 401) return { configured: false };
+      if (res.status === 403) return { error: 'Only the owner or supervisor can check challans' };
+      if (res.status === 402) return { error: 'eChallan credits exhausted — top up to check more buses' };
+      if (!res.ok) return { error: 'Challan lookup failed (' + res.status + ')' };
+      return await res.json();
+    } catch (e) { return { configured: false }; }
+  }
   // Claude vision: send a photo (data URL) + prompt → text. For part-wear grading
   // and serial OCR. { text } on success, { configured:false } if no server key.
   async function aiVision(image, prompt) {
@@ -375,7 +393,7 @@ const Sync = (function () {
     } catch (e) { return null; }
   }
 
-  return { start, tick, kick, setUrl, reset, info, login, logout, addStaff, registerRoster, setPin, ai, aiVision, fleet, latest, uploadPhoto,
+  return { start, tick, kick, setUrl, reset, info, login, logout, addStaff, registerRoster, setPin, ai, aiVision, challans, fleet, latest, uploadPhoto,
            queuePhoto, remove, clearQuarantine, subscribePush, pushTest,
            get status() { return status; } };
 })();

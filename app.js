@@ -322,6 +322,9 @@ const PERMS = {
   // entry for them. Mechanics genuinely use these (store is a bottom tab, jobs is
   // their work list, the scoreboard is their leaderboard); drivers and conductors
   // never do — their nav is home + me.
+  // Outstanding fines and court referrals are finance data, and each lookup
+  // spends a billable credit — same gate the server applies.
+  challans: ['owner', 'supervisor'],
   viewStore: ['owner', 'supervisor', 'store', 'mechanic'],
   viewJobs: ['owner', 'supervisor', 'store', 'mechanic'],
   viewScoreboard: ['owner', 'supervisor', 'store', 'mechanic'],
@@ -355,7 +358,9 @@ async function load() {
     DB.all('drivers'), DB.all('incidents'), DB.all('driverreports'),
     DB.all('routes'), DB.all('triplog'), DB.all('fuel'), DB.all('gpsevents'), DB.all('audits'), DB.all('components'), DB.all('def'), DB.all('vendors'), DB.all('trips'), DB.get('meta', 'garage'),
   ]);
-  S.cache = { users, buses, parts, jobs, ledger, att, purchases, drivers, incidents, driverreports, routes, triplog, fuel, gpsevents, audits, components, def, vendors, trips, garage };
+  // Keyed by registration, not id — one snapshot row per bus, replaced on refresh.
+  const challans = await DB.all('challans').catch(() => []);
+  S.cache = { users, buses, parts, jobs, ledger, att, purchases, drivers, incidents, driverreports, routes, triplog, fuel, gpsevents, audits, components, def, vendors, trips, challans, garage };
   refreshBiz();   // keep the displayed business name in sync with garage config
 }
 const byId = (arr, id) => arr.find((x) => x.id === id);
@@ -1325,6 +1330,23 @@ function viewBusDetail(id) {
 
   let body = `<div class="hero cover"><img src="${esc(busImg(b))}" alt="">
     <div class="hero-cap"><div class="hero-t">${esc(b.regNo)}</div><div class="hero-s">${esc(b.company)} · ${esc(b.model)}</div></div></div>`;
+
+  // Challan liability, right under the header — it belongs with the bus, not
+  // buried on a separate screen.
+  if (can(S.user.role, 'challans')) {
+    const c = challanFor(b.regNo);
+    if (c && c.pendingCount) {
+      body += `<div class="card" style="border-left:4px solid var(--bad)" data-challanbus="${b.id}">
+        <div class="row between"><div><div class="muted small">Pending challans</div>
+          <div class="stat" style="color:var(--bad)">${money(c.pendingFine)}</div></div>
+        <div style="text-align:right"><div class="tiny muted">${c.pendingCount} pending</div>
+          ${c.courtCount ? `<div class="tiny muted">⚖️ ${c.courtCount} in court</div>` : ''}</div></div></div>`;
+    } else if (lookupable(b.regNo)) {
+      body += `<div class="card"><div class="row between">
+        <div class="small muted">${c ? 'No pending challans ✓' : 'Challans not checked'}</div>
+        <button class="btn sm" data-act="checkChallan" data-bus="${b.id}">${c ? 'Re-check' : 'Check'}</button></div></div>`;
+    }
+  }
   body += `<div class="card">
     <div class="row between"><h3>${esc(b.regNo)}</h3>${prioBadge('low')}</div>
     <div class="small muted">${esc(b.company)} · ${esc(b.model)}</div>
@@ -3314,13 +3336,161 @@ function viewPurchases() {
 
 function viewAlerts() {
   const alerts = allDocAlerts();
-  let body = `<div class="card"><h3>${t('docAlerts')}</h3>`;
+  let body = '';
+
+  // Pending challans sit alongside expiring documents: both are compliance
+  // liabilities the owner has to clear, and both are per-bus.
+  if (can(S.user.role, 'challans')) {
+    const tot = fleetChallanTotals();
+    body += `<div class="card"><div class="row between">
+        <div><div class="muted small">Pending traffic challans</div>
+          <div class="stat" style="color:${tot.fine ? 'var(--bad)' : 'var(--ok)'}">${tot.checked ? money(tot.fine) : '—'}</div></div>
+        <div style="text-align:right"><div class="tiny muted">${tot.checked ? `${tot.pending} pending · ${tot.buses} bus(es)` : 'not checked yet'}</div>
+          ${tot.court ? `<div class="tiny muted">${tot.court} sent to court</div>` : ''}</div></div>
+      <button class="btn ${tot.fine ? 'primary' : ''}" data-act="openChallans" style="margin-top:10px">🚦 Open challans</button></div>`;
+  }
+
+  body += `<div class="card"><h3>${t('docAlerts')}</h3>`;
   body += alerts.length ? alerts.map((a) => `<div class="li" data-bus="${a.bus.id}">
     <div class="ava">📄</div>
     <div class="main"><div class="t">${esc(a.bus.regNo)} · ${esc(a.doc.type)}</div><div class="s">${esc(a.bus.company)} · expires ${fmtDate(a.doc.expiry)}</div></div>
     <span class="badge ${a.st.cls}">${a.st.txt}</span></div>`).join('') : `<div class="empty">All documents valid 👍</div>`;
   body += `</div>`;
   shell(t('docAlerts'), body);
+}
+
+/* ===== Traffic challans (eChallan) ======================================
+ * Lookups are billable upstream, so nothing here refreshes on its own — every
+ * fetch is an explicit tap. Snapshots live in the `challans` store keyed by
+ * registration and survive offline, so the screen is useful without network.
+ *
+ * Two money figures come back and they are NOT interchangeable:
+ *   fine     what is owed to the government — this is the liability
+ *   payable  what eChallan bills to settle through their platform (fine +
+ *            their service charge + GST), and it is only populated on a
+ *            minority of rows, so it is never summed into a headline.
+ */
+const challanFor = (regNo) => (S.cache.challans || []).find((c) => c.rc === normReg(regNo));
+const normReg = (s) => String(s || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+// A plate we can actually look up. Route-imported rows carry fragments like
+// "5920" that would burn a credit for a guaranteed miss.
+const lookupable = (regNo) => /^[A-Z]{2}\d{1,2}[A-Z]{0,3}\d{1,4}$/.test(normReg(regNo));
+
+function fleetChallanTotals() {
+  let pending = 0, fine = 0, court = 0, checked = 0, buses = 0;
+  for (const c of S.cache.challans || []) {
+    checked++;
+    if (c.pendingCount) { buses++; pending += c.pendingCount; fine += c.pendingFine || 0; }
+    court += c.courtCount || 0;
+  }
+  return { pending, fine, court, checked, buses };
+}
+
+function viewChallans() {
+  const tot = fleetChallanTotals();
+  const all = S.cache.buses.slice();
+  const rows = all.map((b) => ({ b, c: challanFor(b.regNo) }))
+    .sort((x, y) => (y.c ? y.c.pendingFine || 0 : -1) - (x.c ? x.c.pendingFine || 0 : -1));
+  const unchecked = rows.filter((r) => !r.c && lookupable(r.b.regNo)).length;
+  const unusable = all.filter((b) => !lookupable(b.regNo)).length;
+
+  let body = `<div class="card"><div class="row between">
+      <div><div class="muted small">Pending fines (owed to govt)</div>
+        <div class="stat" style="color:var(--bad)">${money(tot.fine)}</div></div>
+      <div style="text-align:right"><div class="tiny muted">${tot.pending} pending · ${tot.buses} bus(es)</div>
+        <div class="tiny muted">${tot.court} sent to court</div></div></div>`;
+  if (unchecked) {
+    body += `<button class="btn primary" data-act="syncChallans" style="margin-top:10px">🔄 Check ${unchecked} unchecked bus(es)</button>
+      <div class="tiny muted" style="margin-top:6px">Each bus costs 1 API credit. Buses with no challans cost nothing.</div>`;
+  } else if (tot.checked) {
+    body += `<button class="btn" data-act="syncChallans" data-force="1" style="margin-top:10px">🔄 Re-check whole fleet</button>`;
+  }
+  if (unusable) {
+    body += `<div class="tiny muted" style="margin-top:6px">⚠️ ${unusable} bus(es) have an incomplete registration and can't be checked.</div>`;
+  }
+  body += `</div>`;
+
+  body += `<div class="card"><h3>By bus</h3>`;
+  body += rows.map(({ b, c }) => {
+    const bad = c && c.pendingCount;
+    const right = !lookupable(b.regNo)
+      ? `<span class="badge">no reg</span>`
+      : !c ? `<button class="btn sm" data-act="checkChallan" data-bus="${b.id}">Check</button>`
+        : bad ? `<span class="badge bad">${money(c.pendingFine)}</span>`
+          : `<span class="badge ok">clear</span>`;
+    const sub = !c ? 'not checked yet'
+      : c.pendingCount ? `${c.pendingCount} pending · ${c.courtCount || 0} in court · checked ${fmtDate(c.fetchedAt)}`
+        : `no pending challans · checked ${fmtDate(c.fetchedAt)}`;
+    return `<div class="li" ${c && c.pendingCount ? `data-challanbus="${b.id}"` : ''}>
+      <div class="ava">${bad ? '🚨' : '🚌'}</div>
+      <div class="main"><div class="t">${esc(b.regNo)}</div><div class="s">${esc(sub)}</div></div>
+      ${right}</div>`;
+  }).join('');
+  body += `</div>`;
+  shell('Challans', body);
+}
+
+// Drill-in: every challan on one bus, pending first, newest first.
+function viewBusChallans(busId) {
+  const b = byId(S.cache.buses, busId);
+  if (!b) return;
+  const c = challanFor(b.regNo);
+  if (!c) return;
+  const rows = (c.challans || []).slice().sort((x, y) => {
+    if ((x.status === 'Pending') !== (y.status === 'Pending')) return x.status === 'Pending' ? -1 : 1;
+    return String(y.date || '').localeCompare(String(x.date || ''));
+  });
+  let body = `<div class="card"><div class="row between">
+      <div><div class="muted small">${esc(b.regNo)} — pending</div>
+        <div class="stat" style="color:var(--bad)">${money(c.pendingFine)}</div></div>
+      <div style="text-align:right"><div class="tiny muted">${c.pendingCount} pending · ${c.disposedCount} settled</div></div></div>
+    <button class="btn sm" data-act="checkChallan" data-bus="${b.id}" style="margin-top:10px">🔄 Refresh (1 credit)</button></div>`;
+  body += `<div class="card"><h3>Challans (${rows.length})</h3>`;
+  body += rows.length ? rows.map((r) => `<div class="li">
+      <div class="ava">${r.status === 'Pending' ? '🔴' : '✅'}</div>
+      <div class="main"><div class="t">${money(r.fine)} · ${esc(r.state || '')} ${r.sentToCourt ? '· ⚖️ court' : ''}</div>
+        <div class="s">${esc((r.offence || 'Offence not stated').slice(0, 90))}</div>
+        <div class="tiny muted">${esc(r.challanNo || '')} · ${esc(String(r.date || '').slice(0, 10))}</div></div>
+      <span class="badge ${r.status === 'Pending' ? 'bad' : 'ok'}">${esc(r.status)}</span></div>`).join('')
+    : `<div class="empty">No challans on record 👍</div>`;
+  body += `</div>`;
+  shell(esc(b.regNo) + ' challans', body);
+}
+
+async function checkChallan(busId, quiet) {
+  const b = byId(S.cache.buses, busId);
+  if (!b) return;
+  if (!lookupable(b.regNo)) { if (!quiet) toast('That bus has an incomplete registration'); return false; }
+  if (!quiet) toast('Checking ' + b.regNo + '…');
+  const r = await Sync.challans(normReg(b.regNo));
+  if (r.configured === false) { if (!quiet) toast('Challan lookup is not set up on the server'); return false; }
+  if (r.error) { if (!quiet) toast(r.error); return false; }
+  await DB.put('challans', r);
+  await load();
+  if (!quiet) {
+    toast(r.pendingCount ? `${b.regNo}: ${r.pendingCount} pending · ${money(r.pendingFine)}` : `${b.regNo}: no pending challans ✓`);
+    rerender();
+  }
+  return true;
+}
+
+// Fleet sweep. Sequential and rate-limited on purpose: it spends real credits and
+// the upstream is not fast. Stops as soon as credits run out rather than firing
+// dozens of doomed requests.
+async function syncChallans(force) {
+  const todo = S.cache.buses.filter((b) => lookupable(b.regNo) && (force || !challanFor(b.regNo)));
+  if (!todo.length) return toast('Nothing to check');
+  if (!confirm(`Check ${todo.length} bus(es)?\n\nEach costs 1 API credit (buses with no challans cost nothing).`)) return;
+  let done = 0, failed = 0;
+  for (const b of todo) {
+    const ok = await checkChallan(b.id, true);
+    if (ok) done++; else { failed++; if (failed >= 3) break; }   // 3 in a row = stop, likely out of credits
+    if (done % 5 === 0) toast(`Checked ${done}/${todo.length}…`);
+  }
+  await load();
+  const tot = fleetChallanTotals();
+  toast(`Done — ${done} checked · ${tot.pending} pending · ${money(tot.fine)}`);
+  rerender();
 }
 
 // Billing worksheet for one company: every job on its buses, grouped by bus,
@@ -5369,7 +5539,8 @@ const ROUTE_PERM = { money: 'money', fleet: 'fleet', people: 'people', bills: 'b
   // `purchases` renders the same view as `bills`; without its own entry the
   // `bills` permission was bypassable just by using the other route name.
   purchases: 'bills', alerts: 'dashboard', buses: 'fleet',
-  store: 'viewStore', jobs: 'viewJobs', scoreboard: 'viewScoreboard' };
+  store: 'viewStore', jobs: 'viewJobs', scoreboard: 'viewScoreboard',
+  challans: 'challans', buschallans: 'challans' };
 function render(r) {
   if (typeof stopMap === 'function') stopMap();   // leaving any screen halts the live-map refresh timer
   if (typeof stopTrack === 'function') stopTrack();
@@ -5387,6 +5558,8 @@ function render(r) {
     case 'me': return viewMe();
     case 'purchases': return viewPurchases();
     case 'alerts': return viewAlerts();
+    case 'challans': return viewChallans();
+    case 'buschallans': return viewBusChallans(r.id);
     case 'insights': return viewInsights();
     case 'drivers': return r.id ? viewDriverDetail(r.id) : viewDrivers();
     case 'assignments': return viewAssignments();
@@ -5457,6 +5630,7 @@ function bind() {
     if (el.hasAttribute('data-job') && !act) return push({ name: 'jobs', id: el.getAttribute('data-job') });
     if (el.hasAttribute('data-bus') && !act) return push({ name: 'buses', id: el.getAttribute('data-bus') });
     if (el.hasAttribute('data-part') && !act) return push({ name: 'store', id: el.getAttribute('data-part') });
+    if (el.hasAttribute('data-challanbus') && !act) return push({ name: 'buschallans', id: el.getAttribute('data-challanbus') });
     if (el.hasAttribute('data-driver') && !act) return push({ name: 'drivers', id: el.getAttribute('data-driver') });
     if (el.hasAttribute('data-company') && !act) return push({ name: 'company', id: el.getAttribute('data-company') });
     if (el.hasAttribute('data-routebus') && !act) return push({ name: 'routes', id: el.getAttribute('data-routebus') });
@@ -5600,6 +5774,9 @@ function bind() {
       case 'askAi': return askAi();
       case 'openPurchases': return push({ name: 'purchases' });
       case 'openAlerts': return push({ name: 'alerts' });
+      case 'openChallans': return push({ name: 'challans' });
+      case 'checkChallan': return checkChallan(el.getAttribute('data-bus'));
+      case 'syncChallans': return syncChallans(el.getAttribute('data-force') === '1');
       case 'openStaff': return sheetStaff();
       case 'saveStaff': return saveStaff();
       case 'openDrivers': return push({ name: 'drivers' });
