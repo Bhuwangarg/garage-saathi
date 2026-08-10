@@ -23,6 +23,8 @@ import re
 import sqlite3
 import threading
 import time
+import urllib.error
+import urllib.parse
 import urllib.request
 import uuid
 from datetime import datetime
@@ -61,6 +63,14 @@ def _r2_client():
             region_name="auto",
         )
     return _r2
+# eChallan.app — traffic-violation lookup by registration number. Server-side only:
+# their own docs say never to expose the key in browser-side widgets, and every
+# device running this PWA would otherwise ship it. Set ECHALLAN_API_KEY in the host
+# environment; without it the /challans endpoint reports "not configured" rather
+# than failing obscurely.
+ECHALLAN_API_KEY = os.environ.get("ECHALLAN_API_KEY", "")
+ECHALLAN_BASE = os.environ.get("ECHALLAN_BASE", "https://api.echallan.app")
+
 PORT = int(os.environ.get("PORT", "8766"))      # cloud hosts inject $PORT
 _lock = threading.Lock()
 SESSIONS = {}          # token -> {uid, exp}
@@ -721,6 +731,98 @@ def save_upload(data_url, host, proto="http"):
     return {"url": f"{proto}://{host}/uploads/{name}"}
 
 
+# --------------------------- eChallan lookup -------------------------------
+# The upstream returns ~50 fields per challan with three spellings of most of
+# them (fine_amount / fine_imposed / amount_of_fine_imposed, service_charge /
+# service_charges, created_at / createdAt). Collapse that to the fields the app
+# actually shows, and keep the two money figures strictly apart:
+#
+#   fine     — what is owed to the government. This is the liability.
+#   payable  — what eChallan.app bills to settle it through their platform,
+#              i.e. fine + their service charge + GST.
+#
+# A Rs 200 speeding fine comes back as Rs 1,144 payable (Rs 800 service charge +
+# Rs 144 GST). Showing the payable figure as "outstanding fines" would overstate
+# what the operator owes by ~5x, so both are carried through and labelled.
+def _norm_challan(c):
+    def num(*keys):
+        for k in keys:
+            v = c.get(k)
+            if v not in (None, ""):
+                try:
+                    return float(v)
+                except (TypeError, ValueError):
+                    continue
+        return 0.0
+    offences = [o.get("name") or o.get("act") or "" for o in (c.get("offence_details") or [])]
+    return {
+        "challanNo": c.get("challan_no") or c.get("_id"),     # the reconciliation key
+        "rc": c.get("rc_no") or c.get("VRN"),
+        "date": c.get("challan_date_time") or c.get("original_date_string"),
+        "status": c.get("challan_status") or "Unknown",
+        "fine": num("fine_imposed", "fine_amount", "amount_of_fine_imposed"),
+        "payable": num("total_payable", "total_amount", "display_total"),
+        "serviceCharge": num("service_charge", "service_charges"),
+        "gst": num("gst_amount"),
+        "offence": "; ".join([o for o in offences if o]) or None,
+        "place": c.get("challan_place"),
+        "state": c.get("state_code"),
+        "department": c.get("department"),
+        "courtName": c.get("court_name"),
+        "sentToCourt": (c.get("sent_to_reg_court") == "Yes") or (c.get("sent_to_virtual_court") == "Yes"),
+        "accused": c.get("name_of_violator") or c.get("owner_name"),
+        "offlinePayable": bool(c.get("is_offline_payable")),
+    }
+
+
+def echallan_lookup(rc_no):
+    """One upstream challan lookup. Returns (payload, error_tuple_or_None)."""
+    rc = re.sub(r"[^A-Za-z0-9]", "", (rc_no or "")).upper()
+    if not rc:
+        return None, (400, {"error": "rc_no required"})
+    url = f"{ECHALLAN_BASE}/vahanfin/echallan?rc_no={urllib.parse.quote(rc)}"
+    # The edge in front of this API 403s the default "Python-urllib/3.x" agent.
+    # Any ordinary UA passes; without one every lookup fails as Forbidden.
+    req = urllib.request.Request(url, headers={
+        "X-API-Key": ECHALLAN_API_KEY,
+        "User-Agent": "GarageSaathi/1.0 (+https://github.com/Bhuwangarg/garage-saathi)",
+        "Accept": "application/json",
+    })
+    try:
+        with urllib.request.urlopen(req, timeout=45) as resp:
+            j = json.loads(resp.read())
+    except urllib.error.HTTPError as e:
+        # 402 is out of credits — worth its own message, it is not a bug.
+        if e.code == 402:
+            return None, (402, {"error": "eChallan credits exhausted", "rc": rc})
+        if e.code in (401, 403):
+            return None, (502, {"error": "eChallan rejected the API key", "rc": rc})
+        return None, (502, {"error": f"eChallan upstream error {e.code}", "rc": rc})
+    except Exception:
+        return None, (502, {"error": "eChallan unreachable", "rc": rc})
+
+    rows = [_norm_challan(c) for c in (j.get("challans") or [])]
+    pending = [r for r in rows if r["status"] == "Pending"]
+    billing = j.get("_billing") or {}
+    return {
+        "rc": rc,
+        "fetchedAt": now_ms(),
+        # A repeat lookup inside their cache window bills 0, and a provider outage
+        # bills 0 too — so cost is per-fetch, not per-call. Surfaced so the app can
+        # show what a fleet sweep actually spent.
+        "creditsUsed": billing.get("cost"),
+        "creditsLeft": billing.get("remaining_credits"),
+        "providerUnavailable": bool(j.get("provider_unavailable")),
+        "total": j.get("total_count", len(rows)),
+        "pendingCount": j.get("pending_count", len(pending)),
+        "disposedCount": j.get("disposed_count", len(rows) - len(pending)),
+        "pendingFine": round(sum(r["fine"] for r in pending), 2),
+        "pendingPayable": round(sum(r["payable"] for r in pending), 2),
+        "courtCount": sum(1 for r in rows if r["sentToCourt"]),
+        "challans": rows,
+    }, None
+
+
 # ------------------------------- HTTP --------------------------------------
 class Handler(BaseHTTPRequestHandler):
     def _send(self, code, payload=None, raw=None, ctype="application/json"):
@@ -810,6 +912,23 @@ class Handler(BaseHTTPRequestHandler):
                       "lat": v.get("lat"), "lng": v.get("lng"), "speedKph": v.get("speedKph"), "ignition": v.get("ignition")}
                      for k, v in LIVE_GPS.items()]
             return self._send(200, {"buses": sorted(buses, key=lambda b: b["reg"])})
+
+        if u.path == "/challans":     # eChallan proxy — keeps the API key OFF devices
+            me = self._auth_user()
+            if not me:
+                return self._send(401, {"error": "unauthorized"})
+            # Outstanding fines and court referrals are finance data, and each
+            # lookup spends a billable credit. Same gate as the money screens.
+            if me["role"] not in ("owner", "supervisor"):
+                return self._send(403, {"error": "forbidden"})
+            if not ECHALLAN_API_KEY:
+                return self._send(501, {"error": "eChallan not configured on server"})
+            rc = (parse_qs(u.query).get("rc_no") or [""])[0]
+            payload, err = echallan_lookup(rc)
+            if err:
+                return self._send(err[0], err[1])
+            return self._send(200, payload)
+
         self._send(404, {"error": "not found"})
 
     def do_POST(self):
