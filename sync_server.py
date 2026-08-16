@@ -75,7 +75,7 @@ ECHALLAN_BASE = os.environ.get("ECHALLAN_BASE", "https://api.echallan.app")
 # auto-deploy is off, so setting an env var restarts the process with the OLD
 # code — /health reporting a stale build is the only way to tell that apart from
 # a missing route, without dashboard access.
-BUILD_TAG = "2026-08-16-odometer"
+BUILD_TAG = "2026-08-16-odometer-vision"
 
 PORT = int(os.environ.get("PORT", "8766"))      # cloud hosts inject $PORT
 _lock = threading.Lock()
@@ -810,7 +810,42 @@ def _norm_challan(c):
 # alongside the number so any figure can be traced back to the photo it came from.
 
 ODO_MAX_DAILY_KM = float(os.environ.get("ODO_MAX_DAILY_KM", "1600"))   # long-haul night runs are ~550 km
-ODO_MODEL = os.environ.get("ODO_MODEL", "claude-sonnet-5")             # OCR accuracy over token cost
+
+# Reading a dashboard is a vision-language job, not OCR: a cluster shows the
+# speedometer, trip meter and fuel gauge alongside the odometer, and a plain OCR
+# engine returns all of them with no idea which is which. So this needs a model
+# that understands "the odometer, not the trip meter" — but it does not need any
+# PARTICULAR one, and the cheapest key the operator already has should win.
+#
+# Three adapters cover essentially every option:
+#   anthropic  — Claude
+#   gemini     — Google AI Studio keys
+#   openai     — anything speaking the OpenAI chat-completions shape, which is
+#                OpenAI, OpenRouter, Groq, Together, DeepInfra, and a local
+#                Ollama, by pointing VISION_BASE at it
+#
+# Set VISION_PROVIDER + VISION_KEY + VISION_MODEL. If they are unset the server
+# falls back to ANTHROPIC_API_KEY so nothing that already worked stops working.
+VISION_PROVIDER = os.environ.get("VISION_PROVIDER", "").strip().lower()
+VISION_KEY = os.environ.get("VISION_KEY", "").strip()
+VISION_MODEL = os.environ.get("VISION_MODEL", "").strip()
+VISION_BASE = os.environ.get("VISION_BASE", "").strip().rstrip("/")
+
+_VISION_DEFAULT_MODEL = {
+    "anthropic": "claude-sonnet-5",
+    "gemini": "gemini-2.5-flash",
+    "openai": "gpt-4o-mini",
+}
+
+
+def vision_config():
+    """Resolve the provider actually in effect, so /health can report it and the
+    operator can see which key is being used without reading the logs."""
+    if VISION_PROVIDER and VISION_KEY:
+        return VISION_PROVIDER, VISION_KEY, (VISION_MODEL or _VISION_DEFAULT_MODEL.get(VISION_PROVIDER, ""))
+    if ANTHROPIC_API_KEY:
+        return "anthropic", ANTHROPIC_API_KEY, (VISION_MODEL or _VISION_DEFAULT_MODEL["anthropic"])
+    return "", "", ""
 
 
 # WhatsApp Cloud API. All four are needed for the live transport; without them
@@ -909,48 +944,89 @@ def bus_by_phone(phone):
     return None
 
 
-def vision_read_odometer(image_data_url):
-    """Ask Claude for the odometer reading. Returns (km:int|None, raw_text:str).
+ODO_PROMPT = (
+    "This is a photo of a bus instrument cluster. Read the ODOMETER — the total "
+    "distance travelled, in kilometres. Ignore the trip meter, speedometer, fuel "
+    "gauge and any warning lights.\n"
+    "Reply with ONLY the digits, no commas, no units, no explanation. "
+    "If you cannot read the odometer clearly, reply with exactly: NONE"
+)
 
-    Deliberately asks for a bare number or the word NONE — a model that hedges in
-    prose ("it looks like around 45,000") gives a number that is not a reading,
-    and writing that into the fleet record is worse than capturing nothing.
+
+def _post_json(url, payload, headers, timeout=45):
+    req = urllib.request.Request(url, data=json.dumps(payload).encode(), method="POST",
+                                 headers=dict(headers, **{"content-type": "application/json"}))
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        return json.loads(resp.read())
+
+
+def vision_read_odometer(image_data_url):
+    """Read the odometer from a dashboard photo. Returns (km:int|None, raw:str).
+
+    Every adapter asks for a bare number or the literal word NONE. A model that
+    hedges in prose ("it looks like around 45,000") yields a number that is not a
+    reading, and writing that into the fleet record is worse than capturing
+    nothing — so anything that isn't clean digits is treated as unreadable and the
+    driver is asked again.
     """
-    if not ANTHROPIC_API_KEY:
-        return None, "AI not configured"
+    provider, key, model = vision_config()
+    if not provider:
+        return None, "no vision provider configured"
     try:
         header, b64 = image_data_url.split(",", 1)
         media = header.split(";")[0].split(":")[1] if ":" in header else "image/jpeg"
     except Exception:
         return None, "bad image"
-    prompt = (
-        "This is a photo of a bus instrument cluster. Read the ODOMETER — the total "
-        "distance travelled, in kilometres. Ignore the trip meter, speedometer, fuel "
-        "gauge and any warning lights.\n"
-        "Reply with ONLY the digits, no commas, no units, no explanation. "
-        "If you cannot read the odometer clearly, reply with exactly: NONE"
-    )
-    payload = json.dumps({
-        "model": ODO_MODEL,
-        "max_tokens": 16,
-        "messages": [{"role": "user", "content": [
-            {"type": "image", "source": {"type": "base64", "media_type": media, "data": b64}},
-            {"type": "text", "text": prompt},
-        ]}],
-    }).encode()
-    req = urllib.request.Request("https://api.anthropic.com/v1/messages", data=payload, method="POST",
-                                 headers={"content-type": "application/json",
-                                          "x-api-key": ANTHROPIC_API_KEY,
-                                          "anthropic-version": "2023-06-01"})
+
     try:
-        with urllib.request.urlopen(req, timeout=45) as resp:
-            j = json.loads(resp.read())
-    except Exception as e:
-        return None, "upstream error"
-    text = "".join(c.get("text", "") for c in (j.get("content") or [])).strip()
-    digits = re.sub(r"\D", "", text)
-    if not digits or "NONE" in text.upper():
-        return None, text
+        if provider == "anthropic":
+            j = _post_json("https://api.anthropic.com/v1/messages", {
+                "model": model, "max_tokens": 16,
+                "messages": [{"role": "user", "content": [
+                    {"type": "image", "source": {"type": "base64", "media_type": media, "data": b64}},
+                    {"type": "text", "text": ODO_PROMPT}]}],
+            }, {"x-api-key": key, "anthropic-version": "2023-06-01"})
+            text = "".join(c.get("text", "") for c in (j.get("content") or [])).strip()
+
+        elif provider == "gemini":
+            base = VISION_BASE or "https://generativelanguage.googleapis.com/v1beta"
+            # Key goes in the header, not the query string — a URL with a secret in
+            # it ends up in proxy and access logs.
+            j = _post_json(f"{base}/models/{model}:generateContent", {
+                "contents": [{"parts": [
+                    {"inline_data": {"mime_type": media, "data": b64}},
+                    {"text": ODO_PROMPT}]}],
+                "generationConfig": {"maxOutputTokens": 16},
+            }, {"x-goog-api-key": key})
+            cands = j.get("candidates") or []
+            parts = (cands[0].get("content", {}).get("parts") or []) if cands else []
+            text = "".join(p.get("text", "") for p in parts).strip()
+
+        elif provider == "openai":
+            # Also covers OpenRouter, Groq, Together, DeepInfra and a local Ollama —
+            # they all speak this shape; only the base URL and model name change.
+            base = VISION_BASE or "https://api.openai.com/v1"
+            j = _post_json(f"{base}/chat/completions", {
+                "model": model, "max_tokens": 16,
+                "messages": [{"role": "user", "content": [
+                    {"type": "text", "text": ODO_PROMPT},
+                    {"type": "image_url", "image_url": {"url": image_data_url}}]}],
+            }, {"authorization": f"Bearer {key}"})
+            text = ((j.get("choices") or [{}])[0].get("message") or {}).get("content", "").strip()
+
+        else:
+            return None, f"unknown vision provider: {provider}"
+
+    except urllib.error.HTTPError as e:
+        # Surface the status — a 429 (out of quota) reads identically to a broken
+        # key otherwise, and they need different fixes.
+        return None, f"{provider} HTTP {e.code}"
+    except Exception:
+        return None, f"{provider} unreachable"
+
+    digits = re.sub(r"\D", "", text or "")
+    if not digits or "NONE" in (text or "").upper():
+        return None, text or "empty response"
     return int(digits), text
 
 
@@ -1153,6 +1229,11 @@ class Handler(BaseHTTPRequestHandler):
                                      # up a new env var while still serving old code), and
                                      # echallanKeySet is whether the key reached the process.
                                      "build": BUILD_TAG, "echallanKeySet": bool(ECHALLAN_API_KEY),
+                                     # Which key the odometer OCR will actually use. Names the
+                                     # provider and model but never the key, so a misconfigured
+                                     # switch is visible without dashboard access.
+                                     "vision": {"provider": vision_config()[0] or None,
+                                                "model": vision_config()[2] or None},
                                      "photos": "r2" if _USE_R2 else "disk", "photosPersistent": _USE_R2,
                                      # Per-var presence (booleans only, no secrets) so a missing/misnamed
                                      # R2 env var can be pinpointed without dashboard access.
