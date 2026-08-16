@@ -75,7 +75,7 @@ ECHALLAN_BASE = os.environ.get("ECHALLAN_BASE", "https://api.echallan.app")
 # auto-deploy is off, so setting an env var restarts the process with the OLD
 # code — /health reporting a stale build is the only way to tell that apart from
 # a missing route, without dashboard access.
-BUILD_TAG = "2026-08-10-challans-sync"
+BUILD_TAG = "2026-08-16-odometer"
 
 PORT = int(os.environ.get("PORT", "8766"))      # cloud hosts inject $PORT
 _lock = threading.Lock()
@@ -399,7 +399,7 @@ WRITE_ROLES = {
 
 # Stores the server alone writes, from an upstream it controls. Enforced ahead of
 # every role check, owner included — see may_write().
-SERVER_INGEST_ONLY = {"gpsevents", "gpslive", "challans"}
+SERVER_INGEST_ONLY = {"gpsevents", "gpslive", "challans", "odometerlogs"}
 
 
 def may_write(role, store):
@@ -796,6 +796,236 @@ def _norm_challan(c):
     }
 
 
+# --------------------------- Odometer capture ------------------------------
+# The problem this solves: every one of the 89 buses carries odometer 0, so
+# cost-per-km — the owner's headline maintenance number — has never had anything
+# to compute from. Nobody types a reading into an app during a shift. They will
+# photograph a dashboard, which is why capture starts from an image and the
+# transport (WhatsApp, or the test endpoint) is kept separate from the logic.
+#
+# Accuracy matters more than coverage here. A misread that turns 45,218 into
+# 452,180 silently corrupts cost-per-km for the life of the bus, and nobody would
+# notice for months. So every reading is validated against the previous one, an
+# implausible jump is held rather than written, and the raw model output is kept
+# alongside the number so any figure can be traced back to the photo it came from.
+
+ODO_MAX_DAILY_KM = float(os.environ.get("ODO_MAX_DAILY_KM", "1600"))   # long-haul night runs are ~550 km
+ODO_MODEL = os.environ.get("ODO_MODEL", "claude-sonnet-5")             # OCR accuracy over token cost
+
+
+# WhatsApp Cloud API. All four are needed for the live transport; without them
+# the odometer flow still works through /odometer/submit, which is how the pilot
+# is measured before Meta approves the Business account.
+WA_TOKEN = os.environ.get("WA_TOKEN", "")               # permanent system-user token
+WA_PHONE_ID = os.environ.get("WA_PHONE_ID", "")         # sender phone-number id
+WA_VERIFY_TOKEN = os.environ.get("WA_VERIFY_TOKEN", "") # echoed back on webhook setup
+WA_APP_SECRET = os.environ.get("WA_APP_SECRET", "")     # validates X-Hub-Signature-256
+WA_API = "https://graph.facebook.com/v21.0"
+
+
+def wa_send(to, text):
+    """Send a plain text reply. Failures are logged, never raised — a driver who
+    submitted a good reading should not have it rolled back because the
+    acknowledgement bounced."""
+    if not (WA_TOKEN and WA_PHONE_ID):
+        return False
+    payload = json.dumps({"messaging_product": "whatsapp", "to": to,
+                          "type": "text", "text": {"body": text}}).encode()
+    req = urllib.request.Request(f"{WA_API}/{WA_PHONE_ID}/messages", data=payload, method="POST",
+                                 headers={"content-type": "application/json",
+                                          "authorization": f"Bearer {WA_TOKEN}"})
+    try:
+        with urllib.request.urlopen(req, timeout=20):
+            return True
+    except Exception:
+        return False
+
+
+def wa_media_data_url(media_id):
+    """Two hops: resolve the media id to a short-lived URL, then fetch the bytes.
+    The second hop needs the bearer token too — it is not a public URL."""
+    if not WA_TOKEN:
+        return None
+    try:
+        req = urllib.request.Request(f"{WA_API}/{media_id}",
+                                     headers={"authorization": f"Bearer {WA_TOKEN}"})
+        with urllib.request.urlopen(req, timeout=20) as r:
+            meta = json.loads(r.read())
+        url = meta.get("url")
+        mime = meta.get("mime_type") or "image/jpeg"
+        if not url:
+            return None
+        req2 = urllib.request.Request(url, headers={"authorization": f"Bearer {WA_TOKEN}"})
+        with urllib.request.urlopen(req2, timeout=45) as r2:
+            raw = r2.read()
+        return "data:" + mime + ";base64," + base64.b64encode(raw).decode()
+    except Exception:
+        return None
+
+
+def _wa_handle(body):
+    """Process one webhook delivery off the request thread.
+
+    Runs async because OCR takes seconds and Meta times the webhook out at 20 —
+    a slow reply would be retried, and the driver would get the same answer twice.
+    """
+    try:
+        for entry in (body.get("entry") or []):
+            for ch in (entry.get("changes") or []):
+                val = ch.get("value") or {}
+                for msg in (val.get("messages") or []):
+                    frm = msg.get("from") or ""
+                    if msg.get("type") == "image":
+                        mid = (msg.get("image") or {}).get("id")
+                        img = wa_media_data_url(mid) if mid else None
+                        if not img:
+                            wa_send(frm, "Photo nahi mila. Dobara bhejein.")
+                            continue
+                        res = odometer_submit(frm, img, source="whatsapp")
+                        wa_send(frm, res.get("reply") or "Ho gaya.")
+                    else:
+                        wa_send(frm, "Meter ka photo bhejein — bas photo, aur kuch nahi.")
+    except Exception:
+        pass
+
+
+def bus_by_phone(phone):
+    """Find the bus whose crew phone matches. Last 10 digits, so +91/0 prefixes
+    and spacing don't matter — crew give their number a different way each time."""
+    tail = re.sub(r"\D", "", phone or "")[-10:]
+    if len(tail) < 10:
+        return None
+    with _lock:
+        c = db()
+        rows = c.execute("SELECT id,data FROM records WHERE store='buses'").fetchall()
+        c.close()
+    for rid, raw in rows:
+        try:
+            b = json.loads(raw)
+        except Exception:
+            continue
+        if re.sub(r"\D", "", str(b.get("crewPhone") or ""))[-10:] == tail:
+            return b
+    return None
+
+
+def vision_read_odometer(image_data_url):
+    """Ask Claude for the odometer reading. Returns (km:int|None, raw_text:str).
+
+    Deliberately asks for a bare number or the word NONE — a model that hedges in
+    prose ("it looks like around 45,000") gives a number that is not a reading,
+    and writing that into the fleet record is worse than capturing nothing.
+    """
+    if not ANTHROPIC_API_KEY:
+        return None, "AI not configured"
+    try:
+        header, b64 = image_data_url.split(",", 1)
+        media = header.split(";")[0].split(":")[1] if ":" in header else "image/jpeg"
+    except Exception:
+        return None, "bad image"
+    prompt = (
+        "This is a photo of a bus instrument cluster. Read the ODOMETER — the total "
+        "distance travelled, in kilometres. Ignore the trip meter, speedometer, fuel "
+        "gauge and any warning lights.\n"
+        "Reply with ONLY the digits, no commas, no units, no explanation. "
+        "If you cannot read the odometer clearly, reply with exactly: NONE"
+    )
+    payload = json.dumps({
+        "model": ODO_MODEL,
+        "max_tokens": 16,
+        "messages": [{"role": "user", "content": [
+            {"type": "image", "source": {"type": "base64", "media_type": media, "data": b64}},
+            {"type": "text", "text": prompt},
+        ]}],
+    }).encode()
+    req = urllib.request.Request("https://api.anthropic.com/v1/messages", data=payload, method="POST",
+                                 headers={"content-type": "application/json",
+                                          "x-api-key": ANTHROPIC_API_KEY,
+                                          "anthropic-version": "2023-06-01"})
+    try:
+        with urllib.request.urlopen(req, timeout=45) as resp:
+            j = json.loads(resp.read())
+    except Exception as e:
+        return None, "upstream error"
+    text = "".join(c.get("text", "") for c in (j.get("content") or [])).strip()
+    digits = re.sub(r"\D", "", text)
+    if not digits or "NONE" in text.upper():
+        return None, text
+    return int(digits), text
+
+
+def odometer_submit(phone, image_data_url, source="test"):
+    """Core capture path, shared by the WhatsApp webhook and the test endpoint.
+
+    Returns a dict with `status` — one of enrol / unreadable / held / accepted —
+    and a `reply` written for a driver to read on a phone, in the register the
+    crew actually use rather than app English.
+    """
+    bus = bus_by_phone(phone)
+    if not bus:
+        return {"status": "enrol", "reply":
+                "Yeh number kisi bus se linked nahi hai. Office se apna number "
+                "register karwayein."}
+
+    km, raw = vision_read_odometer(image_data_url)
+    if km is None:
+        return {"status": "unreadable", "bus": bus.get("regNo"), "raw": raw, "reply":
+                "Meter clear nahi dikha. Thoda paas se, seedha photo bhejein."}
+
+    prev = int(bus.get("odometer") or 0)
+    now = now_ms()
+    log = {
+        "id": "odo-" + uuid.uuid4().hex[:12],
+        "busId": bus.get("id"), "reg": bus.get("regNo"),
+        "km": km, "prevKm": prev, "delta": (km - prev) if prev else None,
+        "phone": re.sub(r"\D", "", phone or "")[-10:],
+        "raw": raw, "source": source, "at": now, "updatedAt": now,
+        "status": "accepted",
+    }
+
+    # A reading that goes backwards is either a misread or the wrong bus. Never
+    # write it — a decreasing odometer would make every downstream km figure
+    # negative and is not recoverable once it has propagated to devices.
+    if prev and km < prev:
+        log["status"] = "held-backwards"
+        _write_odo_log(log)
+        return {"status": "held", "bus": bus.get("regNo"), "km": km, "reply":
+                f"{bus.get('regNo')}: {km:,} km pichhli reading ({prev:,} km) se kam hai. "
+                "Office check karega. Dobara photo bhej sakte hain."}
+
+    # A jump too large to be one day's running is held for a human rather than
+    # written. This is the digit-slip case (45,218 read as 452,180) and it is the
+    # one that would quietly poison cost-per-km for months.
+    if prev and (km - prev) > ODO_MAX_DAILY_KM:
+        log["status"] = "held-jump"
+        _write_odo_log(log)
+        return {"status": "held", "bus": bus.get("regNo"), "km": km, "reply":
+                f"{bus.get('regNo')}: {km:,} km — pichhli baar se {km - prev:,} km zyada. "
+                "Office confirm karega."}
+
+    bus["odometer"] = km
+    bus["odometerAt"] = now
+    bus["updatedAt"] = now
+    with _lock:
+        c = db()
+        rev = c.execute("SELECT COALESCE(MAX(rev),0) FROM records").fetchone()[0]
+        rev = _upsert_record(c, "buses", bus["id"], bus, now, rev)
+        _upsert_record(c, "odometerlogs", log["id"], log, now, rev)
+        c.commit(); c.close()
+
+    delta = f" (+{km - prev:,} km)" if prev else ""
+    return {"status": "accepted", "bus": bus.get("regNo"), "km": km, "prev": prev,
+            "reply": f"{bus.get('regNo')}: {km:,} km darj ho gaya{delta}. Dhanyavaad."}
+
+
+def _write_odo_log(log):
+    with _lock:
+        c = db()
+        rev = c.execute("SELECT COALESCE(MAX(rev),0) FROM records").fetchone()[0]
+        _upsert_record(c, "odometerlogs", log["id"], log, log["at"], rev)
+        c.commit(); c.close()
+
+
 def store_challan_snapshot(payload):
     """Write one bus's snapshot into the synced record set, keyed by registration.
 
@@ -891,6 +1121,15 @@ class Handler(BaseHTTPRequestHandler):
         except Exception:
             return {}
 
+    def _raw_body(self):
+        """Undecoded bytes — Meta's webhook signature is computed over the exact
+        payload, so it cannot be re-serialised from parsed JSON."""
+        n = int(self.headers.get("Content-Length") or 0)
+        try:
+            return self.rfile.read(n) or b""
+        except Exception:
+            return b""
+
     def _auth_user(self):
         h = self.headers.get("Authorization") or ""
         token = h[7:] if h.startswith("Bearer ") else ""
@@ -962,6 +1201,24 @@ class Handler(BaseHTTPRequestHandler):
                      for k, v in LIVE_GPS.items()]
             return self._send(200, {"buses": sorted(buses, key=lambda b: b["reg"])})
 
+        if u.path == "/wa/webhook":
+            # Meta's one-time verification handshake: echo hub.challenge back in
+            # plain text when the token matches. Anything else must not 200, or the
+            # webhook registers against a token we never agreed.
+            q = parse_qs(u.query)
+            mode = (q.get("hub.mode") or [""])[0]
+            token = (q.get("hub.verify_token") or [""])[0]
+            challenge = (q.get("hub.challenge") or [""])[0]
+            if mode == "subscribe" and WA_VERIFY_TOKEN and token == WA_VERIFY_TOKEN:
+                body = challenge.encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "text/plain")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+                return
+            return self._send(403, {"error": "verification failed"})
+
         if u.path == "/challans":     # eChallan proxy — keeps the API key OFF devices
             me = self._auth_user()
             if not me:
@@ -1000,6 +1257,43 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(401, {"error": "invalid PIN"})
             clear_fails(uid, ip)
             return self._send(200, r)
+
+        if u.path == "/odometer/submit":
+            # Transport-independent capture. Exists so the whole flow — routing,
+            # OCR, validation, write — can be exercised and measured before the
+            # WhatsApp Business account is approved, and so it stays testable
+            # afterwards without sending real messages to crew.
+            me = self._auth_user()
+            if not me:
+                return self._send(401, {"error": "unauthorized"})
+            if me["role"] not in ("owner", "supervisor"):
+                return self._send(403, {"error": "forbidden"})
+            b = self._body()
+            phone = (b.get("phone") or "").strip()
+            image = b.get("image") or ""
+            if not phone or not image.startswith("data:"):
+                return self._send(400, {"error": "phone and image (data URL) required"})
+            return self._send(200, odometer_submit(phone, image, source="test"))
+
+        if u.path == "/wa/webhook":
+            # WhatsApp Cloud API delivers inbound messages here. Meta retries on any
+            # non-200, so this always answers 200 once the payload is understood —
+            # a failed OCR is a conversation to have with the driver, not a delivery
+            # failure to make Meta repeat.
+            if WA_APP_SECRET:
+                sig = self.headers.get("X-Hub-Signature-256", "")
+                raw = self._raw_body()
+                expect = "sha256=" + hmac.new(WA_APP_SECRET.encode(), raw, hashlib.sha256).hexdigest()
+                if not hmac.compare_digest(sig, expect):
+                    return self._send(403, {"error": "bad signature"})
+                try:
+                    b = json.loads(raw or b"{}")
+                except Exception:
+                    return self._send(200, {"ok": True})
+            else:
+                b = self._body()
+            threading.Thread(target=_wa_handle, args=(b,), daemon=True).start()
+            return self._send(200, {"ok": True})
 
         if u.path == "/auth/users":          # create staff (owner/supervisor only)
             me = self._auth_user()
