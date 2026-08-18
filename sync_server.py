@@ -77,7 +77,7 @@ ECHALLAN_BASE = os.environ.get("ECHALLAN_BASE", "https://api.echallan.app")
 # auto-deploy is off, so setting an env var restarts the process with the OLD
 # code — /health reporting a stale build is the only way to tell that apart from
 # a missing route, without dashboard access.
-BUILD_TAG = "2026-08-16-wa-client"
+BUILD_TAG = "2026-08-16-wa-dry"
 
 PORT = int(os.environ.get("PORT", "8766"))      # cloud hosts inject $PORT
 _lock = threading.Lock()
@@ -1065,12 +1065,16 @@ def vision_read_odometer(image_data_url):
     return int(digits), text
 
 
-def odometer_submit(phone, image_data_url, source="test"):
+def odometer_submit(phone, image_data_url, source="test", dry=False):
     """Core capture path, shared by the WhatsApp webhook and the test endpoint.
 
     Returns a dict with `status` — one of enrol / unreadable / held / accepted —
     and a `reply` written for a driver to read on a phone, in the register the
     crew actually use rather than app English.
+
+    `dry` runs the read and the validation but writes nothing, so OCR accuracy can
+    be measured against real photos without moving the fleet's odometers. The
+    whole point of measuring first is to not corrupt the baseline while doing it.
     """
     bus = bus_by_phone(phone)
     if not bus:
@@ -1099,7 +1103,8 @@ def odometer_submit(phone, image_data_url, source="test"):
     # negative and is not recoverable once it has propagated to devices.
     if prev and km < prev:
         log["status"] = "held-backwards"
-        _write_odo_log(log)
+        if not dry:
+            _write_odo_log(log)
         return {"status": "held", "bus": bus.get("regNo"), "km": km, "reply":
                 f"{bus.get('regNo')}: {km:,} km pichhli reading ({prev:,} km) se kam hai. "
                 "Office check karega. Dobara photo bhej sakte hain."}
@@ -1109,10 +1114,16 @@ def odometer_submit(phone, image_data_url, source="test"):
     # one that would quietly poison cost-per-km for months.
     if prev and (km - prev) > ODO_MAX_DAILY_KM:
         log["status"] = "held-jump"
-        _write_odo_log(log)
+        if not dry:
+            _write_odo_log(log)
         return {"status": "held", "bus": bus.get("regNo"), "km": km, "reply":
                 f"{bus.get('regNo')}: {km:,} km — pichhli baar se {km - prev:,} km zyada. "
                 "Office confirm karega."}
+
+    if dry:
+        return {"status": "accepted", "dry": True, "bus": bus.get("regNo"), "km": km,
+                "prev": prev, "raw": raw,
+                "reply": f"[dry] {bus.get('regNo')}: {km:,} km read, nothing written."}
 
     bus["odometer"] = km
     bus["odometerAt"] = now
@@ -1389,7 +1400,8 @@ class Handler(BaseHTTPRequestHandler):
             image = b.get("image") or ""
             if not phone or not image.startswith("data:"):
                 return self._send(400, {"error": "phone and image (data URL) required"})
-            return self._send(200, odometer_submit(phone, image, source="test"))
+            return self._send(200, odometer_submit(phone, image, source="test",
+                                                   dry=bool(b.get("dry"))))
 
         if u.path == "/wa/webhook":
             # WhatsApp Cloud API delivers inbound messages here. Meta retries on any

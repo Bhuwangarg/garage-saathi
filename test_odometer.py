@@ -131,5 +131,26 @@ check("no client role may push odometerlogs",
       all(S.may_write(r_, "odometerlogs") is False
           for r_ in ("owner", "supervisor", "store", "mechanic", "driver")))
 
+print("\n--- dry run: read, but never write ---")
+put_bus("bus-3", "MP44ZE3358", "9000000003", 500000)
+before_logs = len(logs())
+
+stub(500300)
+r = S.odometer_submit("9000000003", IMG, dry=True)
+check("dry run reports the reading", r["status"] == "accepted" and r["km"] == 500300)
+check("dry run is flagged as dry", r.get("dry") is True)
+check("dry run does NOT move the odometer", get_bus("bus-3")["odometer"] == 500000)
+check("dry run writes no log row", len(logs()) == before_logs)
+
+stub(9999999)
+r = S.odometer_submit("9000000003", IMG, dry=True)
+check("dry run still reports a held jump", r["status"] == "held")
+check("...and still writes nothing", len(logs()) == before_logs)
+check("...and leaves the odometer alone", get_bus("bus-3")["odometer"] == 500000)
+
+stub(500300)
+S.odometer_submit("9000000003", IMG)
+check("a real run after a dry run DOES write", get_bus("bus-3")["odometer"] == 500300)
+
 print("\nRESULT: " + ("ALL PASS" if not fails else f"{len(fails)} FAILED: {fails}"))
 sys.exit(1 if fails else 0)
