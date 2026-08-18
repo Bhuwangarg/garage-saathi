@@ -27,6 +27,8 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import uuid
+
+import wa_client
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
@@ -75,7 +77,7 @@ ECHALLAN_BASE = os.environ.get("ECHALLAN_BASE", "https://api.echallan.app")
 # auto-deploy is off, so setting an env var restarts the process with the OLD
 # code — /health reporting a stale build is the only way to tell that apart from
 # a missing route, without dashboard access.
-BUILD_TAG = "2026-08-16-odometer-vision"
+BUILD_TAG = "2026-08-16-wa-client"
 
 PORT = int(os.environ.get("PORT", "8766"))      # cloud hosts inject $PORT
 _lock = threading.Lock()
@@ -399,7 +401,7 @@ WRITE_ROLES = {
 
 # Stores the server alone writes, from an upstream it controls. Enforced ahead of
 # every role check, owner included — see may_write().
-SERVER_INGEST_ONLY = {"gpsevents", "gpslive", "challans", "odometerlogs"}
+SERVER_INGEST_ONLY = {"gpsevents", "gpslive", "challans", "odometerlogs", "waconv"}
 
 
 def may_write(role, store):
@@ -855,71 +857,104 @@ WA_TOKEN = os.environ.get("WA_TOKEN", "")               # permanent system-user 
 WA_PHONE_ID = os.environ.get("WA_PHONE_ID", "")         # sender phone-number id
 WA_VERIFY_TOKEN = os.environ.get("WA_VERIFY_TOKEN", "") # echoed back on webhook setup
 WA_APP_SECRET = os.environ.get("WA_APP_SECRET", "")     # validates X-Hub-Signature-256
-WA_API = "https://graph.facebook.com/v21.0"
+WA_PROMPT_TEMPLATE = os.environ.get("WA_PROMPT_TEMPLATE", "")   # approved template for out-of-window sends
+WA_TEMPLATE_LANG = os.environ.get("WA_TEMPLATE_LANG", "en")
 
 
-def wa_send(to, text):
-    """Send a plain text reply. Failures are logged, never raised — a driver who
-    submitted a good reading should not have it rolled back because the
-    acknowledgement bounced."""
+def wa_send(to, text, last_inbound_ms=None):
+    """Reply to a driver.
+
+    Branches on the 24-hour service window rather than sending and hoping. Meta
+    rejects free-form text outside it, and repeatedly retrying a rejected send is
+    what gets a sender's quality rating downgraded — so outside the window this
+    falls back to the approved prompt template instead. Ported understanding from
+    the Zappie codebase's inbox_policy; the original server sent free-form
+    unconditionally, which would have failed silently for any driver who had not
+    messaged in a day.
+    """
     if not (WA_TOKEN and WA_PHONE_ID):
         return False
-    payload = json.dumps({"messaging_product": "whatsapp", "to": to,
-                          "type": "text", "text": {"body": text}}).encode()
-    req = urllib.request.Request(f"{WA_API}/{WA_PHONE_ID}/messages", data=payload, method="POST",
-                                 headers={"content-type": "application/json",
-                                          "authorization": f"Bearer {WA_TOKEN}"})
     try:
-        with urllib.request.urlopen(req, timeout=20):
-            return True
-    except Exception:
+        if last_inbound_ms is None or wa_client.can_send_freeform(last_inbound_ms, now_ms()):
+            wa_client.send_text(WA_TOKEN, WA_PHONE_ID, to, text)
+        elif WA_PROMPT_TEMPLATE:
+            wa_client.send_template(WA_TOKEN, WA_PHONE_ID, to, WA_PROMPT_TEMPLATE, WA_TEMPLATE_LANG)
+        else:
+            return False
+        return True
+    except wa_client.WAError:
         return False
 
 
-def wa_media_data_url(media_id):
-    """Two hops: resolve the media id to a short-lived URL, then fetch the bytes.
-    The second hop needs the bearer token too — it is not a public URL."""
-    if not WA_TOKEN:
+def wa_prompt_odometer(to):
+    """Business-initiated shift-end prompt. Always a template — by definition the
+    driver has not just messaged us, so the window is shut."""
+    if not (WA_TOKEN and WA_PHONE_ID and WA_PROMPT_TEMPLATE):
+        return False
+    try:
+        wa_client.send_template(WA_TOKEN, WA_PHONE_ID, to, WA_PROMPT_TEMPLATE, WA_TEMPLATE_LANG)
+        return True
+    except wa_client.WAError:
+        return False
+
+
+def _wa_last_inbound(phone):
+    """When this number last wrote to us, which decides free-form vs template."""
+    tail = re.sub(r"\D", "", phone or "")[-10:]
+    with _lock:
+        c = db()
+        row = c.execute("SELECT data FROM records WHERE store='waconv' AND id=?", (tail,)).fetchone()
+        c.close()
+    if not row:
         return None
     try:
-        req = urllib.request.Request(f"{WA_API}/{media_id}",
-                                     headers={"authorization": f"Bearer {WA_TOKEN}"})
-        with urllib.request.urlopen(req, timeout=20) as r:
-            meta = json.loads(r.read())
-        url = meta.get("url")
-        mime = meta.get("mime_type") or "image/jpeg"
-        if not url:
-            return None
-        req2 = urllib.request.Request(url, headers={"authorization": f"Bearer {WA_TOKEN}"})
-        with urllib.request.urlopen(req2, timeout=45) as r2:
-            raw = r2.read()
-        return "data:" + mime + ";base64," + base64.b64encode(raw).decode()
+        return json.loads(row[0]).get("lastInboundAt")
     except Exception:
         return None
+
+
+def _wa_note_inbound(phone, wa_message_id):
+    tail = re.sub(r"\D", "", phone or "")[-10:]
+    now = now_ms()
+    rec = {"id": tail, "phone": tail, "lastInboundAt": now,
+           "lastMessageId": wa_message_id, "updatedAt": now}
+    with _lock:
+        c = db()
+        rev = c.execute("SELECT COALESCE(MAX(rev),0) FROM records").fetchone()[0]
+        _upsert_record(c, "waconv", tail, rec, now, rev)
+        c.commit(); c.close()
 
 
 def _wa_handle(body):
     """Process one webhook delivery off the request thread.
 
-    Runs async because OCR takes seconds and Meta times the webhook out at 20 —
-    a slow reply would be retried, and the driver would get the same answer twice.
+    Async because OCR takes seconds and Meta times the webhook out at 20 — a slow
+    reply is retried, and the driver would get the same answer twice.
     """
     try:
-        for entry in (body.get("entry") or []):
-            for ch in (entry.get("changes") or []):
-                val = ch.get("value") or {}
-                for msg in (val.get("messages") or []):
-                    frm = msg.get("from") or ""
-                    if msg.get("type") == "image":
-                        mid = (msg.get("image") or {}).get("id")
-                        img = wa_media_data_url(mid) if mid else None
-                        if not img:
-                            wa_send(frm, "Photo nahi mila. Dobara bhejein.")
-                            continue
-                        res = odometer_submit(frm, img, source="whatsapp")
-                        wa_send(frm, res.get("reply") or "Ho gaya.")
-                    else:
-                        wa_send(frm, "Meter ka photo bhejein — bas photo, aur kuch nahi.")
+        for entry in wa_client.extract_entries(body):
+            for raw in entry.get("messages", []):
+                msg = wa_client.normalize_message(raw)
+                frm = msg.get("from") or ""
+                if not frm:
+                    continue
+                # Record the inbound BEFORE replying: it opens the service window,
+                # and the reply itself depends on that window being known open.
+                _wa_note_inbound(frm, msg.get("id"))
+                if msg.get("id"):
+                    wa_client.mark_read(WA_TOKEN, WA_PHONE_ID, msg["id"])
+                last = _wa_last_inbound(frm)
+
+                if msg["type"] == "image" and msg.get("media_id"):
+                    try:
+                        img = wa_client.media_data_url(WA_TOKEN, msg["media_id"])
+                    except wa_client.WAError:
+                        wa_send(frm, "Photo nahi mila. Dobara bhejein.", last)
+                        continue
+                    res = odometer_submit(frm, img, source="whatsapp")
+                    wa_send(frm, res.get("reply") or "Ho gaya.", last)
+                else:
+                    wa_send(frm, "Meter ka photo bhejein — bas photo, aur kuch nahi.", last)
     except Exception:
         pass
 
@@ -1362,10 +1397,8 @@ class Handler(BaseHTTPRequestHandler):
             # a failed OCR is a conversation to have with the driver, not a delivery
             # failure to make Meta repeat.
             if WA_APP_SECRET:
-                sig = self.headers.get("X-Hub-Signature-256", "")
                 raw = self._raw_body()
-                expect = "sha256=" + hmac.new(WA_APP_SECRET.encode(), raw, hashlib.sha256).hexdigest()
-                if not hmac.compare_digest(sig, expect):
+                if not wa_client.verify_signature(raw, self.headers.get("X-Hub-Signature-256"), WA_APP_SECRET):
                     return self._send(403, {"error": "bad signature"})
                 try:
                     b = json.loads(raw or b"{}")
