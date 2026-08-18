@@ -536,6 +536,14 @@ const driverById = (id) => byId(S.cache.drivers || [], id);
 const driverName = (id) => (driverById(id) || {}).name || '—';
 const driverOfBus = (busId) => (S.cache.drivers || []).find((d) => d.busId === busId) || null;
 const driverForUser = (userId) => (S.cache.drivers || []).find((d) => d.userId === userId) || null;
+// Driver documents are identity PII (licence, Aadhaar, PAN, police verification).
+// Staff who manage drivers may open anyone's; everyone else only their own. Checked
+// on the read AND write paths — ROUTE_PERM only guards navigation, not the sheets.
+const canDriverDocs = (driverId) => {
+  if (can(S.user.role, 'manageDrivers')) return true;
+  const own = driverForUser(S.user.id);
+  return !!(own && own.id === driverId);
+};
 const driverIncidents = (driverId) => (S.cache.incidents || []).filter((i) => i.driverId === driverId);
 const openReportsForBus = (busId) => (S.cache.driverreports || []).filter((r) => r.busId === busId && r.status === 'open');
 
@@ -1544,6 +1552,10 @@ function viewJobDetail(id) {
   if (!j) return viewJobs();
   const cost = jobCost(j);
   const mine = j.assignedTo === S.user.id;
+  // The mechanic job LIST is filtered to their own work; the detail route has to
+  // enforce the same scope or any id-bearing entry point (alert nav, a restored
+  // history entry) opens another mechanic's card — and its write actions with it.
+  if (S.user.role === 'mechanic' && !mine) return viewJobs();
   const canEdit = mine || ['owner', 'supervisor'].includes(S.user.role);
   const editable = canEdit && j.status !== 'verified';
   // A supervisor/owner can always attach a missing after-photo as proof, even
@@ -4154,7 +4166,8 @@ function partsCardExtras(job) {
   const mine = job.assignedTo === S.user.id;
   const reqs = job.partRequests || [];
   // Request-part button: only the mechanic who can request, on a live job.
-  if (can(S.user.role, 'requestPart') && job.status !== 'verified' && job.status !== 'done') {
+  if (can(S.user.role, 'requestPart') && (S.user.role !== 'mechanic' || mine)
+      && job.status !== 'verified' && job.status !== 'done') {
     h += `<button class="btn sm" data-act="requestPart" data-job="${job.id}" style="margin-top:8px">🙋 ${t('reqPartBtn')}</button>`;
   }
   // Pending requests list — a store to-do; storekeepers get a Fulfil action.
@@ -4197,6 +4210,7 @@ function sheetRequestPart(jobId) {
 async function saveRequestPart(jobId) {
   const j = byId(S.cache.jobs, jobId);
   if (!j) return;
+  if (S.user.role === 'mechanic' && j.assignedTo !== S.user.id) return toast('Not allowed');
   const partId = $('#f-reqpart').value;
   const qty = Number($('#f-reqqty').value) || 1;
   const p = byId(S.cache.parts, partId);
@@ -4811,6 +4825,7 @@ function progressRing(pct, animate) {
 }
 function viewDriverDocs(driverId) {
   const d = driverById(driverId); if (!d) return viewDrivers();
+  if (!canDriverDocs(d.id)) return viewHome();
   const docs = d.docs || {}, st = driverDocStatus(d);
   let body = `<div class="card"><div class="ringwrap">${progressRing(st.pct, true)}
     <div><div style="font-weight:800;font-size:17px">${esc(d.name)}</div>
@@ -4836,6 +4851,7 @@ function viewDriverDocs(driverId) {
 }
 let _docShot = null;
 function sheetDriverDoc(driverId, key) {
+  if (!canDriverDocs(driverId)) return toast('Not allowed');
   const doc = DRIVER_DOCS.find((x) => x.key === key); if (!doc) return;
   const d = driverById(driverId); const cur = (d.docs || {})[key] || {};
   _docShot = cur.photo || null;
@@ -4865,6 +4881,7 @@ async function scanDocNum() {
   else toast(text ? 'Read "' + text.slice(0, 30) + '" — edit if wrong' : 'Could not read it — type it in');
 }
 async function saveDriverDoc(driverId, key) {
+  if (!canDriverDocs(driverId)) return toast('Not allowed');
   const d = driverById(driverId); if (!d) return;
   if (!_docShot) return toast('Take a photo of the document');
   const photo = await Sync.uploadPhoto(_docShot) || _docShot;
@@ -5543,11 +5560,18 @@ const ROUTE_PERM = { money: 'money', fleet: 'fleet', people: 'people', bills: 'b
   // `bills` permission was bypassable just by using the other route name.
   purchases: 'bills', alerts: 'dashboard', buses: 'fleet',
   store: 'viewStore', jobs: 'viewJobs', scoreboard: 'viewScoreboard',
-  challans: 'challans', buschallans: 'challans' };
+  challans: 'challans', buschallans: 'challans',
+  // Company billing and another person's scorecard rendered for any role because
+  // ROUTE_PERM had no entry for them — the same bypass class as `purchases`/`bills`.
+  company: 'dashboard', scorecard: 'viewScoreboard' };
 function render(r) {
   if (typeof stopMap === 'function') stopMap();   // leaving any screen halts the live-map refresh timer
   if (typeof stopTrack === 'function') stopTrack();
   if (ROUTE_PERM[r.name] && !can(S.user.role, ROUTE_PERM[r.name])) r = { name: 'home' };
+  // `driverdocs` cannot be a flat ROUTE_PERM entry: staff manage everyone's
+  // documents, but a driver still reaches their OWN locker from Me. So it is
+  // permission-or-self, and has to be checked per id rather than per route.
+  if (r.name === 'driverdocs' && !canDriverDocs(r.id)) r = { name: 'home' };
   S.route = r;
   switch (r.name) {
     case 'home': return viewHome();
