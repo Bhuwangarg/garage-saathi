@@ -74,12 +74,23 @@ curl -s https://garage-saathi-sync.onrender.com/health | python3 -m json.tool
 Required:
 
 ```
-"dbMode": "sqlite-disk",   "persistent": true,
-"tursoConfigured": false,  "build": "2026-08-20-disk-strict"
+"dbMode": "sqlite-disk",   "tursoConfigured": false,
+"diskVerified": true,      "build": "2026-08-20-disk-proof"
 ```
 
-`sqlite-ephemeral` means `DB_PATH` is not on `/data` — stop and fix the mount, or
-every restart wipes the garage.
+**`diskVerified` is the only field that proves anything.** `persistent` and
+`dbMode` are derived from `DB_PATH` starting with `/data`, which says nothing
+about whether a disk is actually mounted there — an unmounted `/data` is ordinary
+container storage that resets on every restart, and the path looks identical
+either way. That assumption cost us a completed restore on 2026-08-20: the data
+went in, an env-var change restarted the service, and `/data` came back empty.
+
+`diskVerified` reports whether data written before a previous restart was still
+present at this boot, via a marker file next to the database. On the very first
+boot after deploying this build it is `false` because there is nothing earlier to
+compare against — **redeploy once, then check again**. If it is still `false`
+after a restart, no disk is mounted: attach one in Render → the service → Disks
+(mount path `/data`), and do not restore until it reports `true`.
 
 The server now **refuses to start** if `TURSO_URL` is set but unreachable rather
 than quietly serving an empty database. A failed deploy here is the guard working.

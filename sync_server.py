@@ -56,6 +56,36 @@ _ALLOW_FALLBACK = os.environ.get("ALLOW_SQLITE_FALLBACK", "") == "1"
 
 class DatabaseUnavailable(RuntimeError):
     pass
+
+
+# Persistence has to be OBSERVED, not inferred. Reporting `persistent: true`
+# because DB_PATH starts with /data says nothing about whether a disk is mounted
+# there — an unmounted /data is ordinary container storage that resets on every
+# restart, and the server cannot tell the difference from the path alone.
+#
+# So each boot appends a line to a marker file next to the database. If lines
+# from an EARLIER boot are still there, the storage demonstrably survived a
+# restart. That is proof rather than a guess.
+_DISK_BOOTS = 0
+_DISK_ERROR = None
+
+
+def _record_boot():
+    global _DISK_BOOTS, _DISK_ERROR
+    path = os.path.join(os.path.dirname(os.path.abspath(DB)) or ".", ".boots")
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        prior = []
+        if os.path.exists(path):
+            with open(path) as f:
+                prior = [ln for ln in f.read().splitlines() if ln.strip()]
+        # Keep the file small but keep the earliest line — it is the evidence.
+        keep = (prior[:1] + prior[-40:]) if len(prior) > 41 else prior
+        with open(path, "w") as f:
+            f.write("\n".join(keep + ["%d %s" % (int(time.time()), BUILD_TAG)]) + "\n")
+        _DISK_BOOTS = len(prior) + 1
+    except Exception as e:
+        _DISK_ERROR = str(e)
 _SCHEMA_OK = False
 
 # Free, persistent photo storage: Cloudflare R2 (S3-compatible, 10 GB free).
@@ -92,7 +122,7 @@ ECHALLAN_BASE = os.environ.get("ECHALLAN_BASE", "https://api.echallan.app")
 # auto-deploy is off, so setting an env var restarts the process with the OLD
 # code — /health reporting a stale build is the only way to tell that apart from
 # a missing route, without dashboard access.
-BUILD_TAG = "2026-08-20-disk-strict"
+BUILD_TAG = "2026-08-20-disk-proof"
 
 PORT = int(os.environ.get("PORT", "8766"))      # cloud hosts inject $PORT
 _lock = threading.Lock()
@@ -1322,8 +1352,13 @@ class Handler(BaseHTTPRequestHandler):
             # that was really just a naming bug.
             _persistent = _turso_live or (not _USE_TURSO and _DISK_PERSISTENT)
             _mode = "turso" if _turso_live else ("sqlite-disk" if _persistent else "sqlite-ephemeral")
+            # diskVerified is the only trustworthy signal: true means data written
+            # before a previous restart was still on disk at this boot.
+            _verified = None if _turso_live else (_DISK_BOOTS > 1)
             return self._send(200, {"ok": True, "service": "garage-saathi-sync", "db": "turso" if _turso_live else "sqlite",
                                      "dbMode": _mode, "dbPath": None if _turso_live else DB,
+                                     "diskVerified": _verified, "diskBoots": _DISK_BOOTS,
+                                     "diskError": _DISK_ERROR,
                                      "persistent": _persistent, "tursoConfigured": _USE_TURSO, "tursoConnected": _TURSO_OK,
                                      "urlSet": bool(TURSO_URL), "tokenSet": bool(TURSO_TOKEN),
                                      "aiKeySet": bool(ANTHROPIC_API_KEY), "vapidReady": _WEBPUSH and bool(_vapid_pem_path()),
@@ -1680,6 +1715,7 @@ if __name__ == "__main__":
         # to the previous healthy container, instead of promoting a broken one.
         print("FATAL: " + str(e))
         raise SystemExit(1)
+    _record_boot()                   # evidence for /health: did storage survive a restart?
     _load_live_gps()                 # restore last-known positions across restarts
     if ENABLE_DEMO_SEED:
         seed_users()
