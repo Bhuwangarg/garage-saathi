@@ -27,7 +27,13 @@ import urllib.request
 
 # The device backup keys records by whatever IndexedDB store they came from, and
 # those names are already the sync store names — no translation needed.
-SKIP_BY_DEFAULT = {"users"}
+#
+# `users` IS restored. These are PIN-free roster rows ({id,name,role}) and cannot
+# create a login on their own — but without them the login screen has nobody to
+# list, and staff cannot be picked or assigned. Server-side login accounts are a
+# separate step: the owner device calls /auth/register-roster (Me -> Crew PINs) to
+# materialise crew accounts.
+SKIP_BY_DEFAULT = set()
 
 
 def call(url, payload, token=None, import_token=None):
@@ -55,17 +61,22 @@ def call(url, payload, token=None, import_token=None):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("backup")
-    ap.add_argument("--server", required=True)
+    ap.add_argument("--server", help="required unless --check-only")
     ap.add_argument("--user", default="u-owner")
-    ap.add_argument("--pin", required=True)
-    ap.add_argument("--import-token", required=True)
+    ap.add_argument("--pin", help="required unless --check-only")
+    ap.add_argument("--import-token", help="required unless --check-only")
+    ap.add_argument("--check-only", action="store_true",
+                    help="validate the backup file offline and exit — no server, no network")
     ap.add_argument("--batch", type=int, default=200)
     ap.add_argument("--dry-run", action="store_true")
-    ap.add_argument("--include-users", action="store_true")
+    ap.add_argument("--skip-users", action="store_true",
+                    help="do not restore the PIN-free staff roster records")
     ap.add_argument("--force", action="store_true",
                     help="merge into a database that already holds records")
     a = ap.parse_args()
-    base = a.server.rstrip("/")
+    if not a.check_only and not (a.server and a.pin and a.import_token):
+        ap.error("--server, --pin and --import-token are required unless --check-only")
+    base = (a.server or "").rstrip("/")
 
     with open(a.backup, encoding="utf-8") as f:
         backup = json.load(f)
@@ -73,7 +84,7 @@ def main():
         sys.exit("not a Garage Saathi backup: %s" % a.backup)
 
     data = backup.get("data") or {}
-    skip = set() if a.include_users else SKIP_BY_DEFAULT
+    skip = {"users"} if a.skip_users else SKIP_BY_DEFAULT
 
     records, summary = [], []
     for store in sorted(data):
@@ -81,7 +92,7 @@ def main():
         if not rows:
             continue
         if store in skip:
-            summary.append("  %-14s %6d  (skipped — see --include-users)" % (store, len(rows)))
+            summary.append("  %-14s %6d  (skipped via --skip-users)" % (store, len(rows)))
             continue
         key = "rc" if store == "challans" else ("key" if store == "meta" else "id")
         kept = 0
@@ -99,6 +110,20 @@ def main():
     print("  %-14s %6d records to restore" % ("TOTAL", len(records)))
     if not records:
         sys.exit("nothing to restore")
+
+    if a.check_only:
+        empty = [s for s in data if not (data[s] or [])]
+        print("\nFile parses. %d records across %d non-empty stores." %
+              (len(records), len([s for s in data if data[s]])))
+        if empty:
+            print("Empty stores (normal if the garage never used them): " + ", ".join(sorted(empty)))
+        missing = [s for s in ("buses", "parts", "drivers") if not (data.get(s) or [])]
+        if missing:
+            print("\nWARNING: %s empty. This does not look like the garage's device."
+                  % ", ".join(missing))
+            sys.exit(1)
+        print("\nLooks restorable.")
+        return
 
     print("\nLogging in as %s at %s ..." % (a.user, base))
     st, res = call(base + "/auth/login", {"userId": a.user, "pin": a.pin})
