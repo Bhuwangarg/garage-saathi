@@ -41,6 +41,21 @@ UPLOADS = os.environ.get("UPLOADS_DIR", "uploads")
 TURSO_URL = os.environ.get("TURSO_URL", "") or os.environ.get("TURSO_DATABASE_URL", "")
 TURSO_TOKEN = os.environ.get("TURSO_AUTH_TOKEN", "")
 _USE_TURSO = bool(TURSO_URL and TURSO_TOKEN)
+# Is the SQLite file on a mounted disk that survives a redeploy? On Render the
+# blueprint mounts one at /data; anywhere else say so explicitly. Without this the
+# disk-backed path reports itself as ephemeral and looks like data loss waiting
+# to happen, which is how Turso got added in the first place.
+_DISK_PERSISTENT = (os.environ.get("DB_DISK_PERSISTENT", "") == "1"
+                    or os.path.dirname(os.path.abspath(DB)) == "/data")
+# Serving an EMPTY database is worse than serving nothing: staff log in, do a
+# day's work, and it lands somewhere that is not the source of truth. So when
+# Turso is configured and unreachable we refuse to start rather than fall back.
+# Set ALLOW_SQLITE_FALLBACK=1 only as a deliberate emergency override.
+_ALLOW_FALLBACK = os.environ.get("ALLOW_SQLITE_FALLBACK", "") == "1"
+
+
+class DatabaseUnavailable(RuntimeError):
+    pass
 _SCHEMA_OK = False
 
 # Free, persistent photo storage: Cloudflare R2 (S3-compatible, 10 GB free).
@@ -77,7 +92,7 @@ ECHALLAN_BASE = os.environ.get("ECHALLAN_BASE", "https://api.echallan.app")
 # auto-deploy is off, so setting an env var restarts the process with the OLD
 # code — /health reporting a stale build is the only way to tell that apart from
 # a missing route, without dashboard access.
-BUILD_TAG = "2026-08-16-wa-dry"
+BUILD_TAG = "2026-08-20-disk-strict"
 
 PORT = int(os.environ.get("PORT", "8766"))      # cloud hosts inject $PORT
 _lock = threading.Lock()
@@ -191,8 +206,15 @@ def _connect():
             return conn
         except Exception as e:
             _TURSO_OK = False
+            if not _ALLOW_FALLBACK:
+                raise DatabaseUnavailable(
+                    "Turso is configured (TURSO_URL + TURSO_AUTH_TOKEN) but unreachable: %s\n"
+                    "Refusing to serve from an empty local SQLite file — writes made against it "
+                    "would be stranded when Turso comes back.\n"
+                    "Fix the credentials, or unset TURSO_URL/TURSO_AUTH_TOKEN to run on the "
+                    "mounted disk at %s, or set ALLOW_SQLITE_FALLBACK=1 to override." % (e, DB))
             print("WARNING: Turso unavailable — falling back to local SQLite "
-                  "(data will NOT persist across restarts until fixed):", e)
+                  "(ALLOW_SQLITE_FALLBACK=1 was set):", e)
     return sqlite3.connect(DB)
 
 
@@ -272,6 +294,36 @@ def seed_users():
                                {"id": uid, "name": name, "role": role}, now_ms(), rev)
         c.commit()
         c.close()
+
+
+def purge_demo_users():
+    """Remove demo accounts that ENABLE_DEMO_SEED created on an earlier boot.
+
+    Turning the flag off only stops seeding — it does not delete what a previous
+    run already inserted. Since the demo PINs are published in a public repo,
+    leaving them behind on a real deployment is a live owner-level hole.
+
+    An account is only removed if its stored hash still matches the demo PIN,
+    i.e. nobody ever changed it. That is what makes this safe to run on every
+    boot: the moment the owner sets a real PIN, their account stops matching and
+    is kept.
+    """
+    with _lock:
+        c = db()
+        removed = []
+        for uid, _name, _role, pin in SEED_USERS:
+            row = c.execute("SELECT salt,pin_hash FROM users WHERE id=?", (uid,)).fetchone()
+            if not row:
+                continue
+            if hash_pin(row[0], pin) == row[1]:
+                c.execute("DELETE FROM users WHERE id=?", (uid,))
+                c.execute("DELETE FROM records WHERE store='users' AND id=?", (uid,))
+                removed.append(uid)
+        c.commit()
+        c.close()
+    if removed:
+        print("Removed demo accounts still using their published PINs: " + ", ".join(removed))
+    return removed
 
 
 # ----------------------------- auth helpers --------------------------------
@@ -1265,8 +1317,14 @@ class Handler(BaseHTTPRequestHandler):
         if u.path in ("/", "/health"):
             _gps_hydrate()                                 # accurate live count on serverless (fresh container)
             _turso_live = bool(_USE_TURSO and _TURSO_OK)   # actually connected, not just configured
+            # `persistent` must mean "survives a redeploy", which disk-backed SQLite
+            # does. Reporting it as False there sent us chasing a data-loss scare
+            # that was really just a naming bug.
+            _persistent = _turso_live or (not _USE_TURSO and _DISK_PERSISTENT)
+            _mode = "turso" if _turso_live else ("sqlite-disk" if _persistent else "sqlite-ephemeral")
             return self._send(200, {"ok": True, "service": "garage-saathi-sync", "db": "turso" if _turso_live else "sqlite",
-                                     "persistent": _turso_live, "tursoConfigured": _USE_TURSO, "tursoConnected": _TURSO_OK,
+                                     "dbMode": _mode, "dbPath": None if _turso_live else DB,
+                                     "persistent": _persistent, "tursoConfigured": _USE_TURSO, "tursoConnected": _TURSO_OK,
                                      "urlSet": bool(TURSO_URL), "tokenSet": bool(TURSO_TOKEN),
                                      "aiKeySet": bool(ANTHROPIC_API_KEY), "vapidReady": _WEBPUSH and bool(_vapid_pem_path()),
                                      # Two separate facts, because they fail separately and the
@@ -1468,6 +1526,40 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(403, dict(res, error="role not permitted to write this record"))
             return self._send(200, res)
 
+        if u.path == "/admin/import":
+            # Restore a device backup into a fresh server.
+            #
+            # This exists because a normal /push CANNOT restore: push() stamps
+            # _by/_byRole from the caller's token, so replaying one device's copy
+            # of the garage would re-attribute all 2,800 records to whoever ran the
+            # restore — destroying the actor trail the Pilferage Radar reads. Here
+            # we call push() with actor=None so the provenance already inside the
+            # backup is written through unchanged.
+            #
+            # Because that also bypasses the write matrix, it is gated three ways:
+            # owner token, a secret only present in the host's env, and a refusal
+            # to write into a database that already holds records.
+            me = self._auth_user()
+            if not me or me.get("role") != "owner":
+                return self._send(403, {"error": "owner only"})
+            want = os.environ.get("IMPORT_TOKEN", "")
+            if not want or self.headers.get("X-Import-Token") != want:
+                return self._send(403, {"error": "IMPORT_TOKEN not set on the server, or header missing/incorrect"})
+            b = self._body()
+            recs = b.get("records") or []
+            if not b.get("force"):
+                with _lock:
+                    c = db()
+                    # Exclude `users`: seed_users()/register_roster write PIN-free
+                    # roster rows at every startup, so a genuinely fresh server is
+                    # never literally empty. The guard is about operational data.
+                    have = c.execute("SELECT COUNT(*) FROM records WHERE store<>'users'").fetchone()[0]
+                    c.close()
+                if have:
+                    return self._send(409, {"error": "database is not empty", "records": have,
+                                            "hint": "pass force:true only if you mean to merge into existing data"})
+            return self._send(200, push(recs, None))
+
         if u.path == "/upload":
             if not self._auth_user():
                 return self._send(401, {"error": "unauthorized"})
@@ -1581,12 +1673,19 @@ handler = Handler
 
 
 if __name__ == "__main__":
-    db().close()
+    try:
+        db().close()
+    except DatabaseUnavailable as e:
+        # Exit non-zero so the platform marks the deploy failed and keeps routing
+        # to the previous healthy container, instead of promoting a broken one.
+        print("FATAL: " + str(e))
+        raise SystemExit(1)
     _load_live_gps()                 # restore last-known positions across restarts
     if ENABLE_DEMO_SEED:
         seed_users()
     else:
         print("ENABLE_DEMO_SEED=0 → skipping demo staff accounts (real deployment)")
+        purge_demo_users()
     os.makedirs(UPLOADS, exist_ok=True)
     if ALLOWED_ORIGINS == "*":
         print("WARNING: ALLOWED_ORIGIN=* (open CORS). Unset it to lock to the PWA domain before production.")
