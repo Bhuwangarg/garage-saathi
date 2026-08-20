@@ -11,3 +11,6 @@ libsql-experimental>=0.0.41
 # Only imported when the R2_* env vars are set; else photos go to local disk.
 boto3>=1.34.0
 
+# Postgres (Supabase) — the durable store when DATABASE_URL is set. Chosen over a
+# Render persistent disk because disks require a paid instance.
+psycopg[binary]>=3.1

@@ -40,7 +40,11 @@ UPLOADS = os.environ.get("UPLOADS_DIR", "uploads")
 # Accept either our name or Turso's conventional TURSO_DATABASE_URL.
 TURSO_URL = os.environ.get("TURSO_URL", "") or os.environ.get("TURSO_DATABASE_URL", "")
 TURSO_TOKEN = os.environ.get("TURSO_AUTH_TOKEN", "")
-_USE_TURSO = bool(TURSO_URL and TURSO_TOKEN)
+# Postgres (Supabase). Takes precedence over everything else when set: it is the
+# only option here that is durable without a paid disk.
+DATABASE_URL = (os.environ.get("DATABASE_URL") or "").strip()
+_USE_PG = bool(DATABASE_URL)
+_USE_TURSO = bool(TURSO_URL and TURSO_TOKEN) and not _USE_PG
 # Is the SQLite file on a mounted disk that survives a redeploy? On Render the
 # blueprint mounts one at /data; anywhere else say so explicitly. Without this the
 # disk-backed path reports itself as ephemeral and looks like data loss waiting
@@ -122,7 +126,7 @@ ECHALLAN_BASE = os.environ.get("ECHALLAN_BASE", "https://api.echallan.app")
 # auto-deploy is off, so setting an env var restarts the process with the OLD
 # code — /health reporting a stale build is the only way to tell that apart from
 # a missing route, without dashboard access.
-BUILD_TAG = "2026-08-20-disk-proof"
+BUILD_TAG = "2026-08-20-postgres"
 
 PORT = int(os.environ.get("PORT", "8766"))      # cloud hosts inject $PORT
 _lock = threading.Lock()
@@ -217,6 +221,91 @@ SEED_USERS = [
 ]
 
 
+class _PgCursor:
+    """The slice of sqlite3's cursor the server actually uses."""
+
+    def __init__(self, cur):
+        self._cur = cur
+
+    def fetchone(self):
+        try:
+            return self._cur.fetchone()
+        except Exception:
+            return None          # a statement that returns no rows (INSERT/DELETE)
+
+    def fetchall(self):
+        try:
+            return self._cur.fetchall()
+        except Exception:
+            return []
+
+
+class _PgConn:
+    """sqlite3-shaped facade over psycopg.
+
+    Every query in this file was written against sqlite3: `conn.execute()` returns
+    something fetchable and `?` marks a parameter. psycopg wants an explicit cursor
+    and `%s`. Translating here keeps ONE set of SQL rather than two dialects that
+    drift apart — the statements themselves are already portable now that the
+    INSERT OR REPLACEs are ON CONFLICT.
+
+    One connection is shared for the life of the process, guarded by a lock:
+    /pull runs on a 4-second timer on every device, and opening a fresh Postgres
+    connection per request would be both slow and a good way to exhaust Supabase's
+    connection limit. close() therefore commits and keeps the socket.
+    """
+
+    _lock = threading.Lock()
+
+    def __init__(self, dsn):
+        import psycopg
+        self._psycopg = psycopg
+        self._dsn = dsn
+        self._c = psycopg.connect(dsn, autocommit=False)
+
+    def _reconnect(self):
+        try:
+            self._c.close()
+        except Exception:
+            pass
+        self._c = self._psycopg.connect(self._dsn, autocommit=False)
+
+    def execute(self, sql, params=()):
+        q = sql.replace("?", "%s")
+        with _PgConn._lock:
+            try:
+                cur = self._c.cursor()
+                cur.execute(q, tuple(params))
+            except Exception:
+                # A dropped connection (Supabase idles them out) must not take the
+                # process down — reconnect once and retry before giving up.
+                self._reconnect()
+                cur = self._c.cursor()
+                cur.execute(q, tuple(params))
+            return _PgCursor(cur)
+
+    def commit(self):
+        with _PgConn._lock:
+            self._c.commit()
+
+    def close(self):
+        # Deliberately NOT closing: the connection is shared and reused.
+        self.commit()
+
+
+def _pg_host():
+    """Host of DATABASE_URL for /health. Parsed rather than printed, so a password
+    can never leak into a public endpoint."""
+    if not _USE_PG:
+        return None
+    try:
+        u = urlparse(DATABASE_URL)
+        return "%s:%s" % (u.hostname or "?", u.port or 5432)
+    except Exception:
+        return "unparseable"
+
+
+_PG_CONN = None
 _TURSO_OK = None   # None = not yet probed, True = auth works, False = failed → SQLite
 
 def _connect():
@@ -224,7 +313,17 @@ def _connect():
     AND reachable, otherwise the local SQLite file. libsql.connect() is lazy (it
     authenticates on the first query), so we probe once with SELECT 1: a bad token
     then fails HERE and we fall back cleanly instead of crashing mid-request."""
-    global _TURSO_OK
+    global _TURSO_OK, _PG_CONN
+    if _USE_PG:
+        if _PG_CONN is None:
+            try:
+                _PG_CONN = _PgConn(DATABASE_URL)
+            except Exception as e:
+                raise DatabaseUnavailable(
+                    "DATABASE_URL is set but Postgres is unreachable: %s\n"
+                    "Refusing to fall back to a local SQLite file — writes made against it "
+                    "would be stranded once Postgres returns." % e)
+        return _PG_CONN
     if _USE_TURSO and _TURSO_OK is not False:
         try:
             import libsql_experimental as libsql
@@ -253,16 +352,16 @@ def db():
     c = _connect()
     if not _SCHEMA_OK:                      # create the schema once per process
         c.execute("""CREATE TABLE IF NOT EXISTS records(
-            store TEXT, id TEXT, data TEXT, updatedAt INTEGER, rev INTEGER,
+            store TEXT, id TEXT, data TEXT, updatedAt BIGINT, rev BIGINT,
             PRIMARY KEY(store, id))""")
         c.execute("""CREATE TABLE IF NOT EXISTS users(
             id TEXT PRIMARY KEY, name TEXT, role TEXT, salt TEXT, pin_hash TEXT)""")
         c.execute("""CREATE TABLE IF NOT EXISTS pushsubs(
-            endpoint TEXT PRIMARY KEY, sub TEXT, role TEXT, at INTEGER)""")
+            endpoint TEXT PRIMARY KEY, sub TEXT, role TEXT, at BIGINT)""")
         # Private server-side key/value — NOT exposed via /pull (which only reads `records`).
         c.execute("""CREATE TABLE IF NOT EXISTS sys(k TEXT PRIMARY KEY, v TEXT)""")
         # Latest live GPS position per bus — persisted so the map survives restarts.
-        c.execute("""CREATE TABLE IF NOT EXISTS gpslive(reg TEXT PRIMARY KEY, data TEXT, at INTEGER)""")
+        c.execute("""CREATE TABLE IF NOT EXISTS gpslive(reg TEXT PRIMARY KEY, data TEXT, at BIGINT)""")
         try:
             c.commit()
         except Exception:
@@ -285,7 +384,8 @@ def _session_secret():
             _SECRET = row[0]
         else:
             _SECRET = _secrets.token_hex(32)
-            c.execute("INSERT OR REPLACE INTO sys(k,v) VALUES('session_secret',?)", (_SECRET,))
+            c.execute("INSERT INTO sys(k,v) VALUES('session_secret',?) "
+                      "ON CONFLICT(k) DO UPDATE SET v=excluded.v", (_SECRET,))
             c.commit()
         c.close()
     return _SECRET
@@ -719,7 +819,9 @@ def ingest_gps(events):
                 for e in events or []:
                     reg = norm_reg(e.get("vehicleReg") or e.get("deviceId"))
                     if reg and reg in LIVE_GPS:
-                        c.execute("INSERT OR REPLACE INTO gpslive(reg,data,at) VALUES(?,?,?)", (reg, json.dumps(LIVE_GPS[reg]), now2))
+                        c.execute("INSERT INTO gpslive(reg,data,at) VALUES(?,?,?) ON CONFLICT(reg) "
+                                  "DO UPDATE SET data=excluded.data, at=excluded.at",
+                                  (reg, json.dumps(LIVE_GPS[reg]), now2))
                 c.commit(); c.close()
         except Exception:
             pass
@@ -750,7 +852,8 @@ def save_pushsub(sub, role):
         return False
     with _lock:
         c = db()
-        c.execute("INSERT OR REPLACE INTO pushsubs(endpoint,sub,role,at) VALUES(?,?,?,?)",
+        c.execute("INSERT INTO pushsubs(endpoint,sub,role,at) VALUES(?,?,?,?) "
+                  "ON CONFLICT(endpoint) DO UPDATE SET sub=excluded.sub, role=excluded.role, at=excluded.at",
                   (ep, json.dumps(sub), role or "owner", now_ms()))
         c.commit(); c.close()
     return True
@@ -1350,15 +1453,21 @@ class Handler(BaseHTTPRequestHandler):
             # `persistent` must mean "survives a redeploy", which disk-backed SQLite
             # does. Reporting it as False there sent us chasing a data-loss scare
             # that was really just a naming bug.
-            _persistent = _turso_live or (not _USE_TURSO and _DISK_PERSISTENT)
-            _mode = "turso" if _turso_live else ("sqlite-disk" if _persistent else "sqlite-ephemeral")
+            # Postgres is durable by definition — if we can answer at all, the
+            # connection came up, because _connect() refuses to start without it.
+            _persistent = _USE_PG or _turso_live or (not _USE_TURSO and _DISK_PERSISTENT)
+            _mode = ("postgres" if _USE_PG else
+                     "turso" if _turso_live else
+                     ("sqlite-disk" if _persistent else "sqlite-ephemeral"))
             # diskVerified is the only trustworthy signal: true means data written
             # before a previous restart was still on disk at this boot.
             _verified = None if _turso_live else (_DISK_BOOTS > 1)
             return self._send(200, {"ok": True, "service": "garage-saathi-sync", "db": "turso" if _turso_live else "sqlite",
                                      "dbMode": _mode, "dbPath": None if _turso_live else DB,
-                                     "diskVerified": _verified, "diskBoots": _DISK_BOOTS,
-                                     "diskError": _DISK_ERROR,
+                                     "diskVerified": None if _USE_PG else _verified,
+                                     "diskBoots": _DISK_BOOTS, "diskError": _DISK_ERROR,
+                                     # Host only — never the password, /health is public.
+                                     "pgHost": _pg_host(),
                                      "persistent": _persistent, "tursoConfigured": _USE_TURSO, "tursoConnected": _TURSO_OK,
                                      "urlSet": bool(TURSO_URL), "tokenSet": bool(TURSO_TOKEN),
                                      "aiKeySet": bool(ANTHROPIC_API_KEY), "vapidReady": _WEBPUSH and bool(_vapid_pem_path()),

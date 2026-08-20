@@ -42,30 +42,43 @@ bus.
 Driver safety scores restart from zero and rebuild from new telemetry. Drop the flag
 to keep the history.
 
-## 3. Set the environment on Render
+## 3. Create the Supabase database
 
-**Remove** — this is what takes Turso out of the picture:
+Render persistent disks need a paid instance, so the durable store is Supabase
+Postgres (free tier, 500 MB — the full garage is ~3 MB).
+
+1. supabase.com → **New project**. Pick a region near Jaipur (Mumbai / ap-south-1).
+2. Project Settings → **Database** → **Connection string** → **URI**. It looks like
+   `postgresql://postgres:PASSWORD@db.<ref>.supabase.co:5432/postgres`.
+3. Substitute the password you set for the project into the URI.
+
+Nothing needs creating inside the database — the server builds its own schema on
+first boot.
+
+> Free Supabase projects **pause after ~7 days of inactivity**. The existing
+> `keepalive.yml` cron pings the web service; because every request now reads
+> Postgres, that also keeps the database warm. Leave it enabled.
+
+## 4. Set the environment on Render, then deploy
+
+**Add:**
+
+| Variable | Value |
+|---|---|
+| `DATABASE_URL` | the Supabase URI from step 3 |
+| `IMPORT_TOKEN` | a long random string (temporary, for step 5) |
+
+**Remove:**
 
 | Variable | Action |
 |---|---|
 | `TURSO_URL` | delete |
 | `TURSO_AUTH_TOKEN` | delete |
 
-With both unset the server uses `DB_PATH=/data/sync.db` on the 1 GB disk the
-blueprint mounts, which survives redeploys.
-
-**Add** temporarily, for step 5:
-
-| Variable | Value |
-|---|---|
-| `IMPORT_TOKEN` | a long random string |
-
-Leave `ENABLE_DEMO_SEED` **unset** for now — the seeded owner account is how you get
+Leave `ENABLE_DEMO_SEED` unset for now — the seeded owner account is how you get
 into a fresh database. Step 7 removes it.
 
-## 4. Manual Deploy, then confirm where data lives
-
-Render → the service → **Manual Deploy** (`autoDeploy: false` is deliberate).
+Then **Manual Deploy** (`autoDeploy: false` is deliberate).
 
 ```bash
 curl -s https://garage-saathi-sync.onrender.com/health | python3 -m json.tool
@@ -74,26 +87,18 @@ curl -s https://garage-saathi-sync.onrender.com/health | python3 -m json.tool
 Required:
 
 ```
-"dbMode": "sqlite-disk",   "tursoConfigured": false,
-"diskVerified": true,      "build": "2026-08-20-disk-proof"
+"dbMode": "postgres",   "persistent": true,
+"pgHost": "db.<ref>.supabase.co:5432",
+"build": "2026-08-20-postgres"
 ```
 
-**`diskVerified` is the only field that proves anything.** `persistent` and
-`dbMode` are derived from `DB_PATH` starting with `/data`, which says nothing
-about whether a disk is actually mounted there — an unmounted `/data` is ordinary
-container storage that resets on every restart, and the path looks identical
-either way. That assumption cost us a completed restore on 2026-08-20: the data
-went in, an env-var change restarted the service, and `/data` came back empty.
+`pgHost` is parsed from the URI so the password can never appear on this public
+endpoint. If `dbMode` is anything other than `postgres`, `DATABASE_URL` did not
+reach the process — fix that before restoring.
 
-`diskVerified` reports whether data written before a previous restart was still
-present at this boot, via a marker file next to the database. On the very first
-boot after deploying this build it is `false` because there is nothing earlier to
-compare against — **redeploy once, then check again**. If it is still `false`
-after a restart, no disk is mounted: attach one in Render → the service → Disks
-(mount path `/data`), and do not restore until it reports `true`.
-
-The server now **refuses to start** if `TURSO_URL` is set but unreachable rather
-than quietly serving an empty database. A failed deploy here is the guard working.
+The server **refuses to start** if `DATABASE_URL` is set but Postgres is
+unreachable, rather than quietly serving an empty local file. A failed deploy here
+is the guard working: Render keeps routing to the previous container.
 
 ## 5. Restore
 
@@ -183,6 +188,9 @@ bash scripts/predeploy-gate.sh     # 14 checks, ~60s
   in every driver's IndexedDB regardless of what the UI shows.
 - **Trip-cash flow is English-only in Hindi mode** — the driver's money screen.
 - **Check-in fails silently without a camera** — no sheet, no toast, no error.
+- **Supabase free tier**: 500 MB (the garage is ~3 MB) and projects pause after
+  ~7 days idle. The keepalive cron prevents that; if it is ever disabled, the first
+  request after a pause fails while the database wakes.
 - **Duplicate bus writes.** 81 of 184 bus rows were tombstones from a write-repeat
   burst between 2 and 10 Aug (up to 9 rows for one registration, all `source: airfi`,
   all by `u-owner`). The app's `cleanupFleet` cleaned up after it, but whatever
