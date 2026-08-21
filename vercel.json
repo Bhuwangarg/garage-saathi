@@ -1,5 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "outputDirectory": ".",
   "functions": {
     "api/index.py": {
       "includeFiles": "{sync_server,wa_client}.py",
