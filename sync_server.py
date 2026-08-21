@@ -304,6 +304,27 @@ class _PgConn:
         self.commit()
 
 
+# --------------------------- static PWA hosting ----------------------------
+# On Vercel the frontend is served BY this function rather than from the CDN.
+# Vercel builds the Python function and, with no framework detected, produces no
+# static output — index.html/app.js/sw.js simply are not in the deployment, so
+# every asset fell through here and 404'd. Serving them from the function keeps
+# the repo layout intact (predeploy-gate.sh, mobile/build-www.mjs and the Android
+# workflow all read the root) and behaves the same on Vercel, Render and locally.
+APP_ROOT = os.path.dirname(os.path.abspath(__file__))
+_CTYPES = {
+    ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8",
+    ".css": "text/css; charset=utf-8", ".json": "application/json; charset=utf-8",
+    ".webmanifest": "application/manifest+json", ".svg": "image/svg+xml",
+    ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+    ".ico": "image/x-icon", ".woff2": "font/woff2", ".map": "application/json",
+}
+# Only these are ever served. An allow-list, so a stray file at the repo root can
+# never be published by accident — sync.db and the VAPID key live here too.
+_STATIC_OK = {".html", ".js", ".css", ".json", ".webmanifest", ".svg", ".png",
+              ".jpg", ".jpeg", ".ico", ".woff2", ".map"}
+
+
 def _pg_host():
     """Host of DATABASE_URL for /health. Parsed rather than printed, so a password
     can never leak into a public endpoint."""
@@ -1470,7 +1491,7 @@ def echallan_lookup(rc_no):
 
 # ------------------------------- HTTP --------------------------------------
 class Handler(BaseHTTPRequestHandler):
-    def _send(self, code, payload=None, raw=None, ctype="application/json"):
+    def _send(self, code, payload=None, raw=None, ctype="application/json", cache=None):
         if raw is not None:
             body = raw
         else:
@@ -1481,6 +1502,8 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
         self.send_header("Content-Type", ctype)
+        if cache:
+            self.send_header("Cache-Control", cache)
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         if body:
@@ -1549,6 +1572,11 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         u = urlparse(self.path)
+        # "/" is the app when the PWA is bundled with the function, and only falls
+        # back to health when it is not (a backend-only deploy). /health is always
+        # health, which is what render.yaml's healthCheckPath and the uptime cron use.
+        if u.path == "/" and self._serve_static("/index.html"):
+            return
         if u.path in ("/", "/health"):
             _gps_hydrate()                                 # accurate live count on serverless (fresh container)
             _turso_live = bool(_USE_TURSO and _TURSO_OK)   # actually connected, not just configured
@@ -1674,8 +1702,32 @@ class Handler(BaseHTTPRequestHandler):
         # rewrites URLs (Vercel routes everything to one function) the request the
         # handler sees is not always the one the client sent, and without this the
         # symptom is an unexplainable 404 on a route that demonstrably exists.
+        if self._serve_static(u.path):
+            return
         self._send(404, {"error": "not found", "sawPath": self.path,
                          "sawMethod": self.command})
+
+    def _serve_static(self, path):
+        """Serve a PWA file from the app root. Returns True if it handled it."""
+        rel = path.lstrip("/") or "index.html"
+        ext = os.path.splitext(rel)[1].lower()
+        if ext not in _STATIC_OK:
+            return False
+        full = os.path.normpath(os.path.join(APP_ROOT, rel))
+        # normpath collapses .., so this rejects traversal after resolution
+        # rather than trying to spot it in the raw path.
+        if not full.startswith(APP_ROOT + os.sep) or not os.path.isfile(full):
+            return False
+        try:
+            with open(full, "rb") as f:
+                body = f.read()
+        except Exception:
+            return False
+        # The service worker must never be cached, or a device pins an old app.js
+        # forever. Everything else is fine to cache briefly.
+        self._send(200, raw=body, ctype=_CTYPES.get(ext, "application/octet-stream"),
+                   cache="no-cache" if rel == "sw.js" else "public, max-age=300")
+        return True
 
     def do_POST(self):
         u = urlparse(self.path)
