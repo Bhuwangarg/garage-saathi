@@ -1642,7 +1642,12 @@ class Handler(BaseHTTPRequestHandler):
             store_challan_snapshot(payload)
             return self._send(200, payload)
 
-        self._send(404, {"error": "not found"})
+        # Echo the path the process actually received. Behind a platform that
+        # rewrites URLs (Vercel routes everything to one function) the request the
+        # handler sees is not always the one the client sent, and without this the
+        # symptom is an unexplainable 404 on a route that demonstrably exists.
+        self._send(404, {"error": "not found", "sawPath": self.path,
+                         "sawMethod": self.command})
 
     def do_POST(self):
         u = urlparse(self.path)
@@ -1877,7 +1882,12 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(400, {"error": "expected {events:[...]}"})
             return self._send(200, ingest_gps(events))
 
-        self._send(404, {"error": "not found"})
+        # Echo the path the process actually received. Behind a platform that
+        # rewrites URLs (Vercel routes everything to one function) the request the
+        # handler sees is not always the one the client sent, and without this the
+        # symptom is an unexplainable 404 on a route that demonstrably exists.
+        self._send(404, {"error": "not found", "sawPath": self.path,
+                         "sawMethod": self.command})
 
     def log_message(self, *a):
         pass
