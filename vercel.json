@@ -7,19 +7,6 @@
     }
   },
   "rewrites": [
-    { "source": "/health", "destination": "/api/index" },
-    { "source": "/pull", "destination": "/api/index" },
-    { "source": "/push", "destination": "/api/index" },
-    { "source": "/push/:path*", "destination": "/api/index" },
-    { "source": "/upload", "destination": "/api/index" },
-    { "source": "/challans", "destination": "/api/index" },
-    { "source": "/auth/:path*", "destination": "/api/index" },
-    { "source": "/admin/:path*", "destination": "/api/index" },
-    { "source": "/ai", "destination": "/api/index" },
-    { "source": "/ai/:path*", "destination": "/api/index" },
-    { "source": "/gps", "destination": "/api/index" },
-    { "source": "/gps/:path*", "destination": "/api/index" },
-    { "source": "/odometer/:path*", "destination": "/api/index" },
-    { "source": "/wa/:path*", "destination": "/api/index" }
+    { "source": "/(.*)", "destination": "/api/index?__p=/$1" }
   ]
 }

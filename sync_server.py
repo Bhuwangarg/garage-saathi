@@ -31,7 +31,7 @@ import uuid
 import wa_client
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import urlparse, parse_qs, urlencode
 
 DB = os.environ.get("DB_PATH", "sync.db")
 UPLOADS = os.environ.get("UPLOADS_DIR", "uploads")
@@ -1509,6 +1509,34 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_OPTIONS(self):
         self._send(204)
+
+    def parse_request(self):
+        """Restore the client's original path.
+
+        Vercel rewrites do not pass the requested URL through to the function —
+        the handler receives the rewrite DESTINATION. Measured on the live
+        deployment: a request for /health arrived as /api/index, and /auth/login
+        as /api/index?path=login, so every route except / returned 404 while
+        looking perfectly correct from outside.
+
+        vercel.json therefore rewrites to /api/index?__p=<original path>, and this
+        puts it back before any routing happens. Any other query parameters the
+        client sent are preserved. A direct request (local, Render, Docker) has no
+        __p and is left untouched.
+        """
+        ok = BaseHTTPRequestHandler.parse_request(self)
+        if not ok:
+            return ok
+        try:
+            u = urlparse(self.path)
+            q = parse_qs(u.query, keep_blank_values=True)
+            orig = (q.pop("__p", [""]) or [""])[0]
+            if orig.startswith("/"):
+                rest = urlencode([(k, v) for k, vs in q.items() for v in vs])
+                self.path = orig + ("?" + rest if rest else "")
+        except Exception:
+            pass                       # never let path rewriting break a request
+        return ok
 
     def handle_one_request(self):
         # The single choke point every request passes through, so serverless cold
