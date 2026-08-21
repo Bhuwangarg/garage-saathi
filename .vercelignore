@@ -1,0 +1,33 @@
+# Vercel serves BOTH halves now: the PWA as static files and sync_server.py as a
+# single Python function (see vercel.json — only the API prefixes are rewritten to
+# it, everything else is served from the filesystem).
+#
+# So this file no longer excludes the frontend. It excludes the things that should
+# never be published: QA scaffolding, the native app projects, and local state.
+
+# QA probes and harnesses — every one of these is a page that boots the app.
+probe_*.html
+.gstack/
+.octogent/
+
+# Native app projects; they are built by their own workflows, not by Vercel.
+mobile/
+
+# Server-side tooling and tests; the function only needs sync_server.py and
+# wa_client.py, which vercel.json pulls in via includeFiles.
+scripts/
+test_*.py
+__pycache__/
+
+# Local state and secrets. Already git-ignored, listed again so a stray file on a
+# developer machine can never be deployed.
+sync.db
+uploads/
+.vapid_private.pem
+.gps_ingest_token
+.public_url
+.DS_Store
+
+# Docs — no reason to serve them.
+*.md
+!index.html

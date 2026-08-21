@@ -126,7 +126,7 @@ ECHALLAN_BASE = os.environ.get("ECHALLAN_BASE", "https://api.echallan.app")
 # auto-deploy is off, so setting an env var restarts the process with the OLD
 # code — /health reporting a stale build is the only way to tell that apart from
 # a missing route, without dashboard access.
-BUILD_TAG = "2026-08-20-postgres"
+BUILD_TAG = "2026-08-22-vercel"
 
 PORT = int(os.environ.get("PORT", "8766"))      # cloud hosts inject $PORT
 _lock = threading.Lock()
@@ -197,12 +197,15 @@ def _vapid_pem_path():
             f.write(pem.replace("\\n", "\n"))
         return out
     return None
-MAX_UPLOAD_BYTES = int(os.environ.get("MAX_UPLOAD_MB", "8")) * 1024 * 1024
+# Vercel caps a serverless request body at ~4.5 MB, and photos arrive as base64
+# data URLs in the JSON body. Clamp the default there so an oversized photo gets a
+# clear 413 from us instead of an opaque platform error the app cannot explain.
+_ON_VERCEL = bool(os.environ.get("VERCEL"))
+MAX_UPLOAD_BYTES = int(os.environ.get("MAX_UPLOAD_MB", "4" if _ON_VERCEL else "8")) * 1024 * 1024
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "").strip()
 
 # Login brute-force protection: lock a user (and the source IP) after too many
 # failed PIN attempts inside a rolling window.
-LOGIN_FAILS = {}       # key -> [timestamps]
 MAX_FAILS = int(os.environ.get("MAX_LOGIN_FAILS", "5"))        # per user (strict)
 # Per-IP backstop is generous: a whole garage of staff shares one public IP, so
 # this must only catch a runaway script, not normal fat-fingering.
@@ -261,14 +264,22 @@ class _PgConn:
         import psycopg
         self._psycopg = psycopg
         self._dsn = dsn
-        self._c = psycopg.connect(dsn, autocommit=False)
+        self._c = self._open()
+
+    def _open(self):
+        # prepare_threshold=None disables psycopg's automatic PREPARE. Supabase's
+        # pooler on port 6543 runs PgBouncer in transaction mode, where a prepared
+        # statement can be issued on one backend and executed on another — the
+        # classic "prepared statement does not exist" failure. Harmless on a direct
+        # connection, required through the pooler, which is what serverless needs.
+        return self._psycopg.connect(self._dsn, autocommit=False, prepare_threshold=None)
 
     def _reconnect(self):
         try:
             self._c.close()
         except Exception:
             pass
-        self._c = self._psycopg.connect(self._dsn, autocommit=False)
+        self._c = self._open()
 
     def execute(self, sql, params=()):
         q = sql.replace("?", "%s")
@@ -362,6 +373,12 @@ def db():
         c.execute("""CREATE TABLE IF NOT EXISTS sys(k TEXT PRIMARY KEY, v TEXT)""")
         # Latest live GPS position per bus — persisted so the map survives restarts.
         c.execute("""CREATE TABLE IF NOT EXISTS gpslive(reg TEXT PRIMARY KEY, data TEXT, at BIGINT)""")
+        # Failed logins. In a single long-running process an in-memory dict was
+        # enough; across serverless containers each one would keep its own tally
+        # and the 5-try lockout would effectively vanish — which matters a lot when
+        # PINs are 4 digits and every crew account ships with 0000.
+        c.execute("""CREATE TABLE IF NOT EXISTS loginfails(k TEXT, at BIGINT)""")
+        c.execute("""CREATE INDEX IF NOT EXISTS loginfails_k ON loginfails(k)""")
         try:
             c.commit()
         except Exception:
@@ -426,6 +443,35 @@ def seed_users():
         c.close()
 
 
+_BOOTSTRAPPED = False
+_BOOT_LOCK = threading.Lock()
+
+
+def bootstrap():
+    """Everything that used to live under `if __name__ == "__main__"`.
+
+    Vercel imports Handler and never runs the __main__ block, so on serverless
+    none of this happened: no seeded owner account (nobody could log in, so the
+    restore could not even authenticate), and ENABLE_DEMO_SEED=0 silently stopped
+    purging the demo accounts whose PINs are published in this repo.
+
+    Idempotent and cheap after the first call, so the request path can call it on
+    every request and pay only a boolean check once a container is warm.
+    """
+    global _BOOTSTRAPPED
+    if _BOOTSTRAPPED:
+        return
+    with _BOOT_LOCK:
+        if _BOOTSTRAPPED:
+            return
+        _load_live_gps()
+        if ENABLE_DEMO_SEED:
+            seed_users()
+        else:
+            purge_demo_users()
+        _BOOTSTRAPPED = True
+
+
 def purge_demo_users():
     """Remove demo accounts that ENABLE_DEMO_SEED created on an earlier boot.
 
@@ -458,25 +504,44 @@ def purge_demo_users():
 
 # ----------------------------- auth helpers --------------------------------
 def locked_for(uid, ip):
-    """Seconds remaining if the user (strict) or IP (generous) is locked, else 0."""
-    now = time.time()
-    for key, limit in ((uid, MAX_FAILS), ("ip:" + ip, MAX_IP_FAILS)):
-        arr = [t for t in LOGIN_FAILS.get(key, []) if now - t < LOCK_WINDOW]
-        LOGIN_FAILS[key] = arr
-        if len(arr) >= limit:
-            return int(LOCK_WINDOW - (now - arr[0])) + 1
-    return 0
+    """Seconds remaining if the user (strict) or IP (generous) is locked, else 0.
+
+    Stored in the database rather than memory so the limit holds no matter which
+    container answers the request.
+    """
+    now = int(time.time())
+    cutoff = now - LOCK_WINDOW
+    with _lock:
+        c = db()
+        c.execute("DELETE FROM loginfails WHERE at < ?", (cutoff,))
+        out = 0
+        for key, limit in ((uid, MAX_FAILS), ("ip:" + ip, MAX_IP_FAILS)):
+            rows = c.execute("SELECT at FROM loginfails WHERE k=? AND at>=? ORDER BY at ASC",
+                             (key, cutoff)).fetchall()
+            if len(rows) >= limit:
+                out = int(LOCK_WINDOW - (now - rows[0][0])) + 1
+                break
+        c.commit()
+        c.close()
+    return max(out, 0)
 
 
 def record_fail(uid, ip):
-    now = time.time()
-    for key in (uid, "ip:" + ip):
-        LOGIN_FAILS.setdefault(key, []).append(now)
+    now = int(time.time())
+    with _lock:
+        c = db()
+        for key in (uid, "ip:" + ip):
+            c.execute("INSERT INTO loginfails(k,at) VALUES(?,?)", (key, now))
+        c.commit()
+        c.close()
 
 
 def clear_fails(uid, ip):
-    LOGIN_FAILS.pop(uid, None)
-    LOGIN_FAILS.pop("ip:" + ip, None)
+    with _lock:
+        c = db()
+        c.execute("DELETE FROM loginfails WHERE k=? OR k=?", (uid, "ip:" + ip))
+        c.commit()
+        c.close()
 
 
 def do_login(user_id, pin):
@@ -1445,6 +1510,15 @@ class Handler(BaseHTTPRequestHandler):
     def do_OPTIONS(self):
         self._send(204)
 
+    def handle_one_request(self):
+        # The single choke point every request passes through, so serverless cold
+        # starts bootstrap exactly like a long-running process does.
+        try:
+            bootstrap()
+        except Exception as e:
+            print("bootstrap failed: %s" % e)
+        return BaseHTTPRequestHandler.handle_one_request(self)
+
     def do_GET(self):
         u = urlparse(self.path)
         if u.path in ("/", "/health"):
@@ -1825,12 +1899,9 @@ if __name__ == "__main__":
         print("FATAL: " + str(e))
         raise SystemExit(1)
     _record_boot()                   # evidence for /health: did storage survive a restart?
-    _load_live_gps()                 # restore last-known positions across restarts
-    if ENABLE_DEMO_SEED:
-        seed_users()
-    else:
+    if not ENABLE_DEMO_SEED:
         print("ENABLE_DEMO_SEED=0 → skipping demo staff accounts (real deployment)")
-        purge_demo_users()
+    bootstrap()                      # same path serverless takes
     os.makedirs(UPLOADS, exist_ok=True)
     if ALLOWED_ORIGINS == "*":
         print("WARNING: ALLOWED_ORIGIN=* (open CORS). Unset it to lock to the PWA domain before production.")
