@@ -126,7 +126,7 @@ ECHALLAN_BASE = os.environ.get("ECHALLAN_BASE", "https://api.echallan.app")
 # auto-deploy is off, so setting an env var restarts the process with the OLD
 # code — /health reporting a stale build is the only way to tell that apart from
 # a missing route, without dashboard access.
-BUILD_TAG = "2026-08-22-vercel-5"
+BUILD_TAG = "2026-08-22-vercel-6"
 
 PORT = int(os.environ.get("PORT", "8766"))      # cloud hosts inject $PORT
 _lock = threading.Lock()
@@ -1608,15 +1608,14 @@ class Handler(BaseHTTPRequestHandler):
         return ok
 
     def handle_one_request(self):
-        # The single choke point every request passes through, so serverless cold
-        # starts bootstrap exactly like a long-running process does.
-        try:
-            bootstrap()
-        except Exception as e:
-            print("bootstrap failed: %s" % e)
+        # Kept for the long-running server (Render, Docker, local), where this is
+        # the choke point. Vercel bypasses it, which is why do_GET/do_POST call
+        # _boot() as well; bootstrap() itself is idempotent.
+        self._boot()
         return BaseHTTPRequestHandler.handle_one_request(self)
 
     def do_GET(self):
+        self._boot()
         u = urlparse(self.path)
         # "/" is the app when the PWA is bundled with the function, and only falls
         # back to health when it is not (a backend-only deploy). /health is always
@@ -1786,7 +1785,18 @@ class Handler(BaseHTTPRequestHandler):
                    cache="no-cache" if rel == "sw.js" else "public, max-age=300")
         return True
 
+    def _boot(self):
+        """Vercel dispatches straight to do_GET/do_POST, so handle_one_request is
+        not a reliable hook — bootstrap silently never ran there and every login
+        returned 'invalid PIN' because no accounts had been seeded. Cheap after the
+        first success: bootstrap() returns on a boolean."""
+        try:
+            bootstrap()
+        except Exception as e:
+            print("bootstrap failed: %s" % e)
+
     def do_POST(self):
+        self._boot()
         u = urlparse(self.path)
         if u.path == "/auth/login":
             b = self._body()
