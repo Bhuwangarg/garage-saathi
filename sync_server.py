@@ -126,7 +126,7 @@ ECHALLAN_BASE = os.environ.get("ECHALLAN_BASE", "https://api.echallan.app")
 # auto-deploy is off, so setting an env var restarts the process with the OLD
 # code — /health reporting a stale build is the only way to tell that apart from
 # a missing route, without dashboard access.
-BUILD_TAG = "2026-08-22-vercel-6"
+BUILD_TAG = "2026-08-22-vercel-7"
 
 PORT = int(os.environ.get("PORT", "8766"))      # cloud hosts inject $PORT
 _lock = threading.Lock()
@@ -1643,6 +1643,12 @@ class Handler(BaseHTTPRequestHandler):
                                      "dbMode": _mode, "dbPath": None if _turso_live else DB,
                                      "dbOk": _db_ok, "dbError": _db_err,
                                      "bootstrapped": _BOOTSTRAPPED, "bootstrapError": _BOOT_ERROR,
+                                     # Whether a restore is possible at all. The 403 from
+                                     # /admin/import cannot tell "your token is wrong" from
+                                     # "the server has none", and the value is write-only in
+                                     # the dashboard, so neither side could check. Presence
+                                     # only — never the value.
+                                     "importTokenSet": bool(os.environ.get("IMPORT_TOKEN", "").strip()),
                                      # Identifies the DEPLOYMENT, not the source. BUILD_TAG only
                                      # moves when code changes, so it cannot tell a redeploy from
                                      # no redeploy — and env values only refresh on a rebuild, so
