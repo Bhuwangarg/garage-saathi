@@ -126,7 +126,7 @@ ECHALLAN_BASE = os.environ.get("ECHALLAN_BASE", "https://api.echallan.app")
 # auto-deploy is off, so setting an env var restarts the process with the OLD
 # code — /health reporting a stale build is the only way to tell that apart from
 # a missing route, without dashboard access.
-BUILD_TAG = "2026-08-22-vercel-4"
+BUILD_TAG = "2026-08-22-vercel-5"
 
 PORT = int(os.environ.get("PORT", "8766"))      # cloud hosts inject $PORT
 _lock = threading.Lock()
@@ -503,6 +503,7 @@ def seed_users():
 
 
 _BOOTSTRAPPED = False
+_BOOT_ERROR = None
 _BOOT_LOCK = threading.Lock()
 
 
@@ -517,18 +518,25 @@ def bootstrap():
     Idempotent and cheap after the first call, so the request path can call it on
     every request and pay only a boolean check once a container is warm.
     """
-    global _BOOTSTRAPPED
+    global _BOOTSTRAPPED, _BOOT_ERROR
     if _BOOTSTRAPPED:
         return
     with _BOOT_LOCK:
         if _BOOTSTRAPPED:
             return
-        _load_live_gps()
-        if ENABLE_DEMO_SEED:
-            seed_users()
-        else:
-            purge_demo_users()
-        _BOOTSTRAPPED = True
+        try:
+            _load_live_gps()
+            if ENABLE_DEMO_SEED:
+                seed_users()
+            else:
+                purge_demo_users()
+            _BOOTSTRAPPED = True
+            _BOOT_ERROR = None
+        except Exception as e:
+            # Recorded rather than swallowed. This failing means no accounts exist,
+            # so every login returns "invalid PIN" with nothing to explain why.
+            _BOOT_ERROR = "%s: %s" % (type(e).__name__, _redact(e))
+            raise
 
 
 def purge_demo_users():
@@ -1635,6 +1643,7 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, {"ok": True, "service": "garage-saathi-sync", "db": "turso" if _turso_live else "sqlite",
                                      "dbMode": _mode, "dbPath": None if _turso_live else DB,
                                      "dbOk": _db_ok, "dbError": _db_err,
+                                     "bootstrapped": _BOOTSTRAPPED, "bootstrapError": _BOOT_ERROR,
                                      # Identifies the DEPLOYMENT, not the source. BUILD_TAG only
                                      # moves when code changes, so it cannot tell a redeploy from
                                      # no redeploy — and env values only refresh on a rebuild, so
