@@ -126,7 +126,7 @@ ECHALLAN_BASE = os.environ.get("ECHALLAN_BASE", "https://api.echallan.app")
 # auto-deploy is off, so setting an env var restarts the process with the OLD
 # code — /health reporting a stale build is the only way to tell that apart from
 # a missing route, without dashboard access.
-BUILD_TAG = "2026-08-22-vercel-2"
+BUILD_TAG = "2026-08-22-vercel-3"
 
 PORT = int(os.environ.get("PORT", "8766"))      # cloud hosts inject $PORT
 _lock = threading.Lock()
@@ -357,6 +357,16 @@ def _pg_host():
 
 
 _PG_CONN = None
+# A failing database must not be retried on every single request. /health probes
+# the connection, the uptime cron pings /health, and every device polls /pull on a
+# 4-second timer — with bad credentials that becomes a stream of failed logins,
+# which is exactly what trips Supabase's pooler circuit breaker
+# ("too many authentication failures, new connections are temporarily blocked").
+# The breaker then hides whether the credentials were ever fixed. So remember a
+# failure briefly and re-raise it without touching the network.
+_PG_FAIL_AT = 0.0
+_PG_FAIL_MSG = ""
+PG_RETRY_AFTER = float(os.environ.get("PG_RETRY_AFTER_SEC", "20"))
 _TURSO_OK = None   # None = not yet probed, True = auth works, False = failed → SQLite
 
 def _connect():
@@ -366,14 +376,23 @@ def _connect():
     then fails HERE and we fall back cleanly instead of crashing mid-request."""
     global _TURSO_OK, _PG_CONN
     if _USE_PG:
+        global _PG_FAIL_AT, _PG_FAIL_MSG
         if _PG_CONN is None:
+            waited = time.time() - _PG_FAIL_AT
+            if _PG_FAIL_MSG and waited < PG_RETRY_AFTER:
+                raise DatabaseUnavailable(
+                    "%s (cached %ds ago; not retrying for another %ds so a bad "
+                    "credential cannot flood the pooler)"
+                    % (_PG_FAIL_MSG, int(waited), int(PG_RETRY_AFTER - waited)))
             try:
                 _PG_CONN = _PgConn(DATABASE_URL)
+                _PG_FAIL_MSG = ""
             except Exception as e:
+                _PG_FAIL_AT = time.time()
+                _PG_FAIL_MSG = ("DATABASE_URL is set but Postgres is unreachable: %s" % e)
                 raise DatabaseUnavailable(
-                    "DATABASE_URL is set but Postgres is unreachable: %s\n"
-                    "Refusing to fall back to a local SQLite file — writes made against it "
-                    "would be stranded once Postgres returns." % e)
+                    "%s\nRefusing to fall back to a local SQLite file — writes made "
+                    "against it would be stranded once Postgres returns." % _PG_FAIL_MSG)
         return _PG_CONN
     if _USE_TURSO and _TURSO_OK is not False:
         try:
