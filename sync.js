@@ -29,9 +29,18 @@ const Sync = (function () {
 
   const ls = window.localStorage;
   // Default sync backend: a device's explicit setting always wins. Otherwise, on
-  // a local/LAN host use the local dev server (:8766); on any public host (the
-  // hosted PWA) default to the Render backend so it works with no per-device setup.
-  const PROD_SYNC = 'https://garage-saathi-sync.onrender.com';
+  // a local/LAN host use the local dev server (:8766); on a public host the API is
+  // served from the SAME origin as this page, so use that.
+  //
+  // It used to point at a fixed Render URL. Once the app moved to Vercel, which
+  // serves the PWA and the API together, that meant a page loaded from
+  // garage-saathi-sync.vercel.app authenticated against Render — the browser
+  // blocked it as cross-origin and login silently fell back to offline PINs.
+  // Same-origin removes the CORS surface entirely for the hosted app.
+  //
+  // PROD_SYNC now only covers the packaged iOS/Android app, which serves itself
+  // from capacitor://localhost and therefore has no useful origin of its own.
+  const PROD_SYNC = 'https://garage-saathi-sync.vercel.app';
   const _isLocalHost = () => location.hostname === '' ||
     /^(localhost|127\.|0\.0\.0\.0|\[?::1\]?|192\.168\.|10\.|172\.1[6-9]\.|172\.2\d\.|172\.3[01]\.)/.test(location.hostname);
   // The packaged iOS/Android app serves itself from capacitor://localhost or
@@ -40,7 +49,9 @@ const Sync = (function () {
   const _isNative = () => !!(window.Capacitor && window.Capacitor.isNativePlatform &&
     window.Capacitor.isNativePlatform());
   const baseUrl = () => ls.getItem('syncUrl') ||
-    (!_isNative() && _isLocalHost() ? (location.protocol + '//' + location.hostname + ':8766') : PROD_SYNC);
+    (_isNative() ? PROD_SYNC
+      : _isLocalHost() ? (location.protocol + '//' + location.hostname + ':8766')
+        : location.origin);
 
   let deviceId = ls.getItem('deviceId');
   if (!deviceId) { deviceId = 'dev-' + Math.random().toString(36).slice(2, 9); ls.setItem('deviceId', deviceId); }
