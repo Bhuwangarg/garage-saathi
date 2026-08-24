@@ -325,6 +325,25 @@ _STATIC_OK = {".html", ".js", ".css", ".json", ".webmanifest", ".svg", ".png",
               ".jpg", ".jpeg", ".ico", ".woff2", ".map"}
 
 
+def _redact(msg):
+    """Strip credentials out of a driver error before it reaches /health."""
+    return re.sub(r"://[^@\s]*@", "://***@", str(msg))[:300]
+
+
+def db_probe():
+    """Actually run a query. dbMode said "postgres" whenever DATABASE_URL was set,
+    which is not the same as the database being reachable — /health looked healthy
+    while every write failed and login returned 500. Report what a round-trip does,
+    not what the configuration implies."""
+    try:
+        c = db()
+        c.execute("SELECT 1").fetchone()
+        c.close()
+        return True, None
+    except Exception as e:
+        return False, "%s: %s" % (type(e).__name__, _redact(e))
+
+
 def _pg_host():
     """Host of DATABASE_URL for /health. Parsed rather than printed, so a password
     can never leak into a public endpoint."""
@@ -1585,8 +1604,10 @@ class Handler(BaseHTTPRequestHandler):
             # that was really just a naming bug.
             # Postgres is durable by definition — if we can answer at all, the
             # connection came up, because _connect() refuses to start without it.
-            _persistent = _USE_PG or _turso_live or (not _USE_TURSO and _DISK_PERSISTENT)
-            _mode = ("postgres" if _USE_PG else
+            _db_ok, _db_err = db_probe()
+            _persistent = (_USE_PG and _db_ok) or _turso_live or (not _USE_TURSO and _DISK_PERSISTENT)
+            _mode = ("postgres" if (_USE_PG and _db_ok) else
+                     "postgres-unreachable" if _USE_PG else
                      "turso" if _turso_live else
                      ("sqlite-disk" if _persistent else "sqlite-ephemeral"))
             # diskVerified is the only trustworthy signal: true means data written
@@ -1594,6 +1615,7 @@ class Handler(BaseHTTPRequestHandler):
             _verified = None if _turso_live else (_DISK_BOOTS > 1)
             return self._send(200, {"ok": True, "service": "garage-saathi-sync", "db": "turso" if _turso_live else "sqlite",
                                      "dbMode": _mode, "dbPath": None if _turso_live else DB,
+                                     "dbOk": _db_ok, "dbError": _db_err,
                                      "diskVerified": None if _USE_PG else _verified,
                                      "diskBoots": _DISK_BOOTS, "diskError": _DISK_ERROR,
                                      # Host only — never the password, /health is public.
