@@ -126,7 +126,7 @@ ECHALLAN_BASE = os.environ.get("ECHALLAN_BASE", "https://api.echallan.app")
 # auto-deploy is off, so setting an env var restarts the process with the OLD
 # code — /health reporting a stale build is the only way to tell that apart from
 # a missing route, without dashboard access.
-BUILD_TAG = "2026-08-22-vercel-9"
+BUILD_TAG = "2026-08-22-vercel-10"
 
 PORT = int(os.environ.get("PORT", "8766"))      # cloud hosts inject $PORT
 _lock = threading.Lock()
@@ -810,16 +810,49 @@ def register_roster(crew=None, default_pin="0000"):
     return created
 
 
-def pull(since):
+PULL_LIMIT = int(os.environ.get("PULL_LIMIT", "600"))
+
+
+def pull(since, limit=None):
+    """One page of records newer than `since`, oldest rev first.
+
+    This used to return the whole table. On a serverless host that meant a first
+    sync — 2,900 records read from Postgres in another region and serialised in
+    one response — ran past the function timeout and returned 504. The client
+    only stores its cursor after a SUCCESSFUL pull, so every retry started from
+    zero and hit the same wall: a brand-new device could never finish syncing,
+    and every phone being handed out is a brand-new device.
+
+    Paging is by rev, and a page never splits a rev group. push() gives every
+    record in one batch the same rev, so cutting mid-group would let the client
+    advance its cursor past records it never received.
+    """
+    limit = limit or PULL_LIMIT
     with _lock:
         c = db()
-        rows = c.execute("SELECT store,id,data,updatedAt,rev FROM records WHERE rev>? ORDER BY rev ASC",
-                         (since,)).fetchall()
+        rows = c.execute(
+            "SELECT store,id,data,updatedAt,rev FROM records WHERE rev>? ORDER BY rev ASC LIMIT ?",
+            (since, limit)).fetchall()
         maxrev = c.execute("SELECT COALESCE(MAX(rev),0) FROM records").fetchone()[0]
+        if rows and len(rows) == limit:
+            last = rows[-1][4]
+            # Drop the trailing partial rev group unless it is the whole page, in
+            # which case take the rest of that group so progress is still made.
+            trimmed = [r for r in rows if r[4] < last]
+            if trimmed:
+                rows = trimmed
+            else:
+                # LIMIT must precede OFFSET for SQLite; a bare OFFSET is Postgres-only.
+                rows += c.execute(
+                    "SELECT store,id,data,updatedAt,rev FROM records WHERE rev=? "
+                    "ORDER BY id ASC LIMIT ? OFFSET ?", (last, 1000000, len(rows))).fetchall()
         c.close()
-    recs = [{"store": s, "id": i, "data": json.loads(d), "updatedAt": u, "rev": rv}
-            for (s, i, d, u, rv) in rows]
-    return {"records": recs, "maxRev": maxrev}
+    recs = [{"store": st, "id": i, "data": json.loads(d), "updatedAt": u, "rev": rv}
+            for (st, i, d, u, rv) in rows]
+    # maxRev is the cursor the client stores: the last rev actually SENT, not the
+    # table maximum, or it would skip everything this page left behind.
+    cursor = recs[-1]["rev"] if recs else maxrev
+    return {"records": recs, "maxRev": cursor, "more": cursor < maxrev, "tableMax": maxrev}
 
 
 # ----------------------------- GPS simulator -------------------------------
