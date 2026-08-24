@@ -20,6 +20,7 @@ roster, and pushing them cannot create a login. Restoring them is harmless but
 pointless, and it makes the diff noisy. Pass --include-users to send them anyway.
 """
 import argparse
+import collections
 import json
 import sys
 import urllib.error
@@ -34,6 +35,14 @@ import urllib.request
 # separate step: the owner device calls /auth/register-roster (Me -> Crew PINs) to
 # materialise crew accounts.
 SKIP_BY_DEFAULT = set()
+
+
+def get(url, token):
+    req = urllib.request.Request(url, method="GET")
+    req.add_header("User-Agent", "garage-saathi-restore/1.0")
+    req.add_header("Authorization", "Bearer " + token)
+    with urllib.request.urlopen(req, timeout=180) as r:
+        return json.loads(r.read() or b"{}")
 
 
 def call(url, payload, token=None, import_token=None):
@@ -157,7 +166,31 @@ def main():
     print("\nRestored %d of %d records (rejected %d)." % (applied, len(records), rejected))
     if rejected:
         print("Rejected records are usually stores the write matrix refuses; check the server log.")
-    print("Verify from a device: log in and confirm the bus and part counts match the backup.")
+
+    # Read it back. Twice this script reported a clean restore while the server
+    # ended up with nothing — once because the writes went to a different host
+    # that happened to accept the same login, once because that host's storage was
+    # ephemeral. "applied" is what the server SAID; this is what it kept.
+    print("\nVerifying against %s ..." % base)
+    try:
+        d = get(base + "/pull?since=0", token)
+    except Exception as e:
+        sys.exit("could not read back: %s" % e)
+    got = collections.Counter(
+        r.get("store") for r in (d.get("records") or [])
+        if not (r.get("data") or {}).get("_deleted"))
+    want = collections.Counter(r["store"] for r in records)
+    bad = 0
+    for store in sorted(want):
+        mark = "ok" if got[store] >= want[store] else "MISSING"
+        if got[store] < want[store]:
+            bad += 1
+        print("  %-14s sent %5d  now on server %5d  %s" % (store, want[store], got[store], mark))
+    if bad:
+        sys.exit("\n%d store(s) did not persist. The server accepted the write and did not keep "
+                 "it — check that --server is the host you actually run, and that its storage is "
+                 "durable (/health should report dbOk true)." % bad)
+    print("\nVerified: every store is present on the server.")
 
 
 if __name__ == "__main__":
