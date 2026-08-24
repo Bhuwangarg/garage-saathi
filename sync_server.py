@@ -126,7 +126,7 @@ ECHALLAN_BASE = os.environ.get("ECHALLAN_BASE", "https://api.echallan.app")
 # auto-deploy is off, so setting an env var restarts the process with the OLD
 # code — /health reporting a stale build is the only way to tell that apart from
 # a missing route, without dashboard access.
-BUILD_TAG = "2026-08-22-vercel-3"
+BUILD_TAG = "2026-08-22-vercel-4"
 
 PORT = int(os.environ.get("PORT", "8766"))      # cloud hosts inject $PORT
 _lock = threading.Lock()
@@ -1635,6 +1635,13 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, {"ok": True, "service": "garage-saathi-sync", "db": "turso" if _turso_live else "sqlite",
                                      "dbMode": _mode, "dbPath": None if _turso_live else DB,
                                      "dbOk": _db_ok, "dbError": _db_err,
+                                     # Identifies the DEPLOYMENT, not the source. BUILD_TAG only
+                                     # moves when code changes, so it cannot tell a redeploy from
+                                     # no redeploy — and env values only refresh on a rebuild, so
+                                     # that is exactly the question that keeps coming up.
+                                     "deployId": os.environ.get("VERCEL_DEPLOYMENT_ID")
+                                                 or os.environ.get("VERCEL_URL"),
+                                     "commit": (os.environ.get("VERCEL_GIT_COMMIT_SHA") or "")[:7] or None,
                                      "diskVerified": None if _USE_PG else _verified,
                                      "diskBoots": _DISK_BOOTS, "diskError": _DISK_ERROR,
                                      # Host only — never the password, /health is public.
