@@ -56,6 +56,7 @@ const Sync = (function () {
   let deviceId = ls.getItem('deviceId');
   if (!deviceId) { deviceId = 'dev-' + Math.random().toString(36).slice(2, 9); ls.setItem('deviceId', deviceId); }
 
+  const PUSH_PER_TICK = 40;       // records per tick; see push()
   let lastRev = parseInt(ls.getItem('lastRev') || '0', 10);
   let lastSyncAt = parseInt(ls.getItem('lastSyncAt') || '0', 10);
   let outbox = new Set(JSON.parse(ls.getItem('outbox') || '[]'));
@@ -235,8 +236,14 @@ const Sync = (function () {
     if (busy) return;
     busy = true;
     try {
-      await push();
-      await pull();
+      // A fresh device seeds ~2,900 records from the bundled GS_SEED, and every
+      // seeded write marks the record dirty — so the outbox starts full. push()
+      // sends ONE RECORD PER REQUEST, so pushing first meant thousands of
+      // sequential requests before the device ever pulled once: it sat on stale
+      // bundled data for a quarter of an hour and looked permanently stuck.
+      // With no cursor yet, learn the server's state first.
+      if (!lastRev) { await pull(); await push(); }
+      else { await push(); await pull(); }
       lastSyncAt = Date.now(); ls.setItem('lastSyncAt', String(lastSyncAt));
       setStatus('synced');
     } catch (e) {
@@ -259,7 +266,9 @@ const Sync = (function () {
   async function push() {
     await flushPhotos();                       // get offline photos a real URL first
     if (!outbox.size) return;
-    const keys = [...outbox].filter((k) => !quarantine[k]);
+    // Bounded per tick, so a large outbox can never starve pull(). The rest goes
+    // out on following ticks; the poller runs every 4s.
+    const keys = [...outbox].filter((k) => !quarantine[k]).slice(0, PUSH_PER_TICK);
     if (!keys.length) return;
     // Push one record at a time so a single poison record can't 4xx the whole
     // batch. A 4xx on a record means the SERVER refuses it → quarantine it and
