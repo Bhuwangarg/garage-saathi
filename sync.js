@@ -92,7 +92,14 @@ const Sync = (function () {
         body: JSON.stringify({ userId, pin }),
         signal: ctl ? ctl.signal : undefined,
       });
-      if (res.status === 401) return null;       // wrong PIN (server says so)
+      if (res.status === 401) {
+        // The server rejected it. `known` says whether it actually holds this
+        // account: known → the PIN is wrong and its answer is final; not known →
+        // the account exists only on the device (bulk-seeded crew), so the caller
+        // may still validate against the device PIN.
+        let j = {}; try { j = await res.json(); } catch (e) { /* older server */ }
+        return { rejected: true, known: !!j.known };
+      }
       if (res.status === 429) {                  // locked out — too many attempts
         let j = {}; try { j = await res.json(); } catch (e) { /* ignore */ }
         return { locked: true, retryAfter: j.retryAfterSec || 60 };

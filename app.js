@@ -6102,6 +6102,15 @@ async function attemptLogin(user, pin, redraw) {
   // validated locally. The offline brute-force lock still applies.
   const left = offlineLockLeft(user.id);
   if (left) { toast(`Too many tries. Wait ${left}s or connect online`); _pin = ''; return redraw(); }
+  // The server HOLDS this account and said no. That answer is final, and it also
+  // means the PIN saved on this device is stale — someone rotated it. Drop the
+  // stale copy: without this, the cached PIN silently outranks the server and a
+  // rotated credential keeps working on every phone that ever used the old one.
+  if (r && r.rejected && r.known) {
+    credClear(user.id);
+    offlineFail(user.id);
+    toast(t('wrongPin')); _pin = ''; return redraw();
+  }
   if (credGet(user.id) === pin) { offlineClear(user.id); return enterApp(user); }
   // Server was UNREACHABLE (cold start / no internet) and we have no saved PIN
   // for this account on this device — we genuinely can't verify. This is NOT a

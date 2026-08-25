@@ -620,6 +620,21 @@ def do_login(user_id, pin):
     return {"token": _make_token(row[0]), "user": {"id": row[0], "name": row[1], "role": row[2]}}
 
 
+def user_exists(user_id):
+    """Does the server hold a login for this id?
+
+    A rejected login has two very different causes, and the client has to tell
+    them apart: the PIN is wrong, or the account lives only on the device (the
+    bulk-seeded crew were never registered here). Answering both with a bare 401
+    forced the client to fall back to its cached PIN in BOTH cases, which kept a
+    rotated PIN working on any phone that had used the old one.
+    """
+    c = db()
+    row = c.execute("SELECT 1 FROM users WHERE id=?", (user_id,)).fetchone()
+    c.close()
+    return bool(row)
+
+
 def _make_token(uid):
     exp = int(time.time() + SESSION_TTL)
     payload = f"{uid}.{exp}"
@@ -1848,7 +1863,10 @@ class Handler(BaseHTTPRequestHandler):
             r = do_login(uid, b.get("pin"))
             if not r:
                 record_fail(uid, ip)
-                return self._send(401, {"error": "invalid PIN"})
+                # `known` lets the client treat this rejection as final instead of
+                # falling back to a stale cached PIN. It leaks nothing: the login
+                # screen already lists every account on the roster by name and id.
+                return self._send(401, {"error": "invalid PIN", "known": user_exists(uid)})
             clear_fails(uid, ip)
             return self._send(200, r)
 
