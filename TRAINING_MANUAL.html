@@ -1,0 +1,1186 @@
+<!-- Half this page is Devanagari. Without an explicit charset the file is at the
+     mercy of the server's Content-Type header, and any host that omits one (a
+     plain python http.server, most static file hosts) renders every Hindi line
+     as mojibake. Declare it here so the file is correct wherever it is opened. -->
+<meta charset="utf-8">
+<title>Garage Saathi Staff Manual</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Sans+Devanagari:wght@400;500;600;700&display=swap">
+
+<style>
+:root{
+  --paper:#F5F7FA;
+  --card:#FFFFFF;
+  --sunk:#EDF1F6;
+  --ink:#141922;
+  --ink2:#39424F;
+  --mute:#67707F;
+  --line:#DCE2EA;
+  --line2:#C7D0DC;
+  --rail:#1E2A3F;
+  --rail-ink:#F2F5F9;
+  --plate:#F2B705;
+  --plate-ink:#3B2C00;
+  --go:#12855C;
+  --go-wash:#E3F4EC;
+  --stop:#CF3A3E;
+  --stop-wash:#FBE9E9;
+  --warn:#B06A00;
+  --warn-wash:#FBF0DE;
+  --info:#24528F;
+  --info-wash:#E6EDF7;
+  --shadow:0 1px 2px rgba(20,25,34,.05),0 6px 18px -10px rgba(20,25,34,.18);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --paper:#0E1219;
+    --card:#161C26;
+    --sunk:#1C232F;
+    --ink:#EAEEF4;
+    --ink2:#C0C8D4;
+    --mute:#8D96A5;
+    --line:#262E3B;
+    --line2:#333D4D;
+    --rail:#080C13;
+    --rail-ink:#E7ECF3;
+    --plate:#FFC93C;
+    --plate-ink:#2A1F00;
+    --go:#3FCE9A;
+    --go-wash:#12281F;
+    --stop:#FF7175;
+    --stop-wash:#2C1618;
+    --warn:#E4A544;
+    --warn-wash:#2B2010;
+    --info:#8AAEF5;
+    --info-wash:#141E2E;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 22px -12px rgba(0,0,0,.7);
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#0E1219;
+  --card:#161C26;
+  --sunk:#1C232F;
+  --ink:#EAEEF4;
+  --ink2:#C0C8D4;
+  --mute:#8D96A5;
+  --line:#262E3B;
+  --line2:#333D4D;
+  --rail:#080C13;
+  --rail-ink:#E7ECF3;
+  --plate:#FFC93C;
+  --plate-ink:#2A1F00;
+  --go:#3FCE9A;
+  --go-wash:#12281F;
+  --stop:#FF7175;
+  --stop-wash:#2C1618;
+  --warn:#E4A544;
+  --warn-wash:#2B2010;
+  --info:#8AAEF5;
+  --info-wash:#141E2E;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 22px -12px rgba(0,0,0,.7);
+}
+
+*{box-sizing:border-box}
+body{
+  margin:0;
+  background:var(--paper);
+  color:var(--ink);
+  font-family:"IBM Plex Sans","IBM Plex Sans Devanagari",system-ui,-apple-system,sans-serif;
+  font-size:16px;
+  line-height:1.6;
+  -webkit-text-size-adjust:100%;
+}
+.hi,[lang="hi"]{font-family:"IBM Plex Sans Devanagari","IBM Plex Sans",system-ui,sans-serif;line-height:1.75}
+.wrap{max-width:1040px;margin:0 auto;padding:0 20px}
+
+/* ---------- masthead ---------- */
+.mast{background:var(--rail);color:var(--rail-ink);padding:44px 0 38px;border-bottom:4px solid var(--plate)}
+.mast .wrap{display:flex;flex-direction:column;gap:18px}
+.mast .eyebrow{
+  font-family:"IBM Plex Mono",monospace;font-size:11.5px;font-weight:600;
+  letter-spacing:.16em;text-transform:uppercase;color:var(--plate);
+}
+.mast h1{
+  font-family:Archivo,"IBM Plex Sans",sans-serif;font-weight:800;
+  font-size:clamp(32px,6.5vw,52px);line-height:1.03;letter-spacing:-.025em;
+  margin:0;text-wrap:balance;
+}
+.mast h1 .devnag{font-family:"IBM Plex Sans Devanagari",sans-serif;font-weight:700;display:block;font-size:.66em;letter-spacing:0;opacity:.82;margin-top:8px}
+/* The masthead sits on the steel rail in both themes, so its text colours are
+   fixed against that ground rather than taken from the theme tokens. */
+.mast p{margin:0;max-width:60ch;color:#B9C4D4;font-size:15.5px}
+.mast .meta{display:flex;flex-wrap:wrap;gap:8px 18px;font-family:"IBM Plex Mono",monospace;font-size:12px;color:#8E9CB0}
+
+/* ---------- sticky controls ---------- */
+.bar{
+  position:sticky;top:0;z-index:20;background:var(--card);
+  border-bottom:1px solid var(--line);box-shadow:var(--shadow);
+}
+.bar .wrap{display:flex;flex-wrap:wrap;gap:12px 20px;align-items:center;padding-top:11px;padding-bottom:11px}
+.grp{display:flex;align-items:center;gap:8px;min-width:0}
+.grp>.lbl{
+  font-family:"IBM Plex Mono",monospace;font-size:10.5px;font-weight:600;
+  letter-spacing:.13em;text-transform:uppercase;color:var(--mute);flex:none;
+}
+.seg{display:flex;gap:4px;flex-wrap:wrap}
+.seg button{
+  font:inherit;font-size:13px;font-weight:600;line-height:1;
+  padding:7px 11px;border-radius:7px;border:1px solid var(--line2);
+  background:transparent;color:var(--ink2);cursor:pointer;
+  display:inline-flex;align-items:center;gap:6px;
+  transition:background .12s ease,border-color .12s ease,color .12s ease;
+}
+.seg button:hover{background:var(--sunk)}
+.seg button:focus-visible{outline:2px solid var(--info);outline-offset:2px}
+.seg button[aria-pressed="true"]{background:var(--plate);border-color:var(--plate);color:var(--plate-ink)}
+.seg button .g{font-size:14px;line-height:1}
+
+/* ---------- sections ---------- */
+main{padding:34px 0 10px}
+.part{margin:0 0 44px}
+.part>header{
+  display:flex;align-items:baseline;gap:14px;
+  padding-bottom:10px;margin-bottom:22px;border-bottom:2px solid var(--rail);
+}
+.part>header .num{
+  font-family:Archivo,sans-serif;font-weight:800;font-size:13px;letter-spacing:.1em;
+  color:var(--card);background:var(--rail);padding:4px 9px;border-radius:5px;flex:none;
+}
+.part>header h2{
+  font-family:Archivo,"IBM Plex Sans",sans-serif;font-weight:700;
+  font-size:clamp(21px,3.4vw,27px);letter-spacing:-.02em;margin:0;line-height:1.15;
+}
+.part>header h2 .devnag{font-family:"IBM Plex Sans Devanagari",sans-serif;font-weight:600;color:var(--mute);font-size:.78em;letter-spacing:0}
+
+.sec{
+  background:var(--card);border:1px solid var(--line);border-radius:12px;
+  padding:22px 24px;margin-bottom:16px;box-shadow:var(--shadow);
+}
+.sec>h3{
+  font-family:Archivo,"IBM Plex Sans",sans-serif;font-weight:700;font-size:18px;
+  letter-spacing:-.012em;margin:0 0 4px;line-height:1.25;
+}
+.sec>h3 .devnag{font-family:"IBM Plex Sans Devanagari",sans-serif;font-weight:600;font-size:.86em;color:var(--mute);letter-spacing:0}
+.sec>.who{
+  font-family:"IBM Plex Mono",monospace;font-size:10.5px;font-weight:600;
+  letter-spacing:.11em;text-transform:uppercase;color:var(--mute);margin:0 0 16px;
+}
+
+/* ---------- bilingual pair ---------- */
+.bi{display:grid;grid-template-columns:1fr 1fr;gap:8px 34px;align-items:start;margin:0 0 15px}
+.bi:last-child{margin-bottom:0}
+.bi>div>:first-child{margin-top:0}
+.bi>div>:last-child{margin-bottom:0}
+.bi .hi{color:var(--ink2)}
+@media (max-width:760px){
+  .bi{grid-template-columns:1fr;gap:9px}
+  .bi .hi{
+    padding-left:13px;border-left:2px solid var(--plate);
+  }
+}
+body[data-lang="en"] .hi{display:none}
+body[data-lang="hi"] .en{display:none}
+body[data-lang="en"] .bi,body[data-lang="hi"] .bi{grid-template-columns:1fr}
+body[data-lang="hi"] .bi .hi{padding-left:0;border-left:0}
+
+p{margin:0 0 10px}
+ol,ul{margin:0 0 10px;padding-left:22px}
+li{margin:0 0 7px}
+li:last-child{margin-bottom:0}
+b,strong{font-weight:600}
+.bi .en{max-width:62ch}
+.bi .hi{max-width:60ch}
+
+/* ---------- inline devices ---------- */
+.ui{
+  font-family:"IBM Plex Mono",monospace;font-size:.88em;font-weight:500;
+  background:var(--sunk);border:1px solid var(--line);border-radius:5px;
+  padding:1px 6px;white-space:nowrap;
+}
+.plate{
+  font-family:"IBM Plex Mono",monospace;font-size:.86em;font-weight:600;
+  background:var(--plate);color:var(--plate-ink);border-radius:4px;padding:1px 6px;
+  letter-spacing:.02em;white-space:nowrap;
+}
+.pin{font-family:"IBM Plex Mono",monospace;font-weight:600;letter-spacing:.14em}
+
+.note{
+  border-radius:9px;padding:13px 16px;margin:0 0 15px;
+  border:1px solid var(--line);background:var(--sunk);
+}
+.note.stop{background:var(--stop-wash);border-color:var(--stop)}
+.note.warn{background:var(--warn-wash);border-color:var(--warn)}
+.note.go{background:var(--go-wash);border-color:var(--go)}
+.note.info{background:var(--info-wash);border-color:var(--info)}
+.note .tag{
+  font-family:"IBM Plex Mono",monospace;font-size:10.5px;font-weight:600;
+  letter-spacing:.12em;text-transform:uppercase;display:block;margin-bottom:5px;
+}
+.note.stop .tag{color:var(--stop)}
+.note.warn .tag{color:var(--warn)}
+.note.go .tag{color:var(--go)}
+.note.info .tag{color:var(--info)}
+.note .bi{margin-bottom:0}
+.note .bi+.bi{margin-top:10px}
+
+/* ---------- role chapter head ---------- */
+.rolehead{display:flex;align-items:center;gap:14px;margin:0 0 6px}
+.rolehead .glyph{
+  font-size:26px;line-height:1;width:48px;height:48px;flex:none;border-radius:11px;
+  display:grid;place-items:center;background:var(--sunk);border:1px solid var(--line);
+}
+.rolehead h3{margin:0}
+
+/* ---------- tab strip (mirrors the app's bottom nav) ---------- */
+.tabs{
+  display:flex;flex-wrap:wrap;gap:6px;margin:0 0 16px;padding:9px;
+  background:var(--sunk);border:1px solid var(--line);border-radius:10px;
+}
+.tabs .tab{
+  display:inline-flex;align-items:center;gap:6px;background:var(--card);
+  border:1px solid var(--line);border-radius:7px;padding:5px 10px;
+  font-size:12.5px;font-weight:600;color:var(--ink2);
+}
+.tabs .tab .g{font-size:14px}
+
+/* ---------- flow ---------- */
+.flow{list-style:none;margin:0 0 15px;padding:0;counter-reset:step}
+.flow>li{
+  counter-increment:step;position:relative;padding:0 0 16px 40px;margin:0;
+  border-left:2px solid var(--line);
+}
+.flow>li:last-child{border-left-color:transparent;padding-bottom:0}
+.flow>li::before{
+  content:counter(step);position:absolute;left:-13px;top:0;
+  width:24px;height:24px;border-radius:50%;
+  background:var(--rail);color:var(--card);
+  font-family:"IBM Plex Mono",monospace;font-size:11px;font-weight:600;
+  display:grid;place-items:center;
+}
+.flow>li .actor{
+  font-family:"IBM Plex Mono",monospace;font-size:10.5px;font-weight:600;
+  letter-spacing:.11em;text-transform:uppercase;color:var(--mute);display:block;margin-bottom:3px;
+}
+.flow .bi{margin-bottom:0}
+
+/* ---------- rules (the accent lives here) ---------- */
+.rules{list-style:none;margin:0;padding:0;counter-reset:rule;display:grid;gap:14px}
+.rules>li{
+  counter-increment:rule;position:relative;padding:16px 18px 16px 62px;
+  background:var(--card);border:1px solid var(--line);border-radius:10px;
+}
+.rules>li::before{
+  content:counter(rule);position:absolute;left:16px;top:15px;
+  width:32px;height:32px;border-radius:8px;
+  background:var(--plate);color:var(--plate-ink);
+  font-family:Archivo,sans-serif;font-weight:800;font-size:16px;
+  display:grid;place-items:center;
+}
+.rules .bi{margin-bottom:0}
+.rules .why{margin-top:9px;padding-top:9px;border-top:1px dashed var(--line2)}
+.rules .why .bi{margin:0}
+.rules .why .en,.rules .why .hi{font-size:14px;color:var(--mute)}
+
+/* ---------- matrix ---------- */
+.scroller{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 0 8px;border-radius:10px;border:1px solid var(--line)}
+table{border-collapse:collapse;width:100%;min-width:640px;font-size:13.5px;background:var(--card)}
+th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--line)}
+thead th{
+  background:var(--sunk);font-family:"IBM Plex Mono",monospace;font-size:10.5px;
+  font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--mute);
+  position:sticky;top:0;
+}
+tbody th{font-weight:600;font-size:13.5px}
+td{text-align:center;font-family:"IBM Plex Mono",monospace;font-weight:600;font-variant-numeric:tabular-nums}
+td.y{color:var(--go)}
+td.n{color:var(--mute);opacity:.55}
+tbody tr:last-child th,tbody tr:last-child td{border-bottom:0}
+.legend{font-size:12.5px;color:var(--mute);margin:0 0 15px}
+
+/* ---------- q&a ---------- */
+.qa{display:grid;gap:0}
+.qa>details{border-top:1px solid var(--line)}
+.qa>details:last-child{border-bottom:1px solid var(--line)}
+/* Grid, not flex: in "both" mode the question is two stacked lines, and a flex
+   column would push the +/− marker onto a row of its own above them. Here the
+   marker holds column 1 while both languages stack down column 2. */
+.qa summary{
+  cursor:pointer;padding:13px 4px;font-weight:600;font-size:15px;
+  display:grid;grid-template-columns:auto 1fr;column-gap:10px;row-gap:1px;
+  align-items:baseline;list-style:none;
+}
+.qa summary::-webkit-details-marker{display:none}
+.qa summary::before{content:"+";font-family:"IBM Plex Mono",monospace;color:var(--plate);font-weight:600;grid-column:1;grid-row:1}
+.qa summary>span{grid-column:2}
+.qa details[open] summary::before{content:"–"}
+.qa summary:focus-visible{outline:2px solid var(--info);outline-offset:-2px;border-radius:4px}
+.qa .body{padding:0 4px 15px 22px}
+.qa .body .bi:last-child{margin-bottom:0}
+.qa summary .hi{color:var(--mute);font-weight:500}
+
+/* ---------- footer ---------- */
+footer{background:var(--rail);color:#A9B6C8;margin-top:40px;padding:30px 0;border-top:4px solid var(--plate)}
+footer .wrap{display:flex;flex-wrap:wrap;gap:16px 34px;justify-content:space-between;align-items:flex-start}
+footer p{margin:0;font-size:13px;max-width:52ch}
+footer .stamp{font-family:"IBM Plex Mono",monospace;font-size:11.5px;letter-spacing:.06em;color:#7D8CA1}
+
+/* ---------- role filtering ---------- */
+/* The hide rule and the show rules must carry equal specificity, or the hide
+   wins and the selected role's own chapter disappears with the rest. Both sides
+   therefore run body + two attribute selectors; the show rules come later, so a
+   tie resolves in their favour. */
+body[data-role]:not([data-role="all"]) .sec[data-roles]{display:none}
+body[data-role="owner"]:not([data-role="all"]) .sec[data-roles~="owner"],
+body[data-role="supervisor"]:not([data-role="all"]) .sec[data-roles~="supervisor"],
+body[data-role="store"]:not([data-role="all"]) .sec[data-roles~="store"],
+body[data-role="mechanic"]:not([data-role="all"]) .sec[data-roles~="mechanic"],
+body[data-role="driver"]:not([data-role="all"]) .sec[data-roles~="driver"],
+body[data-role="conductor"]:not([data-role="all"]) .sec[data-roles~="conductor"]{display:block}
+.part.empty{display:none}
+
+/* On a phone the chips wrap to three rows; sticking that to the top would cost
+   ~140px of a 812px screen. The reader picks a role once, at the top, so let the
+   bar scroll away instead. */
+@media (max-width:760px){
+  .bar{position:static}
+  .bar .wrap{gap:12px}
+  .grp{flex-direction:column;align-items:flex-start;gap:6px;width:100%}
+}
+
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+@media print{
+  .bar,.noprint{display:none!important}
+  body{background:#fff;color:#000;font-size:11pt}
+  .mast{background:#fff;color:#000;border-bottom:3px solid #000;padding:0 0 16px}
+  .mast p,.mast .meta{color:#333}
+  .mast .eyebrow{color:#000}
+  .sec,.rules>li{box-shadow:none;border-color:#bbb;break-inside:avoid}
+  .part{break-before:page}
+  .part:first-of-type{break-before:auto}
+  .hi,.en{display:block!important}
+  .bi{grid-template-columns:1fr 1fr!important}
+  .sec[data-roles]{display:block!important}
+  .qa .body{display:block}
+  footer{background:#fff;color:#333;border-top:2px solid #000}
+}
+</style>
+
+<header class="mast">
+  <div class="wrap">
+    <span class="eyebrow">Mahalaxmi Travels · Jaipur</span>
+    <h1>Garage Saathi Staff Manual<span class="devnag">गैराज साथी — स्टाफ़ मैनुअल</span></h1>
+    <p lang="en">How to use the app, for every person who uses it — owner, supervisor, storekeeper, mechanic, driver and conductor. Every line is in English and Hindi.</p>
+    <p lang="hi" class="hi">ऐप कैसे चलाना है — मालिक, सुपरवाइज़र, स्टोरकीपर, मैकेनिक, ड्राइवर और कंडक्टर, सबके लिए। हर बात अंग्रेज़ी और हिंदी दोनों में है।</p>
+    <div class="meta">
+      <span>Pick your role below · अपना काम नीचे चुनें</span>
+      <span>Works offline · बिना इंटरनेट भी चलता है</span>
+    </div>
+  </div>
+</header>
+
+<div class="bar noprint">
+  <div class="wrap">
+    <div class="grp">
+      <span class="lbl">Role / काम</span>
+      <div class="seg" id="roleseg">
+        <button data-role="all" aria-pressed="true">Everyone <span class="hi">सब</span></button>
+        <button data-role="owner" aria-pressed="false"><span class="g">👑</span>Owner</button>
+        <button data-role="supervisor" aria-pressed="false"><span class="g">🧑‍🔧</span>Supervisor</button>
+        <button data-role="store" aria-pressed="false"><span class="g">📦</span>Store</button>
+        <button data-role="mechanic" aria-pressed="false"><span class="g">🔧</span>Mechanic</button>
+        <button data-role="driver" aria-pressed="false"><span class="g">🧑‍✈️</span>Driver</button>
+        <button data-role="conductor" aria-pressed="false"><span class="g">🎫</span>Conductor</button>
+      </div>
+    </div>
+    <div class="grp">
+      <span class="lbl">Language</span>
+      <div class="seg" id="langseg">
+        <button data-lang="both" aria-pressed="true">Both</button>
+        <button data-lang="en" aria-pressed="false">EN</button>
+        <button data-lang="hi" aria-pressed="false">हिं</button>
+      </div>
+    </div>
+    <div class="grp">
+      <div class="seg"><button id="printbtn" aria-pressed="false">Print / प्रिंट</button></div>
+    </div>
+  </div>
+</div>
+
+<main class="wrap">
+
+<!-- ============================ PART 1 ============================ -->
+<section class="part">
+  <header><span class="num">PART 1</span><h2>Before you start <span class="devnag">शुरू करने से पहले</span></h2></header>
+
+  <div class="sec">
+    <h3>What this app is <span class="devnag">यह ऐप क्या है</span></h3>
+    <p class="who">Everyone · सबके लिए</p>
+    <div class="bi">
+      <div class="en"><p>Garage Saathi is the record of everything that happens to our buses: what broke, who fixed it, which part went out of the store, what it cost, who was at work, and where every bus is. There is no separate register. If it is not in the app, it did not happen.</p></div>
+      <div class="hi"><p>गैराज साथी हमारी बसों का पूरा रिकॉर्ड है — क्या खराब हुआ, किसने ठीक किया, स्टोर से कौन सा पुर्जा गया, कितना खर्च हुआ, कौन काम पर आया, और हर बस कहाँ है। अब कोई अलग रजिस्टर नहीं है। जो ऐप में नहीं है, वह हुआ ही नहीं।</p></div>
+    </div>
+    <div class="bi">
+      <div class="en"><p>It runs on your phone like a normal app, but it is a website — nothing to download from a store. Ask your supervisor for the link once, open it, and add it to your home screen.</p></div>
+      <div class="hi"><p>यह आपके फ़ोन में आम ऐप की तरह चलता है, पर असल में वेबसाइट है — किसी स्टोर से डाउनलोड नहीं करना। सुपरवाइज़र से एक बार लिंक लें, खोलें, और होम स्क्रीन पर लगा लें।</p></div>
+    </div>
+    <div class="note go">
+      <span class="tag">Works without internet · बिना इंटरनेट भी</span>
+      <div class="bi">
+        <div class="en"><p>Inside the workshop, under a bus, on the highway — the app keeps working with no signal. Everything you do is saved on the phone and sent to the server the moment you get network again. Never wait for signal to close a job or mark attendance.</p></div>
+        <div class="hi"><p>वर्कशॉप के अंदर, बस के नीचे, हाईवे पर — सिग्नल न हो तब भी ऐप चलता रहेगा। आपका किया हुआ सब कुछ फ़ोन में सेव होता है और नेटवर्क आते ही सर्वर पर चला जाता है। काम बंद करने या हाज़िरी लगाने के लिए सिग्नल का इंतज़ार कभी मत कीजिए।</p></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sec">
+    <h3>Logging in <span class="devnag">लॉगिन करना</span></h3>
+    <p class="who">Everyone · सबके लिए</p>
+    <ol class="flow">
+      <li>
+        <span class="actor">Step 1 · पहला कदम</span>
+        <div class="bi">
+          <div class="en"><p>Open the app. At the top you will see <span class="ui">EN</span> and <span class="ui">हिं</span>. Tap <span class="ui">हिं</span> for Hindi. The app remembers your choice on this phone forever.</p></div>
+          <div class="hi"><p>ऐप खोलिए। ऊपर <span class="ui">EN</span> और <span class="ui">हिं</span> दिखेंगे। हिंदी के लिए <span class="ui">हिं</span> दबाइए। ऐप आपकी पसंद इस फ़ोन में हमेशा के लिए याद रख लेगा।</p></div>
+        </div>
+      </li>
+      <li>
+        <span class="actor">Step 2 · दूसरा कदम</span>
+        <div class="bi">
+          <div class="en"><p>Tap your job: Owner, Supervisor, Store, Mechanic, Driver or Conductor. If you have used this phone before, your name is already shown at the top under <span class="ui">Recent on this phone</span> — just tap it.</p></div>
+          <div class="hi"><p>अपना काम चुनिए: मालिक, सुपरवाइज़र, स्टोर, मैकेनिक, ड्राइवर या कंडक्टर। अगर आप पहले इस फ़ोन पर आ चुके हैं तो आपका नाम ऊपर <span class="ui">इस फ़ोन पर हाल के</span> में दिखेगा — सीधे उसी पर दबाइए।</p></div>
+        </div>
+      </li>
+      <li>
+        <span class="actor">Step 3 · तीसरा कदम</span>
+        <div class="bi">
+          <div class="en"><p>Find your name in the list. If the list is long, type the first two or three letters in the search box.</p></div>
+          <div class="hi"><p>सूची में अपना नाम ढूँढिए। सूची लंबी हो तो खोज बॉक्स में नाम के पहले दो-तीन अक्षर लिख दीजिए।</p></div>
+        </div>
+      </li>
+      <li>
+        <span class="actor">Step 4 · चौथा कदम</span>
+        <div class="bi">
+          <div class="en"><p>Type your 4-digit PIN. The app opens as soon as the fourth digit is in — there is no extra button to press.</p></div>
+          <div class="hi"><p>अपना 4 अंकों का पिन डालिए। चौथा अंक डालते ही ऐप खुल जाएगा — और कोई बटन दबाने की ज़रूरत नहीं।</p></div>
+        </div>
+      </li>
+    </ol>
+    <div class="note warn">
+      <span class="tag">Change your PIN on day one · पहले ही दिन पिन बदलिए</span>
+      <div class="bi">
+        <div class="en"><p>Every driver and conductor starts with the same PIN, <span class="pin">0000</span>. That is not a secret — anyone can guess it. On your first login go to <span class="ui">Me</span> → <span class="ui">Change my PIN</span> and set your own four digits. Your name is on every job you close, every part you take and every attendance mark, so nobody else should be able to log in as you.</p></div>
+        <div class="hi"><p>हर ड्राइवर और कंडक्टर का शुरुआती पिन एक ही है — <span class="pin">0000</span>। यह कोई गुप्त बात नहीं, कोई भी अंदाज़ा लगा सकता है। पहली बार लॉगिन करते ही <span class="ui">मैं</span> → <span class="ui">मेरा पिन बदलें</span> में जाकर अपने चार अंक तय कीजिए। आपके बंद किए हर काम, उठाए हर पुर्जे और लगाई हर हाज़िरी पर आपका नाम जाता है, इसलिए आपके नाम से कोई और लॉगिन न कर पाए।</p></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sec">
+    <h3>Attendance — selfie and location <span class="devnag">हाज़िरी — सेल्फ़ी और लोकेशन</span></h3>
+    <p class="who">Everyone · सबके लिए</p>
+    <div class="bi">
+      <div class="en">
+        <p>Go to <span class="ui">Me</span> and tap <span class="ui">Check In</span> when you reach the garage, and <span class="ui">Check Out</span> when you leave.</p>
+        <ul>
+          <li>The camera opens and waits until it can see your face. Hold the phone in front of you in decent light.</li>
+          <li>The app then reads your location to confirm you are actually at the garage.</li>
+          <li>If you check in after the shift start time, the record is marked <span class="ui">LATE</span>.</li>
+          <li>If you are further from the garage than allowed, the app asks you to confirm before recording it.</li>
+        </ul>
+      </div>
+      <div class="hi">
+        <p>गैराज पहुँचते ही <span class="ui">मैं</span> में जाकर <span class="ui">हाज़िरी लगाएं</span> दबाइए, और जाते समय <span class="ui">छुट्टी</span>।</p>
+        <ul>
+          <li>कैमरा खुलेगा और तब तक रुकेगा जब तक आपका चेहरा साफ़ न दिखे। फ़ोन को सामने रखिए और रोशनी ठीक रखिए।</li>
+          <li>फिर ऐप आपकी लोकेशन लेगा ताकि पक्का हो कि आप सच में गैराज पर हैं।</li>
+          <li>शिफ़्ट के समय के बाद हाज़िरी लगाई तो रिकॉर्ड पर <span class="ui">LATE</span> लिख जाएगा।</li>
+          <li>गैराज से तय दूरी से ज़्यादा दूर हैं तो ऐप पहले पूछेगा, फिर दर्ज करेगा।</li>
+        </ul>
+      </div>
+    </div>
+    <div class="note stop">
+      <span class="tag">No photo of a photo · फ़ोटो की फ़ोटो नहीं चलेगी</span>
+      <div class="bi">
+        <div class="en"><p>The camera must see a live face. Holding up someone else's photo will not pass, and marking attendance for a colleague who has not come in is theft from the company — it is recorded with your name, your face and your location.</p></div>
+        <div class="hi"><p>कैमरे को असली चेहरा दिखना चाहिए। किसी और की फ़ोटो दिखाने से हाज़िरी नहीं लगेगी। जो साथी आया ही नहीं उसकी हाज़िरी लगाना कंपनी के साथ चोरी है — और वह आपके नाम, आपके चेहरे और आपकी लोकेशन के साथ दर्ज होता है।</p></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sec">
+    <h3>Knowing your work is saved <span class="devnag">काम सेव हुआ या नहीं, कैसे जानें</span></h3>
+    <p class="who">Everyone · सबके लिए</p>
+    <div class="bi">
+      <div class="en">
+        <p>Open <span class="ui">Me</span> → <span class="ui">Sync</span>. One of three things is written there:</p>
+        <ul>
+          <li><b>All devices up to date</b> — everything you did has reached the server.</li>
+          <li><b>Syncing…</b> — it is being sent right now. Wait a few seconds.</li>
+          <li><b>Offline — will sync when connected</b> — no network. Your work is safe on this phone and will go up on its own. You do not have to do it again.</li>
+        </ul>
+        <p>A number like <span class="ui">3 pending</span> means three things are still waiting to be sent.</p>
+      </div>
+      <div class="hi">
+        <p><span class="ui">मैं</span> → <span class="ui">सिंक</span> खोलिए। वहाँ तीन में से एक बात लिखी होगी:</p>
+        <ul>
+          <li><b>All devices up to date</b> — आपका किया सब कुछ सर्वर तक पहुँच गया।</li>
+          <li><b>Syncing…</b> — अभी भेजा जा रहा है। कुछ सेकंड रुकिए।</li>
+          <li><b>Offline — will sync when connected</b> — नेटवर्क नहीं है। आपका काम फ़ोन में सुरक्षित है और अपने आप चला जाएगा। दोबारा करने की ज़रूरत नहीं।</li>
+        </ul>
+        <p><span class="ui">3 pending</span> जैसा नंबर मतलब तीन चीज़ें अभी भेजी जानी बाकी हैं।</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ PART 2 ============================ -->
+<section class="part">
+  <header><span class="num">PART 2</span><h2>Your role, day by day <span class="devnag">आपका काम, रोज़ का</span></h2></header>
+
+  <!-- OWNER -->
+  <div class="sec" data-roles="owner">
+    <div class="rolehead"><div class="glyph">👑</div><h3>Owner <span class="devnag">मालिक</span></h3></div>
+    <div class="tabs">
+      <span class="tab"><span class="g">🏠</span>Today</span>
+      <span class="tab"><span class="g">💰</span>Money</span>
+      <span class="tab"><span class="g">🚌</span>Fleet</span>
+      <span class="tab"><span class="g">🧑‍✈️</span>People</span>
+      <span class="tab"><span class="g">👤</span>Me</span>
+    </div>
+    <div class="bi">
+      <div class="en"><p><b>Money.</b> One honest number at the top: everything the fleet cost you this month, with an arrow showing whether it is up or down against last month. Switch the window to <span class="ui">Last month</span> or <span class="ui">This year</span>. Below it, <span class="ui">Where the money goes</span> splits that total into fuel, parts, labour, outside repairs and miscellaneous — and the five always add back up to the total. <span class="ui">You owe</span> is unpaid supplier bills. <span class="ui">Money-pit buses</span> ranks buses by cost per kilometre against the fleet median.</p></div>
+      <div class="hi"><p><b>पैसा।</b> सबसे ऊपर एक सीधा आँकड़ा: इस महीने पूरे बेड़े पर कितना खर्च हुआ, और तीर बताएगा कि पिछले महीने से बढ़ा या घटा। ऊपर से <span class="ui">पिछले महीने</span> या <span class="ui">इस साल</span> भी चुन सकते हैं। नीचे <span class="ui">पैसा कहाँ जाता है</span> उसी कुल को ईंधन, पुर्जे, मज़दूरी, बाहर की मरम्मत और अन्य में बाँटता है — और पाँचों जोड़कर हमेशा वही कुल बनते हैं। <span class="ui">आपको देना है</span> यानी सप्लायर के बकाया बिल। <span class="ui">ज़्यादा खर्च वाली बसें</span> प्रति किलोमीटर खर्च के हिसाब से बसों की सूची देती है।</p></div>
+    </div>
+    <div class="bi">
+      <div class="en"><p><b>Fleet.</b> Problems first: buses whose service is overdue, documents that have expired or expire within fifteen days, and the live map. Below that, every bus, searchable by number plate, company or model.</p></div>
+      <div class="hi"><p><b>बेड़ा।</b> पहले दिक्कतें: जिन बसों की सर्विस निकल चुकी है, जो कागज़ात समाप्त हो गए या पंद्रह दिन में हो जाएंगे, और लाइव नक्शा। उसके नीचे सारी बसें — नंबर प्लेट, कंपनी या मॉडल से खोज सकते हैं।</p></div>
+    </div>
+    <div class="bi">
+      <div class="en"><p><b>People.</b> Drivers are listed worst score first, so the ones needing attention are at the top. From here you also reach driver↔bus assignments, safety and GPS events, the scoreboard, crew logins and PINs, and staff accounts.</p></div>
+      <div class="hi"><p><b>लोग।</b> ड्राइवर सबसे कम स्कोर वाले पहले दिखते हैं, ताकि जिन पर ध्यान चाहिए वे ऊपर रहें। यहीं से ड्राइवर↔बस जोड़ना, सेफ़्टी और GPS घटनाएँ, स्कोरबोर्ड, क्रू के लॉगिन-पिन, और स्टाफ़ खाते खुलते हैं।</p></div>
+    </div>
+    <div class="bi">
+      <div class="en"><p><b>Your daily five minutes:</b> open <span class="ui">Today</span>, clear anything in <span class="ui">Needs you now</span>, verify the jobs waiting for your sign-off, and glance at the money number. That is the whole routine.</p></div>
+      <div class="hi"><p><b>आपके रोज़ के पाँच मिनट:</b> <span class="ui">आज</span> खोलिए, <span class="ui">अभी ध्यान दें</span> में जो हो उसे निपटाइए, जो काम आपकी जाँच का इंतज़ार कर रहे हैं उन्हें जाँचिए, और पैसे का आँकड़ा एक नज़र देख लीजिए। बस इतना ही।</p></div>
+    </div>
+  </div>
+
+  <!-- SUPERVISOR -->
+  <div class="sec" data-roles="supervisor">
+    <div class="rolehead"><div class="glyph">🧑‍🔧</div><h3>Supervisor <span class="devnag">सुपरवाइज़र</span></h3></div>
+    <div class="tabs">
+      <span class="tab"><span class="g">🏠</span>Today</span>
+      <span class="tab"><span class="g">🛠️</span>Jobs</span>
+      <span class="tab"><span class="g">🚌</span>Fleet</span>
+      <span class="tab"><span class="g">📦</span>Store</span>
+      <span class="tab"><span class="g">👤</span>Me</span>
+    </div>
+    <div class="bi">
+      <div class="en">
+        <p>You run the floor. Four things are yours:</p>
+        <ol>
+          <li><b>Open job cards.</b> A driver reports a problem, or you see one yourself — make a job card, pick the bus, describe the fault, set the priority and assign a mechanic.</li>
+          <li><b>Assign the right mechanic.</b> A job with nobody on it does not get done. Use <span class="ui">Edit / reassign</span> to move work.</li>
+          <li><b>Verify finished work.</b> When a mechanic closes a job it becomes <span class="ui">To verify</span>. Look at the after photo, look at the old part that came back, then <span class="ui">Verify</span> — or <span class="ui">Send back for rework</span> if it is not right.</li>
+          <li><b>Keep the fleet legal and serviced.</b> Documents expiring, services due, driver↔bus assignments, routes and fuel entries.</li>
+        </ol>
+      </div>
+      <div class="hi">
+        <p>फ़्लोर आप चलाते हैं। चार काम आपके हैं:</p>
+        <ol>
+          <li><b>जॉब कार्ड खोलना।</b> ड्राइवर समस्या बताए या आपको खुद दिखे — नया जॉब कार्ड बनाइए, बस चुनिए, खराबी लिखिए, प्राथमिकता तय कीजिए और मैकेनिक सौंपिए।</li>
+          <li><b>सही मैकेनिक सौंपना।</b> जिस काम पर कोई नहीं है वह होता ही नहीं। काम बदलने के लिए <span class="ui">बदलें / दोबारा सौंपें</span> का इस्तेमाल कीजिए।</li>
+          <li><b>पूरा हुआ काम जाँचना।</b> मैकेनिक काम बंद करेगा तो वह <span class="ui">जाँचना है</span> में आ जाएगा। बाद की फोटो देखिए, वापस आया पुराना पुर्जा देखिए, फिर <span class="ui">जाँचें</span> — या ठीक न हो तो <span class="ui">वापस भेजें</span>।</li>
+          <li><b>बेड़ा कानूनी और सर्विस्ड रखना।</b> कागज़ात की तारीख़, सर्विस, ड्राइवर↔बस जोड़ना, रूट और ईंधन की एंट्री।</li>
+        </ol>
+      </div>
+    </div>
+    <div class="note info">
+      <span class="tag">You can do everything the owner can, except see it as money · मालिक जैसा सब कर सकते हैं</span>
+      <div class="bi">
+        <div class="en"><p>You create, assign and verify. The Money tab and challan lookups stay with the owner.</p></div>
+        <div class="hi"><p>बनाना, सौंपना और जाँचना आपका है। पैसा वाला टैब और चालान देखना मालिक के पास रहता है।</p></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STORE -->
+  <div class="sec" data-roles="store">
+    <div class="rolehead"><div class="glyph">📦</div><h3>Storekeeper <span class="devnag">स्टोरकीपर</span></h3></div>
+    <div class="tabs">
+      <span class="tab"><span class="g">📦</span>Store</span>
+      <span class="tab"><span class="g">🧾</span>Bills</span>
+      <span class="tab"><span class="g">🛠️</span>Jobs</span>
+      <span class="tab"><span class="g">👤</span>Me</span>
+    </div>
+    <div class="bi">
+      <div class="en">
+        <p>Your home screen opens on the store itself: total stock value, how many parts are running low, and a search box for the whole catalogue.</p>
+        <ul>
+          <li><span class="ui">Add stock</span> — when a delivery arrives. Enter quantity and what it cost; the app recalculates the average price of that part on its own.</li>
+          <li><span class="ui">Issue part</span> — when a mechanic needs something. <b>You must pick the job card it is going to.</b> There is no way to hand out a part without one.</li>
+          <li><span class="ui">Pending part requests</span> — a mechanic has asked for a part from inside their job card. Tap <span class="ui">Fulfil</span> and it is issued against that job.</li>
+          <li><span class="ui">Reorder soon</span> — parts at or below their reorder level. This is your buying list.</li>
+          <li><span class="ui">Bills</span> — supplier bills and what is still unpaid. Add a bill, photograph it, mark it paid when it is paid.</li>
+        </ul>
+      </div>
+      <div class="hi">
+        <p>आपकी होम स्क्रीन सीधे स्टोर पर खुलती है: कुल स्टॉक की कीमत, कितने पुर्जे कम पड़ रहे हैं, और पूरी सूची खोजने का बॉक्स।</p>
+        <ul>
+          <li><span class="ui">स्टॉक जोड़ें</span> — माल आने पर। मात्रा और कीमत डालिए; ऐप उस पुर्जे की औसत कीमत खुद ठीक कर लेगा।</li>
+          <li><span class="ui">पुर्जा जारी करें</span> — मैकेनिक को कुछ चाहिए तब। <b>कौन से जॉब कार्ड पर जा रहा है, यह चुनना ज़रूरी है।</b> बिना जॉब कार्ड के पुर्जा देने का कोई रास्ता ही नहीं है।</li>
+          <li><span class="ui">बाकी पुर्जा माँगें</span> — मैकेनिक ने अपने जॉब कार्ड से पुर्जा माँगा है। <span class="ui">पूरा करें</span> दबाइए, पुर्जा उसी काम पर चढ़ जाएगा।</li>
+          <li><span class="ui">जल्द मंगाएं</span> — जो पुर्जे तय सीमा से नीचे आ गए। यही आपकी खरीद सूची है।</li>
+          <li><span class="ui">बिल</span> — सप्लायर के बिल और कितना बकाया है। बिल जोड़िए, फोटो लीजिए, भुगतान होने पर निशान लगाइए।</li>
+        </ul>
+      </div>
+    </div>
+    <div class="note warn">
+      <span class="tag">The stock count · स्टॉक गिनती</span>
+      <div class="bi">
+        <div class="en"><p><span class="ui">Store health</span> lets you count what is physically on the shelf against what the app says should be there. The difference is shrinkage — parts that left without a job card. Do this count regularly; it is the only way the gap ever gets found.</p></div>
+        <div class="hi"><p><span class="ui">स्टोर स्थिति</span> में आप शेल्फ़ पर असल में जो रखा है उसे ऐप के आँकड़े से मिला सकते हैं। जो फ़र्क निकलेगा वही नुकसान है — यानी वे पुर्जे जो बिना जॉब कार्ड के बाहर गए। यह गिनती नियमित कीजिए; फ़र्क पकड़ने का यही एक तरीका है।</p></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MECHANIC -->
+  <div class="sec" data-roles="mechanic">
+    <div class="rolehead"><div class="glyph">🔧</div><h3>Mechanic <span class="devnag">मैकेनिक</span></h3></div>
+    <div class="tabs">
+      <span class="tab"><span class="g">🛠️</span>My work</span>
+      <span class="tab"><span class="g">📦</span>Store</span>
+      <span class="tab"><span class="g">👤</span>Me</span>
+    </div>
+    <div class="bi">
+      <div class="en"><p>Your home screen shows only your jobs — nobody else's. At the top is your score out of 100, your late marks this month, and any penalty. Tap it to see exactly how the score was built. <span class="ui">Team leaderboard</span> shows where you stand.</p></div>
+      <div class="hi"><p>आपकी होम स्क्रीन पर सिर्फ़ आपके काम दिखते हैं — किसी और के नहीं। ऊपर 100 में से आपका स्कोर, इस महीने कितनी बार देर से आए, और कोई जुर्माना। दबाने पर पूरा हिसाब दिखेगा कि स्कोर कैसे बना। <span class="ui">Team leaderboard</span> में आपकी जगह दिखती है।</p></div>
+    </div>
+    <div class="bi">
+      <div class="en">
+        <p><b>How to do one job, start to finish:</b></p>
+        <ol>
+          <li>Open the job card from <span class="ui">My jobs</span>.</li>
+          <li><b>Before you touch anything</b> — take the before photo. Once the part is off the bus you can never take it again.</li>
+          <li>Need a part? Tap <span class="ui">Need a part</span> inside the job card, pick it, enter the quantity. The storekeeper sees the request and issues it against this job.</li>
+          <li>Do the work.</li>
+          <li>Replaced something? Tap <span class="ui">Return old part</span>, photograph the worn part and say what condition it is in.</li>
+          <li>Take the after photo.</li>
+          <li>Tap <span class="ui">Close job</span>. Set the hours you actually worked with − and ＋, then confirm. The card now says <b>waiting for verify</b>.</li>
+        </ol>
+      </div>
+      <div class="hi">
+        <p><b>एक काम शुरू से आख़िर तक:</b></p>
+        <ol>
+          <li><span class="ui">My jobs</span> से जॉब कार्ड खोलिए।</li>
+          <li><b>हाथ लगाने से पहले</b> — पहले की फोटो लीजिए। पुर्जा उतर जाने के बाद यह फोटो दोबारा कभी नहीं मिलेगी।</li>
+          <li>पुर्जा चाहिए? जॉब कार्ड में <span class="ui">पुर्जा चाहिए</span> दबाइए, पुर्जा चुनिए, मात्रा डालिए। स्टोरकीपर माँग देखकर इसी काम पर पुर्जा जारी कर देगा।</li>
+          <li>काम कीजिए।</li>
+          <li>कुछ बदला है? <span class="ui">Return old part</span> दबाकर पुराने पुर्जे की फोटो लीजिए और उसकी हालत बताइए।</li>
+          <li>बाद की फोटो लीजिए।</li>
+          <li><span class="ui">काम बंद करें</span> दबाइए। − और ＋ से असल में लगे घंटे तय कीजिए, फिर पक्का कीजिए। अब कार्ड पर लिखा होगा <b>जाँच बाकी</b>।</li>
+        </ol>
+      </div>
+    </div>
+    <div class="note stop">
+      <span class="tag">The job will not close without both photos · दोनों फोटो बिना काम बंद नहीं होगा</span>
+      <div class="bi">
+        <div class="en"><p>Before photo <b>and</b> after photo. If the repair was done outside by a vendor, a photo of their bill counts instead. This is not the app being difficult — it is the only proof that the work was real, and it is what protects you when someone questions a bill months later.</p></div>
+        <div class="hi"><p>पहले की फोटो <b>और</b> बाद की फोटो। मरम्मत बाहर किसी वेंडर से कराई हो तो उसके बिल की फोटो चल जाएगी। यह ऐप की ज़िद नहीं है — यही एक सबूत है कि काम सच में हुआ, और महीनों बाद कोई बिल पर सवाल उठाए तो यही आपको बचाता है।</p></div>
+      </div>
+    </div>
+    <div class="note info">
+      <span class="tag">You cannot verify your own work · अपना काम खुद नहीं जाँच सकते</span>
+      <div class="bi">
+        <div class="en"><p>Only the supervisor or owner can verify. If a job comes back marked <span class="ui">rework</span>, fix it and close it again — reworks count against your score, so it pays to get it right the first time.</p></div>
+        <div class="hi"><p>जाँच सिर्फ़ सुपरवाइज़र या मालिक कर सकते हैं। कोई काम <span class="ui">rework</span> लिखकर वापस आए तो उसे ठीक करके दोबारा बंद कीजिए — वापस आया काम आपके स्कोर पर असर डालता है, इसलिए पहली बार में सही करना ही फ़ायदे का है।</p></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DRIVER -->
+  <div class="sec" data-roles="driver">
+    <div class="rolehead"><div class="glyph">🧑‍✈️</div><h3>Driver <span class="devnag">ड्राइवर</span></h3></div>
+    <div class="tabs">
+      <span class="tab"><span class="g">🚌</span>My bus</span>
+      <span class="tab"><span class="g">👤</span>Me</span>
+    </div>
+    <div class="bi">
+      <div class="en"><p>Your screen shows your bus, your rating out of 100 and stars, and — if your rating has dropped — exactly what pulled it down over the last ninety days, with one line on how to raise it. The rating is not a mystery: smooth braking, no scratches, no dents, careful parking.</p></div>
+      <div class="hi"><p>आपकी स्क्रीन पर आपकी बस, 100 में से आपकी रेटिंग और सितारे दिखते हैं — और रेटिंग गिरी हो तो पिछले नब्बे दिन में किस वजह से गिरी, यह भी साफ़ लिखा होता है, साथ में एक लाइन कि कैसे बढ़ाएँ। रेटिंग कोई रहस्य नहीं है: आराम से ब्रेक, कोई खरोंच नहीं, कोई डेंट नहीं, सावधानी से पार्किंग।</p></div>
+    </div>
+    <div class="bi">
+      <div class="en">
+        <p><b>Trip cash.</b> Before you leave, tap <span class="ui">Start trip &amp; cash</span>, confirm the route and the cash you are carrying. On the road, add every expense as it happens:</p>
+        <ul>
+          <li><b>Company card</b> — diesel and FASTag. The company pays directly.</li>
+          <li><b>Cash</b> — food, breakdown, police, RTO, cash toll, anything else. This comes out of your allowance.</li>
+        </ul>
+        <p>The card always shows cash left. At the end of the trip tap <span class="ui">End trip</span>. Log expenses as they happen, not from memory at the end of the week.</p>
+      </div>
+      <div class="hi">
+        <p><b>ट्रिप कैश।</b> निकलने से पहले <span class="ui">Start trip &amp; cash</span> दबाइए, रूट और साथ ले जा रहे पैसे पक्के कीजिए। रास्ते में हर खर्च तुरंत जोड़िए:</p>
+        <ul>
+          <li><b>कंपनी कार्ड</b> — डीज़ल और फ़ास्टैग। यह कंपनी सीधे देती है।</li>
+          <li><b>नकद</b> — खाना, ब्रेकडाउन, पुलिस, आरटीओ, नकद टोल, और कुछ भी। यह आपके दिए हुए पैसे में से जाता है।</li>
+        </ul>
+        <p>कार्ड पर हमेशा दिखता रहेगा कि कितना नकद बचा है। ट्रिप ख़त्म होने पर <span class="ui">End trip</span> दबाइए। खर्च उसी वक्त लिखिए — हफ़्ते के आख़िर में याद से नहीं।</p>
+      </div>
+    </div>
+    <div class="bi">
+      <div class="en">
+        <p><b>Reporting a problem.</b> Tap <span class="ui">Report a problem on my bus</span>, pick the area — brakes, engine, AC, suspension, electrical, tyres, gearbox, body — and say what you felt. If typing is hard, use <span class="ui">Voice</span> and just speak, or <span class="ui">Photo</span> and show it.</p>
+        <p>Your report appears under <span class="ui">My reports</span>. When the garage fixes it, it turns green and says <span class="ui">fixed</span> — you can tap through and see what was done. If you reported something by mistake, you can cancel it yourself as long as no job has been opened on it yet.</p>
+      </div>
+      <div class="hi">
+        <p><b>समस्या बताना।</b> <span class="ui">मेरी बस में समस्या बताएं</span> दबाइए, हिस्सा चुनिए — ब्रेक, इंजन, एसी, सस्पेंशन, बिजली, टायर, गियरबॉक्स, बॉडी — और जो महसूस हुआ वह बताइए। टाइप करना मुश्किल लगे तो <span class="ui">आवाज़</span> दबाकर बोल दीजिए, या <span class="ui">फोटो</span> दबाकर दिखा दीजिए।</p>
+        <p>आपकी रिपोर्ट <span class="ui">मेरी रिपोर्ट</span> में दिखेगी। गैराज ठीक कर देगा तो वह हरी हो जाएगी और <span class="ui">ठीक हुआ</span> लिख जाएगा — दबाकर देख सकते हैं कि क्या किया गया। गलती से कोई रिपोर्ट भेज दी हो तो जब तक उस पर काम नहीं खुला, आप खुद रद्द कर सकते हैं।</p>
+      </div>
+    </div>
+    <div class="note warn">
+      <span class="tag">Your documents · आपके कागज़ात</span>
+      <div class="bi">
+        <div class="en"><p><span class="ui">Me</span> → <span class="ui">My documents</span>. Driving licence, Aadhaar and PAN are required — photograph each one and enter the number. Police verification, photograph and medical certificate are optional but useful. The ring shows how much is done. Keep the licence expiry date correct; the garage is warned before it runs out so you are never stopped on the road with an expired licence.</p></div>
+        <div class="hi"><p><span class="ui">मैं</span> → <span class="ui">My documents</span>। ड्राइविंग लाइसेंस, आधार और पैन ज़रूरी हैं — हर एक की फोटो लीजिए और नंबर डालिए। पुलिस वेरिफ़िकेशन, फ़ोटो और मेडिकल सर्टिफ़िकेट ज़रूरी नहीं पर काम के हैं। गोल घेरा बताता है कितना पूरा हुआ। लाइसेंस की समाप्ति तारीख़ सही रखिए; गैराज को पहले ही चेतावनी मिल जाती है ताकि समाप्त लाइसेंस के साथ आप कभी रास्ते में न रुकें।</p></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CONDUCTOR -->
+  <div class="sec" data-roles="conductor">
+    <div class="rolehead"><div class="glyph">🎫</div><h3>Conductor <span class="devnag">कंडक्टर</span></h3></div>
+    <div class="tabs">
+      <span class="tab"><span class="g">🚌</span>My duty</span>
+      <span class="tab"><span class="g">👤</span>Me</span>
+    </div>
+    <div class="bi">
+      <div class="en"><p>Your screen shows the bus you are on, its route, the driver you are paired with, and a contact number you can tap to call. If it says no bus is assigned, tell your supervisor — the pairing is set from the office.</p></div>
+      <div class="hi"><p>आपकी स्क्रीन पर वह बस दिखती है जिस पर आप हैं, उसका रूट, आपके साथ का ड्राइवर, और एक नंबर जिसे दबाकर सीधे कॉल कर सकते हैं। अगर लिखा हो कि कोई बस नहीं दी गई तो सुपरवाइज़र को बताइए — यह जोड़ी दफ़्तर से तय होती है।</p></div>
+    </div>
+    <div class="bi">
+      <div class="en"><p>Your other daily job is attendance: <span class="ui">Me</span> → <span class="ui">Check In</span> when duty starts, <span class="ui">Check Out</span> when it ends.</p></div>
+      <div class="hi"><p>आपका दूसरा रोज़ का काम है हाज़िरी: ड्यूटी शुरू होते ही <span class="ui">मैं</span> → <span class="ui">हाज़िरी लगाएं</span>, और ख़त्म होने पर <span class="ui">छुट्टी</span>।</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ PART 3 ============================ -->
+<section class="part">
+  <header><span class="num">PART 3</span><h2>One repair, from complaint to sign-off <span class="devnag">एक मरम्मत, शिकायत से जाँच तक</span></h2></header>
+
+  <div class="sec">
+    <h3>The job card is the spine <span class="devnag">जॉब कार्ड ही रीढ़ है</span></h3>
+    <p class="who">Everyone · सबके लिए</p>
+    <div class="bi">
+      <div class="en"><p>Everything in the app hangs off the job card — the part that was issued, the hours that were charged, the photos, the old part that came back, the money. This is the sequence, and who does each step.</p></div>
+      <div class="hi"><p>ऐप में सब कुछ जॉब कार्ड से जुड़ा है — जो पुर्जा दिया गया, जो घंटे लगे, फोटो, वापस आया पुराना पुर्जा, और पैसा। यह रहा पूरा क्रम, और कौन सा कदम किसका है।</p></div>
+    </div>
+    <ol class="flow">
+      <li>
+        <span class="actor">Driver · ड्राइवर</span>
+        <div class="bi">
+          <div class="en"><p>Reports the fault from the bus — area, note, photo or voice.</p></div>
+          <div class="hi"><p>बस से ही खराबी बताता है — हिस्सा, नोट, फोटो या आवाज़।</p></div>
+        </div>
+      </li>
+      <li>
+        <span class="actor">Supervisor · सुपरवाइज़र</span>
+        <div class="bi">
+          <div class="en"><p>Turns the report into a job card, or opens one directly. Picks the bus, writes the problem, sets priority, assigns a mechanic.</p></div>
+          <div class="hi"><p>रिपोर्ट को जॉब कार्ड में बदलता है, या सीधे नया कार्ड खोलता है। बस चुनता है, खराबी लिखता है, प्राथमिकता तय करता है, मैकेनिक सौंपता है।</p></div>
+        </div>
+      </li>
+      <li>
+        <span class="actor">Mechanic · मैकेनिक</span>
+        <div class="bi">
+          <div class="en"><p><b>Before photo</b>, taken before any work starts.</p></div>
+          <div class="hi"><p><b>पहले की फोटो</b>, काम शुरू करने से पहले।</p></div>
+        </div>
+      </li>
+      <li>
+        <span class="actor">Mechanic → Store · मैकेनिक → स्टोर</span>
+        <div class="bi">
+          <div class="en"><p>Mechanic requests a part from inside the job card. The storekeeper fulfils it, and the part is issued <b>against this job</b> — stock drops, cost lands on this card.</p></div>
+          <div class="hi"><p>मैकेनिक जॉब कार्ड के अंदर से ही पुर्जा माँगता है। स्टोरकीपर पूरा करता है और पुर्जा <b>इसी काम पर</b> जारी होता है — स्टॉक घटता है, खर्च इसी कार्ड पर चढ़ता है।</p></div>
+        </div>
+      </li>
+      <li>
+        <span class="actor">Mechanic · मैकेनिक</span>
+        <div class="bi">
+          <div class="en"><p>Returns the old part: photograph it, state its condition. This is what stops a good part being swapped out and sold.</p></div>
+          <div class="hi"><p>पुराना पुर्जा वापस करता है: फोटो लेता है, हालत बताता है। यही रोकता है कि अच्छा पुर्जा निकालकर बेच दिया जाए।</p></div>
+        </div>
+      </li>
+      <li>
+        <span class="actor">Mechanic · मैकेनिक</span>
+        <div class="bi">
+          <div class="en"><p><b>After photo</b>, then <span class="ui">Close job</span> with the real hours worked. Status becomes <b>waiting for verify</b>.</p></div>
+          <div class="hi"><p><b>बाद की फोटो</b>, फिर असल घंटों के साथ <span class="ui">काम बंद करें</span>। स्थिति हो जाती है <b>जाँच बाकी</b>।</p></div>
+        </div>
+      </li>
+      <li>
+        <span class="actor">Supervisor or Owner · सुपरवाइज़र या मालिक</span>
+        <div class="bi">
+          <div class="en"><p>Checks the after photo and the returned old part, then <span class="ui">Verify</span>. If the old part is missing, the app warns before letting it through. If the work is not right, <span class="ui">Send back for rework</span>.</p></div>
+          <div class="hi"><p>बाद की फोटो और वापस आया पुराना पुर्जा देखता है, फिर <span class="ui">जाँचें</span>। पुराना पुर्जा वापस न आया हो तो ऐप आगे बढ़ने से पहले चेतावनी देता है। काम ठीक न हो तो <span class="ui">वापस भेजें</span>।</p></div>
+        </div>
+      </li>
+      <li>
+        <span class="actor">Automatic · अपने आप</span>
+        <div class="bi">
+          <div class="en"><p>The driver's original report turns green and says <span class="ui">fixed</span>. The cost joins the month's total. The loop is closed.</p></div>
+          <div class="hi"><p>ड्राइवर की पहली रिपोर्ट हरी होकर <span class="ui">ठीक हुआ</span> दिखाने लगती है। खर्च महीने के कुल में जुड़ जाता है। चक्र पूरा।</p></div>
+        </div>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<!-- ============================ PART 4 ============================ -->
+<section class="part">
+  <header><span class="num">PART 4</span><h2>Six rules that cannot be bent <span class="devnag">छह नियम जो नहीं टूटेंगे</span></h2></header>
+
+  <div class="sec">
+    <p class="who">Everyone · सबके लिए</p>
+    <div class="bi">
+      <div class="en"><p>These are not office preferences. Each one exists because money was walking out of the garage, and each one is enforced by the app itself — you will not be able to get past them.</p></div>
+      <div class="hi"><p>ये दफ़्तर की पसंद नहीं हैं। हर नियम इसलिए है क्योंकि गैराज से पैसा बाहर जा रहा था, और हर नियम ऐप खुद लागू करता है — इन्हें लाँघा नहीं जा सकेगा।</p></div>
+    </div>
+
+    <ol class="rules">
+      <li>
+        <div class="bi">
+          <div class="en"><p><b>A part leaves the store only against a job card.</b></p></div>
+          <div class="hi"><p><b>पुर्जा स्टोर से सिर्फ़ जॉब कार्ड पर ही निकलेगा।</b></p></div>
+        </div>
+        <div class="why">
+          <div class="bi">
+            <div class="en"><p>No job card, no part — for anyone, including the owner. Every issued part is tied to one bus, one job and one name.</p></div>
+            <div class="hi"><p>जॉब कार्ड नहीं तो पुर्जा नहीं — किसी के लिए भी, मालिक के लिए भी। हर जारी पुर्जा एक बस, एक काम और एक नाम से जुड़ा रहता है।</p></div>
+          </div>
+        </div>
+      </li>
+      <li>
+        <div class="bi">
+          <div class="en"><p><b>Before photo and after photo, or the job does not close.</b></p></div>
+          <div class="hi"><p><b>पहले और बाद की फोटो, वरना काम बंद नहीं होगा।</b></p></div>
+        </div>
+        <div class="why">
+          <div class="bi">
+            <div class="en"><p>Repair done outside? The vendor's bill photo takes their place. The app checks before it lets you close.</p></div>
+            <div class="hi"><p>मरम्मत बाहर कराई? तो वेंडर के बिल की फोटो उनकी जगह ले लेगी। बंद करने से पहले ऐप खुद जाँचता है।</p></div>
+          </div>
+        </div>
+      </li>
+      <li>
+        <div class="bi">
+          <div class="en"><p><b>The old part comes back.</b></p></div>
+          <div class="hi"><p><b>पुराना पुर्जा वापस आएगा।</b></p></div>
+        </div>
+        <div class="why">
+          <div class="bi">
+            <div class="en"><p>Photographed, graded, kept. A replacement with no worn part to show for it is the oldest trick there is, and the app flags it at verification.</p></div>
+            <div class="hi"><p>फोटो लीजिए, हालत लिखिए, संभालकर रखिए। पुर्जा बदला और घिसा हुआ पुर्जा दिखाने को न हो — यह सबसे पुरानी चाल है, और ऐप जाँच के वक्त इसे पकड़ लेता है।</p></div>
+          </div>
+        </div>
+      </li>
+      <li>
+        <div class="bi">
+          <div class="en"><p><b>Nobody verifies their own work.</b></p></div>
+          <div class="hi"><p><b>अपना काम कोई खुद नहीं जाँचेगा।</b></p></div>
+        </div>
+        <div class="why">
+          <div class="bi">
+            <div class="en"><p>A mechanic closes; a supervisor or the owner verifies. Two people, always.</p></div>
+            <div class="hi"><p>मैकेनिक काम बंद करता है; सुपरवाइज़र या मालिक जाँचता है। हमेशा दो लोग।</p></div>
+          </div>
+        </div>
+      </li>
+      <li>
+        <div class="bi">
+          <div class="en"><p><b>Attendance is a live face at the garage.</b></p></div>
+          <div class="hi"><p><b>हाज़िरी यानी गैराज पर असली चेहरा।</b></p></div>
+        </div>
+        <div class="why">
+          <div class="bi">
+            <div class="en"><p>Selfie plus location, every time, in and out. Marking someone else present is not a favour — it is taking their wages from the company.</p></div>
+            <div class="hi"><p>हर बार सेल्फ़ी और लोकेशन, आते और जाते दोनों वक्त। किसी और की हाज़िरी लगाना मदद नहीं है — वह कंपनी से उसकी मज़दूरी निकालना है।</p></div>
+          </div>
+        </div>
+      </li>
+      <li>
+        <div class="bi">
+          <div class="en"><p><b>Everything carries the name of who did it.</b></p></div>
+          <div class="hi"><p><b>हर काम पर करने वाले का नाम रहता है।</b></p></div>
+        </div>
+        <div class="why">
+          <div class="bi">
+            <div class="en"><p>Which is why you never share your PIN, and why doing the job properly is what protects you. An honest record is a defence, not a risk.</p></div>
+            <div class="hi"><p>इसीलिए अपना पिन कभी किसी को मत दीजिए, और इसीलिए काम ठीक से करना ही आपकी सुरक्षा है। सच्चा रिकॉर्ड बचाव है, ख़तरा नहीं।</p></div>
+          </div>
+        </div>
+      </li>
+    </ol>
+  </div>
+
+  <div class="sec">
+    <h3>Who can do what <span class="devnag">कौन क्या कर सकता है</span></h3>
+    <p class="who">Everyone · सबके लिए</p>
+    <div class="scroller">
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">Action · काम</th>
+            <th scope="col">👑 Owner</th>
+            <th scope="col">🧑‍🔧 Sup.</th>
+            <th scope="col">📦 Store</th>
+            <th scope="col">🔧 Mech.</th>
+            <th scope="col">🧑‍✈️ Driver</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><th scope="row">Add a bus · बस जोड़ना</th><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td><td class="n">—</td></tr>
+          <tr><th scope="row">Open a job card · जॉब कार्ड खोलना</th><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td><td class="n">—</td></tr>
+          <tr><th scope="row">Close a job · काम बंद करना</th><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td class="y">own</td><td class="n">—</td></tr>
+          <tr><th scope="row">Verify a job · काम जाँचना</th><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td><td class="n">—</td></tr>
+          <tr><th scope="row">Issue a part · पुर्जा जारी करना</th><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="n">ask</td><td class="n">—</td></tr>
+          <tr><th scope="row">Receive stock · स्टॉक लेना</th><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td></tr>
+          <tr><th scope="row">Supplier bills · सप्लायर बिल</th><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td></tr>
+          <tr><th scope="row">Assign driver to bus · ड्राइवर सौंपना</th><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td><td class="n">—</td></tr>
+          <tr><th scope="row">Money &amp; insights · पैसा और विश्लेषण</th><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td><td class="n">—</td></tr>
+          <tr><th scope="row">Challans · चालान</th><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td><td class="n">—</td></tr>
+          <tr><th scope="row">Report a bus problem · समस्या बताना</th><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td><td class="y">✓</td></tr>
+          <tr><th scope="row">Attendance · हाज़िरी</th><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="legend"><b>own</b> — only jobs assigned to you. <b>ask</b> — request it; the storekeeper issues it. · <b>own</b> — सिर्फ़ अपने सौंपे हुए काम। <b>ask</b> — माँगिए; स्टोरकीपर जारी करेगा।</p>
+  </div>
+</section>
+
+<!-- ============================ PART 5 ============================ -->
+<section class="part">
+  <header><span class="num">PART 5</span><h2>When something goes wrong <span class="devnag">कुछ गड़बड़ हो तो</span></h2></header>
+
+  <div class="sec">
+    <p class="who">Everyone · सबके लिए</p>
+    <div class="qa">
+
+      <details>
+        <summary><span class="en">It says "Wrong PIN"</span><span class="hi">"गलत पिन" दिखा रहा है</span></summary>
+        <div class="body">
+          <div class="bi">
+            <div class="en"><p>Check that you picked the right name — several people share a first name. If you still cannot get in after a few tries, the account locks for a short while; wait a few minutes and try again, or ask your supervisor to reset it. Do not keep guessing.</p></div>
+            <div class="hi"><p>पहले देखिए कि नाम सही चुना है या नहीं — कई लोगों का पहला नाम एक जैसा होता है। कुछ कोशिशों के बाद भी न खुले तो खाता थोड़ी देर के लिए बंद हो जाता है; कुछ मिनट रुककर दोबारा कोशिश कीजिए, या सुपरवाइज़र से रीसेट कराइए। बार-बार अंदाज़ा मत लगाइए।</p></div>
+          </div>
+        </div>
+      </details>
+
+      <details>
+        <summary><span class="en">It says it cannot reach the server</span><span class="hi">"सर्वर से संपर्क नहीं" लिख रहा है</span></summary>
+        <div class="body">
+          <div class="bi">
+            <div class="en"><p>That is a network message, not a lost-data message. Keep working — everything is saved on the phone. When you get signal it uploads by itself. Check <span class="ui">Me</span> → <span class="ui">Sync</span> later; when it says <b>All devices up to date</b>, it is done.</p></div>
+            <div class="hi"><p>यह नेटवर्क का संदेश है, डेटा जाने का नहीं। काम करते रहिए — सब कुछ फ़ोन में सेव है। सिग्नल आते ही अपने आप ऊपर चला जाएगा। बाद में <span class="ui">मैं</span> → <span class="ui">सिंक</span> देख लीजिए; जब <b>All devices up to date</b> लिखे, तब समझिए हो गया।</p></div>
+          </div>
+        </div>
+      </details>
+
+      <details>
+        <summary><span class="en">The camera or location does not open</span><span class="hi">कैमरा या लोकेशन नहीं खुल रहा</span></summary>
+        <div class="body">
+          <div class="bi">
+            <div class="en"><p>The phone is blocking it. Open your phone's settings for the browser you use, allow Camera and Location, then reopen the app. Attendance needs both; photos need the camera.</p></div>
+            <div class="hi"><p>फ़ोन ने रोक रखा है। जिस ब्राउज़र से ऐप चलाते हैं उसकी फ़ोन सेटिंग खोलिए, कैमरा और लोकेशन की अनुमति दीजिए, फिर ऐप दोबारा खोलिए। हाज़िरी के लिए दोनों चाहिए; फोटो के लिए कैमरा।</p></div>
+          </div>
+        </div>
+      </details>
+
+      <details>
+        <summary><span class="en">A photo says "Saved on phone"</span><span class="hi">फोटो पर "फ़ोन में सेव" लिखा है</span></summary>
+        <div class="body">
+          <div class="bi">
+            <div class="en"><p>Normal. The photo is safe and will upload when there is network. Do not take it again — a second photo just makes the card confusing.</p></div>
+            <div class="hi"><p>यह सामान्य है। फोटो सुरक्षित है और नेटवर्क आते ही अपलोड हो जाएगी। दोबारा मत लीजिए — दूसरी फोटो से कार्ड बस उलझ जाता है।</p></div>
+          </div>
+        </div>
+      </details>
+
+      <details>
+        <summary><span class="en">"No bus assigned yet"</span><span class="hi">"अभी कोई बस नहीं दी गई"</span></summary>
+        <div class="body">
+          <div class="bi">
+            <div class="en"><p>Only the supervisor or owner can pair you to a bus. Tell them; it takes them ten seconds from <span class="ui">People</span> → <span class="ui">Driver ↔ bus assignments</span>.</p></div>
+            <div class="hi"><p>बस से जोड़ना सिर्फ़ सुपरवाइज़र या मालिक कर सकते हैं। उन्हें बता दीजिए; <span class="ui">लोग</span> → <span class="ui">Driver ↔ bus assignments</span> से उन्हें दस सेकंड लगते हैं।</p></div>
+          </div>
+        </div>
+      </details>
+
+      <details>
+        <summary><span class="en">The screen shows old information</span><span class="hi">स्क्रीन पर पुरानी जानकारी दिख रही है</span></summary>
+        <div class="body">
+          <div class="bi">
+            <div class="en"><p>Close the app fully and open it again. If it is still old, check <span class="ui">Me</span> → <span class="ui">Sync</span> — if that says offline, the phone simply has not been able to fetch what other people did.</p></div>
+            <div class="hi"><p>ऐप पूरी तरह बंद करके दोबारा खोलिए। फिर भी पुरानी दिखे तो <span class="ui">मैं</span> → <span class="ui">सिंक</span> देखिए — अगर वहाँ offline लिखा है तो फ़ोन बाकी लोगों का किया हुआ अभी ला ही नहीं पाया है।</p></div>
+          </div>
+        </div>
+      </details>
+
+      <details>
+        <summary><span class="en">I lost my phone / got a new one</span><span class="hi">फ़ोन खो गया / नया फ़ोन ले लिया</span></summary>
+        <div class="body">
+          <div class="bi">
+            <div class="en"><p>Nothing of yours is lost. Your work lives on the server, not on the phone. Open the app on the new phone, log in with your name and PIN, and everything comes back. Tell your supervisor to change the PIN on the lost phone's account the same day.</p></div>
+            <div class="hi"><p>आपका कुछ नहीं गया। आपका काम सर्वर पर रहता है, फ़ोन पर नहीं। नए फ़ोन में ऐप खोलिए, अपने नाम और पिन से लॉगिन कीजिए, सब वापस आ जाएगा। खोए फ़ोन वाले खाते का पिन उसी दिन सुपरवाइज़र से बदलवा दीजिए।</p></div>
+          </div>
+        </div>
+      </details>
+
+      <details>
+        <summary><span class="en">I closed the wrong job / made a mistake</span><span class="hi">गलत काम बंद कर दिया / गलती हो गई</span></summary>
+        <div class="body">
+          <div class="bi">
+            <div class="en"><p>Tell your supervisor straight away. Before a job is verified they can edit or reassign it. Nothing is deleted quietly — the correction is recorded too, and a mistake owned up to is a small thing. A mistake hidden is not.</p></div>
+            <div class="hi"><p>तुरंत सुपरवाइज़र को बता दीजिए। जाँच होने से पहले वे काम बदल या दोबारा सौंप सकते हैं। कुछ चुपचाप मिटता नहीं — सुधार भी दर्ज होता है, और मान ली गई गलती छोटी बात है। छुपाई गई गलती छोटी बात नहीं है।</p></div>
+          </div>
+        </div>
+      </details>
+
+    </div>
+  </div>
+</section>
+
+<!-- ============================ PART 6 ============================ -->
+<section class="part">
+  <header><span class="num">PART 6</span><h2>Setting the garage up <span class="devnag">गैराज सेट करना</span></h2></header>
+
+  <div class="sec" data-roles="owner supervisor">
+    <h3>Do these once, before the crew starts <span class="devnag">स्टाफ़ के शुरू करने से पहले, एक बार</span></h3>
+    <p class="who">Owner &amp; supervisor · मालिक और सुपरवाइज़र</p>
+    <ol class="flow">
+      <li>
+        <span class="actor">Garage setup · गैराज सेटअप</span>
+        <div class="bi">
+          <div class="en"><p><span class="ui">Me</span> → <span class="ui">Garage setup</span>. <b>Stand at the garage</b> and capture the location — until you do, the app cannot tell whether anyone is really on the premises, and every attendance distance is meaningless. Set the geofence radius, the shift start time that decides who is late, and your labour rate per hour.</p></div>
+          <div class="hi"><p><span class="ui">मैं</span> → <span class="ui">Garage setup</span>। <b>गैराज पर खड़े होकर</b> लोकेशन कैप्चर कीजिए — जब तक यह नहीं होगा, ऐप बता ही नहीं सकता कि कोई सच में गैराज पर है या नहीं, और हाज़िरी की दूरी बेमतलब रहेगी। जियोफ़ेंस का दायरा, शिफ़्ट शुरू होने का समय (जिससे देरी तय होती है), और मज़दूरी की प्रति घंटा दर भी यहीं सेट कीजिए।</p></div>
+        </div>
+      </li>
+      <li>
+        <span class="actor">Crew logins · क्रू लॉगिन</span>
+        <div class="bi">
+          <div class="en"><p><span class="ui">People</span> → <span class="ui">Crew logins &amp; PINs</span> → <span class="ui">Create missing logins &amp; PINs</span>, then <span class="ui">Activate crew server logins</span> so every driver and conductor's check-ins and trips carry a real identity. They all start on <span class="pin">0000</span>; tell them to change it.</p></div>
+          <div class="hi"><p><span class="ui">लोग</span> → <span class="ui">Crew logins &amp; PINs</span> → <span class="ui">Create missing logins &amp; PINs</span>, फिर <span class="ui">Activate crew server logins</span> ताकि हर ड्राइवर-कंडक्टर की हाज़िरी और ट्रिप असली पहचान के साथ दर्ज हों। सबका शुरुआती पिन <span class="pin">0000</span> होता है; उन्हें बदलने को कहिए।</p></div>
+        </div>
+      </li>
+      <li>
+        <span class="actor">Management PINs · मैनेजमेंट पिन</span>
+        <div class="bi">
+          <div class="en"><p>Change the owner, supervisor, storekeeper and mechanic PINs from their starting values before anyone outside the office has the link. <span class="ui">Me</span> → <span class="ui">Change my PIN</span>, on each account.</p></div>
+          <div class="hi"><p>दफ़्तर के बाहर किसी के पास लिंक पहुँचने से पहले मालिक, सुपरवाइज़र, स्टोरकीपर और मैकेनिक के शुरुआती पिन बदल दीजिए। हर खाते पर <span class="ui">मैं</span> → <span class="ui">मेरा पिन बदलें</span>।</p></div>
+        </div>
+      </li>
+      <li>
+        <span class="actor">Stock &amp; vendors · स्टॉक और वेंडर</span>
+        <div class="bi">
+          <div class="en"><p><span class="ui">Me</span> → <span class="ui">Import from Excel</span> loads your existing Parts Master and Vendor Master, so you are not typing the catalogue in by hand.</p></div>
+          <div class="hi"><p><span class="ui">मैं</span> → <span class="ui">Import from Excel</span> से आपकी पुरानी Parts Master और Vendor Master फ़ाइलें चढ़ जाती हैं, ताकि पूरी सूची हाथ से न टाइप करनी पड़े।</p></div>
+        </div>
+      </li>
+      <li>
+        <span class="actor">Phone alerts · फ़ोन अलर्ट</span>
+        <div class="bi">
+          <div class="en"><p><span class="ui">Me</span> → <span class="ui">Phone alerts</span> → <span class="ui">Enable alerts</span>, then send a test. This is how night movement and other urgent warnings reach you when the app is closed.</p></div>
+          <div class="hi"><p><span class="ui">मैं</span> → <span class="ui">Phone alerts</span> → <span class="ui">Enable alerts</span>, फिर एक टेस्ट भेजिए। ऐप बंद होने पर भी रात में बस चलने जैसी ज़रूरी चेतावनियाँ इसी से आपके पास पहुँचती हैं।</p></div>
+        </div>
+      </li>
+    </ol>
+    <div class="note warn">
+      <span class="tag">Challan checks cost money · चालान जाँच पर पैसा लगता है</span>
+      <div class="bi">
+        <div class="en"><p>Each bus you check spends one paid credit, whether or not it has a challan. Use <span class="ui">Check unchecked bus(es)</span> rather than re-checking the whole fleet out of habit.</p></div>
+        <div class="hi"><p>हर बस जाँचने पर एक क्रेडिट खर्च होता है, चाहे उस पर चालान हो या न हो। आदतन पूरे बेड़े को दोबारा जाँचने के बजाय <span class="ui">Check unchecked bus(es)</span> का इस्तेमाल कीजिए।</p></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sec" data-roles="owner">
+    <h3>Reading the intelligence screens <span class="devnag">विश्लेषण की स्क्रीनें पढ़ना</span></h3>
+    <p class="who">Owner · मालिक</p>
+    <div class="bi">
+      <div class="en">
+        <ul>
+          <li><b>Pilferage radar</b> — the last 180 days, one risk score per mechanic, built from missing or suspect old parts, warranty charges, jobs billed with no proof photo, and parts coming back too soon. Tap any flag to open the job behind it. A high score is a reason to look, not a verdict.</li>
+          <li><b>Store health</b> — what the last stock count found missing, in rupees.</li>
+          <li><b>Money-pit buses</b> — cost per kilometre against the fleet median. A bus well above the median is either being run hard or being written up dishonestly.</li>
+          <li><b>Fuel</b> — kilometres per litre between fills. A drop of more than a fifth against that bus's own normal is flagged; it is either an engine problem or diesel leaving the tank.</li>
+        </ul>
+      </div>
+      <div class="hi">
+        <ul>
+          <li><b>Pilferage radar</b> — पिछले 180 दिन, हर मैकेनिक का एक जोखिम स्कोर, जो बनता है गायब या शक़ वाले पुराने पुर्जों, वारंटी के चार्ज, बिना सबूत फोटो के बिल हुए काम, और बहुत जल्दी दोबारा बदले गए पुर्जों से। किसी भी निशान को दबाकर उसके पीछे का काम खोल सकते हैं। ऊँचा स्कोर देखने की वजह है, फ़ैसला नहीं।</li>
+          <li><b>Store health</b> — पिछली स्टॉक गिनती में कितने रुपये का माल कम निकला।</li>
+          <li><b>ज़्यादा खर्च वाली बसें</b> — प्रति किलोमीटर खर्च, बेड़े के बीच के आँकड़े के मुकाबले। जो बस बहुत ऊपर है वह या तो बहुत चल रही है या उसका हिसाब सही नहीं लिखा जा रहा।</li>
+          <li><b>ईंधन</b> — दो भराई के बीच किलोमीटर प्रति लीटर। उसी बस के अपने औसत से पाँचवें हिस्से से ज़्यादा गिरावट पर निशान लग जाता है; वजह या तो इंजन की दिक्कत है या टंकी से डीज़ल जाना।</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <p lang="en">Keep this open on the wall of the workshop. If something in the app does not match what is written here, the app is right and this page needs updating — tell the office.</p>
+    <p lang="hi" class="hi">इसे वर्कशॉप की दीवार पर लगा रहने दीजिए। ऐप में कुछ इससे अलग दिखे तो ऐप सही है और यह पन्ना बदलना है — दफ़्तर को बता दीजिए।</p>
+    <span class="stamp">Garage Saathi · Mahalaxmi Travels, Jaipur</span>
+  </div>
+</footer>
+
+<script>
+(function () {
+  var body = document.body;
+  var LS = window.localStorage;
+
+  function apply(group, value) {
+    body.setAttribute('data-' + group, value);
+    var seg = document.getElementById(group === 'role' ? 'roleseg' : 'langseg');
+    var btns = seg.querySelectorAll('button');
+    for (var i = 0; i < btns.length; i++) {
+      btns[i].setAttribute('aria-pressed', String(btns[i].getAttribute('data-' + group) === value));
+    }
+    if (group === 'role') hideEmptyParts();
+    try { LS.setItem('gsman.' + group, value); } catch (e) {}
+  }
+
+  // A part whose every section is filtered out should not leave a stranded heading.
+  function hideEmptyParts() {
+    var parts = document.querySelectorAll('.part');
+    for (var i = 0; i < parts.length; i++) {
+      var secs = parts[i].querySelectorAll('.sec');
+      var visible = 0;
+      for (var j = 0; j < secs.length; j++) {
+        if (getComputedStyle(secs[j]).display !== 'none') visible++;
+      }
+      parts[i].classList.toggle('empty', visible === 0);
+    }
+  }
+
+  function wire(id, group) {
+    document.getElementById(id).addEventListener('click', function (e) {
+      var b = e.target.closest('button[data-' + group + ']');
+      if (b) apply(group, b.getAttribute('data-' + group));
+    });
+  }
+  wire('roleseg', 'role');
+  wire('langseg', 'lang');
+
+  var savedRole = null, savedLang = null;
+  try { savedRole = LS.getItem('gsman.role'); savedLang = LS.getItem('gsman.lang'); } catch (e) {}
+  apply('role', savedRole || 'all');
+  apply('lang', savedLang || 'both');
+
+  document.getElementById('printbtn').addEventListener('click', function () { window.print(); });
+})();
+</script>
