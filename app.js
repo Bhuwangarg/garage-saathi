@@ -534,14 +534,50 @@ const INCIDENT = {
 };
 const driverById = (id) => byId(S.cache.drivers || [], id);
 const driverName = (id) => (driverById(id) || {}).name || '—';
-const driverOfBus = (busId) => (S.cache.drivers || []).find((d) => d.busId === busId) || null;
-const driverForUser = (userId) => (S.cache.drivers || []).find((d) => d.userId === userId) || null;
-// Driver documents are identity PII (licence, Aadhaar, PAN, police verification).
+
+/* ===== Crew records — drivers AND conductors ==============================
+ * Both live in the `drivers` store. The office asks the same questions about
+ * each of them (who is he, what is his phone, whose licence expires this month,
+ * is his Aadhaar on file), and that store is already synced and already
+ * write-gated to owner/supervisor on the server — a separate store would have
+ * meant a server deploy and a second place for the same truth to live.
+ *
+ * A record with no `crewRole` is a driver. Every record that existed before
+ * conductors were given profiles was one, so the absent value is the safe
+ * default and nothing had to be backfilled.
+ *
+ * `status` is 'active' or 'left', and a record is never deleted. A man who left
+ * in 2024 and turns up again in 2026 has to be findable — with the licence
+ * number he gave last time and the reason he went. That is the whole point of
+ * keeping a bank rather than a list.
+ */
+const crewRoleOf = (d) => (d && d.crewRole === 'conductor' ? 'conductor' : 'driver');
+const crewStatusOf = (d) => ((d && d.status) === 'left' ? 'left' : 'active');
+const CREW_ROLE_META = { driver: ['🧑‍✈️', 'Driver'], conductor: ['🎫', 'Conductor'] };
+const allCrew = () => (S.cache.drivers || []);
+const activeCrew = () => allCrew().filter((d) => crewStatusOf(d) === 'active');
+const activeDrivers = () => activeCrew().filter((d) => crewRoleOf(d) === 'driver');
+// Bus-facing lookups mean the *driver* of the bus — never the conductor, who now
+// also carries that busId. Someone who has left crews nothing.
+const driverOfBus = (busId) => activeDrivers().find((d) => d.busId === busId) || null;
+const conductorOfBus = (busId) => activeCrew().find((d) => d.busId === busId && crewRoleOf(d) === 'conductor') || null;
+// Identity lookups stay role-agnostic: a conductor opening "my documents" must
+// find his own record.
+const crewForUser = (userId) => allCrew().find((d) => d.userId === userId) || null;
+const driverForUser = (userId) => allCrew().find((d) => d.userId === userId && crewRoleOf(d) === 'driver') || null;
+
+// Aadhaar is shown masked. The Aadhaar Act forbids publishing the number, and
+// nobody working a list needs all twelve digits — the last four are enough to
+// tell two Rameshs apart. Owner/supervisor can reveal one number at a time, on
+// the document screen where the photo already is.
+const maskAadhaar = (n) => { const d = String(n || '').replace(/\D/g, ''); return d.length < 5 ? '' : 'XXXX XXXX ' + d.slice(-4); };
+
+// Crew documents are identity PII (licence, Aadhaar, PAN, police verification).
 // Staff who manage drivers may open anyone's; everyone else only their own. Checked
 // on the read AND write paths — ROUTE_PERM only guards navigation, not the sheets.
 const canDriverDocs = (driverId) => {
   if (can(S.user.role, 'manageDrivers')) return true;
-  const own = driverForUser(S.user.id);
+  const own = crewForUser(S.user.id);
   return !!(own && own.id === driverId);
 };
 const driverIncidents = (driverId) => (S.cache.incidents || []).filter((i) => i.driverId === driverId);
@@ -620,7 +656,7 @@ const TAB_OF = {
   livemap: 'fleet', track: 'fleet', routes: 'fleet', forecast: 'fleet', busreport: 'fleet',
   // people
   drivers: 'people', assignments: 'people', safety: 'people', scoreboard: 'people',
-  scorecard: 'people', crewpins: 'people',
+  scorecard: 'people', crewpins: 'people', crewbank: 'people',
   // home triage entries
   insights: 'home', pilferage: 'home',
 };
@@ -908,7 +944,7 @@ function viewFleet() {
 
 // PEOPLE — drivers worst-first, staff, attendance, scorecards, safety, assignments.
 function viewPeople() {
-  const drivers = [...(S.cache.drivers || [])].map((d) => ({ d, score: driverScore(d.id) })).sort((a, b) => a.score - b.score);
+  const drivers = activeDrivers().map((d) => ({ d, score: driverScore(d.id) })).sort((a, b) => a.score - b.score);
   const inToday = (S.cache.att || []).filter((a) => a.type === 'in' && isToday(a.at)).map((a) => a.userId);
   const presentCount = new Set(inToday).size;
 
@@ -930,6 +966,7 @@ function viewPeople() {
     <div class="trow" data-act="openAssignments"><div class="ti">🔗</div><div class="tm"><div class="tt">Driver ↔ bus assignments</div></div><div class="tc">›</div></div>
     <div class="trow" data-act="openSafety"><div class="ti">🛡️</div><div class="tm"><div class="tt">Safety & GPS events</div></div><div class="tc">›</div></div>
     <div class="trow" data-act="openScoreboard"><div class="ti">🏆</div><div class="tm"><div class="tt">Scoreboard</div></div><div class="tc">›</div></div>
+    <div class="trow" data-act="openCrewBank"><div class="ti">🗂️</div><div class="tm"><div class="tt">Crew data bank — drivers &amp; conductors</div><div class="tiny muted">Licence, Aadhaar, phone, photo · joining &amp; leaving</div></div><div class="tc">›</div></div>
     <div class="trow" data-act="openCrewPins"><div class="ti">🔑</div><div class="tm"><div class="tt">Crew logins & PINs</div></div><div class="tc">›</div></div>
     <div class="trow" data-act="openStaff"><div class="ti">🧑‍🔧</div><div class="tm"><div class="tt">Staff</div></div><div class="tc">›</div></div></div>`;
   shell(t('people'), body);
@@ -2422,9 +2459,9 @@ function viewMe() {
     <div class="li" data-act="logout"><div class="ava">🚪</div><div class="main"><div class="t">${t('logout')}</div></div></div>
   </div>`;
 
-  // A driver's own document vault
-  if (S.user.role === 'driver') {
-    const md = (S.cache.drivers || []).find((x) => x.userId === S.user.id);
+  // A driver's or conductor's own document vault
+  if (S.user.role === 'driver' || S.user.role === 'conductor') {
+    const md = crewForUser(S.user.id);
     if (md) { const ds = driverDocStatus(md);
       body += `<div class="card" data-act="openDriverDocs" data-driver="${md.id}" style="cursor:pointer"><div class="row between">
         <div class="row" style="gap:12px;align-items:center">${progressRing(ds.pct)}
@@ -3142,7 +3179,7 @@ function viewImport() {
     <input id="imp-file" type="file" accept=".xls,.xlsx,.xml,.txt" style="margin:6px 0 12px;width:100%">
     ${li ? `<div class="banner ${li.error ? 'warn' : 'ok'}" style="margin-top:6px">${esc(li.error || summary)}</div>` : ''}
   </div>`;
-  body += `<div class="card"><div class="row between small"><span class="muted">In the system now</span><b>${(S.cache.parts || []).length} parts · ${(S.cache.vendors || []).length} vendors · ${(S.cache.buses || []).length} buses · ${(S.cache.drivers || []).length} drivers</b></div></div>`;
+  body += `<div class="card"><div class="row between small"><span class="muted">In the system now</span><b>${(S.cache.parts || []).length} parts · ${(S.cache.vendors || []).length} vendors · ${(S.cache.buses || []).length} buses · ${activeDrivers().length} drivers · ${activeCrew().length - activeDrivers().length} conductors</b></div></div>`;
   shell('Import from Excel', body);
   const inp = document.getElementById('imp-file');
   if (inp) inp.onchange = () => { const f = inp.files && inp.files[0]; if (f) handleImportFile(f); };
@@ -4402,7 +4439,7 @@ function driverLi(d) {
       <div class="stars">${starStr(scoreStars(score))}</div></div></div>`;
 }
 function viewDrivers() {
-  const list = [...(S.cache.drivers || [])].sort((a, b) => driverScore(a.id) - driverScore(b.id)); // worst first
+  const list = [...activeDrivers()].sort((a, b) => driverScore(a.id) - driverScore(b.id)); // worst first
   let body = '';
   if (can(S.user.role, 'assignDriver')) {
     body += `<button class="btn" data-act="openAssignments" style="margin-bottom:12px">🔁 Driver ↔ Bus assignments</button>`;
@@ -4413,7 +4450,7 @@ function viewDrivers() {
 
 // Dedicated one-screen view of who drives what — reassign in one place.
 function viewAssignments() {
-  const drivers = [...(S.cache.drivers || [])].sort((a, b) => a.name.localeCompare(b.name));
+  const drivers = [...activeDrivers()].sort((a, b) => a.name.localeCompare(b.name));
   const buses = S.cache.buses;
   let body = `<div class="card"><div class="tiny muted">Tap a driver to change their bus, or tap a driverless bus to assign one. Each bus has at most one driver.</div></div>`;
   body += `<div class="card"><div class="row between"><h3>Drivers</h3><span class="badge b-low">${drivers.length}</span></div>`;
@@ -4441,17 +4478,49 @@ function viewDriverDetail(id) {
   const reps = (S.cache.driverreports || []).filter((r) => r.driverId === id).sort((a, b) => b.at - a.at);
   const byType = {}; incs.forEach((i) => { byType[i.type] = (byType[i.type] || 0) + 1; });
 
+  const crole = crewRoleOf(d), rmeta = CREW_ROLE_META[crole], hasLeft = crewStatusOf(d) === 'left';
+  const yrs = (ts) => (ts ? Math.floor((Date.now() - ts) / (365.25 * day)) : null);
+  const age = yrs(d.dob), tenure = d.joinedAt ? yrs(d.joinedAt) : null;
+  const canManage = can(S.user.role, 'manageDrivers');
+
   let body = `<div class="card"><div class="row">
-      <div class="ava" style="width:52px;height:52px;font-size:26px">🧑‍✈️</div>
+      <div class="ava" style="width:52px;height:52px;font-size:26px">${d.photo ? `<img src="${esc(d.photo)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:16px">` : rmeta[0]}</div>
       <div style="flex:1"><div style="font-weight:800;font-size:17px">${esc(d.name)}</div>
-        <div class="small muted">${esc(d.phone || '')} · ${esc(d.license || '')}</div></div>
+        <div class="small muted">${esc(rmeta[1])}${d.phone ? ' · ' + esc(d.phone) : ''}${crewLicenceNo(d) ? ' · ' + esc(crewLicenceNo(d)) : ''}</div></div>
       <span class="badge ${scoreClass(score)}">${score}/100</span></div>
+    ${hasLeft ? `<div class="hr"></div><div class="tiny" style="color:#ef4444;font-weight:700">📦 Left${d.leftAt ? ' on ' + fmtDate(d.leftAt) : ''}${d.leftReason ? ' — ' + esc(d.leftReason) : ''}${d.rehire ? ` · rehire: ${esc(d.rehire.toUpperCase())}` : ''}</div>` : ''}
     <div class="hr"></div>
-    <div class="row between"><div><div class="tiny muted">Assigned bus</div><b>${bus ? esc(bus.regNo) : '—'}</b></div>
+    <div class="row between"><div><div class="tiny muted">${crole === 'conductor' ? 'Bus' : 'Assigned bus'}</div><b>${bus ? esc(bus.regNo) : '—'}</b></div>
       <div style="text-align:right"><div class="tiny muted">Rating</div><div class="stars">${starStr(scoreStars(score))}</div></div></div>
     <div class="spacer"></div>
-    <div class="btnrow"><button class="btn sm" data-act="assignBus" data-driver="${d.id}">Change bus</button>
-      <button class="btn sm" data-act="reportProblem" data-bus="${d.busId || ''}" data-driver="${d.id}">Log report</button></div></div>`;
+    <div class="btnrow">${hasLeft ? (canManage ? `<button class="btn sm" data-act="crewRejoin" data-driver="${d.id}">↩️ Rejoin</button>` : '')
+      : `<button class="btn sm" data-act="assignBus" data-driver="${d.id}">Change bus</button>
+      <button class="btn sm" data-act="reportProblem" data-bus="${d.busId || ''}" data-driver="${d.id}">Log report</button>`}</div></div>`;
+
+  // Who he is — the half of the bank that is not documents. Rows are omitted
+  // when empty rather than shown as dashes, so the gaps are visible at a glance.
+  const row = (label, val, href) => val ? `<div class="row between small" style="padding:4px 0"><span class="muted">${label}</span>${
+    href ? `<a href="${href}" style="font-weight:700;color:var(--brand2,#2563eb);text-decoration:none">${esc(val)}</a>` : `<b>${esc(val)}</b>`}</div>` : '';
+  const aadhaar = maskAadhaar(crewAadhaarNo(d));
+  const licDoc = docOf(d, 'license') || {};
+  let details = row('Phone', d.phone, d.phone ? 'tel:' + _digits(d.phone) : null)
+    + row('Alternate phone', d.altPhone, d.altPhone ? 'tel:' + _digits(d.altPhone) : null)
+    + row('Licence no.', crewLicenceNo(d))
+    + row('Licence expiry', licDoc.expiry ? fmtDate(licDoc.expiry) : '')
+    + row('Aadhaar', aadhaar)
+    + row('Joined', d.joinedAt ? fmtDate(d.joinedAt) + (tenure ? ` · ${tenure} yr${tenure === 1 ? '' : 's'}` : '') : '')
+    + row('Age', age ? age + ' yrs' : '')
+    + row('Blood group', d.bloodGroup)
+    + row('Address', d.address)
+    + row('Monthly salary', d.salaryMonthly ? money(d.salaryMonthly) : '')
+    + row('Emergency contact', [d.emgName, d.emgRelation].filter(Boolean).join(' · '))
+    + row('Emergency phone', d.emgPhone, d.emgPhone ? 'tel:' + _digits(d.emgPhone) : null)
+    + row('Reference', d.refName)
+    + row('Reference phone', d.refPhone, d.refPhone ? 'tel:' + _digits(d.refPhone) : null);
+  body += `<div class="card"><div class="row between"><h3>Details</h3>${
+    canManage ? `<button class="btn sm ghost" data-act="editCrewProfile" data-driver="${d.id}" style="width:auto">✏️ Edit</button>` : ''}</div>
+    ${details || '<div class="muted small">Nothing recorded yet — tap Edit to fill his details.</div>'}
+    ${canManage && !hasLeft ? `<div class="spacer"></div><button class="btn sm ghost" data-act="crewExit" data-driver="${d.id}">📦 Mark as left</button>` : ''}</div>`;
 
   // Document vault summary (tap to manage)
   const ds = driverDocStatus(d);
@@ -4719,12 +4788,12 @@ const _pin4 = (phone) => '0000';   // uniform crew PIN (owner's choice); staff c
 async function createCrewLogins() {
   const haveUser = new Set((S.cache.users || []).map((u) => u.id));
   const newUsers = [], updDrivers = [], updBuses = []; let driverLogins = 0, conductorLogins = 0;
-  (S.cache.drivers || []).forEach((d) => {
+  activeCrew().forEach((d) => {
     if (d.userId && haveUser.has(d.userId)) return;
-    const uid2 = 'u-' + d.id;
-    if (!haveUser.has(uid2)) { newUsers.push({ id: uid2, name: d.name, role: 'driver' }); haveUser.add(uid2); }
+    const uid2 = d.userId || ('u-' + d.id), crole = crewRoleOf(d);
+    if (!haveUser.has(uid2)) { newUsers.push({ id: uid2, name: d.name, role: crole }); haveUser.add(uid2); }
     if (!credGet(uid2)) credSet(uid2, _pin4(d.phone));
-    d.userId = uid2; updDrivers.push(d); driverLogins++;
+    d.userId = uid2; updDrivers.push(d); if (crole === 'conductor') conductorLogins++; else driverLogins++;
   });
   (S.cache.buses || []).forEach((b) => {
     const nm = (b.conductor || '').trim(); if (!nm || /^[-–—\s.]*$/.test(nm)) return;
@@ -4798,17 +4867,34 @@ function viewCrewPins() {
 }
 
 /* ===== Driver document vault ============================================= */
+/* What is mandatory depends on the job. A conductor has no driving licence and
+ * usually no PAN — he earns below the threshold — so demanding both of him only
+ * teaches the office to ignore the nag list. Mandatory is therefore the short
+ * list nobody can be employed without: identity, a face, and a licence for the
+ * man who actually drives. */
 const DRIVER_DOCS = [
-  { key: 'license', label: 'Driving License', icon: '🚗', mandatory: true, num: true, expiry: true },
-  { key: 'aadhaar', label: 'Aadhaar Card', icon: '🆔', mandatory: true, num: true },
-  { key: 'pan', label: 'PAN Card', icon: '💳', mandatory: true, num: true },
-  { key: 'police', label: 'Police Verification', icon: '👮', mandatory: false, expiry: true },
-  { key: 'photo', label: 'Photograph', icon: '📷', mandatory: false },
-  { key: 'medical', label: 'Medical Cert.', icon: '🩺', mandatory: false, expiry: true },
+  { key: 'license', label: 'Driving License', icon: '🚗', num: true, expiry: true, mandatoryFor: ['driver'] },
+  { key: 'aadhaar', label: 'Aadhaar Card', icon: '🆔', num: true, mask: true, mandatoryFor: ['driver', 'conductor'] },
+  { key: 'photo', label: 'Photograph', icon: '📷', mandatoryFor: ['driver', 'conductor'] },
+  { key: 'pan', label: 'PAN Card', icon: '💳', num: true, mandatoryFor: [] },
+  { key: 'police', label: 'Police Verification', icon: '👮', expiry: true, mandatoryFor: [] },
+  { key: 'medical', label: 'Medical Cert.', icon: '🩺', expiry: true, mandatoryFor: [] },
 ];
+const docIsMandatory = (doc, crewRole) => (doc.mandatoryFor || []).includes(crewRole || 'driver');
+const docsFor = (crewRole) => DRIVER_DOCS;
 const docOf = (d, key) => (d.docs || {})[key];
+// Documents that carry a date and are within a month of running out (or already
+// have). Drives both the crew bank's "Expiring" filter and the insight nags.
+function crewExpiring(d, withinDays) {
+  const lim = withinDays == null ? 30 : withinDays;
+  return DRIVER_DOCS.filter((x) => x.expiry).map((x) => ({ doc: x, cur: docOf(d, x.key) }))
+    .filter((r) => r.cur && r.cur.expiry && daysLeft(r.cur.expiry) <= lim)
+    .map((r) => ({ label: r.doc.label, key: r.doc.key, expiry: r.cur.expiry, dl: daysLeft(r.cur.expiry) }))
+    .sort((a, b) => a.dl - b.dl);
+}
 function driverDocStatus(d) {
-  const mand = DRIVER_DOCS.filter((x) => x.mandatory);
+  const role = crewRoleOf(d);
+  const mand = DRIVER_DOCS.filter((x) => docIsMandatory(x, role));
   const mandDone = mand.filter((x) => docOf(d, x.key) && docOf(d, x.key).photo).length;
   const allDone = DRIVER_DOCS.filter((x) => docOf(d, x.key) && docOf(d, x.key).photo).length;
   return { mandDone, mandTotal: mand.length, allDone, allTotal: DRIVER_DOCS.length, pct: mand.length ? Math.round(mandDone / mand.length * 100) : 100 };
@@ -4826,41 +4912,53 @@ function progressRing(pct, animate) {
 function viewDriverDocs(driverId) {
   const d = driverById(driverId); if (!d) return viewDrivers();
   if (!canDriverDocs(d.id)) return viewHome();
-  const docs = d.docs || {}, st = driverDocStatus(d);
+  const docs = d.docs || {}, st = driverDocStatus(d), crole = crewRoleOf(d);
   let body = `<div class="card"><div class="ringwrap">${progressRing(st.pct, true)}
     <div><div style="font-weight:800;font-size:17px">${esc(d.name)}</div>
-      <div class="small muted">${st.mandDone}/${st.mandTotal} mandatory · ${st.allDone}/${st.allTotal} total on file</div>
+      <div class="small muted">${CREW_ROLE_META[crole][1]} · ${st.mandDone}/${st.mandTotal} mandatory · ${st.allDone}/${st.allTotal} total on file</div>
       <div class="tiny" style="margin-top:5px;color:${st.mandDone < st.mandTotal ? '#ef4444' : '#16a571'};font-weight:700">${st.mandDone < st.mandTotal ? '⚠️ Mandatory documents missing' : '✓ All mandatory documents on file'}</div></div></div></div>`;
   body += `<div class="docgrid">`;
   body += DRIVER_DOCS.map((doc, i) => {
     const cur = docs[doc.key], has = cur && cur.photo;
+    const numOnly = !!(cur && !cur.photo && cur.number);
+    const mand = docIsMandatory(doc, crole);
     const exp = has && doc.expiry && cur.expiry, expSoon = exp && daysLeft(cur.expiry) <= 30;
-    const cls = has ? 'done' : (doc.mandatory ? 'missing' : '');
-    const stat = has ? (exp ? (expSoon ? `<span style="color:#f59e0b">expires ${fmtDate(cur.expiry)}</span>` : 'valid') : 'on file') : (doc.mandatory ? 'Required' : 'Add');
+    const cls = has ? 'done' : (mand && !numOnly ? 'missing' : '');
+    // Aadhaar shows as XXXX XXXX 1234 here and everywhere else it is listed.
+    const num = has && cur.number ? esc(doc.mask ? maskAadhaar(cur.number) : cur.number) : '';
+    const numMask = numOnly ? esc(doc.mask ? maskAadhaar(cur.number) : cur.number) : '';
+    const stat = has ? (exp ? (expSoon ? `<span style="color:#f59e0b">expires ${fmtDate(cur.expiry)}</span>` : 'valid') : (num || 'on file'))
+      : numOnly ? `${numMask}<br><span style="color:#f59e0b">photo needed</span>` : (mand ? 'Required' : 'Add');
     return `<div class="doccard ${cls}" data-act="driverDoc" data-driver="${d.id}" data-key="${doc.key}" style="animation-delay:${Math.min(i, 8) * 0.05}s">
       ${has ? '<div class="dtick">✅</div>' : ''}
       <div class="dicon">${doc.icon}</div>
       <div class="dname">${doc.label}</div>
-      <div class="dstat" style="${has ? 'color:var(--muted,#8b91a0)' : 'color:' + (doc.mandatory ? '#ef4444' : '#8b91a0')}">${stat}</div>
-      ${doc.mandatory && !has ? '<div class="mand">MANDATORY</div>' : ''}</div>`;
+      <div class="dstat" style="${has ? 'color:var(--muted,#8b91a0)' : 'color:' + (mand ? '#ef4444' : '#8b91a0')}">${stat}</div>
+      ${mand && !has ? '<div class="mand">MANDATORY</div>' : ''}</div>`;
   }).join('');
   body += `</div><div class="spacer"></div>`;
   shell('Documents', body);
   const fg = document.querySelector('.ring-svg .fg');
   if (fg) requestAnimationFrame(() => requestAnimationFrame(() => { fg.style.strokeDashoffset = fg.getAttribute('data-off'); }));
 }
-let _docShot = null;
+let _docShot = null, _docNumCur = '';
 function sheetDriverDoc(driverId, key) {
   if (!canDriverDocs(driverId)) return toast('Not allowed');
   const doc = DRIVER_DOCS.find((x) => x.key === key); if (!doc) return;
   const d = driverById(driverId); const cur = (d.docs || {})[key] || {};
+  const crole = crewRoleOf(d), mand = docIsMandatory(doc, crole);
   _docShot = cur.photo || null;
+  // A stored Aadhaar opens masked. Revealing it is a deliberate, separate tap,
+  // and only for the roles that manage crew.
+  _docNumCur = cur.number || '';
+  const masked = !!(doc.mask && _docNumCur);
   openSheet(doc.label, `
-    <div class="tiny muted" style="margin-bottom:12px">${doc.icon} ${doc.mandatory ? 'Mandatory document — required for every driver.' : 'Optional document.'}</div>
+    <div class="tiny muted" style="margin-bottom:12px">${doc.icon} ${mand ? `Mandatory document — required for every ${esc(CREW_ROLE_META[crole][1].toLowerCase())}.` : 'Optional document.'}</div>
     <button class="btn" data-act="captureDoc">📷 ${cur.photo ? 'Replace photo' : 'Take photo of document'}</button>
     <div id="doc-prev" class="thumbs" style="margin:10px 0">${cur.photo ? `<img class="thumb" src="${esc(cur.photo)}">` : ''}</div>
-    ${doc.num ? `<label class="field"><span class="lbl">🔢 ${doc.label} number</span><input id="doc-num" value="${esc(cur.number || '')}" placeholder="Enter or scan"></label>
-      <button class="btn sm ghost" data-act="scanDocNum" style="margin:-4px 0 10px">📷 Scan number</button>` : ''}
+    ${doc.num ? `<label class="field"><span class="lbl">🔢 ${doc.label} number</span><input id="doc-num" value="${esc(masked ? maskAadhaar(_docNumCur) : _docNumCur)}" ${masked ? 'readonly' : ''} placeholder="Enter or scan"></label>
+      ${masked ? `<div class="btnrow" style="margin:-4px 0 10px"><button class="btn sm ghost" data-act="revealDocNum">👁 Show full number</button><button class="btn sm ghost" data-act="editDocNum">✏️ Change</button></div>`
+        : `<button class="btn sm ghost" data-act="scanDocNum" style="margin:-4px 0 10px">📷 Scan number</button>`}` : ''}
     ${doc.expiry ? `<label class="field"><span class="lbl">📅 Expiry date</span><input id="doc-exp" type="date" value="${cur.expiry ? new Date(cur.expiry).toISOString().slice(0, 10) : ''}"></label>` : ''}
     <button class="btn primary" data-act="saveDriverDoc" data-driver="${driverId}" data-key="${key}">Save document</button>`);
 }
@@ -4886,11 +4984,389 @@ async function saveDriverDoc(driverId, key) {
   if (!_docShot) return toast('Take a photo of the document');
   const photo = await Sync.uploadPhoto(_docShot) || _docShot;
   const entry = { photo, at: Date.now(), by: S.user.id };
-  const numEl = document.getElementById('doc-num'); if (numEl) entry.number = numEl.value.trim();
+  const numEl = document.getElementById('doc-num');
+  // A masked field the user never touched still reads "XXXX XXXX 1234" — saving
+  // that would overwrite the real number with its own mask.
+  if (numEl) { const v = numEl.value.trim(); entry.number = (/^X{4}/i.test(v) || (!v && _docNumCur)) ? _docNumCur : v; }
   const expEl = document.getElementById('doc-exp'); if (expEl && expEl.value) entry.expiry = new Date(expEl.value).getTime();
   d.docs = Object.assign({}, d.docs, { [key]: entry });
   await DB.put('drivers', d);
   _docShot = null; await load(); closeSheet(); toast('Document saved ✓'); viewDriverDocs(driverId);
+}
+
+/* ===== Crew Data Bank ======================================================
+ * The company register: every driver and conductor ever employed, searchable,
+ * with licence, Aadhaar, phone, photo and next-of-kin.
+ *
+ * Three things it exists to stop:
+ *   1. A conductor being nothing but a name typed on a bus row — no phone to
+ *      call at 2am, no photo, no idea who he is.
+ *   2. Rehiring a man who was sacked. Records are never deleted, so a search on
+ *      his phone or Aadhaar finds him, with the reason he left.
+ *   3. A licence quietly expiring under a driver who is still on the road.
+ */
+let _crewFilter = 'all';
+const CREW_FILTERS = [['all', 'All'], ['driver', '🧑‍✈️ Drivers'], ['conductor', '🎫 Conductors'],
+  ['incomplete', '⚠️ Docs missing'], ['expiring', '📅 Expiring'], ['left', '📦 Ex-staff']];
+
+const _digits = (s) => String(s || '').replace(/\D/g, '');
+const _phoneKey = (s) => { const d = _digits(s); return d.length >= 10 ? d.slice(-10) : ''; };
+const _idKey = (s) => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+// The licence number lives in two places for historical reasons: the flat
+// `license` field the importer wrote, and the document vault. Either counts.
+const crewLicenceNo = (d) => (d.license || '').trim() || ((docOf(d, 'license') || {}).number || '').trim();
+const crewAadhaarNo = (d) => ((docOf(d, 'aadhaar') || {}).number || '').trim();
+
+function crewMatchesFilter(d, f) {
+  const st = crewStatusOf(d);
+  if (f === 'left') return st === 'left';
+  if (st === 'left') return false;              // ex-staff only ever show under their own filter
+  if (f === 'all') return true;
+  if (f === 'driver' || f === 'conductor') return crewRoleOf(d) === f;
+  if (f === 'incomplete') { const s2 = driverDocStatus(d); return s2.mandDone < s2.mandTotal; }
+  if (f === 'expiring') return crewExpiring(d).length > 0;
+  return true;
+}
+
+function crewLi(d) {
+  const role = crewRoleOf(d), meta = CREW_ROLE_META[role], st = driverDocStatus(d);
+  const left = crewStatusOf(d) === 'left', bus = busName(d.busId);
+  const exp = crewExpiring(d)[0];
+  const badge = left ? `<span class="badge b-low">left</span>`
+    : st.mandDone < st.mandTotal ? `<span class="badge b-red">${st.mandTotal - st.mandDone} doc${st.mandTotal - st.mandDone > 1 ? 's' : ''}</span>`
+    : exp ? `<span class="badge b-amber">${exp.dl < 0 ? 'expired' : exp.dl + 'd'}</span>`
+    : `<span class="badge b-green">✓</span>`;
+  // The searchable text nobody should have to see: Aadhaar's last four are
+  // enough to search on, and the mask is what gets rendered.
+  const hay = `${d.name} ${d.phone || ''} ${crewLicenceNo(d)} ${_digits(crewAadhaarNo(d)).slice(-4)} ${bus} ${meta[1]}`;
+  const sub = [d.phone || 'no phone', bus || 'no bus', crewLicenceNo(d)].filter(Boolean).join(' · ');
+  return `<div class="li" data-driver="${d.id}" data-hay="${esc(hay)}" style="${left ? 'opacity:.62' : ''}">
+    <div class="ava">${d.photo ? `<img src="${esc(d.photo)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:14px">` : meta[0]}</div>
+    <div class="main"><div class="t">${esc(d.name)} <span class="tiny muted">${esc(meta[1])}</span></div>
+      <div class="s">${esc(sub)}</div></div>
+    ${badge}</div>`;
+}
+
+function renderCrewList() {
+  const all = [...allCrew()].sort((a, b) => a.name.localeCompare(b.name));
+  const counts = {}; CREW_FILTERS.forEach(([v]) => { counts[v] = all.filter((d) => crewMatchesFilter(d, v)).length; });
+  const chips = document.getElementById('crew-chips');
+  if (chips) chips.innerHTML = CREW_FILTERS
+    .map(([v, label]) => `<button class="chip ${_crewFilter === v ? 'active' : ''}" data-act="crewFilter" data-v="${v}">${label} ${counts[v]}</button>`).join('');
+  const q = ((document.getElementById('crew-search') || {}).value || '').trim().toLowerCase();
+  const list = all.filter((d) => crewMatchesFilter(d, _crewFilter)
+    && (!q || `${d.name} ${d.phone || ''} ${crewLicenceNo(d)} ${_digits(crewAadhaarNo(d)).slice(-4)} ${busName(d.busId)}`.toLowerCase().includes(q)));
+  const box = document.getElementById('crew-list');
+  if (!box) return;
+  box.innerHTML = list.length ? list.map(crewLi).join('')
+    : `<div class="empty">Nobody${q ? ' matches “' + esc(q) + '”' : ' in this list'}</div>`;
+  staggerRows(box);
+}
+
+function viewCrewBank() {
+  const all = allCrew(), act = activeCrew();
+  const drv = act.filter((d) => crewRoleOf(d) === 'driver').length;
+  const con = act.filter((d) => crewRoleOf(d) === 'conductor').length;
+  const missing = act.filter((d) => { const s = driverDocStatus(d); return s.mandDone < s.mandTotal; }).length;
+  const expiring = act.filter((d) => crewExpiring(d).length).length;
+  const gone = all.length - act.length;
+
+  let body = `<div class="card"><div class="row between">
+      <div><div style="font-weight:800;font-size:18px">${act.length} on the roll</div>
+        <div class="small muted">${drv} drivers · ${con} conductors${gone ? ' · ' + gone + ' left' : ''}</div></div>
+      <div class="ringwrap">${progressRing(act.length ? Math.round((act.length - missing) / act.length * 100) : 100)}</div></div>
+    <div class="tiny muted" style="margin-top:8px">${missing ? `⚠️ ${missing} ${missing === 1 ? 'person is' : 'people are'} missing a mandatory document.` : '✓ Every mandatory document is on file.'}${expiring ? ` ${expiring} document${expiring > 1 ? 's' : ''} expiring within 30 days.` : ''}</div></div>`;
+  body += `<input id="crew-search" class="searchbox" placeholder="Search name, phone, licence, Aadhaar last 4…" autocomplete="off">`;
+  body += `<div class="chiprow" id="crew-chips"></div>`;
+  body += `<div class="card" id="crew-list"><div class="empty">Loading…</div></div>`;
+  body += `<div class="btnrow" style="margin-top:12px"><button class="btn sm ghost" data-act="exportCrew">⬇️ Export list (CSV)</button></div>`;
+  shell('Crew bank', body, { act: 'addCrew', icon: '+' });
+  const s = document.getElementById('crew-search'); if (s) s.oninput = renderCrewList;
+  renderCrewList();
+}
+
+/* ----- Joining a new person ---------------------------------------------- */
+const BLOOD = ['', 'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
+let _crewShot = null, _crewNewRole = 'driver';
+
+function sheetAddCrew(role) {
+  if (!can(S.user.role, 'manageDrivers')) return toast('Not allowed');
+  _crewShot = null; _crewNewRole = role || 'driver';
+  const buses = S.cache.buses || [];
+  const today = new Date().toISOString().slice(0, 10);
+  openSheet('New joining', `
+    <div class="chiprow" id="crew-role-chips">${Object.keys(CREW_ROLE_META).map((r) =>
+      `<button class="chip ${_crewNewRole === r ? 'active' : ''}" data-act="crewRolePick" data-v="${r}">${CREW_ROLE_META[r][0]} ${CREW_ROLE_META[r][1]}</button>`).join('')}</div>
+    <button class="btn" data-act="crewPhoto">📷 Take his photo</button>
+    <div id="crew-prev" class="thumbs" style="margin:10px 0"></div>
+    <label class="field"><span class="lbl">Full name *</span><input id="c-name" placeholder="e.g. Ramesh Kumar"></label>
+    <div class="grid2">
+      <label class="field"><span class="lbl">Phone *</span><input id="c-phone" inputmode="tel" placeholder="10 digits"></label>
+      <label class="field"><span class="lbl">Alternate phone</span><input id="c-phone2" inputmode="tel"></label>
+    </div>
+    <div class="grid2">
+      <label class="field"><span class="lbl">🚗 Licence no.${_crewNewRole === 'driver' ? ' *' : ''}</span><input id="c-lic"></label>
+      <label class="field"><span class="lbl">Licence expiry</span><input id="c-licexp" type="date"></label>
+    </div>
+    <label class="field"><span class="lbl">🆔 Aadhaar no.</span><input id="c-aadhaar" inputmode="numeric" placeholder="12 digits"></label>
+    <div class="grid2">
+      <label class="field"><span class="lbl">Joining date</span><input id="c-joined" type="date" value="${today}"></label>
+      <label class="field"><span class="lbl">Date of birth</span><input id="c-dob" type="date"></label>
+    </div>
+    <label class="field"><span class="lbl">Assign to bus</span><select id="c-bus"><option value="">— unassigned —</option>${
+      buses.map((b) => `<option value="${b.id}">${esc(b.regNo)} — ${esc(b.company || '')}</option>`).join('')}</select></label>
+    <label class="field"><span class="lbl">Address (village / town)</span><input id="c-addr"></label>
+    <div class="grid2">
+      <label class="field"><span class="lbl">Blood group</span><select id="c-blood">${BLOOD.map((b) => `<option>${b}</option>`).join('')}</select></label>
+      <label class="field"><span class="lbl">Monthly salary ₹</span><input id="c-sal" inputmode="numeric"></label>
+    </div>
+    <div class="hr"></div>
+    <div class="tiny muted" style="margin-bottom:8px">🆘 Who do we call if something happens to him on the road?</div>
+    <div class="grid2">
+      <label class="field"><span class="lbl">Emergency contact</span><input id="c-emg" placeholder="Name"></label>
+      <label class="field"><span class="lbl">Their phone</span><input id="c-emgph" inputmode="tel"></label>
+    </div>
+    <label class="field"><span class="lbl">Relation</span><input id="c-emgrel" placeholder="e.g. brother, wife"></label>
+    <div class="grid2">
+      <label class="field"><span class="lbl">Reference (who vouches)</span><input id="c-ref" placeholder="Name"></label>
+      <label class="field"><span class="lbl">Reference phone</span><input id="c-refph" inputmode="tel"></label>
+    </div>
+    <button class="btn primary" data-act="saveCrew">Add to the bank</button>
+    <div class="tiny muted" style="margin-top:8px">Document photos (licence, Aadhaar, police verification) are added afterwards from his Documents screen.</div>`);
+}
+
+async function captureCrewPhoto() {
+  const s = await capturePhoto(); if (!s) return;
+  _crewShot = await Sync.uploadPhoto(s) || s;
+  const p = document.getElementById('crew-prev'); if (p) p.innerHTML = `<img class="thumb" src="${_crewShot}">`;
+}
+
+/* Anyone already in the bank matching this person on phone, Aadhaar or licence.
+ * Searches ex-staff too — that is the case worth catching. */
+function crewDuplicates(phone, aadhaar, licence, exceptId) {
+  const ph = _phoneKey(phone), aa = _digits(aadhaar), li = _idKey(licence);
+  return allCrew().filter((d) => d.id !== exceptId).map((d) => {
+    const on = [];
+    if (ph && _phoneKey(d.phone) === ph) on.push('same phone');
+    if (aa && aa.length >= 8 && _digits(crewAadhaarNo(d)) === aa) on.push('same Aadhaar');
+    if (li && li.length >= 5 && _idKey(crewLicenceNo(d)) === li) on.push('same licence');
+    return on.length ? { d, on } : null;
+  }).filter(Boolean);
+}
+
+// Renders a duplicate hit as the sentence the owner actually needs to read.
+function crewDupLine({ d, on }) {
+  const role = CREW_ROLE_META[crewRoleOf(d)][1];
+  if (crewStatusOf(d) === 'left') {
+    return `• ${d.name} — ${role}, LEFT${d.leftAt ? ' on ' + fmtDate(d.leftAt) : ''} (${on.join(', ')})`
+      + (d.leftReason ? `\n   Reason: ${d.leftReason}` : '')
+      + (d.rehire ? `\n   Marked rehire: ${d.rehire.toUpperCase()}` : '');
+  }
+  return `• ${d.name} — ${role}, currently working${d.busId ? ' on ' + busName(d.busId) : ''} (${on.join(', ')})`;
+}
+
+async function saveCrew() {
+  if (!can(S.user.role, 'manageDrivers')) return toast('Not allowed');
+  const v = (id) => (document.getElementById(id) || {}).value || '';
+  const name = _titleCase(v('c-name').trim()).replace(/\s+/g, ' ');
+  const phone = v('c-phone').trim(), lic = v('c-lic').trim(), aadhaar = v('c-aadhaar').trim();
+  if (!name) return toast('Enter his name');
+  if (!_phoneKey(phone)) return toast('Enter a 10-digit phone number');
+  if (_crewNewRole === 'driver' && !lic) return toast('A driver needs a licence number');
+  if (aadhaar && _digits(aadhaar).length !== 12) return toast('Aadhaar must be 12 digits');
+
+  const dups = crewDuplicates(phone, aadhaar, lic, null);
+  if (dups.length && !confirm(`⚠️ Already in the bank\n\n${dups.map(crewDupLine).join('\n')}\n\nAdd ${name} as a new record anyway?`)) return;
+
+  const now = Date.now();
+  const rec = {
+    id: 'crew-' + now.toString(36) + '-' + Math.random().toString(36).slice(2, 6),
+    name, crewRole: _crewNewRole, status: 'active',
+    phone, altPhone: v('c-phone2').trim(),
+    license: lic, busId: v('c-bus') || null, userId: null,
+    tripsLogged: 0, photo: _crewShot || '',
+    joinedAt: v('c-joined') ? new Date(v('c-joined') + 'T00:00:00').getTime() : now,
+    dob: v('c-dob') ? new Date(v('c-dob') + 'T00:00:00').getTime() : null,
+    address: v('c-addr').trim(), bloodGroup: v('c-blood'),
+    salaryMonthly: Number(_digits(v('c-sal'))) || 0,
+    emgName: v('c-emg').trim(), emgPhone: v('c-emgph').trim(), emgRelation: v('c-emgrel').trim(),
+    refName: v('c-ref').trim(), refPhone: v('c-refph').trim(),
+    docs: {}, source: 'crew-bank',
+  };
+  // Numbers typed at joining go straight into the document vault so the licence
+  // expiry starts being watched today — the card photo can follow later.
+  if (lic) rec.docs.license = { number: lic, at: now, by: S.user.id,
+    expiry: v('c-licexp') ? new Date(v('c-licexp') + 'T00:00:00').getTime() : null };
+  if (aadhaar) rec.docs.aadhaar = { number: _digits(aadhaar), at: now, by: S.user.id };
+
+  // A driver assigned to a bus takes it off whoever had it — one driver per bus.
+  if (rec.busId && rec.crewRole === 'driver') {
+    for (const o of activeDrivers()) if (o.busId === rec.busId) { o.busId = null; await DB.put('drivers', o); }
+  }
+  await DB.put('drivers', rec);
+  await load(); closeSheet();
+  toast(`${name} added to the bank ✓`);
+  push({ name: 'drivers', id: rec.id });
+}
+
+/* ----- Editing an existing person's details ------------------------------- */
+function sheetCrewProfile(id) {
+  if (!can(S.user.role, 'manageDrivers')) return toast('Not allowed');
+  const d = driverById(id); if (!d) return;
+  const dstr = (ts) => (ts ? new Date(ts).toISOString().slice(0, 10) : '');
+  openSheet('Edit details — ' + d.name, `
+    <label class="field"><span class="lbl">Full name</span><input id="e-name" value="${esc(d.name)}"></label>
+    <div class="grid2">
+      <label class="field"><span class="lbl">Phone</span><input id="e-phone" inputmode="tel" value="${esc(d.phone || '')}"></label>
+      <label class="field"><span class="lbl">Alternate phone</span><input id="e-phone2" inputmode="tel" value="${esc(d.altPhone || '')}"></label>
+    </div>
+    <div class="grid2">
+      <label class="field"><span class="lbl">Joining date</span><input id="e-joined" type="date" value="${dstr(d.joinedAt)}"></label>
+      <label class="field"><span class="lbl">Date of birth</span><input id="e-dob" type="date" value="${dstr(d.dob)}"></label>
+    </div>
+    <label class="field"><span class="lbl">Address</span><input id="e-addr" value="${esc(d.address || '')}"></label>
+    <div class="grid2">
+      <label class="field"><span class="lbl">Blood group</span><select id="e-blood">${BLOOD.map((b) => `<option ${b === (d.bloodGroup || '') ? 'selected' : ''}>${b}</option>`).join('')}</select></label>
+      <label class="field"><span class="lbl">Monthly salary ₹</span><input id="e-sal" inputmode="numeric" value="${d.salaryMonthly || ''}"></label>
+    </div>
+    <div class="grid2">
+      <label class="field"><span class="lbl">Emergency contact</span><input id="e-emg" value="${esc(d.emgName || '')}"></label>
+      <label class="field"><span class="lbl">Their phone</span><input id="e-emgph" inputmode="tel" value="${esc(d.emgPhone || '')}"></label>
+    </div>
+    <label class="field"><span class="lbl">Relation</span><input id="e-emgrel" value="${esc(d.emgRelation || '')}"></label>
+    <div class="grid2">
+      <label class="field"><span class="lbl">Reference</span><input id="e-ref" value="${esc(d.refName || '')}"></label>
+      <label class="field"><span class="lbl">Reference phone</span><input id="e-refph" inputmode="tel" value="${esc(d.refPhone || '')}"></label>
+    </div>
+    <button class="btn primary" data-act="saveCrewProfile" data-driver="${d.id}">Save</button>`);
+}
+
+async function saveCrewProfile(id) {
+  if (!can(S.user.role, 'manageDrivers')) return toast('Not allowed');
+  const d = driverById(id); if (!d) return;
+  const v = (x) => (document.getElementById(x) || {}).value || '';
+  const name = _titleCase(v('e-name').trim()).replace(/\s+/g, ' ');
+  if (!name) return toast('Name cannot be empty');
+  const phone = v('e-phone').trim();
+  const dups = crewDuplicates(phone, '', '', d.id).filter((x) => crewStatusOf(x.d) === 'active');
+  if (dups.length && !confirm(`⚠️ That phone is already on:\n\n${dups.map(crewDupLine).join('\n')}\n\nSave anyway?`)) return;
+  Object.assign(d, {
+    name, phone, altPhone: v('e-phone2').trim(),
+    joinedAt: v('e-joined') ? new Date(v('e-joined') + 'T00:00:00').getTime() : d.joinedAt,
+    dob: v('e-dob') ? new Date(v('e-dob') + 'T00:00:00').getTime() : null,
+    address: v('e-addr').trim(), bloodGroup: v('e-blood'),
+    salaryMonthly: Number(_digits(v('e-sal'))) || 0,
+    emgName: v('e-emg').trim(), emgPhone: v('e-emgph').trim(), emgRelation: v('e-emgrel').trim(),
+    refName: v('e-ref').trim(), refPhone: v('e-refph').trim(),
+  });
+  await DB.put('drivers', d);
+  await load(); closeSheet(); toast('Details saved ✓'); rerender();
+}
+
+/* ----- Leaving and coming back -------------------------------------------
+ * Nothing is ever deleted. Marking someone as left frees his bus and takes him
+ * out of every working list, but keeps the record — including why he went,
+ * which is the question asked when he reapplies two years later. */
+const LEFT_REASONS = ['Resigned', 'Better offer elsewhere', 'Absconded', 'Terminated — misconduct',
+  'Terminated — accident', 'Terminated — pilferage', 'Medical / unfit', 'Retired', 'Other'];
+
+function sheetCrewExit(id) {
+  if (!can(S.user.role, 'manageDrivers')) return toast('Not allowed');
+  const d = driverById(id); if (!d) return;
+  openSheet('Mark as left — ' + d.name, `
+    <div class="tiny muted" style="margin-bottom:12px">His record stays in the bank forever. This only takes him off the working roster and frees his bus.</div>
+    <label class="field"><span class="lbl">Last working day</span><input id="x-date" type="date" value="${new Date().toISOString().slice(0, 10)}"></label>
+    <label class="field"><span class="lbl">Reason</span><select id="x-reason">${LEFT_REASONS.map((r) => `<option>${r}</option>`).join('')}</select></label>
+    <label class="field"><span class="lbl">Note (what the office should know)</span><input id="x-note" placeholder="optional"></label>
+    <label class="field"><span class="lbl">Would you take him back?</span><select id="x-rehire">
+      <option value="yes">Yes — good worker</option><option value="maybe">Maybe</option><option value="no">No — do not rehire</option></select></label>
+    <button class="btn primary" data-act="saveCrewExit" data-driver="${d.id}">Mark as left</button>`);
+}
+
+async function saveCrewExit(id) {
+  if (!can(S.user.role, 'manageDrivers')) return toast('Not allowed');
+  const d = driverById(id); if (!d) return;
+  const v = (x) => (document.getElementById(x) || {}).value || '';
+  d.status = 'left';
+  d.leftAt = v('x-date') ? new Date(v('x-date') + 'T00:00:00').getTime() : Date.now();
+  d.leftReason = [v('x-reason'), v('x-note').trim()].filter(Boolean).join(' — ');
+  d.rehire = v('x-rehire') || 'maybe';
+  d.busId = null;                      // his bus is free from today
+  await DB.put('drivers', d);
+  await load(); closeSheet(); toast(`${d.name} marked as left`); rerender();
+}
+
+async function rejoinCrew(id) {
+  if (!can(S.user.role, 'manageDrivers')) return toast('Not allowed');
+  const d = driverById(id); if (!d) return;
+  if (d.rehire === 'no' && !confirm(`⚠️ ${d.name} was marked DO NOT REHIRE.\n\nReason: ${d.leftReason || 'not recorded'}\n\nBring him back anyway?`)) return;
+  d.status = 'active'; d.rejoinedAt = Date.now();
+  await DB.put('drivers', d);
+  await load(); toast(`${d.name} is back on the roster ✓`); rerender();
+}
+
+/* ----- Export -------------------------------------------------------------
+ * Aadhaar leaves masked. The full numbers stay inside the app, where opening one
+ * is a deliberate tap by a role that manages crew; a spreadsheet of 164 of them
+ * on somebody's WhatsApp is exactly what the Aadhaar Act is about. */
+function exportCrewCsv() {
+  if (!can(S.user.role, 'manageDrivers')) return toast('Not allowed');
+  const cols = ['Name', 'Role', 'Status', 'Phone', 'Alt phone', 'Bus', 'Licence no', 'Licence expiry',
+    'Aadhaar (masked)', 'Joined', 'Left', 'Reason for leaving', 'Rehire', 'Address', 'Blood group',
+    'Emergency contact', 'Emergency phone', 'Relation', 'Reference', 'Reference phone', 'Docs on file'];
+  const q = (x) => `"${String(x == null ? '' : x).replace(/"/g, '""')}"`;
+  const rows = [...allCrew()].sort((a, b) => a.name.localeCompare(b.name)).map((d) => {
+    const st = driverDocStatus(d), lic = docOf(d, 'license') || {};
+    return [d.name, CREW_ROLE_META[crewRoleOf(d)][1], crewStatusOf(d), d.phone || '', d.altPhone || '',
+      busName(d.busId) || '', crewLicenceNo(d), lic.expiry ? fmtDate(lic.expiry) : '',
+      maskAadhaar(crewAadhaarNo(d)), d.joinedAt ? fmtDate(d.joinedAt) : '',
+      d.leftAt ? fmtDate(d.leftAt) : '', d.leftReason || '', d.rehire || '', d.address || '', d.bloodGroup || '',
+      d.emgName || '', d.emgPhone || '', d.emgRelation || '', d.refName || '', d.refPhone || '',
+      `${st.mandDone}/${st.mandTotal} mandatory, ${st.allDone}/${st.allTotal} total`].map(q).join(',');
+  });
+  const csv = '﻿' + [cols.map(q).join(',')].concat(rows).join('\r\n');
+  const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+  const a = document.createElement('a');
+  a.href = url; a.download = `crew-bank-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+  toast(`${rows.length} people exported — Aadhaar masked`);
+}
+
+/* ----- One-time: give every bus conductor a real record --------------------
+ * Before the bank, 57 conductors existed only as a name typed on a bus row plus
+ * a login account — no phone, no photo, no documents, nothing to search. Keyed
+ * by the bus registration so a second device cannot create a duplicate. */
+async function backfillConductorProfiles() {
+  const crew = await DB.all('drivers');
+  const haveUser = new Set(crew.map((d) => d.userId).filter(Boolean));
+  const haveId = new Set(crew.map((d) => d.id));
+  const add = [];
+  (await DB.all('buses')).forEach((b) => {
+    const nm = (b.conductor || '').trim();
+    if (!nm || /^[-–—\s.]*$/.test(nm)) return;
+    const uid = b.conductorUserId || null;
+    if (uid && haveUser.has(uid)) return;
+    const id = 'con-' + _normReg(b.regNo);
+    if (haveId.has(id)) return;
+    haveId.add(id); if (uid) haveUser.add(uid);
+    add.push({ id, name: _titleCase(nm), crewRole: 'conductor', status: 'active',
+      phone: (b.crewPhone || '').trim(), altPhone: '', license: '', busId: b.id, userId: uid,
+      tripsLogged: 0, joinedAt: 0, photo: '', docs: {}, source: 'conductor-backfill' });
+  });
+  if (add.length) await DB.bulkPut('drivers', add);
+  return add.length;
+}
+// Runs once per device, and only for the roles the server lets write `drivers` —
+// a driver's phone doing this would just collect 403s in its outbox.
+async function maybeBackfillConductors(user) {
+  if (!can(user.role, 'manageDrivers')) return;
+  try { if (localStorage.getItem('gsCrewBankV1')) return; } catch (e) { return; }
+  try {
+    const n = await backfillConductorProfiles();
+    localStorage.setItem('gsCrewBankV1', String(Date.now()));
+    if (n) { await load(); toast(`${n} conductors added to the crew bank ✓`); }
+  } catch (e) { console.error('Conductor backfill failed:', e); }
 }
 
 /* ----- Driver sheets ----- */
@@ -4934,19 +5410,22 @@ function sheetAssignBus(driverId) {
 }
 async function saveAssignBus(driverId) {
   const d = driverById(driverId); const busId = $('#f-abus').value || null;
-  if (busId) for (const o of (S.cache.drivers || [])) { if (o.id !== driverId && o.busId === busId) { o.busId = null; await DB.put('drivers', o); } }
+  const seat = crewRoleOf(d);   // a bus has one driver AND one conductor — clear only the same seat
+  if (busId) for (const o of activeCrew()) {
+    if (o.id !== driverId && o.busId === busId && crewRoleOf(o) === seat) { o.busId = null; await DB.put('drivers', o); }
+  }
   d.busId = busId; await DB.put('drivers', d);
   await load(); closeSheet(); toast('Updated'); rerender();
 }
 function sheetAssignDriverToBus(busId) {
-  const ds = S.cache.drivers || [], cur = driverOfBus(busId);
+  const ds = activeDrivers(), cur = driverOfBus(busId);
   openSheet('Assign driver', `<label class="field"><span class="lbl">Driver for this bus</span>
     <select id="f-adrv"><option value="">— none —</option>${ds.map((d) => `<option value="${d.id}" ${cur && cur.id === d.id ? 'selected' : ''}>${esc(d.name)}</option>`).join('')}</select></label>
     <button class="btn primary" data-act="saveAssignDriver" data-bus="${busId}">Save</button>`);
 }
 async function saveAssignDriver(busId) {
   const id = $('#f-adrv').value;
-  for (const d of (S.cache.drivers || [])) { if (d.busId === busId && d.id !== id) { d.busId = null; await DB.put('drivers', d); } }
+  for (const d of activeDrivers()) { if (d.busId === busId && d.id !== id) { d.busId = null; await DB.put('drivers', d); } }
   if (id) { const d = driverById(id); d.busId = busId; await DB.put('drivers', d); }
   await load(); closeSheet(); toast('Driver assigned'); rerender();
 }
@@ -5349,7 +5828,7 @@ function computeInsights() {
       nav: { name: 'buses', id: r.busId } }));
 
   // Low driver ratings — damage/cost risk, coaching opportunity
-  (S.cache.drivers || []).map((d) => ({ d, s: driverScore(d.id) })).filter((x) => x.s < 75)
+  activeDrivers().map((d) => ({ d, s: driverScore(d.id) })).filter((x) => x.s < 75)
     .sort((a, b) => a.s - b.s)
     .forEach(({ d, s }) => out.push({ sev: s < 60 ? 'high' : 'med', icon: '🧑‍✈️', title: `Driver rating low — ${d.name}`,
       detail: `${s}/100 from recent incidents (${driverIncidents(d.id).length}). Coaching or reassignment can cut damage costs.`,
@@ -5410,14 +5889,24 @@ function computeInsights() {
         detail: `Replaced again after only ${Math.round(gap)} days. Verify it was genuinely needed.`, nav: { name: 'jobs', id: '' } }); }
   });
 
-  // Driver documents — mandatory missing or expiring soon
-  (S.cache.drivers || []).forEach((d) => {
-    const st = driverDocStatus(d);
-    if (st.mandDone < st.mandTotal) out.push({ sev: 'med', icon: '📂', title: `Driver docs incomplete — ${d.name}`,
-      detail: `${st.mandTotal - st.mandDone} mandatory document(s) missing (license/Aadhaar/PAN).`, nav: { name: 'driverdocs', id: d.id } });
-    DRIVER_DOCS.filter((x) => x.expiry).forEach((x) => { const c = docOf(d, x.key);
-      if (c && c.expiry && daysLeft(c.expiry) <= 30) out.push({ sev: daysLeft(c.expiry) < 0 ? 'high' : 'med', icon: '📄', title: `${x.label} ${daysLeft(c.expiry) < 0 ? 'expired' : 'expiring'} — ${d.name}`,
-        detail: `${x.label} ${daysLeft(c.expiry) < 0 ? 'expired' : 'expires'} ${fmtDate(c.expiry)}.`, nav: { name: 'driverdocs', id: d.id } }); });
+  // Crew documents — mandatory missing or expiring soon (drivers AND conductors)
+  const docGaps = [];
+  activeCrew().forEach((d) => {
+    const st = driverDocStatus(d), crole = crewRoleOf(d);
+    if (st.mandDone < st.mandTotal) docGaps.push({ d, crole, st });
+    crewExpiring(d).forEach((x) => out.push({ sev: x.dl < 0 ? 'high' : 'med', icon: '📄',
+      title: `${x.label} ${x.dl < 0 ? 'expired' : 'expiring'} — ${d.name}`,
+      detail: `${x.label} ${x.dl < 0 ? 'expired' : 'expires'} ${fmtDate(x.expiry)}.`, nav: { name: 'driverdocs', id: d.id } }));
+  });
+  if (docGaps.length > 3) {
+    const names = docGaps.slice(0, 3).map((g) => g.d.name).join(', ');
+    out.push({ sev: 'med', icon: '📂', title: `${docGaps.length} crew are missing a mandatory document`,
+      detail: `${names} and ${docGaps.length - 3} more. Open the crew bank and use the “Docs missing” filter.`,
+      nav: { name: 'crewbank' } });
+  } else docGaps.forEach(({ d, crole }) => {
+    const gaps = DRIVER_DOCS.filter((x) => docIsMandatory(x, crole) && !(docOf(d, x.key) || {}).photo).map((x) => x.label);
+    out.push({ sev: 'med', icon: '📂', title: `${CREW_ROLE_META[crole][1]} docs incomplete — ${d.name}`,
+      detail: `Missing: ${gaps.join(', ')}.`, nav: { name: 'driverdocs', id: d.id } });
   });
 
   // Preventive maintenance forecast — get ahead of breakdowns
@@ -5555,7 +6044,7 @@ async function askAi() {
  */
 const current = () => S.stack[S.stack.length - 1];
 // Role guard: routes restricted to certain roles fall back to home for others.
-const ROUTE_PERM = { money: 'money', fleet: 'fleet', people: 'people', bills: 'bills', insights: 'insights', drivers: 'manageDrivers', assignments: 'assignDriver', routes: 'manageRoutes', reports: 'dashboard', busreport: 'dashboard', livemap: 'dashboard', track: 'dashboard', fuel: 'addFuel', safety: 'dashboard', warranty: 'addFuel', storehealth: 'issuePart', linkgps: 'addBus', newjob: 'addJob', forecast: 'dashboard', pilferage: 'insights', components: 'issuePart', def: 'addFuel', vendors: 'addPurchase', import: 'addPurchase', crewpins: 'manageDrivers', accounting: 'dashboard', busacct: 'dashboard',
+const ROUTE_PERM = { money: 'money', fleet: 'fleet', people: 'people', bills: 'bills', insights: 'insights', drivers: 'manageDrivers', assignments: 'assignDriver', routes: 'manageRoutes', reports: 'dashboard', busreport: 'dashboard', livemap: 'dashboard', track: 'dashboard', fuel: 'addFuel', safety: 'dashboard', warranty: 'addFuel', storehealth: 'issuePart', linkgps: 'addBus', newjob: 'addJob', forecast: 'dashboard', pilferage: 'insights', components: 'issuePart', def: 'addFuel', vendors: 'addPurchase', import: 'addPurchase', crewpins: 'manageDrivers', crewbank: 'manageDrivers', accounting: 'dashboard', busacct: 'dashboard',
   // `purchases` renders the same view as `bills`; without its own entry the
   // `bills` permission was bypassable just by using the other route name.
   purchases: 'bills', alerts: 'dashboard', buses: 'fleet',
@@ -5612,6 +6101,7 @@ function render(r) {
     case 'vendors': return r.id ? viewVendorDetail(r.id) : viewVendors();
     case 'import': return viewImport();
     case 'crewpins': return viewCrewPins();
+    case 'crewbank': return viewCrewBank();
     case 'accounting': return viewAccounting();
     case 'busacct': return viewBusAccounting(r.id);
     default: return viewHome();
@@ -5772,6 +6262,29 @@ function bind() {
       case 'scanSerial': return scanSerial(el.getAttribute('data-target'));
       case 'setPrio': return setPrio(el.getAttribute('data-v'));
       case 'busFilter': _busFilter = el.getAttribute('data-v'); return renderBusList();
+      case 'crewFilter': _crewFilter = el.getAttribute('data-v'); return renderCrewList();
+      case 'openCrewBank': return push({ name: 'crewbank' });
+      case 'addCrew': return sheetAddCrew();
+      case 'crewRolePick': _crewNewRole = el.getAttribute('data-v'); return sheetAddCrew(_crewNewRole);
+      case 'crewPhoto': return captureCrewPhoto();
+      case 'saveCrew': return saveCrew();
+      case 'editCrewProfile': return sheetCrewProfile(el.getAttribute('data-driver'));
+      case 'saveCrewProfile': return saveCrewProfile(el.getAttribute('data-driver'));
+      case 'crewExit': return sheetCrewExit(el.getAttribute('data-driver'));
+      case 'saveCrewExit': return saveCrewExit(el.getAttribute('data-driver'));
+      case 'crewRejoin': return rejoinCrew(el.getAttribute('data-driver'));
+      case 'exportCrew': return exportCrewCsv();
+      case 'revealDocNum': {
+        if (!can(S.user.role, 'manageDrivers')) return toast('Not allowed');
+        const el2 = document.getElementById('doc-num'); if (el2) el2.value = _docNumCur;
+        return;
+      }
+      case 'editDocNum': {
+        const el2 = document.getElementById('doc-num');
+        if (el2) { el2.value = ''; el2.removeAttribute('readonly'); el2.focus(); }
+        _docNumCur = '';
+        return;
+      }
       case 'openDriverDocs': return push({ name: 'driverdocs', id: el.getAttribute('data-driver') });
       case 'driverDoc': return sheetDriverDoc(el.getAttribute('data-driver'), el.getAttribute('data-key'));
       case 'captureDoc': return captureDoc();
@@ -6121,7 +6634,7 @@ async function attemptLogin(user, pin, redraw) {
   offlineFail(user.id);
   toast(t('wrongPin')); _pin = ''; redraw();
 }
-function enterApp(user) { pushRecent(user.id); S.user = user; maybeAutoActivateCrew(user); route({ name: 'home' }); }
+function enterApp(user) { pushRecent(user.id); S.user = user; maybeAutoActivateCrew(user); maybeBackfillConductors(user); route({ name: 'home' }); }
 
 /* "Recent on this phone" — remembers who has signed in on THIS device so a
  * personal phone can skip role→name and go straight to the PIN pad. Just ids in
@@ -6130,7 +6643,7 @@ function recentIds() { try { return JSON.parse(localStorage.getItem('gs-recent')
 function pushRecent(id) { let a = recentIds().filter((x) => x !== id); a.unshift(id); a = a.slice(0, 4); try { localStorage.setItem('gs-recent', JSON.stringify(a)); } catch (e) { /* ignore */ } }
 function recentUsers() { const users = S.cache.users || []; return recentIds().map((id) => byId(users, id)).filter(Boolean).slice(0, 4); }
 // A user's face photo, if we have one (drivers carry a photo); else null.
-function userPhoto(u) { const d = driverForUser(u.id); return (d && d.photo) || null; }
+function userPhoto(u) { const d = crewForUser(u.id); return (d && d.photo) || null; }
 
 /* -------------------------------- Boot ------------------------------------ */
 (async function boot() {
