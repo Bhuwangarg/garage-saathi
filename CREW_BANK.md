@@ -24,8 +24,7 @@ police / medical, with photos, OCR and expiry alerts). Three things were missing
 **Conductors live in the `drivers` store, with `crewRole: 'conductor'`.** The
 office asks the same questions about both, that store already syncs, and the
 server already gates writes to it (`WRITE_ROLES["drivers"] = owner, supervisor`).
-A new store would have meant a Render deploy and a second place for the same
-truth. **This change is frontend-only — GitHub Pages push, no backend deploy.**
+A new store would have meant server work and a second place for the same truth.
 
 A record with **no** `crewRole` is a driver. Every record that existed before
 this was one, so the absent value is the safe default and nothing needed
@@ -100,12 +99,86 @@ blank/`-` conductor names.
 - `probe_dv.html`, `probe_core.html`, `probe_login.html` — unchanged, pass.
 - `scripts/predeploy-gate.sh` — **14 passed, 0 failed.**
 
+## Hindi (Sep 2026)
+
+Every crew-bank screen is bilingual through the existing `I18N` / `t()` table —
+the bank, the joining form, the profile and details card, leaving and
+rejoining, the duplicate warnings, and the document vault. 301 keys, en/hi at
+full parity.
+
+Three things worth knowing:
+
+- **Labels are keys, resolved at render time.** `CREW_ROLE_META` and
+  `DRIVER_DOCS` hold `roleDriver` / `docLicense` rather than words, read through
+  `crewRoleLabel()` and `docLabel()`. Storing the words would freeze them in
+  whatever language the app was loaded in, because the language toggle only
+  re-renders — it does not reload.
+- **The reason someone left is stored as a key** (`leftReasonKey`) plus a free
+  note, so it reads in whichever language you open it. `leftReason` is still
+  written as English text for the CSV and for records made before this existed;
+  `crewLeftReason()` prefers the key and falls back to the old string.
+- **The CSV export stays English.** It is a data file for the office's own
+  spreadsheets, and translating the column headers would break any formula
+  built on top of it. `enLabel()` forces English for those cells.
+
+Hindi screen titles are kept deliberately short (`ड्यूटी`, `स्टाफ बैंक`, `आज`):
+the topbar's side columns leave the title little room and Devanagari is wider
+than Latin at the same size, so a longer title gets ellipsised. Verified
+unclipped in both languages.
+
+## The Crew Manager login (Sep 2026)
+
+A single-job role — `crewmanager` — for the person who assigns crew to buses
+each day and keeps their records. It has exactly two permissions,
+`assignDriver` and `manageDrivers`, and nothing else: verified against 18 other
+permissions and 13 restricted routes, all denied.
+
+What it deliberately does NOT get:
+- **Money** — no Money tab, and the salary field is hidden from the joining
+  form, the edit form and the details card (`can(role,'money')` gates all
+  three). Pay is not part of who somebody is.
+- **Crew logins & PINs** — `crewpins` moved off `manageDrivers` onto its own
+  `manageCrewLogins` permission. Minting logins for the whole crew is an
+  owner's job, not part of keeping their records.
+- **Performance scoring and problem reports** — `+ Data point` and `Log report`
+  now sit behind a new `logIncident` permission (owner/supervisor). Judging
+  somebody's driving is not record-keeping, and the server refuses `incidents`
+  writes from anyone else regardless.
+
+Server-side the role may write exactly `drivers` and `attendance` — verified;
+`ledger`, `users`, `buses`, `incidents` and `driverreports` are all refused.
+That required a `WRITE_ROLES` change in `sync_server.py`, which deploys with the
+same push as the client (see **To deploy**).
+
+**The duty board** (`viewAssignments`, formerly "Driver ↔ Bus") gained a
+role chip, because a bus carries a driver *and* a conductor and assigning the
+conductor was not possible before. `sheetAssignDriverToBus` and
+`saveAssignDriver` take a seat argument and clear only the same-role seat —
+filling the conductor's chair must never take the driver off the bus.
+
+His home (`viewCrewManagerHome`) is just: which buses are short a driver, which
+are short a conductor, and a way into the bank.
+
 ## To deploy
 
-Frontend only: commit + push `app.js` to `main` (GitHub Pages). **No Render
-deploy** — `sync_server.py` is untouched. On the first owner/supervisor login
-after the push, the conductor backfill runs and syncs the new records to every
-other device.
+**One `git push` to `main` ships everything.** Vercel serves the PWA and the
+Python sync server from a single origin (`garage-saathi-sync.vercel.app`) via
+`api/index.py` + `vercel.json`, and deploys automatically on push — frontend and
+`sync_server.py` together. There is no manual step and no ordering problem, so
+the `WRITE_ROLES` change for `crewmanager` lands with the client that needs it.
+
+Verify after pushing: `/health` reports the deployed `commit`, and the live
+`app.js` should match `git show HEAD:app.js`.
+
+**`render.yaml`, `Procfile` and `Dockerfile` are dead files** left from the
+Render era (the app moved to Vercel in Aug 2026, commit `4d23aea`). They
+describe a manual-deploy workflow that no longer exists and are actively
+misleading — worth deleting.
+
+**Creating the login itself is an owner action** — Me → Staff → Add staff →
+Crew Manager, with a 4-digit PIN the owner chooses. Only the owner sees that
+option in the dropdown, and `saveStaff` re-checks it rather than trusting the
+form.
 
 ## Open
 

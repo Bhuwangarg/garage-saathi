@@ -92,8 +92,9 @@ a{color:var(--blue)}
 .topbar{position:sticky;top:0;z-index:20;background:var(--surface);
   backdrop-filter:saturate(180%) blur(14px);-webkit-backdrop-filter:saturate(180%) blur(14px);
   border-bottom:1px solid var(--line);padding:12px 14px;display:flex;align-items:center;gap:8px}
-.tb-left,.tb-right{width:60px;display:flex;align-items:center}
-.tb-right{justify-content:flex-end}
+.tb-left,.tb-right{display:flex;align-items:center;flex:none}
+.tb-left{width:60px}
+.tb-right{min-width:60px;justify-content:flex-end;gap:2px}
 .tb-title{flex:1;text-align:center;font-size:17px;font-weight:700;margin:0;letter-spacing:-.2px;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .brandlogo{width:34px;height:34px;border-radius:11px;background:var(--ink);

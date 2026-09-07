@@ -710,14 +710,16 @@ WRITE_ROLES = {
     "audits":        {"owner", "supervisor", "store"},
     "buses":         {"owner", "supervisor"},
     "routes":        {"owner", "supervisor"},
-    "drivers":       {"owner", "supervisor"},
+    # crewmanager is a single-job login: the duty board and the crew bank. It
+    # writes `drivers` (bus assignment, details, documents) and nothing else.
+    "drivers":       {"owner", "supervisor", "crewmanager"},
     "incidents":     {"owner", "supervisor"},
     "users":         {"owner", "supervisor"},
     "jobcards":      {"owner", "supervisor", "store", "mechanic"},
     "trips":         {"owner", "supervisor", "driver"},
     "triplog":       {"owner", "supervisor", "driver"},
     # Operational stores every role legitimately writes:
-    "attendance":    {"owner", "supervisor", "store", "mechanic", "driver", "conductor"},
+    "attendance":    {"owner", "supervisor", "crewmanager", "store", "mechanic", "driver", "conductor"},
     "driverreports": {"owner", "supervisor", "store", "mechanic", "driver", "conductor"},
     # Server-ingest only — no client ever pushes these (AirFi → ingest_gps):
     "gpsevents":     set(),

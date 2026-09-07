@@ -51,6 +51,73 @@ const I18N = {
     // Report categories
     catBrakes: 'Brakes', catEngine: 'Engine', catAC: 'AC', catSuspension: 'Suspension', catElectrical: 'Electrical',
     catTyres: 'Tyres', catGearbox: 'Gearbox', catBody: 'Body', catOther: 'Other',
+    // ---- Crew data bank (drivers & conductors) ----
+    cbTitle: 'Crew bank', cbOnRoll: 'on the roll', cbDrivers: 'drivers', cbConductors: 'conductors', cbLeft: 'left',
+    roleDriver: 'Driver', roleConductor: 'Conductor',
+    cbMissingDocsOne: 'person is missing a mandatory document.', cbMissingDocsMany: 'people are missing a mandatory document.',
+    cbAllOnFile: 'Every mandatory document is on file.', cbExpiringSoon: 'expiring within 30 days.',
+    cbSearchPh: 'Search name, phone, licence, Aadhaar last 4…', cbExport: 'Export list (CSV)',
+    cbFAll: 'All', cbFDrivers: 'Drivers', cbFConductors: 'Conductors', cbFIncomplete: 'Docs missing', cbFExpiring: 'Expiring', cbFLeft: 'Ex-staff',
+    cbNobody: 'Nobody in this list', cbNobodyMatch: 'Nobody matches', cbNoPhone: 'no phone', cbNoBus: 'no bus',
+    cbDocsShort: 'docs', cbLeftBadge: 'left', cbExported: 'people exported — Aadhaar masked',
+    // Joining form
+    cbNewJoining: 'New joining', cbTakePhoto: 'Take his photo', cbFullName: 'Full name', cbNamePh: 'e.g. Ramesh Kumar',
+    cbPhone: 'Phone', cbAltPhone: 'Alternate phone', cbPh10: '10 digits', cbPh12: '12 digits',
+    cbLicenceNo: 'Licence no.', cbLicenceExp: 'Licence expiry', cbAadhaarNo: 'Aadhaar no.',
+    cbJoinDate: 'Joining date', cbDob: 'Date of birth', cbAssignBus: 'Assign to bus', cbUnassigned: '— unassigned —',
+    cbAddress: 'Address (village / town)', cbBlood: 'Blood group', cbSalary: 'Monthly salary ₹',
+    cbEmgHint: 'Who do we call if something happens to him on the road?',
+    cbEmgName: 'Emergency contact', cbEmgPhone: 'Their phone', cbEmgRel: 'Relation', cbRelPh: 'e.g. brother, wife',
+    cbRefName: 'Reference (who vouches)', cbRefPhone: 'Reference phone', cbAddBtn: 'Add to the bank',
+    cbDocsLater: 'Document photos (licence, Aadhaar, police verification) are added afterwards from his Documents screen.',
+    cbNeedName: 'Enter his name', cbNeedPhone: 'Enter a 10-digit phone number',
+    cbNeedLicence: 'A driver needs a licence number', cbNeedAadhaar12: 'Aadhaar must be 12 digits',
+    cbAdded: 'added to the bank ✓', cbNotAllowed: 'Not allowed',
+    // Duplicates
+    cbDupTitle: 'Already in the bank', cbDupAsk: 'as a new record anyway?', cbDupAddWord: 'Add',
+    cbDupWorking: 'currently working', cbDupOn: 'on', cbDupLeftWord: 'LEFT', cbDupReason: 'Reason',
+    cbDupRehire: 'Marked rehire', cbSamePhone: 'same phone', cbSameAadhaar: 'same Aadhaar', cbSameLicence: 'same licence',
+    cbDupPhoneOn: 'That phone is already on:', cbSaveAnyway: 'Save anyway?',
+    // Profile / details
+    cbDetails: 'Details', cbEdit: 'Edit', cbEditDetails: 'Edit details', cbSaved: 'Details saved ✓',
+    cbNeedNameNotEmpty: 'Name cannot be empty', cbNoDetails: 'Nothing recorded yet — tap Edit to fill his details.',
+    cbAadhaar: 'Aadhaar', cbJoined: 'Joined', cbAge: 'Age', cbYrs: 'yrs', cbYr: 'yr',
+    cbBus: 'Bus', cbAssignedBus: 'Assigned bus', cbRating: 'Rating', cbChangeBus: 'Change bus', cbLogReport: 'Log report',
+    // Leaving / rejoining
+    cbMarkLeftBtn: 'Mark as left', cbMarkLeftTitle: 'Mark as left', cbMarkedLeft: 'marked as left',
+    cbExitHint: 'His record stays in the bank forever. This only takes him off the working roster and frees his bus.',
+    cbLastDay: 'Last working day', cbReason: 'Reason', cbNote: 'Note (what the office should know)', cbOptional: 'optional',
+    cbRehireQ: 'Would you take him back?', cbRehireYes: 'Yes — good worker', cbRehireMaybe: 'Maybe', cbRehireNo: 'No — do not rehire',
+    cbRejoinBtn: 'Rejoin', cbRejoined: 'is back on the roster ✓', cbNotRecorded: 'not recorded',
+    cbNoRehireWarn: 'was marked DO NOT REHIRE.', cbBringBack: 'Bring him back anyway?', cbLeftOn: 'Left',
+    lrResigned: 'Resigned', lrBetterOffer: 'Better offer elsewhere', lrAbsconded: 'Absconded',
+    lrMisconduct: 'Terminated — misconduct', lrAccident: 'Terminated — accident', lrPilferage: 'Terminated — pilferage',
+    lrMedical: 'Medical / unfit', lrRetired: 'Retired', lrOther: 'Other',
+    // Documents
+    docLicense: 'Driving License', docAadhaar: 'Aadhaar Card', docPhoto: 'Photograph',
+    docPan: 'PAN Card', docPolice: 'Police Verification', docMedical: 'Medical Cert.',
+    cbMandatoryWord: 'mandatory', cbTotalOnFile: 'total on file',
+    cbMandMissing: 'Mandatory documents missing', cbMandOk: 'All mandatory documents on file',
+    cbRequired: 'Required', cbAddWord: 'Add', cbValid: 'valid', cbOnFile: 'on file', cbExpiresWord: 'expires',
+    cbPhotoNeeded: 'photo needed', cbMandTag: 'MANDATORY',
+    cbMandDocFor: 'Mandatory document — required for every', cbOptDoc: 'Optional document.',
+    cbTakeDocPhoto: 'Take photo of document', cbReplacePhoto: 'Replace photo', cbNumberWord: 'number',
+    cbEnterOrScan: 'Enter or scan', cbExpiryDate: 'Expiry date', cbSaveDoc: 'Save document',
+    cbShowFull: 'Show full number', cbChangeWord: 'Change', cbScanNumber: 'Scan number',
+    cbDocSaved: 'Document saved ✓', cbDocNeedPhoto: 'Take a photo of the document',
+    cbInsMissingMany: 'crew are missing a mandatory document', cbInsDocsIncomplete: 'docs incomplete',
+    cbInsMissingDetail: 'and', cbInsMore: 'more. Open the crew bank and use the “Docs missing” filter.', cbInsMissingList: 'Missing',
+    cbIncomplete: 'incomplete', cbOpenWord: 'open',
+    // ---- Duty board (driver/conductor ↔ bus) + Crew Manager ----
+    asTitle: 'Duty board', asHint: 'Tap a name to change their bus, or tap a bus to fill the empty seat.',
+    asNoBus: 'no bus assigned', asAssigned: 'assigned', asUnassigned: 'unassigned',
+    asBusesNoDriver: 'Buses without a driver', asBusesNoConductor: 'Buses without a conductor',
+    asAssignWord: 'assign', asAllHaveDriver: 'Every bus has a driver 👍', asAllHaveConductor: 'Every bus has a conductor 👍',
+    asAssignDriver: 'Assign driver', asAssignConductor: 'Assign conductor', asNone: '— none —',
+    asDriverAssigned: 'Driver assigned', asConductorAssigned: 'Conductor assigned', asForThisBus: 'for this bus',
+    asNobodyYet: 'Nobody on the roster yet',
+    cmToday: "Today's duty", cmNeedDriver: 'need a driver', cmNeedConductor: 'need a conductor',
+    cmAllSet: 'Every bus has its driver and conductor ✓', cmOpenBoard: 'Open the duty board',
   },
   hi: {
     appName: 'गैराज साथी', home: 'होम', buses: 'बसें', jobs: 'काम', store: 'स्टोर', me: 'मैं',
@@ -98,6 +165,73 @@ const I18N = {
     // Report categories
     catBrakes: 'ब्रेक', catEngine: 'इंजन', catAC: 'एसी', catSuspension: 'सस्पेंशन', catElectrical: 'बिजली',
     catTyres: 'टायर', catGearbox: 'गियरबॉक्स', catBody: 'बॉडी', catOther: 'अन्य',
+    // ---- Crew data bank (drivers & conductors) ----
+    cbTitle: 'स्टाफ बैंक', cbOnRoll: 'लोग काम पर', cbDrivers: 'ड्राइवर', cbConductors: 'कंडक्टर', cbLeft: 'छोड़ चुके',
+    roleDriver: 'ड्राइवर', roleConductor: 'कंडक्टर',
+    cbMissingDocsOne: 'व्यक्ति के ज़रूरी कागज़ नहीं हैं।', cbMissingDocsMany: 'लोगों के ज़रूरी कागज़ नहीं हैं।',
+    cbAllOnFile: 'सभी ज़रूरी कागज़ मौजूद हैं।', cbExpiringSoon: 'कागज़ 30 दिन में खत्म हो रहे हैं।',
+    cbSearchPh: 'नाम, फ़ोन, लाइसेंस, आधार के आखिरी 4…', cbExport: 'सूची डाउनलोड (CSV)',
+    cbFAll: 'सभी', cbFDrivers: 'ड्राइवर', cbFConductors: 'कंडक्टर', cbFIncomplete: 'कागज़ बाकी', cbFExpiring: 'खत्म हो रहे', cbFLeft: 'पुराने स्टाफ',
+    cbNobody: 'इस सूची में कोई नहीं', cbNobodyMatch: 'कोई नहीं मिला', cbNoPhone: 'फ़ोन नहीं', cbNoBus: 'बस नहीं',
+    cbDocsShort: 'कागज़', cbLeftBadge: 'छोड़ा', cbExported: 'लोगों की सूची डाउनलोड — आधार छिपा हुआ',
+    // Joining form
+    cbNewJoining: 'नई भर्ती', cbTakePhoto: 'फोटो लें', cbFullName: 'पूरा नाम', cbNamePh: 'जैसे रमेश कुमार',
+    cbPhone: 'फ़ोन', cbAltPhone: 'दूसरा फ़ोन', cbPh10: '10 अंक', cbPh12: '12 अंक',
+    cbLicenceNo: 'लाइसेंस नंबर', cbLicenceExp: 'लाइसेंस वैधता', cbAadhaarNo: 'आधार नंबर',
+    cbJoinDate: 'भर्ती की तारीख़', cbDob: 'जन्म तारीख़', cbAssignBus: 'बस दें', cbUnassigned: '— कोई बस नहीं —',
+    cbAddress: 'पता (गाँव / शहर)', cbBlood: 'ब्लड ग्रुप', cbSalary: 'महीने की तनख्वाह ₹',
+    cbEmgHint: 'रास्ते में कुछ हो जाए तो किसे फ़ोन करें?',
+    cbEmgName: 'आपात संपर्क', cbEmgPhone: 'उनका फ़ोन', cbEmgRel: 'रिश्ता', cbRelPh: 'जैसे भाई, पत्नी',
+    cbRefName: 'सिफ़ारिश (कौन जानता है)', cbRefPhone: 'सिफ़ारिश का फ़ोन', cbAddBtn: 'रजिस्टर में जोड़ें',
+    cbDocsLater: 'कागज़ों की फोटो (लाइसेंस, आधार, पुलिस वेरिफिकेशन) बाद में उसकी कागज़ात स्क्रीन से जोड़ें।',
+    cbNeedName: 'उसका नाम डालें', cbNeedPhone: '10 अंकों का फ़ोन नंबर डालें',
+    cbNeedLicence: 'ड्राइवर का लाइसेंस नंबर ज़रूरी है', cbNeedAadhaar12: 'आधार 12 अंकों का होना चाहिए',
+    cbAdded: 'रजिस्टर में जुड़ गया ✓', cbNotAllowed: 'अनुमति नहीं',
+    // Duplicates
+    cbDupTitle: 'पहले से रजिस्टर में है', cbDupAsk: 'को फिर भी नया जोड़ें?', cbDupAddWord: '',
+    cbDupWorking: 'अभी काम कर रहा है', cbDupOn: 'पर', cbDupLeftWord: 'छोड़ चुका', cbDupReason: 'कारण',
+    cbDupRehire: 'दोबारा रखें', cbSamePhone: 'वही फ़ोन', cbSameAadhaar: 'वही आधार', cbSameLicence: 'वही लाइसेंस',
+    cbDupPhoneOn: 'यह फ़ोन पहले से इन पर है:', cbSaveAnyway: 'फिर भी सेव करें?',
+    // Profile / details
+    cbDetails: 'जानकारी', cbEdit: 'बदलें', cbEditDetails: 'जानकारी बदलें', cbSaved: 'जानकारी सेव हुई ✓',
+    cbNeedNameNotEmpty: 'नाम खाली नहीं हो सकता', cbNoDetails: 'अभी कुछ दर्ज नहीं — बदलें दबाकर जानकारी भरें।',
+    cbAadhaar: 'आधार', cbJoined: 'भर्ती', cbAge: 'उम्र', cbYrs: 'साल', cbYr: 'साल',
+    cbBus: 'बस', cbAssignedBus: 'दी गई बस', cbRating: 'रेटिंग', cbChangeBus: 'बस बदलें', cbLogReport: 'रिपोर्ट लिखें',
+    // Leaving / rejoining
+    cbMarkLeftBtn: 'नौकरी छोड़ी', cbMarkLeftTitle: 'नौकरी छोड़ी', cbMarkedLeft: 'की नौकरी छोड़ी दर्ज',
+    cbExitHint: 'उसका रिकॉर्ड रजिस्टर में हमेशा रहेगा। यह सिर्फ़ उसे काम की सूची से हटाता है और उसकी बस खाली करता है।',
+    cbLastDay: 'आख़िरी काम का दिन', cbReason: 'कारण', cbNote: 'नोट (दफ़्तर को क्या पता होना चाहिए)', cbOptional: 'ज़रूरी नहीं',
+    cbRehireQ: 'क्या दोबारा रखेंगे?', cbRehireYes: 'हाँ — अच्छा कर्मचारी', cbRehireMaybe: 'शायद', cbRehireNo: 'नहीं — दोबारा न रखें',
+    cbRejoinBtn: 'वापस लें', cbRejoined: 'दोबारा काम पर ✓', cbNotRecorded: 'दर्ज नहीं',
+    cbNoRehireWarn: 'को “दोबारा न रखें” चिह्नित किया गया था।', cbBringBack: 'फिर भी वापस लें?', cbLeftOn: 'छोड़ा',
+    lrResigned: 'खुद छोड़ा', lrBetterOffer: 'कहीं बेहतर काम मिला', lrAbsconded: 'बिना बताए चला गया',
+    lrMisconduct: 'निकाला — बदसलूकी', lrAccident: 'निकाला — दुर्घटना', lrPilferage: 'निकाला — चोरी',
+    lrMedical: 'बीमारी / अनफिट', lrRetired: 'सेवानिवृत्त', lrOther: 'अन्य',
+    // Documents
+    docLicense: 'ड्राइविंग लाइसेंस', docAadhaar: 'आधार कार्ड', docPhoto: 'फोटो',
+    docPan: 'पैन कार्ड', docPolice: 'पुलिस वेरिफिकेशन', docMedical: 'मेडिकल सर्टिफिकेट',
+    cbMandatoryWord: 'ज़रूरी', cbTotalOnFile: 'कुल मौजूद',
+    cbMandMissing: 'ज़रूरी कागज़ नहीं हैं', cbMandOk: 'सभी ज़रूरी कागज़ मौजूद',
+    cbRequired: 'ज़रूरी', cbAddWord: 'जोड़ें', cbValid: 'सही', cbOnFile: 'मौजूद', cbExpiresWord: 'खत्म',
+    cbPhotoNeeded: 'फोटो चाहिए', cbMandTag: 'ज़रूरी',
+    cbMandDocFor: 'ज़रूरी कागज़ — हर', cbOptDoc: 'यह कागज़ ज़रूरी नहीं है।',
+    cbTakeDocPhoto: 'कागज़ की फोटो लें', cbReplacePhoto: 'फोटो बदलें', cbNumberWord: 'नंबर',
+    cbEnterOrScan: 'डालें या स्कैन करें', cbExpiryDate: 'खत्म होने की तारीख़', cbSaveDoc: 'कागज़ सेव करें',
+    cbShowFull: 'पूरा नंबर दिखाएं', cbChangeWord: 'बदलें', cbScanNumber: 'नंबर स्कैन करें',
+    cbDocSaved: 'कागज़ सेव हुआ ✓', cbDocNeedPhoto: 'कागज़ की फोटो लें',
+    cbInsMissingMany: 'स्टाफ के ज़रूरी कागज़ नहीं हैं', cbInsDocsIncomplete: 'के कागज़ अधूरे',
+    cbInsMissingDetail: 'और', cbInsMore: 'और लोग। स्टाफ बैंक खोलकर “कागज़ बाकी” छाँटें।', cbInsMissingList: 'नहीं है',
+    cbIncomplete: 'अधूरा', cbOpenWord: 'खोलें',
+    // ---- Duty board (driver/conductor ↔ bus) + Crew Manager ----
+    asTitle: 'ड्यूटी', asHint: 'बस बदलने के लिए नाम दबाएं, या खाली सीट भरने के लिए बस दबाएं।',
+    asNoBus: 'कोई बस नहीं', asAssigned: 'दी गई', asUnassigned: 'नहीं दी',
+    asBusesNoDriver: 'बिना ड्राइवर की बसें', asBusesNoConductor: 'बिना कंडक्टर की बसें',
+    asAssignWord: 'दें', asAllHaveDriver: 'हर बस पर ड्राइवर है 👍', asAllHaveConductor: 'हर बस पर कंडक्टर है 👍',
+    asAssignDriver: 'ड्राइवर दें', asAssignConductor: 'कंडक्टर दें', asNone: '— कोई नहीं —',
+    asDriverAssigned: 'ड्राइवर दे दिया', asConductorAssigned: 'कंडक्टर दे दिया', asForThisBus: 'इस बस के लिए',
+    asNobodyYet: 'अभी रोल पर कोई नहीं',
+    cmToday: 'आज की ड्यूटी', cmNeedDriver: 'बसों को ड्राइवर चाहिए', cmNeedConductor: 'बसों को कंडक्टर चाहिए',
+    cmAllSet: 'हर बस पर ड्राइवर और कंडक्टर हैं ✓', cmOpenBoard: 'ड्यूटी बोर्ड खोलें',
   },
 };
 let LANG = localStorage.getItem('lang') || 'en';
@@ -304,8 +438,16 @@ const PERMS = {
   addPurchase: ['owner', 'supervisor', 'store'],
   dashboard: ['owner', 'supervisor'],
   insights: ['owner', 'supervisor'],         // AI Insights screen
-  manageDrivers: ['owner', 'supervisor'],    // drivers list/detail, incidents, ratings
-  assignDriver: ['owner', 'supervisor'],     // assign a driver to a bus
+  // 'crewmanager' is a single-job login: the daily duty board and the crew bank,
+  // and nothing else. It deliberately has no money, fleet, jobs or store rights.
+  manageDrivers: ['owner', 'supervisor', 'crewmanager'],   // crew bank, details, documents
+  assignDriver: ['owner', 'supervisor', 'crewmanager'],    // driver/conductor ↔ bus
+  // Split off manageDrivers on purpose: minting logins and PINs for the whole
+  // crew is an owner's job, not part of keeping their records.
+  manageCrewLogins: ['owner', 'supervisor'],
+  // Scoring somebody's driving is a supervisor's judgement, not record-keeping —
+  // and the server refuses `incidents` writes from anyone else anyway.
+  logIncident: ['owner', 'supervisor'],
   logService: ['owner', 'supervisor'],       // resets service + writes a verified job
   manageRoutes: ['owner', 'supervisor'],     // routes, stops, go-times, punctuality
   addFuel: ['owner', 'supervisor', 'store'], // log fuel fills; view mileage
@@ -553,7 +695,11 @@ const driverName = (id) => (driverById(id) || {}).name || '—';
  */
 const crewRoleOf = (d) => (d && d.crewRole === 'conductor' ? 'conductor' : 'driver');
 const crewStatusOf = (d) => ((d && d.status) === 'left' ? 'left' : 'active');
-const CREW_ROLE_META = { driver: ['🧑‍✈️', 'Driver'], conductor: ['🎫', 'Conductor'] };
+const CREW_ROLE_META = { driver: ['🧑‍✈️', 'roleDriver'], conductor: ['🎫', 'roleConductor'] };
+// Resolved on every render, never cached: switching language only re-renders.
+const crewRoleLabel = (role) => t(CREW_ROLE_META[role === 'conductor' ? 'conductor' : 'driver'][1]);
+// The CSV is a data file for the office's own spreadsheets, so it stays English.
+const enLabel = (k) => I18N.en[k] || k;
 const allCrew = () => (S.cache.drivers || []);
 const activeCrew = () => allCrew().filter((d) => crewStatusOf(d) === 'active');
 const activeDrivers = () => activeCrew().filter((d) => crewRoleOf(d) === 'driver');
@@ -661,7 +807,10 @@ const TAB_OF = {
   insights: 'home', pilferage: 'home',
 };
 function bottomnav() {
-  const active = TAB_OF[S.route.name] || 'home';
+  let active = TAB_OF[S.route.name] || 'home';
+  // The crew manager's nav has its own crewbank tab; everyone else reaches the
+  // bank under People, which is what TAB_OF maps it to.
+  if (S.user.role === 'crewmanager' && (S.route.name === 'crewbank' || S.route.name === 'drivers' || S.route.name === 'driverdocs')) active = 'crewbank';
   // Each role gets a focused nav matching what they actually do. Owner is
   // money/fleet/people (the real work); supervisor is jobs/fleet/store (the floor).
   const NAVS = {
@@ -669,6 +818,7 @@ function bottomnav() {
     supervisor: [['home', '🏠', t('today')], ['jobs', '🛠️', t('jobs')], ['fleet', '🚌', t('fleet')], ['store', '📦', t('store')], ['me', '👤', t('me')]],
     store:      [['home', '📦', t('store')], ['bills', '🧾', t('bills')], ['jobs', '🛠️', t('jobs')], ['me', '👤', t('me')]],
     mechanic:   [['home', '🛠️', t('myWork')], ['store', '📦', t('store')], ['me', '👤', t('me')]],
+    crewmanager:[['home', '🔁', t('today')], ['crewbank', '🗂️', t('cbTitle')], ['me', '👤', t('me')]],
     driver:     [['home', '🚌', t('myBus')], ['me', '👤', t('me')]],
     conductor:  [['home', '🚌', t('myDuty')], ['me', '👤', t('me')]],
   };
@@ -943,6 +1093,38 @@ function viewFleet() {
 }
 
 // PEOPLE — drivers worst-first, staff, attendance, scorecards, safety, assignments.
+/* The crew manager's whole app: which buses are short a driver or a conductor
+ * today, and a way into the bank. Nothing else is on this screen because
+ * nothing else is his job. */
+function viewCrewManagerHome() {
+  const buses = S.cache.buses || [];
+  const noDrv = buses.filter((b) => !driverOfBus(b.id));
+  const noCon = buses.filter((b) => !conductorOfBus(b.id));
+  const myAtt = (S.cache.att || []).filter((a) => a.userId === S.user.id);
+  const checkedIn = myAtt.length && myAtt[myAtt.length - 1].type === 'in' && isToday(myAtt[myAtt.length - 1].at);
+
+  let body = `<div class="greet"><div class="greet-av">🗂️</div>
+    <div><div class="greet-hi">${t('namaste')}, ${esc(S.user.name)}</div>
+      <div class="muted small">${t('cmToday')} · ${buses.length} ${t('buses').toLowerCase()}</div></div></div>`;
+  if (!checkedIn) body += `<div class="banner warn">⏰ ${t('checkin')}<button class="btn sm" data-nav="me" style="margin-left:auto">${t('checkin')}</button></div>`;
+
+  body += (noDrv.length || noCon.length)
+    ? `<div class="card"><h3>${t('cmToday')}</h3>
+        <div class="trow" data-act="asOpen" data-v="driver"><div class="ti">🧑‍✈️</div><div class="tm"><div class="tt">${noDrv.length} ${t('cmNeedDriver')}</div>
+          <div class="tiny muted">${esc(noDrv.slice(0, 3).map((b) => b.regNo).join(', '))}${noDrv.length > 3 ? '…' : ''}</div></div>
+          <span class="badge ${noDrv.length ? 'b-amber' : 'b-green'}">${noDrv.length}</span></div>
+        <div class="trow" data-act="asOpen" data-v="conductor"><div class="ti">🎫</div><div class="tm"><div class="tt">${noCon.length} ${t('cmNeedConductor')}</div>
+          <div class="tiny muted">${esc(noCon.slice(0, 3).map((b) => b.regNo).join(', '))}${noCon.length > 3 ? '…' : ''}</div></div>
+          <span class="badge ${noCon.length ? 'b-amber' : 'b-green'}">${noCon.length}</span></div></div>`
+    : `<div class="card"><div class="row" style="gap:10px"><div class="ins-ic">✅</div><div><b>${t('cmAllSet')}</b></div></div></div>`;
+
+  body += `<div class="card">
+    <div class="trow" data-act="asOpen" data-v="driver"><div class="ti">🔁</div><div class="tm"><div class="tt">${t('cmOpenBoard')}</div></div><div class="tc">›</div></div>
+    <div class="trow" data-act="openCrewBank"><div class="ti">🗂️</div><div class="tm"><div class="tt">${t('cbTitle')}</div>
+      <div class="tiny muted">${activeCrew().length} ${t('cbOnRoll')}</div></div><div class="tc">›</div></div></div>`;
+  shell(t('today'), body);
+}
+
 function viewPeople() {
   const drivers = activeDrivers().map((d) => ({ d, score: driverScore(d.id) })).sort((a, b) => a.score - b.score);
   const inToday = (S.cache.att || []).filter((a) => a.type === 'in' && isToday(a.at)).map((a) => a.userId);
@@ -973,6 +1155,7 @@ function viewPeople() {
 }
 
 function viewHome() {
+  if (S.user.role === 'crewmanager') return viewCrewManagerHome();
   if (S.user.role === 'driver') return viewDriverHome();
   if (S.user.role === 'conductor') return viewConductorHome();
   if (S.user.role === 'store') return viewStoreHome();
@@ -1210,7 +1393,7 @@ function attachSearch(inputId, listId) {
 // don't have yet. New buses then track live automatically via GpsProvider.
 const _normReg = (s) => (s || '').toUpperCase().replace(/[\s-]/g, '');
 async function importFleet(silent) {
-  if (!can(S.user.role, 'addBus')) { if (!silent) toast('Not allowed'); return 0; }
+  if (!can(S.user.role, 'addBus')) { if (!silent) toast(t('cbNotAllowed')); return 0; }
   if (!silent) toast('Pulling fleet from AirFi…');
   const fleet = await Sync.fleet();
   if (!fleet.length) { if (!silent) toast('No buses from AirFi yet — they appear once trackers start pushing.'); return 0; }
@@ -3198,7 +3381,7 @@ async function handleImportFile(file) {
   if (S.route && S.route.name === 'import') viewImport();
 }
 async function togglePaid(purId) {
-  if (!can(S.user.role, 'addPurchase')) return toast('Not allowed');
+  if (!can(S.user.role, 'addPurchase')) return toast(t('cbNotAllowed'));
   const p = byId(S.cache.purchases, purId);
   if (!p) return;
   p.paymentStatus = p.paymentStatus === 'paid' ? 'pending' : 'paid';
@@ -3327,7 +3510,7 @@ function sheetStaff() {
   const users = [...S.cache.users].sort((a, b) => a.role.localeCompare(b.role));
   openSheet('Staff accounts', `
     <div class="card"><h3>Team (${users.length})</h3>
-      ${users.map((u) => `<div class="li"><div class="ava">${u.role === 'owner' ? '👑' : u.role === 'supervisor' ? '🧑‍🔧' : u.role === 'store' ? '📦' : '🔧'}</div>
+      ${users.map((u) => `<div class="li"><div class="ava">${roleEmoji(u.role)}</div>
         <div class="main"><div class="t">${esc(u.name)}</div><div class="s">${esc(u.role)}</div></div></div>`).join('')}
     </div>
     <div class="card"><h3>Add staff</h3>
@@ -3335,7 +3518,7 @@ function sheetStaff() {
       <div class="grid2">
         <label class="field"><span class="lbl">Role</span><select id="f-srole">
           <option value="mechanic">Mechanic</option><option value="store">Store</option><option value="driver">Driver</option>
-          ${S.user.role === 'owner' ? '<option value="supervisor">Supervisor</option>' : ''}</select></label>
+          ${S.user.role === 'owner' ? '<option value="crewmanager">Crew Manager — duty board + crew bank only</option><option value="supervisor">Supervisor</option>' : ''}</select></label>
         <label class="field"><span class="lbl">4-digit PIN</span><input id="f-spin" inputmode="numeric" maxlength="4" placeholder="0000"></label>
       </div>
       <div class="tiny muted" style="margin-bottom:10px">Account is created on the server and appears on every device.</div>
@@ -4247,7 +4430,7 @@ function sheetRequestPart(jobId) {
 async function saveRequestPart(jobId) {
   const j = byId(S.cache.jobs, jobId);
   if (!j) return;
-  if (S.user.role === 'mechanic' && j.assignedTo !== S.user.id) return toast('Not allowed');
+  if (S.user.role === 'mechanic' && j.assignedTo !== S.user.id) return toast(t('cbNotAllowed'));
   const partId = $('#f-reqpart').value;
   const qty = Number($('#f-reqqty').value) || 1;
   const p = byId(S.cache.parts, partId);
@@ -4320,7 +4503,7 @@ async function markDone(jobId) {
   await load(); toast('Marked done — waiting for verify'); viewJobDetail(jobId);
 }
 async function verifyJob(jobId) {
-  if (!can(S.user.role, 'verifyJob')) return toast('Not allowed');
+  if (!can(S.user.role, 'verifyJob')) return toast(t('cbNotAllowed'));
   const j = byId(S.cache.jobs, jobId);
   // Verification = signing off that the work is real. Enforce the same proof
   // rule as Mark Done so nobody can verify a job with no evidence.
@@ -4342,7 +4525,7 @@ async function verifyJob(jobId) {
 }
 // Send a "done" job back to the mechanic for rework instead of verifying.
 async function rejectJob(jobId) {
-  if (!can(S.user.role, 'verifyJob')) return toast('Not allowed');
+  if (!can(S.user.role, 'verifyJob')) return toast(t('cbNotAllowed'));
   const j = byId(S.cache.jobs, jobId);
   if (!confirm('Send this job back to the mechanic for rework?')) return;
   j.status = 'in-progress'; j.closedAt = null;
@@ -4398,7 +4581,7 @@ async function showGps(busId) {
     <button class="btn ghost" data-act="gps" data-bus="${b.id}">↻ Refresh</button>`;
 }
 function logService(busId) {
-  if (!can(S.user.role, 'logService')) return toast('Not allowed');
+  if (!can(S.user.role, 'logService')) return toast(t('cbNotAllowed'));
   const b = byId(S.cache.buses, busId);
   openSheet('Log service done', `
     <div class="grid2">
@@ -4410,7 +4593,7 @@ function logService(busId) {
     <button class="btn primary" data-act="confirmLogService" data-bus="${busId}">✅ Log service</button>`);
 }
 async function confirmLogService(busId) {
-  if (!can(S.user.role, 'logService')) return toast('Not allowed');
+  if (!can(S.user.role, 'logService')) return toast(t('cbNotAllowed'));
   const b = byId(S.cache.buses, busId);
   const odo = Number($('#f-svodo').value) || b.odometer || 0;
   const hrs = Number($('#f-svhrs').value) || 0;
@@ -4449,25 +4632,33 @@ function viewDrivers() {
 }
 
 // Dedicated one-screen view of who drives what — reassign in one place.
+/* The duty board. A bus carries one driver AND one conductor, so the screen is
+ * the same layout twice, switched by a chip — who has no bus, and which buses
+ * have an empty seat. This is the daily job. */
+let _asRole = 'driver';
 function viewAssignments() {
-  const drivers = [...activeDrivers()].sort((a, b) => a.name.localeCompare(b.name));
+  const role = _asRole === 'conductor' ? 'conductor' : 'driver';
+  const crew = activeCrew().filter((d) => crewRoleOf(d) === role).sort((a, b) => a.name.localeCompare(b.name));
   const buses = S.cache.buses;
-  let body = `<div class="card"><div class="tiny muted">Tap a driver to change their bus, or tap a driverless bus to assign one. Each bus has at most one driver.</div></div>`;
-  body += `<div class="card"><div class="row between"><h3>Drivers</h3><span class="badge b-low">${drivers.length}</span></div>`;
-  body += drivers.length ? drivers.map((d) => {
+  const seatOf = (busId) => (role === 'conductor' ? conductorOfBus(busId) : driverOfBus(busId));
+  let body = `<div class="chiprow">${['driver', 'conductor'].map((r) =>
+    `<button class="chip ${role === r ? 'active' : ''}" data-act="asRole" data-v="${r}">${CREW_ROLE_META[r][0]} ${esc(crewRoleLabel(r))}</button>`).join('')}</div>`;
+  body += `<div class="card"><div class="tiny muted">${t('asHint')}</div></div>`;
+  body += `<div class="card"><div class="row between"><h3>${esc(crewRoleLabel(role))}</h3><span class="badge b-low">${crew.length}</span></div>`;
+  body += crew.length ? crew.map((d) => {
     const bus = byId(buses, d.busId);
-    return `<div class="li" data-act="assignBus" data-driver="${d.id}" style="cursor:pointer"><div class="ava">🧑‍✈️</div>
-      <div class="main"><div class="t">${esc(d.name)}</div><div class="s">${bus ? esc(bus.regNo) + ' · ' + esc(bus.company) : 'no bus assigned'}</div></div>
-      <span class="badge ${bus ? 'b-green' : 'b-amber'}">${bus ? 'assigned' : 'unassigned'}</span></div>`;
-  }).join('') : `<div class="empty">No drivers yet</div>`;
+    return `<div class="li" data-act="assignBus" data-driver="${d.id}" style="cursor:pointer"><div class="ava">${CREW_ROLE_META[role][0]}</div>
+      <div class="main"><div class="t">${esc(d.name)}</div><div class="s">${bus ? esc(bus.regNo) + ' · ' + esc(bus.company || '') : t('asNoBus')}</div></div>
+      <span class="badge ${bus ? 'b-green' : 'b-amber'}">${bus ? t('asAssigned') : t('asUnassigned')}</span></div>`;
+  }).join('') : `<div class="empty">${t('asNobodyYet')}</div>`;
   body += `</div>`;
-  const driverless = buses.filter((b) => !driverOfBus(b.id));
-  body += `<div class="card"><div class="row between"><h3>Buses without a driver</h3><span class="badge ${driverless.length ? 'b-amber' : 'b-green'}">${driverless.length}</span></div>`;
-  body += driverless.length ? driverless.map((b) => `<div class="li" data-act="assignDriver" data-bus="${b.id}" style="cursor:pointer"><div class="ava">🚌</div>
-    <div class="main"><div class="t">${esc(b.regNo)}</div><div class="s">${esc(b.company)} · ${esc(b.model || '')}</div></div>
-    <span class="badge b-amber">assign →</span></div>`).join('') : `<div class="muted small">Every bus has a driver 👍</div>`;
+  const empty = buses.filter((b) => !seatOf(b.id));
+  body += `<div class="card"><div class="row between"><h3>${t(role === 'conductor' ? 'asBusesNoConductor' : 'asBusesNoDriver')}</h3><span class="badge ${empty.length ? 'b-amber' : 'b-green'}">${empty.length}</span></div>`;
+  body += empty.length ? empty.map((b) => `<div class="li" data-act="assignDriver" data-bus="${b.id}" data-role="${role}" style="cursor:pointer"><div class="ava">🚌</div>
+    <div class="main"><div class="t">${esc(b.regNo)}</div><div class="s">${esc(b.company || '')} · ${esc(b.model || '')}</div></div>
+    <span class="badge b-amber">${t('asAssignWord')} →</span></div>`).join('') : `<div class="muted small">${t(role === 'conductor' ? 'asAllHaveConductor' : 'asAllHaveDriver')}</div>`;
   body += `</div>`;
-  shell('Driver ↔ Bus', body);
+  shell(t('asTitle'), body);
 }
 
 function viewDriverDetail(id) {
@@ -4486,16 +4677,16 @@ function viewDriverDetail(id) {
   let body = `<div class="card"><div class="row">
       <div class="ava" style="width:52px;height:52px;font-size:26px">${d.photo ? `<img src="${esc(d.photo)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:16px">` : rmeta[0]}</div>
       <div style="flex:1"><div style="font-weight:800;font-size:17px">${esc(d.name)}</div>
-        <div class="small muted">${esc(rmeta[1])}${d.phone ? ' · ' + esc(d.phone) : ''}${crewLicenceNo(d) ? ' · ' + esc(crewLicenceNo(d)) : ''}</div></div>
+        <div class="small muted">${esc(crewRoleLabel(crole))}${d.phone ? ' · ' + esc(d.phone) : ''}${crewLicenceNo(d) ? ' · ' + esc(crewLicenceNo(d)) : ''}</div></div>
       <span class="badge ${scoreClass(score)}">${score}/100</span></div>
-    ${hasLeft ? `<div class="hr"></div><div class="tiny" style="color:#ef4444;font-weight:700">📦 Left${d.leftAt ? ' on ' + fmtDate(d.leftAt) : ''}${d.leftReason ? ' — ' + esc(d.leftReason) : ''}${d.rehire ? ` · rehire: ${esc(d.rehire.toUpperCase())}` : ''}</div>` : ''}
+    ${hasLeft ? `<div class="hr"></div><div class="tiny" style="color:#ef4444;font-weight:700">📦 ${t('cbLeftOn')}${d.leftAt ? ' ' + fmtDate(d.leftAt) : ''}${crewLeftReason(d) ? ' — ' + esc(crewLeftReason(d)) : ''}${d.rehire ? ` · ${t('cbDupRehire')}: ${esc(t(REHIRE_KEY[d.rehire] || 'cbRehireMaybe'))}` : ''}</div>` : ''}
     <div class="hr"></div>
-    <div class="row between"><div><div class="tiny muted">${crole === 'conductor' ? 'Bus' : 'Assigned bus'}</div><b>${bus ? esc(bus.regNo) : '—'}</b></div>
-      <div style="text-align:right"><div class="tiny muted">Rating</div><div class="stars">${starStr(scoreStars(score))}</div></div></div>
+    <div class="row between"><div><div class="tiny muted">${t(crole === 'conductor' ? 'cbBus' : 'cbAssignedBus')}</div><b>${bus ? esc(bus.regNo) : '—'}</b></div>
+      <div style="text-align:right"><div class="tiny muted">${t('cbRating')}</div><div class="stars">${starStr(scoreStars(score))}</div></div></div>
     <div class="spacer"></div>
-    <div class="btnrow">${hasLeft ? (canManage ? `<button class="btn sm" data-act="crewRejoin" data-driver="${d.id}">↩️ Rejoin</button>` : '')
-      : `<button class="btn sm" data-act="assignBus" data-driver="${d.id}">Change bus</button>
-      <button class="btn sm" data-act="reportProblem" data-bus="${d.busId || ''}" data-driver="${d.id}">Log report</button>`}</div></div>`;
+    <div class="btnrow">${hasLeft ? (canManage ? `<button class="btn sm" data-act="crewRejoin" data-driver="${d.id}">↩️ ${t('cbRejoinBtn')}</button>` : '')
+      : `<button class="btn sm" data-act="assignBus" data-driver="${d.id}">${t('cbChangeBus')}</button>
+      ${can(S.user.role, 'logIncident') ? `<button class="btn sm" data-act="reportProblem" data-bus="${d.busId || ''}" data-driver="${d.id}">${t('cbLogReport')}</button>` : ''}`}</div></div>`;
 
   // Who he is — the half of the bank that is not documents. Rows are omitted
   // when empty rather than shown as dashes, so the gaps are visible at a glance.
@@ -4503,35 +4694,35 @@ function viewDriverDetail(id) {
     href ? `<a href="${href}" style="font-weight:700;color:var(--brand2,#2563eb);text-decoration:none">${esc(val)}</a>` : `<b>${esc(val)}</b>`}</div>` : '';
   const aadhaar = maskAadhaar(crewAadhaarNo(d));
   const licDoc = docOf(d, 'license') || {};
-  let details = row('Phone', d.phone, d.phone ? 'tel:' + _digits(d.phone) : null)
-    + row('Alternate phone', d.altPhone, d.altPhone ? 'tel:' + _digits(d.altPhone) : null)
-    + row('Licence no.', crewLicenceNo(d))
-    + row('Licence expiry', licDoc.expiry ? fmtDate(licDoc.expiry) : '')
-    + row('Aadhaar', aadhaar)
-    + row('Joined', d.joinedAt ? fmtDate(d.joinedAt) + (tenure ? ` · ${tenure} yr${tenure === 1 ? '' : 's'}` : '') : '')
-    + row('Age', age ? age + ' yrs' : '')
-    + row('Blood group', d.bloodGroup)
-    + row('Address', d.address)
-    + row('Monthly salary', d.salaryMonthly ? money(d.salaryMonthly) : '')
-    + row('Emergency contact', [d.emgName, d.emgRelation].filter(Boolean).join(' · '))
-    + row('Emergency phone', d.emgPhone, d.emgPhone ? 'tel:' + _digits(d.emgPhone) : null)
-    + row('Reference', d.refName)
-    + row('Reference phone', d.refPhone, d.refPhone ? 'tel:' + _digits(d.refPhone) : null);
-  body += `<div class="card"><div class="row between"><h3>Details</h3>${
-    canManage ? `<button class="btn sm ghost" data-act="editCrewProfile" data-driver="${d.id}" style="width:auto">✏️ Edit</button>` : ''}</div>
-    ${details || '<div class="muted small">Nothing recorded yet — tap Edit to fill his details.</div>'}
-    ${canManage && !hasLeft ? `<div class="spacer"></div><button class="btn sm ghost" data-act="crewExit" data-driver="${d.id}">📦 Mark as left</button>` : ''}</div>`;
+  let details = row(t('cbPhone'), d.phone, d.phone ? 'tel:' + _digits(d.phone) : null)
+    + row(t('cbAltPhone'), d.altPhone, d.altPhone ? 'tel:' + _digits(d.altPhone) : null)
+    + row(t('cbLicenceNo'), crewLicenceNo(d))
+    + row(t('cbLicenceExp'), licDoc.expiry ? fmtDate(licDoc.expiry) : '')
+    + row(t('cbAadhaar'), aadhaar)
+    + row(t('cbJoined'), d.joinedAt ? fmtDate(d.joinedAt) + (tenure ? ` · ${tenure} ${t(tenure === 1 ? 'cbYr' : 'cbYrs')}` : '') : '')
+    + row(t('cbAge'), age ? age + ' ' + t('cbYrs') : '')
+    + row(t('cbBlood'), d.bloodGroup)
+    + row(t('cbAddress'), d.address)
+    + (can(S.user.role, 'money') ? row(t('cbSalary'), d.salaryMonthly ? money(d.salaryMonthly) : '') : '')
+    + row(t('cbEmgName'), [d.emgName, d.emgRelation].filter(Boolean).join(' · '))
+    + row(t('cbEmgPhone'), d.emgPhone, d.emgPhone ? 'tel:' + _digits(d.emgPhone) : null)
+    + row(t('cbRefName'), d.refName)
+    + row(t('cbRefPhone'), d.refPhone, d.refPhone ? 'tel:' + _digits(d.refPhone) : null);
+  body += `<div class="card"><div class="row between"><h3>${t('cbDetails')}</h3>${
+    canManage ? `<button class="btn sm ghost" data-act="editCrewProfile" data-driver="${d.id}" style="width:auto">✏️ ${t('cbEdit')}</button>` : ''}</div>
+    ${details || `<div class="muted small">${t('cbNoDetails')}</div>`}
+    ${canManage && !hasLeft ? `<div class="spacer"></div><button class="btn sm ghost" data-act="crewExit" data-driver="${d.id}">📦 ${t('cbMarkLeftBtn')}</button>` : ''}</div>`;
 
   // Document vault summary (tap to manage)
   const ds = driverDocStatus(d);
   body += `<div class="card" data-act="openDriverDocs" data-driver="${d.id}" style="cursor:pointer"><div class="row between">
     <div class="row" style="gap:12px;align-items:center">${progressRing(ds.pct)}
-      <div><div style="font-weight:800">📂 Documents</div>
-        <div class="small muted">${ds.mandDone}/${ds.mandTotal} mandatory${ds.mandDone < ds.mandTotal ? ' · ⚠️ incomplete' : ' ✓'}</div></div></div>
-    <span class="tiny" style="color:var(--brand2)">open ›</span></div></div>`;
+      <div><div style="font-weight:800">📂 ${t('documents')}</div>
+        <div class="small muted">${ds.mandDone}/${ds.mandTotal} ${t('cbMandatoryWord')}${ds.mandDone < ds.mandTotal ? ' · ⚠️ ' + t('cbIncomplete') : ' ✓'}</div></div></div>
+    <span class="tiny" style="color:var(--brand2)">${t('cbOpenWord')} ›</span></div></div>`;
 
   body += `<div class="card"><div class="row between"><h3>Performance</h3>
-    <button class="btn sm" data-act="addIncident" data-driver="${d.id}">+ Data point</button></div>`;
+    ${can(S.user.role, 'logIncident') ? `<button class="btn sm" data-act="addIncident" data-driver="${d.id}">+ Data point</button>` : ''}</div>`;
   if (Object.keys(byType).length) body += `<div class="row" style="flex-wrap:wrap;gap:6px;margin-bottom:10px">${
     Object.entries(byType).map(([tp, n]) => { const c = INCIDENT[tp] || INCIDENT.other; return `<span class="badge b-low">${c.icon} ${c.label} ×${n}</span>`; }).join('')}</div>`;
   body += incs.length ? incs.map((i) => { const c = INCIDENT[i.type] || INCIDENT.other;
@@ -4873,13 +5064,14 @@ function viewCrewPins() {
  * list nobody can be employed without: identity, a face, and a licence for the
  * man who actually drives. */
 const DRIVER_DOCS = [
-  { key: 'license', label: 'Driving License', icon: '🚗', num: true, expiry: true, mandatoryFor: ['driver'] },
-  { key: 'aadhaar', label: 'Aadhaar Card', icon: '🆔', num: true, mask: true, mandatoryFor: ['driver', 'conductor'] },
-  { key: 'photo', label: 'Photograph', icon: '📷', mandatoryFor: ['driver', 'conductor'] },
-  { key: 'pan', label: 'PAN Card', icon: '💳', num: true, mandatoryFor: [] },
-  { key: 'police', label: 'Police Verification', icon: '👮', expiry: true, mandatoryFor: [] },
-  { key: 'medical', label: 'Medical Cert.', icon: '🩺', expiry: true, mandatoryFor: [] },
+  { key: 'license', labelKey: 'docLicense', icon: '🚗', num: true, expiry: true, mandatoryFor: ['driver'] },
+  { key: 'aadhaar', labelKey: 'docAadhaar', icon: '🆔', num: true, mask: true, mandatoryFor: ['driver', 'conductor'] },
+  { key: 'photo', labelKey: 'docPhoto', icon: '📷', mandatoryFor: ['driver', 'conductor'] },
+  { key: 'pan', labelKey: 'docPan', icon: '💳', num: true, mandatoryFor: [] },
+  { key: 'police', labelKey: 'docPolice', icon: '👮', expiry: true, mandatoryFor: [] },
+  { key: 'medical', labelKey: 'docMedical', icon: '🩺', expiry: true, mandatoryFor: [] },
 ];
+const docLabel = (doc) => t(doc.labelKey);
 const docIsMandatory = (doc, crewRole) => (doc.mandatoryFor || []).includes(crewRole || 'driver');
 const docsFor = (crewRole) => DRIVER_DOCS;
 const docOf = (d, key) => (d.docs || {})[key];
@@ -4889,7 +5081,7 @@ function crewExpiring(d, withinDays) {
   const lim = withinDays == null ? 30 : withinDays;
   return DRIVER_DOCS.filter((x) => x.expiry).map((x) => ({ doc: x, cur: docOf(d, x.key) }))
     .filter((r) => r.cur && r.cur.expiry && daysLeft(r.cur.expiry) <= lim)
-    .map((r) => ({ label: r.doc.label, key: r.doc.key, expiry: r.cur.expiry, dl: daysLeft(r.cur.expiry) }))
+    .map((r) => ({ label: docLabel(r.doc), key: r.doc.key, expiry: r.cur.expiry, dl: daysLeft(r.cur.expiry) }))
     .sort((a, b) => a.dl - b.dl);
 }
 function driverDocStatus(d) {
@@ -4915,8 +5107,8 @@ function viewDriverDocs(driverId) {
   const docs = d.docs || {}, st = driverDocStatus(d), crole = crewRoleOf(d);
   let body = `<div class="card"><div class="ringwrap">${progressRing(st.pct, true)}
     <div><div style="font-weight:800;font-size:17px">${esc(d.name)}</div>
-      <div class="small muted">${CREW_ROLE_META[crole][1]} · ${st.mandDone}/${st.mandTotal} mandatory · ${st.allDone}/${st.allTotal} total on file</div>
-      <div class="tiny" style="margin-top:5px;color:${st.mandDone < st.mandTotal ? '#ef4444' : '#16a571'};font-weight:700">${st.mandDone < st.mandTotal ? '⚠️ Mandatory documents missing' : '✓ All mandatory documents on file'}</div></div></div></div>`;
+      <div class="small muted">${esc(crewRoleLabel(crole))} · ${st.mandDone}/${st.mandTotal} ${t('cbMandatoryWord')} · ${st.allDone}/${st.allTotal} ${t('cbTotalOnFile')}</div>
+      <div class="tiny" style="margin-top:5px;color:${st.mandDone < st.mandTotal ? '#ef4444' : '#16a571'};font-weight:700">${st.mandDone < st.mandTotal ? '⚠️ ' + t('cbMandMissing') : '✓ ' + t('cbMandOk')}</div></div></div></div>`;
   body += `<div class="docgrid">`;
   body += DRIVER_DOCS.map((doc, i) => {
     const cur = docs[doc.key], has = cur && cur.photo;
@@ -4927,23 +5119,23 @@ function viewDriverDocs(driverId) {
     // Aadhaar shows as XXXX XXXX 1234 here and everywhere else it is listed.
     const num = has && cur.number ? esc(doc.mask ? maskAadhaar(cur.number) : cur.number) : '';
     const numMask = numOnly ? esc(doc.mask ? maskAadhaar(cur.number) : cur.number) : '';
-    const stat = has ? (exp ? (expSoon ? `<span style="color:#f59e0b">expires ${fmtDate(cur.expiry)}</span>` : 'valid') : (num || 'on file'))
-      : numOnly ? `${numMask}<br><span style="color:#f59e0b">photo needed</span>` : (mand ? 'Required' : 'Add');
+    const stat = has ? (exp ? (expSoon ? `<span style="color:#f59e0b">${t('cbExpiresWord')} ${fmtDate(cur.expiry)}</span>` : t('cbValid')) : (num || t('cbOnFile')))
+      : numOnly ? `${numMask}<br><span style="color:#f59e0b">${t('cbPhotoNeeded')}</span>` : (mand ? t('cbRequired') : t('cbAddWord'));
     return `<div class="doccard ${cls}" data-act="driverDoc" data-driver="${d.id}" data-key="${doc.key}" style="animation-delay:${Math.min(i, 8) * 0.05}s">
       ${has ? '<div class="dtick">✅</div>' : ''}
       <div class="dicon">${doc.icon}</div>
-      <div class="dname">${doc.label}</div>
+      <div class="dname">${esc(docLabel(doc))}</div>
       <div class="dstat" style="${has ? 'color:var(--muted,#8b91a0)' : 'color:' + (mand ? '#ef4444' : '#8b91a0')}">${stat}</div>
-      ${mand && !has ? '<div class="mand">MANDATORY</div>' : ''}</div>`;
+      ${mand && !has ? `<div class="mand">${t('cbMandTag')}</div>` : ''}</div>`;
   }).join('');
   body += `</div><div class="spacer"></div>`;
-  shell('Documents', body);
+  shell(t('documents'), body);
   const fg = document.querySelector('.ring-svg .fg');
   if (fg) requestAnimationFrame(() => requestAnimationFrame(() => { fg.style.strokeDashoffset = fg.getAttribute('data-off'); }));
 }
 let _docShot = null, _docNumCur = '';
 function sheetDriverDoc(driverId, key) {
-  if (!canDriverDocs(driverId)) return toast('Not allowed');
+  if (!canDriverDocs(driverId)) return toast(t('cbNotAllowed'));
   const doc = DRIVER_DOCS.find((x) => x.key === key); if (!doc) return;
   const d = driverById(driverId); const cur = (d.docs || {})[key] || {};
   const crole = crewRoleOf(d), mand = docIsMandatory(doc, crole);
@@ -4952,15 +5144,15 @@ function sheetDriverDoc(driverId, key) {
   // and only for the roles that manage crew.
   _docNumCur = cur.number || '';
   const masked = !!(doc.mask && _docNumCur);
-  openSheet(doc.label, `
-    <div class="tiny muted" style="margin-bottom:12px">${doc.icon} ${mand ? `Mandatory document — required for every ${esc(CREW_ROLE_META[crole][1].toLowerCase())}.` : 'Optional document.'}</div>
-    <button class="btn" data-act="captureDoc">📷 ${cur.photo ? 'Replace photo' : 'Take photo of document'}</button>
+  openSheet(docLabel(doc), `
+    <div class="tiny muted" style="margin-bottom:12px">${doc.icon} ${mand ? `${t('cbMandDocFor')} ${esc(crewRoleLabel(crole).toLowerCase())}.` : t('cbOptDoc')}</div>
+    <button class="btn" data-act="captureDoc">📷 ${cur.photo ? t('cbReplacePhoto') : t('cbTakeDocPhoto')}</button>
     <div id="doc-prev" class="thumbs" style="margin:10px 0">${cur.photo ? `<img class="thumb" src="${esc(cur.photo)}">` : ''}</div>
-    ${doc.num ? `<label class="field"><span class="lbl">🔢 ${doc.label} number</span><input id="doc-num" value="${esc(masked ? maskAadhaar(_docNumCur) : _docNumCur)}" ${masked ? 'readonly' : ''} placeholder="Enter or scan"></label>
-      ${masked ? `<div class="btnrow" style="margin:-4px 0 10px"><button class="btn sm ghost" data-act="revealDocNum">👁 Show full number</button><button class="btn sm ghost" data-act="editDocNum">✏️ Change</button></div>`
-        : `<button class="btn sm ghost" data-act="scanDocNum" style="margin:-4px 0 10px">📷 Scan number</button>`}` : ''}
-    ${doc.expiry ? `<label class="field"><span class="lbl">📅 Expiry date</span><input id="doc-exp" type="date" value="${cur.expiry ? new Date(cur.expiry).toISOString().slice(0, 10) : ''}"></label>` : ''}
-    <button class="btn primary" data-act="saveDriverDoc" data-driver="${driverId}" data-key="${key}">Save document</button>`);
+    ${doc.num ? `<label class="field"><span class="lbl">🔢 ${esc(docLabel(doc))} ${t('cbNumberWord')}</span><input id="doc-num" value="${esc(masked ? maskAadhaar(_docNumCur) : _docNumCur)}" ${masked ? 'readonly' : ''} placeholder="${esc(t('cbEnterOrScan'))}"></label>
+      ${masked ? `<div class="btnrow" style="margin:-4px 0 10px"><button class="btn sm ghost" data-act="revealDocNum">👁 ${t('cbShowFull')}</button><button class="btn sm ghost" data-act="editDocNum">✏️ ${t('cbChangeWord')}</button></div>`
+        : `<button class="btn sm ghost" data-act="scanDocNum" style="margin:-4px 0 10px">📷 ${t('cbScanNumber')}</button>`}` : ''}
+    ${doc.expiry ? `<label class="field"><span class="lbl">📅 ${t('cbExpiryDate')}</span><input id="doc-exp" type="date" value="${cur.expiry ? new Date(cur.expiry).toISOString().slice(0, 10) : ''}"></label>` : ''}
+    <button class="btn primary" data-act="saveDriverDoc" data-driver="${driverId}" data-key="${key}">${t('cbSaveDoc')}</button>`);
 }
 async function captureDoc() {
   const s = await capturePhoto(); if (!s) return;
@@ -4979,9 +5171,9 @@ async function scanDocNum() {
   else toast(text ? 'Read "' + text.slice(0, 30) + '" — edit if wrong' : 'Could not read it — type it in');
 }
 async function saveDriverDoc(driverId, key) {
-  if (!canDriverDocs(driverId)) return toast('Not allowed');
+  if (!canDriverDocs(driverId)) return toast(t('cbNotAllowed'));
   const d = driverById(driverId); if (!d) return;
-  if (!_docShot) return toast('Take a photo of the document');
+  if (!_docShot) return toast(t('cbDocNeedPhoto'));
   const photo = await Sync.uploadPhoto(_docShot) || _docShot;
   const entry = { photo, at: Date.now(), by: S.user.id };
   const numEl = document.getElementById('doc-num');
@@ -4991,7 +5183,7 @@ async function saveDriverDoc(driverId, key) {
   const expEl = document.getElementById('doc-exp'); if (expEl && expEl.value) entry.expiry = new Date(expEl.value).getTime();
   d.docs = Object.assign({}, d.docs, { [key]: entry });
   await DB.put('drivers', d);
-  _docShot = null; await load(); closeSheet(); toast('Document saved ✓'); viewDriverDocs(driverId);
+  _docShot = null; await load(); closeSheet(); toast(t('cbDocSaved')); viewDriverDocs(driverId);
 }
 
 /* ===== Crew Data Bank ======================================================
@@ -5006,8 +5198,8 @@ async function saveDriverDoc(driverId, key) {
  *   3. A licence quietly expiring under a driver who is still on the road.
  */
 let _crewFilter = 'all';
-const CREW_FILTERS = [['all', 'All'], ['driver', '🧑‍✈️ Drivers'], ['conductor', '🎫 Conductors'],
-  ['incomplete', '⚠️ Docs missing'], ['expiring', '📅 Expiring'], ['left', '📦 Ex-staff']];
+const CREW_FILTERS = [['all', 'cbFAll', ''], ['driver', 'cbFDrivers', '🧑‍✈️'], ['conductor', 'cbFConductors', '🎫'],
+  ['incomplete', 'cbFIncomplete', '⚠️'], ['expiring', 'cbFExpiring', '📅'], ['left', 'cbFLeft', '📦']];
 
 const _digits = (s) => String(s || '').replace(/\D/g, '');
 const _phoneKey = (s) => { const d = _digits(s); return d.length >= 10 ? d.slice(-10) : ''; };
@@ -5032,17 +5224,17 @@ function crewLi(d) {
   const role = crewRoleOf(d), meta = CREW_ROLE_META[role], st = driverDocStatus(d);
   const left = crewStatusOf(d) === 'left', bus = busName(d.busId);
   const exp = crewExpiring(d)[0];
-  const badge = left ? `<span class="badge b-low">left</span>`
-    : st.mandDone < st.mandTotal ? `<span class="badge b-red">${st.mandTotal - st.mandDone} doc${st.mandTotal - st.mandDone > 1 ? 's' : ''}</span>`
-    : exp ? `<span class="badge b-amber">${exp.dl < 0 ? 'expired' : exp.dl + 'd'}</span>`
+  const badge = left ? `<span class="badge b-low">${t('cbLeftBadge')}</span>`
+    : st.mandDone < st.mandTotal ? `<span class="badge b-red">${st.mandTotal - st.mandDone} ${t('cbDocsShort')}</span>`
+    : exp ? `<span class="badge b-amber">${exp.dl < 0 ? t('expired') : exp.dl + 'd'}</span>`
     : `<span class="badge b-green">✓</span>`;
   // The searchable text nobody should have to see: Aadhaar's last four are
   // enough to search on, and the mask is what gets rendered.
-  const hay = `${d.name} ${d.phone || ''} ${crewLicenceNo(d)} ${_digits(crewAadhaarNo(d)).slice(-4)} ${bus} ${meta[1]}`;
-  const sub = [d.phone || 'no phone', bus || 'no bus', crewLicenceNo(d)].filter(Boolean).join(' · ');
+  const hay = `${d.name} ${d.phone || ''} ${crewLicenceNo(d)} ${_digits(crewAadhaarNo(d)).slice(-4)} ${bus} ${crewRoleLabel(role)}`;
+  const sub = [d.phone || t('cbNoPhone'), bus || t('cbNoBus'), crewLicenceNo(d)].filter(Boolean).join(' · ');
   return `<div class="li" data-driver="${d.id}" data-hay="${esc(hay)}" style="${left ? 'opacity:.62' : ''}">
     <div class="ava">${d.photo ? `<img src="${esc(d.photo)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:14px">` : meta[0]}</div>
-    <div class="main"><div class="t">${esc(d.name)} <span class="tiny muted">${esc(meta[1])}</span></div>
+    <div class="main"><div class="t">${esc(d.name)} <span class="tiny muted">${esc(crewRoleLabel(role))}</span></div>
       <div class="s">${esc(sub)}</div></div>
     ${badge}</div>`;
 }
@@ -5052,14 +5244,14 @@ function renderCrewList() {
   const counts = {}; CREW_FILTERS.forEach(([v]) => { counts[v] = all.filter((d) => crewMatchesFilter(d, v)).length; });
   const chips = document.getElementById('crew-chips');
   if (chips) chips.innerHTML = CREW_FILTERS
-    .map(([v, label]) => `<button class="chip ${_crewFilter === v ? 'active' : ''}" data-act="crewFilter" data-v="${v}">${label} ${counts[v]}</button>`).join('');
+    .map(([v, key, icon]) => `<button class="chip ${_crewFilter === v ? 'active' : ''}" data-act="crewFilter" data-v="${v}">${icon} ${esc(t(key))} ${counts[v]}</button>`).join('');
   const q = ((document.getElementById('crew-search') || {}).value || '').trim().toLowerCase();
   const list = all.filter((d) => crewMatchesFilter(d, _crewFilter)
     && (!q || `${d.name} ${d.phone || ''} ${crewLicenceNo(d)} ${_digits(crewAadhaarNo(d)).slice(-4)} ${busName(d.busId)}`.toLowerCase().includes(q)));
   const box = document.getElementById('crew-list');
   if (!box) return;
   box.innerHTML = list.length ? list.map(crewLi).join('')
-    : `<div class="empty">Nobody${q ? ' matches “' + esc(q) + '”' : ' in this list'}</div>`;
+    : `<div class="empty">${q ? t('cbNobodyMatch') + ' “' + esc(q) + '”' : t('cbNobody')}</div>`;
   staggerRows(box);
 }
 
@@ -5072,15 +5264,15 @@ function viewCrewBank() {
   const gone = all.length - act.length;
 
   let body = `<div class="card"><div class="row between">
-      <div><div style="font-weight:800;font-size:18px">${act.length} on the roll</div>
-        <div class="small muted">${drv} drivers · ${con} conductors${gone ? ' · ' + gone + ' left' : ''}</div></div>
+      <div><div style="font-weight:800;font-size:18px">${act.length} ${t('cbOnRoll')}</div>
+        <div class="small muted">${drv} ${t('cbDrivers')} · ${con} ${t('cbConductors')}${gone ? ' · ' + gone + ' ' + t('cbLeft') : ''}</div></div>
       <div class="ringwrap">${progressRing(act.length ? Math.round((act.length - missing) / act.length * 100) : 100)}</div></div>
-    <div class="tiny muted" style="margin-top:8px">${missing ? `⚠️ ${missing} ${missing === 1 ? 'person is' : 'people are'} missing a mandatory document.` : '✓ Every mandatory document is on file.'}${expiring ? ` ${expiring} document${expiring > 1 ? 's' : ''} expiring within 30 days.` : ''}</div></div>`;
-  body += `<input id="crew-search" class="searchbox" placeholder="Search name, phone, licence, Aadhaar last 4…" autocomplete="off">`;
+    <div class="tiny muted" style="margin-top:8px">${missing ? `⚠️ ${missing} ${t(missing === 1 ? 'cbMissingDocsOne' : 'cbMissingDocsMany')}` : '✓ ' + t('cbAllOnFile')}${expiring ? ` ${expiring} ${t('cbExpiringSoon')}` : ''}</div></div>`;
+  body += `<input id="crew-search" class="searchbox" placeholder="${esc(t('cbSearchPh'))}" autocomplete="off">`;
   body += `<div class="chiprow" id="crew-chips"></div>`;
   body += `<div class="card" id="crew-list"><div class="empty">Loading…</div></div>`;
-  body += `<div class="btnrow" style="margin-top:12px"><button class="btn sm ghost" data-act="exportCrew">⬇️ Export list (CSV)</button></div>`;
-  shell('Crew bank', body, { act: 'addCrew', icon: '+' });
+  body += `<div class="btnrow" style="margin-top:12px"><button class="btn sm ghost" data-act="exportCrew">⬇️ ${t('cbExport')}</button></div>`;
+  shell(t('cbTitle'), body, { act: 'addCrew', icon: '+' });
   const s = document.getElementById('crew-search'); if (s) s.oninput = renderCrewList;
   renderCrewList();
 }
@@ -5090,49 +5282,50 @@ const BLOOD = ['', 'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 let _crewShot = null, _crewNewRole = 'driver';
 
 function sheetAddCrew(role) {
-  if (!can(S.user.role, 'manageDrivers')) return toast('Not allowed');
+  if (!can(S.user.role, 'manageDrivers')) return toast(t('cbNotAllowed'));
   _crewShot = null; _crewNewRole = role || 'driver';
   const buses = S.cache.buses || [];
+  const canSeePay = can(S.user.role, 'money');   // pay is money, not identity
   const today = new Date().toISOString().slice(0, 10);
-  openSheet('New joining', `
+  openSheet(t('cbNewJoining'), `
     <div class="chiprow" id="crew-role-chips">${Object.keys(CREW_ROLE_META).map((r) =>
-      `<button class="chip ${_crewNewRole === r ? 'active' : ''}" data-act="crewRolePick" data-v="${r}">${CREW_ROLE_META[r][0]} ${CREW_ROLE_META[r][1]}</button>`).join('')}</div>
-    <button class="btn" data-act="crewPhoto">📷 Take his photo</button>
+      `<button class="chip ${_crewNewRole === r ? 'active' : ''}" data-act="crewRolePick" data-v="${r}">${CREW_ROLE_META[r][0]} ${esc(crewRoleLabel(r))}</button>`).join('')}</div>
+    <button class="btn" data-act="crewPhoto">📷 ${t('cbTakePhoto')}</button>
     <div id="crew-prev" class="thumbs" style="margin:10px 0"></div>
-    <label class="field"><span class="lbl">Full name *</span><input id="c-name" placeholder="e.g. Ramesh Kumar"></label>
+    <label class="field"><span class="lbl">${t('cbFullName')} *</span><input id="c-name" placeholder="${esc(t('cbNamePh'))}"></label>
     <div class="grid2">
-      <label class="field"><span class="lbl">Phone *</span><input id="c-phone" inputmode="tel" placeholder="10 digits"></label>
-      <label class="field"><span class="lbl">Alternate phone</span><input id="c-phone2" inputmode="tel"></label>
+      <label class="field"><span class="lbl">${t('cbPhone')} *</span><input id="c-phone" inputmode="tel" placeholder="${esc(t('cbPh10'))}"></label>
+      <label class="field"><span class="lbl">${t('cbAltPhone')}</span><input id="c-phone2" inputmode="tel"></label>
     </div>
     <div class="grid2">
-      <label class="field"><span class="lbl">🚗 Licence no.${_crewNewRole === 'driver' ? ' *' : ''}</span><input id="c-lic"></label>
-      <label class="field"><span class="lbl">Licence expiry</span><input id="c-licexp" type="date"></label>
+      <label class="field"><span class="lbl">🚗 ${t('cbLicenceNo')}${_crewNewRole === 'driver' ? ' *' : ''}</span><input id="c-lic"></label>
+      <label class="field"><span class="lbl">${t('cbLicenceExp')}</span><input id="c-licexp" type="date"></label>
     </div>
-    <label class="field"><span class="lbl">🆔 Aadhaar no.</span><input id="c-aadhaar" inputmode="numeric" placeholder="12 digits"></label>
+    <label class="field"><span class="lbl">🆔 ${t('cbAadhaarNo')}</span><input id="c-aadhaar" inputmode="numeric" placeholder="${esc(t('cbPh12'))}"></label>
     <div class="grid2">
-      <label class="field"><span class="lbl">Joining date</span><input id="c-joined" type="date" value="${today}"></label>
-      <label class="field"><span class="lbl">Date of birth</span><input id="c-dob" type="date"></label>
+      <label class="field"><span class="lbl">${t('cbJoinDate')}</span><input id="c-joined" type="date" value="${today}"></label>
+      <label class="field"><span class="lbl">${t('cbDob')}</span><input id="c-dob" type="date"></label>
     </div>
-    <label class="field"><span class="lbl">Assign to bus</span><select id="c-bus"><option value="">— unassigned —</option>${
+    <label class="field"><span class="lbl">${t('cbAssignBus')}</span><select id="c-bus"><option value="">${esc(t('cbUnassigned'))}</option>${
       buses.map((b) => `<option value="${b.id}">${esc(b.regNo)} — ${esc(b.company || '')}</option>`).join('')}</select></label>
-    <label class="field"><span class="lbl">Address (village / town)</span><input id="c-addr"></label>
+    <label class="field"><span class="lbl">${t('cbAddress')}</span><input id="c-addr"></label>
     <div class="grid2">
-      <label class="field"><span class="lbl">Blood group</span><select id="c-blood">${BLOOD.map((b) => `<option>${b}</option>`).join('')}</select></label>
-      <label class="field"><span class="lbl">Monthly salary ₹</span><input id="c-sal" inputmode="numeric"></label>
+      <label class="field"><span class="lbl">${t('cbBlood')}</span><select id="c-blood">${BLOOD.map((b) => `<option>${b}</option>`).join('')}</select></label>
+      ${canSeePay ? `<label class="field"><span class="lbl">${t('cbSalary')}</span><input id="c-sal" inputmode="numeric"></label>` : ''}
     </div>
     <div class="hr"></div>
-    <div class="tiny muted" style="margin-bottom:8px">🆘 Who do we call if something happens to him on the road?</div>
+    <div class="tiny muted" style="margin-bottom:8px">🆘 ${t('cbEmgHint')}</div>
     <div class="grid2">
-      <label class="field"><span class="lbl">Emergency contact</span><input id="c-emg" placeholder="Name"></label>
-      <label class="field"><span class="lbl">Their phone</span><input id="c-emgph" inputmode="tel"></label>
+      <label class="field"><span class="lbl">${t('cbEmgName')}</span><input id="c-emg" placeholder="${esc(t('cbFullName'))}"></label>
+      <label class="field"><span class="lbl">${t('cbEmgPhone')}</span><input id="c-emgph" inputmode="tel"></label>
     </div>
-    <label class="field"><span class="lbl">Relation</span><input id="c-emgrel" placeholder="e.g. brother, wife"></label>
+    <label class="field"><span class="lbl">${t('cbEmgRel')}</span><input id="c-emgrel" placeholder="${esc(t('cbRelPh'))}"></label>
     <div class="grid2">
-      <label class="field"><span class="lbl">Reference (who vouches)</span><input id="c-ref" placeholder="Name"></label>
-      <label class="field"><span class="lbl">Reference phone</span><input id="c-refph" inputmode="tel"></label>
+      <label class="field"><span class="lbl">${t('cbRefName')}</span><input id="c-ref" placeholder="${esc(t('cbFullName'))}"></label>
+      <label class="field"><span class="lbl">${t('cbRefPhone')}</span><input id="c-refph" inputmode="tel"></label>
     </div>
-    <button class="btn primary" data-act="saveCrew">Add to the bank</button>
-    <div class="tiny muted" style="margin-top:8px">Document photos (licence, Aadhaar, police verification) are added afterwards from his Documents screen.</div>`);
+    <button class="btn primary" data-act="saveCrew">${t('cbAddBtn')}</button>
+    <div class="tiny muted" style="margin-top:8px">${t('cbDocsLater')}</div>`);
 }
 
 async function captureCrewPhoto() {
@@ -5147,36 +5340,37 @@ function crewDuplicates(phone, aadhaar, licence, exceptId) {
   const ph = _phoneKey(phone), aa = _digits(aadhaar), li = _idKey(licence);
   return allCrew().filter((d) => d.id !== exceptId).map((d) => {
     const on = [];
-    if (ph && _phoneKey(d.phone) === ph) on.push('same phone');
-    if (aa && aa.length >= 8 && _digits(crewAadhaarNo(d)) === aa) on.push('same Aadhaar');
-    if (li && li.length >= 5 && _idKey(crewLicenceNo(d)) === li) on.push('same licence');
+    if (ph && _phoneKey(d.phone) === ph) on.push(t('cbSamePhone'));
+    if (aa && aa.length >= 8 && _digits(crewAadhaarNo(d)) === aa) on.push(t('cbSameAadhaar'));
+    if (li && li.length >= 5 && _idKey(crewLicenceNo(d)) === li) on.push(t('cbSameLicence'));
     return on.length ? { d, on } : null;
   }).filter(Boolean);
 }
 
 // Renders a duplicate hit as the sentence the owner actually needs to read.
 function crewDupLine({ d, on }) {
-  const role = CREW_ROLE_META[crewRoleOf(d)][1];
+  const role = crewRoleLabel(crewRoleOf(d));
   if (crewStatusOf(d) === 'left') {
-    return `• ${d.name} — ${role}, LEFT${d.leftAt ? ' on ' + fmtDate(d.leftAt) : ''} (${on.join(', ')})`
-      + (d.leftReason ? `\n   Reason: ${d.leftReason}` : '')
-      + (d.rehire ? `\n   Marked rehire: ${d.rehire.toUpperCase()}` : '');
+    const why = crewLeftReason(d);
+    return `• ${d.name} — ${role}, ${t('cbDupLeftWord')}${d.leftAt ? ' ' + fmtDate(d.leftAt) : ''} (${on.join(', ')})`
+      + (why ? `\n   ${t('cbDupReason')}: ${why}` : '')
+      + (d.rehire ? `\n   ${t('cbDupRehire')}: ${t(REHIRE_KEY[d.rehire] || 'cbRehireMaybe')}` : '');
   }
-  return `• ${d.name} — ${role}, currently working${d.busId ? ' on ' + busName(d.busId) : ''} (${on.join(', ')})`;
+  return `• ${d.name} — ${role}, ${t('cbDupWorking')}${d.busId ? ' ' + t('cbDupOn') + ' ' + busName(d.busId) : ''} (${on.join(', ')})`;
 }
 
 async function saveCrew() {
-  if (!can(S.user.role, 'manageDrivers')) return toast('Not allowed');
+  if (!can(S.user.role, 'manageDrivers')) return toast(t('cbNotAllowed'));
   const v = (id) => (document.getElementById(id) || {}).value || '';
   const name = _titleCase(v('c-name').trim()).replace(/\s+/g, ' ');
   const phone = v('c-phone').trim(), lic = v('c-lic').trim(), aadhaar = v('c-aadhaar').trim();
-  if (!name) return toast('Enter his name');
-  if (!_phoneKey(phone)) return toast('Enter a 10-digit phone number');
-  if (_crewNewRole === 'driver' && !lic) return toast('A driver needs a licence number');
-  if (aadhaar && _digits(aadhaar).length !== 12) return toast('Aadhaar must be 12 digits');
+  if (!name) return toast(t('cbNeedName'));
+  if (!_phoneKey(phone)) return toast(t('cbNeedPhone'));
+  if (_crewNewRole === 'driver' && !lic) return toast(t('cbNeedLicence'));
+  if (aadhaar && _digits(aadhaar).length !== 12) return toast(t('cbNeedAadhaar12'));
 
   const dups = crewDuplicates(phone, aadhaar, lic, null);
-  if (dups.length && !confirm(`⚠️ Already in the bank\n\n${dups.map(crewDupLine).join('\n')}\n\nAdd ${name} as a new record anyway?`)) return;
+  if (dups.length && !confirm(`⚠️ ${t('cbDupTitle')}\n\n${dups.map(crewDupLine).join('\n')}\n\n${t('cbDupAddWord')} ${name} ${t('cbDupAsk')}`)) return;
 
   const now = Date.now();
   const rec = {
@@ -5205,104 +5399,114 @@ async function saveCrew() {
   }
   await DB.put('drivers', rec);
   await load(); closeSheet();
-  toast(`${name} added to the bank ✓`);
+  toast(`${name} ${t('cbAdded')}`);
   push({ name: 'drivers', id: rec.id });
 }
 
 /* ----- Editing an existing person's details ------------------------------- */
 function sheetCrewProfile(id) {
-  if (!can(S.user.role, 'manageDrivers')) return toast('Not allowed');
+  if (!can(S.user.role, 'manageDrivers')) return toast(t('cbNotAllowed'));
   const d = driverById(id); if (!d) return;
   const dstr = (ts) => (ts ? new Date(ts).toISOString().slice(0, 10) : '');
-  openSheet('Edit details — ' + d.name, `
-    <label class="field"><span class="lbl">Full name</span><input id="e-name" value="${esc(d.name)}"></label>
+  const canSeePay = can(S.user.role, 'money');
+  openSheet(t('cbEditDetails') + ' — ' + d.name, `
+    <label class="field"><span class="lbl">${t('cbFullName')}</span><input id="e-name" value="${esc(d.name)}"></label>
     <div class="grid2">
-      <label class="field"><span class="lbl">Phone</span><input id="e-phone" inputmode="tel" value="${esc(d.phone || '')}"></label>
-      <label class="field"><span class="lbl">Alternate phone</span><input id="e-phone2" inputmode="tel" value="${esc(d.altPhone || '')}"></label>
+      <label class="field"><span class="lbl">${t('cbPhone')}</span><input id="e-phone" inputmode="tel" value="${esc(d.phone || '')}"></label>
+      <label class="field"><span class="lbl">${t('cbAltPhone')}</span><input id="e-phone2" inputmode="tel" value="${esc(d.altPhone || '')}"></label>
     </div>
     <div class="grid2">
-      <label class="field"><span class="lbl">Joining date</span><input id="e-joined" type="date" value="${dstr(d.joinedAt)}"></label>
-      <label class="field"><span class="lbl">Date of birth</span><input id="e-dob" type="date" value="${dstr(d.dob)}"></label>
+      <label class="field"><span class="lbl">${t('cbJoinDate')}</span><input id="e-joined" type="date" value="${dstr(d.joinedAt)}"></label>
+      <label class="field"><span class="lbl">${t('cbDob')}</span><input id="e-dob" type="date" value="${dstr(d.dob)}"></label>
     </div>
-    <label class="field"><span class="lbl">Address</span><input id="e-addr" value="${esc(d.address || '')}"></label>
+    <label class="field"><span class="lbl">${t('cbAddress')}</span><input id="e-addr" value="${esc(d.address || '')}"></label>
     <div class="grid2">
-      <label class="field"><span class="lbl">Blood group</span><select id="e-blood">${BLOOD.map((b) => `<option ${b === (d.bloodGroup || '') ? 'selected' : ''}>${b}</option>`).join('')}</select></label>
-      <label class="field"><span class="lbl">Monthly salary ₹</span><input id="e-sal" inputmode="numeric" value="${d.salaryMonthly || ''}"></label>
+      <label class="field"><span class="lbl">${t('cbBlood')}</span><select id="e-blood">${BLOOD.map((b) => `<option ${b === (d.bloodGroup || '') ? 'selected' : ''}>${b}</option>`).join('')}</select></label>
+      ${canSeePay ? `<label class="field"><span class="lbl">${t('cbSalary')}</span><input id="e-sal" inputmode="numeric" value="${d.salaryMonthly || ''}"></label>` : ''}
     </div>
     <div class="grid2">
-      <label class="field"><span class="lbl">Emergency contact</span><input id="e-emg" value="${esc(d.emgName || '')}"></label>
-      <label class="field"><span class="lbl">Their phone</span><input id="e-emgph" inputmode="tel" value="${esc(d.emgPhone || '')}"></label>
+      <label class="field"><span class="lbl">${t('cbEmgName')}</span><input id="e-emg" value="${esc(d.emgName || '')}"></label>
+      <label class="field"><span class="lbl">${t('cbEmgPhone')}</span><input id="e-emgph" inputmode="tel" value="${esc(d.emgPhone || '')}"></label>
     </div>
-    <label class="field"><span class="lbl">Relation</span><input id="e-emgrel" value="${esc(d.emgRelation || '')}"></label>
+    <label class="field"><span class="lbl">${t('cbEmgRel')}</span><input id="e-emgrel" value="${esc(d.emgRelation || '')}"></label>
     <div class="grid2">
-      <label class="field"><span class="lbl">Reference</span><input id="e-ref" value="${esc(d.refName || '')}"></label>
-      <label class="field"><span class="lbl">Reference phone</span><input id="e-refph" inputmode="tel" value="${esc(d.refPhone || '')}"></label>
+      <label class="field"><span class="lbl">${t('cbRefName')}</span><input id="e-ref" value="${esc(d.refName || '')}"></label>
+      <label class="field"><span class="lbl">${t('cbRefPhone')}</span><input id="e-refph" inputmode="tel" value="${esc(d.refPhone || '')}"></label>
     </div>
-    <button class="btn primary" data-act="saveCrewProfile" data-driver="${d.id}">Save</button>`);
+    <button class="btn primary" data-act="saveCrewProfile" data-driver="${d.id}">${t('save')}</button>`);
 }
 
 async function saveCrewProfile(id) {
-  if (!can(S.user.role, 'manageDrivers')) return toast('Not allowed');
+  if (!can(S.user.role, 'manageDrivers')) return toast(t('cbNotAllowed'));
   const d = driverById(id); if (!d) return;
   const v = (x) => (document.getElementById(x) || {}).value || '';
   const name = _titleCase(v('e-name').trim()).replace(/\s+/g, ' ');
-  if (!name) return toast('Name cannot be empty');
+  if (!name) return toast(t('cbNeedNameNotEmpty'));
   const phone = v('e-phone').trim();
   const dups = crewDuplicates(phone, '', '', d.id).filter((x) => crewStatusOf(x.d) === 'active');
-  if (dups.length && !confirm(`⚠️ That phone is already on:\n\n${dups.map(crewDupLine).join('\n')}\n\nSave anyway?`)) return;
+  if (dups.length && !confirm(`⚠️ ${t('cbDupPhoneOn')}\n\n${dups.map(crewDupLine).join('\n')}\n\n${t('cbSaveAnyway')}`)) return;
   Object.assign(d, {
     name, phone, altPhone: v('e-phone2').trim(),
     joinedAt: v('e-joined') ? new Date(v('e-joined') + 'T00:00:00').getTime() : d.joinedAt,
     dob: v('e-dob') ? new Date(v('e-dob') + 'T00:00:00').getTime() : null,
     address: v('e-addr').trim(), bloodGroup: v('e-blood'),
-    salaryMonthly: Number(_digits(v('e-sal'))) || 0,
+    salaryMonthly: document.getElementById('e-sal') ? (Number(_digits(v('e-sal'))) || 0) : (d.salaryMonthly || 0),
     emgName: v('e-emg').trim(), emgPhone: v('e-emgph').trim(), emgRelation: v('e-emgrel').trim(),
     refName: v('e-ref').trim(), refPhone: v('e-refph').trim(),
   });
   await DB.put('drivers', d);
-  await load(); closeSheet(); toast('Details saved ✓'); rerender();
+  await load(); closeSheet(); toast(t('cbSaved')); rerender();
 }
 
 /* ----- Leaving and coming back -------------------------------------------
  * Nothing is ever deleted. Marking someone as left frees his bus and takes him
  * out of every working list, but keeps the record — including why he went,
  * which is the question asked when he reapplies two years later. */
-const LEFT_REASONS = ['Resigned', 'Better offer elsewhere', 'Absconded', 'Terminated — misconduct',
-  'Terminated — accident', 'Terminated — pilferage', 'Medical / unfit', 'Retired', 'Other'];
+const LEFT_REASONS = ['lrResigned', 'lrBetterOffer', 'lrAbsconded', 'lrMisconduct',
+  'lrAccident', 'lrPilferage', 'lrMedical', 'lrRetired', 'lrOther'];
+const REHIRE_KEY = { yes: 'cbRehireYes', maybe: 'cbRehireMaybe', no: 'cbRehireNo' };
+// The reason is stored as a key so it reads in whichever language you open it,
+// with `leftReason` kept as English text for the CSV and for records written
+// before this existed.
+const crewLeftReason = (d) => (d.leftReasonKey
+  ? [t(d.leftReasonKey), d.leftNote].filter(Boolean).join(' — ')
+  : (d.leftReason || ''));
 
 function sheetCrewExit(id) {
-  if (!can(S.user.role, 'manageDrivers')) return toast('Not allowed');
+  if (!can(S.user.role, 'manageDrivers')) return toast(t('cbNotAllowed'));
   const d = driverById(id); if (!d) return;
-  openSheet('Mark as left — ' + d.name, `
-    <div class="tiny muted" style="margin-bottom:12px">His record stays in the bank forever. This only takes him off the working roster and frees his bus.</div>
-    <label class="field"><span class="lbl">Last working day</span><input id="x-date" type="date" value="${new Date().toISOString().slice(0, 10)}"></label>
-    <label class="field"><span class="lbl">Reason</span><select id="x-reason">${LEFT_REASONS.map((r) => `<option>${r}</option>`).join('')}</select></label>
-    <label class="field"><span class="lbl">Note (what the office should know)</span><input id="x-note" placeholder="optional"></label>
-    <label class="field"><span class="lbl">Would you take him back?</span><select id="x-rehire">
-      <option value="yes">Yes — good worker</option><option value="maybe">Maybe</option><option value="no">No — do not rehire</option></select></label>
-    <button class="btn primary" data-act="saveCrewExit" data-driver="${d.id}">Mark as left</button>`);
+  openSheet(t('cbMarkLeftTitle') + ' — ' + d.name, `
+    <div class="tiny muted" style="margin-bottom:12px">${t('cbExitHint')}</div>
+    <label class="field"><span class="lbl">${t('cbLastDay')}</span><input id="x-date" type="date" value="${new Date().toISOString().slice(0, 10)}"></label>
+    <label class="field"><span class="lbl">${t('cbReason')}</span><select id="x-reason">${LEFT_REASONS.map((r) => `<option value="${r}">${esc(t(r))}</option>`).join('')}</select></label>
+    <label class="field"><span class="lbl">${t('cbNote')}</span><input id="x-note" placeholder="${esc(t('cbOptional'))}"></label>
+    <label class="field"><span class="lbl">${t('cbRehireQ')}</span><select id="x-rehire">
+      <option value="yes">${esc(t('cbRehireYes'))}</option><option value="maybe">${esc(t('cbRehireMaybe'))}</option><option value="no">${esc(t('cbRehireNo'))}</option></select></label>
+    <button class="btn primary" data-act="saveCrewExit" data-driver="${d.id}">${t('cbMarkLeftBtn')}</button>`);
 }
 
 async function saveCrewExit(id) {
-  if (!can(S.user.role, 'manageDrivers')) return toast('Not allowed');
+  if (!can(S.user.role, 'manageDrivers')) return toast(t('cbNotAllowed'));
   const d = driverById(id); if (!d) return;
   const v = (x) => (document.getElementById(x) || {}).value || '';
   d.status = 'left';
   d.leftAt = v('x-date') ? new Date(v('x-date') + 'T00:00:00').getTime() : Date.now();
-  d.leftReason = [v('x-reason'), v('x-note').trim()].filter(Boolean).join(' — ');
+  d.leftReasonKey = v('x-reason');
+  d.leftNote = v('x-note').trim();
+  d.leftReason = [enLabel(d.leftReasonKey), d.leftNote].filter(Boolean).join(' — ');   // English, for the CSV
   d.rehire = v('x-rehire') || 'maybe';
   d.busId = null;                      // his bus is free from today
   await DB.put('drivers', d);
-  await load(); closeSheet(); toast(`${d.name} marked as left`); rerender();
+  await load(); closeSheet(); toast(`${d.name} ${t('cbMarkedLeft')}`); rerender();
 }
 
 async function rejoinCrew(id) {
-  if (!can(S.user.role, 'manageDrivers')) return toast('Not allowed');
+  if (!can(S.user.role, 'manageDrivers')) return toast(t('cbNotAllowed'));
   const d = driverById(id); if (!d) return;
-  if (d.rehire === 'no' && !confirm(`⚠️ ${d.name} was marked DO NOT REHIRE.\n\nReason: ${d.leftReason || 'not recorded'}\n\nBring him back anyway?`)) return;
+  if (d.rehire === 'no' && !confirm(`⚠️ ${d.name} ${t('cbNoRehireWarn')}\n\n${t('cbDupReason')}: ${crewLeftReason(d) || t('cbNotRecorded')}\n\n${t('cbBringBack')}`)) return;
   d.status = 'active'; d.rejoinedAt = Date.now();
   await DB.put('drivers', d);
-  await load(); toast(`${d.name} is back on the roster ✓`); rerender();
+  await load(); toast(`${d.name} ${t('cbRejoined')}`); rerender();
 }
 
 /* ----- Export -------------------------------------------------------------
@@ -5310,14 +5514,14 @@ async function rejoinCrew(id) {
  * is a deliberate tap by a role that manages crew; a spreadsheet of 164 of them
  * on somebody's WhatsApp is exactly what the Aadhaar Act is about. */
 function exportCrewCsv() {
-  if (!can(S.user.role, 'manageDrivers')) return toast('Not allowed');
+  if (!can(S.user.role, 'manageDrivers')) return toast(t('cbNotAllowed'));
   const cols = ['Name', 'Role', 'Status', 'Phone', 'Alt phone', 'Bus', 'Licence no', 'Licence expiry',
     'Aadhaar (masked)', 'Joined', 'Left', 'Reason for leaving', 'Rehire', 'Address', 'Blood group',
     'Emergency contact', 'Emergency phone', 'Relation', 'Reference', 'Reference phone', 'Docs on file'];
   const q = (x) => `"${String(x == null ? '' : x).replace(/"/g, '""')}"`;
   const rows = [...allCrew()].sort((a, b) => a.name.localeCompare(b.name)).map((d) => {
     const st = driverDocStatus(d), lic = docOf(d, 'license') || {};
-    return [d.name, CREW_ROLE_META[crewRoleOf(d)][1], crewStatusOf(d), d.phone || '', d.altPhone || '',
+    return [d.name, enLabel(CREW_ROLE_META[crewRoleOf(d)][1]), crewStatusOf(d), d.phone || '', d.altPhone || '',
       busName(d.busId) || '', crewLicenceNo(d), lic.expiry ? fmtDate(lic.expiry) : '',
       maskAadhaar(crewAadhaarNo(d)), d.joinedAt ? fmtDate(d.joinedAt) : '',
       d.leftAt ? fmtDate(d.leftAt) : '', d.leftReason || '', d.rehire || '', d.address || '', d.bloodGroup || '',
@@ -5330,7 +5534,7 @@ function exportCrewCsv() {
   a.href = url; a.download = `crew-bank-${new Date().toISOString().slice(0, 10)}.csv`;
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 4000);
-  toast(`${rows.length} people exported — Aadhaar masked`);
+  toast(`${rows.length} ${t('cbExported')}`);
 }
 
 /* ----- One-time: give every bus conductor a real record --------------------
@@ -5417,17 +5621,24 @@ async function saveAssignBus(driverId) {
   d.busId = busId; await DB.put('drivers', d);
   await load(); closeSheet(); toast('Updated'); rerender();
 }
-function sheetAssignDriverToBus(busId) {
-  const ds = activeDrivers(), cur = driverOfBus(busId);
-  openSheet('Assign driver', `<label class="field"><span class="lbl">Driver for this bus</span>
-    <select id="f-adrv"><option value="">— none —</option>${ds.map((d) => `<option value="${d.id}" ${cur && cur.id === d.id ? 'selected' : ''}>${esc(d.name)}</option>`).join('')}</select></label>
-    <button class="btn primary" data-act="saveAssignDriver" data-bus="${busId}">Save</button>`);
+function sheetAssignDriverToBus(busId, role) {
+  const seat = role === 'conductor' ? 'conductor' : 'driver';
+  const ds = activeCrew().filter((d) => crewRoleOf(d) === seat).sort((a, b) => a.name.localeCompare(b.name));
+  const cur = seat === 'conductor' ? conductorOfBus(busId) : driverOfBus(busId);
+  openSheet(t(seat === 'conductor' ? 'asAssignConductor' : 'asAssignDriver'), `<label class="field"><span class="lbl">${esc(crewRoleLabel(seat))} — ${t('asForThisBus')}</span>
+    <select id="f-adrv"><option value="">${esc(t('asNone'))}</option>${ds.map((d) => `<option value="${d.id}" ${cur && cur.id === d.id ? 'selected' : ''}>${esc(d.name)}</option>`).join('')}</select></label>
+    <button class="btn primary" data-act="saveAssignDriver" data-bus="${busId}" data-role="${seat}">${t('save')}</button>`);
 }
-async function saveAssignDriver(busId) {
+async function saveAssignDriver(busId, role) {
+  const seat = role === 'conductor' ? 'conductor' : 'driver';
   const id = $('#f-adrv').value;
-  for (const d of activeDrivers()) { if (d.busId === busId && d.id !== id) { d.busId = null; await DB.put('drivers', d); } }
+  // Only the same seat is cleared — filling the conductor's chair must not
+  // silently take the driver off the bus.
+  for (const d of activeCrew()) {
+    if (d.busId === busId && d.id !== id && crewRoleOf(d) === seat) { d.busId = null; await DB.put('drivers', d); }
+  }
   if (id) { const d = driverById(id); d.busId = busId; await DB.put('drivers', d); }
-  await load(); closeSheet(); toast('Driver assigned'); rerender();
+  await load(); closeSheet(); toast(t(seat === 'conductor' ? 'asConductorAssigned' : 'asDriverAssigned')); rerender();
 }
 let _incPhoto = '';
 function sheetIncident(driverId) {
@@ -5900,13 +6111,13 @@ function computeInsights() {
   });
   if (docGaps.length > 3) {
     const names = docGaps.slice(0, 3).map((g) => g.d.name).join(', ');
-    out.push({ sev: 'med', icon: '📂', title: `${docGaps.length} crew are missing a mandatory document`,
-      detail: `${names} and ${docGaps.length - 3} more. Open the crew bank and use the “Docs missing” filter.`,
+    out.push({ sev: 'med', icon: '📂', title: `${docGaps.length} ${t('cbInsMissingMany')}`,
+      detail: `${names} ${t('cbInsMissingDetail')} ${docGaps.length - 3} ${t('cbInsMore')}`,
       nav: { name: 'crewbank' } });
   } else docGaps.forEach(({ d, crole }) => {
-    const gaps = DRIVER_DOCS.filter((x) => docIsMandatory(x, crole) && !(docOf(d, x.key) || {}).photo).map((x) => x.label);
-    out.push({ sev: 'med', icon: '📂', title: `${CREW_ROLE_META[crole][1]} docs incomplete — ${d.name}`,
-      detail: `Missing: ${gaps.join(', ')}.`, nav: { name: 'driverdocs', id: d.id } });
+    const gaps = DRIVER_DOCS.filter((x) => docIsMandatory(x, crole) && !(docOf(d, x.key) || {}).photo).map(docLabel);
+    out.push({ sev: 'med', icon: '📂', title: `${crewRoleLabel(crole)} ${t('cbInsDocsIncomplete')} — ${d.name}`,
+      detail: `${t('cbInsMissingList')}: ${gaps.join(', ')}.`, nav: { name: 'driverdocs', id: d.id } });
   });
 
   // Preventive maintenance forecast — get ahead of breakdowns
@@ -6044,7 +6255,7 @@ async function askAi() {
  */
 const current = () => S.stack[S.stack.length - 1];
 // Role guard: routes restricted to certain roles fall back to home for others.
-const ROUTE_PERM = { money: 'money', fleet: 'fleet', people: 'people', bills: 'bills', insights: 'insights', drivers: 'manageDrivers', assignments: 'assignDriver', routes: 'manageRoutes', reports: 'dashboard', busreport: 'dashboard', livemap: 'dashboard', track: 'dashboard', fuel: 'addFuel', safety: 'dashboard', warranty: 'addFuel', storehealth: 'issuePart', linkgps: 'addBus', newjob: 'addJob', forecast: 'dashboard', pilferage: 'insights', components: 'issuePart', def: 'addFuel', vendors: 'addPurchase', import: 'addPurchase', crewpins: 'manageDrivers', crewbank: 'manageDrivers', accounting: 'dashboard', busacct: 'dashboard',
+const ROUTE_PERM = { money: 'money', fleet: 'fleet', people: 'people', bills: 'bills', insights: 'insights', drivers: 'manageDrivers', assignments: 'assignDriver', routes: 'manageRoutes', reports: 'dashboard', busreport: 'dashboard', livemap: 'dashboard', track: 'dashboard', fuel: 'addFuel', safety: 'dashboard', warranty: 'addFuel', storehealth: 'issuePart', linkgps: 'addBus', newjob: 'addJob', forecast: 'dashboard', pilferage: 'insights', components: 'issuePart', def: 'addFuel', vendors: 'addPurchase', import: 'addPurchase', crewpins: 'manageCrewLogins', crewbank: 'manageDrivers', accounting: 'dashboard', busacct: 'dashboard',
   // `purchases` renders the same view as `bills`; without its own entry the
   // `bills` permission was bypassable just by using the other route name.
   purchases: 'bills', alerts: 'dashboard', buses: 'fleet',
@@ -6197,6 +6408,7 @@ function bind() {
       case 'addStock': return sheetAddStock();
       case 'confirmAddStock': return confirmAddStock();
       case 'openAssignments': return push({ name: 'assignments' });
+      case 'asOpen': _asRole = el.getAttribute('data-v') || 'driver'; return push({ name: 'assignments' });
       case 'addPurchase': return sheetAddPurchase();
       case 'savePurchase': return savePurchase();
       case 'scanBill': return scanBill();
@@ -6275,7 +6487,7 @@ function bind() {
       case 'crewRejoin': return rejoinCrew(el.getAttribute('data-driver'));
       case 'exportCrew': return exportCrewCsv();
       case 'revealDocNum': {
-        if (!can(S.user.role, 'manageDrivers')) return toast('Not allowed');
+        if (!can(S.user.role, 'manageDrivers')) return toast(t('cbNotAllowed'));
         const el2 = document.getElementById('doc-num'); if (el2) el2.value = _docNumCur;
         return;
       }
@@ -6324,9 +6536,10 @@ function bind() {
       case 'saveDriver': return saveDriver();
       case 'assignBus': return sheetAssignBus(el.getAttribute('data-driver'));
       case 'saveAssignBus': return saveAssignBus(el.getAttribute('data-driver'));
-      case 'assignDriver': return sheetAssignDriverToBus(el.getAttribute('data-bus'));
-      case 'saveAssignDriver': return saveAssignDriver(el.getAttribute('data-bus'));
-      case 'addIncident': return sheetIncident(el.getAttribute('data-driver'));
+      case 'assignDriver': return sheetAssignDriverToBus(el.getAttribute('data-bus'), el.getAttribute('data-role'));
+      case 'asRole': _asRole = el.getAttribute('data-v'); return rerender();
+      case 'saveAssignDriver': return saveAssignDriver(el.getAttribute('data-bus'), el.getAttribute('data-role'));
+      case 'addIncident': return can(S.user.role, 'logIncident') ? sheetIncident(el.getAttribute('data-driver')) : toast(t('cbNotAllowed'));
       case 'saveIncident': return saveIncident(el.getAttribute('data-driver'));
       case 'incidentPhoto': { const d = await capturePhoto(); if (d) { _incPhoto = await Sync.uploadPhoto(d) || d; $('#f-iphoto').innerHTML = `<img class="thumb" src="${_incPhoto}">`; } return; }
       case 'reportProblem': return sheetTripReport(el.getAttribute('data-bus'), el.getAttribute('data-driver'));
@@ -6397,7 +6610,7 @@ async function testNotification() {
   else toast('No subscribed devices yet — enable alerts first');
 }
 
-const ROLE_META = { owner: ['👑', 'Owner'], supervisor: ['🧑‍🔧', 'Supervisor'], store: ['📦', 'Store'], mechanic: ['🔧', 'Mechanic'], driver: ['🧑‍✈️', 'Driver'], conductor: ['🎫', 'Conductor'] };
+const ROLE_META = { owner: ['👑', 'Owner'], supervisor: ['🧑‍🔧', 'Supervisor'], crewmanager: ['🗂️', 'Crew Manager'], store: ['📦', 'Store'], mechanic: ['🔧', 'Mechanic'], driver: ['🧑‍✈️', 'Driver'], conductor: ['🎫', 'Conductor'] };
 const roleEmoji = (r) => (ROLE_META[r] || ['🔧'])[0];
 // Step 1 — pick your role. (Keeps the list manageable across a big fleet.)
 // Prominent bilingual switch shown on every login step (spec C5).
