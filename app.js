@@ -108,6 +108,20 @@ const I18N = {
     cbInsMissingMany: 'crew are missing a mandatory document', cbInsDocsIncomplete: 'docs incomplete',
     cbInsMissingDetail: 'and', cbInsMore: 'more. Open the crew bank and use the “Docs missing” filter.', cbInsMissingList: 'Missing',
     cbIncomplete: 'incomplete', cbOpenWord: 'open',
+    // ---- Archived records ----
+    cbFArchived: 'Archived', cbArchivedBadge: 'archived', cbArchiveBtn: 'Archive this record',
+    cbRestoreBtn: 'Bring back', cbArchivedOn: 'Archived', cbArchivedToast: 'archived — still searchable',
+    cbRestoredToast: 'is back on the roster ✓',
+    cbArchivedNote: 'Old paperwork, kept for reference. This is not a resignation — nothing here says he left.',
+    cbBulkArchive: 'Archive the whole register', cbBulkDone: 'records archived ✓', cbBulkNothing: 'Nothing to archive',
+    cbBulkConfirm: 'Archive every driver and conductor currently on the roll?',
+    cbBulkExplain: 'Nothing is deleted. All of them move to the Archived filter, still searchable by name, phone, licence and Aadhaar, and every bus loses its crew until you add people back. When the office re-enters somebody, the bank offers his old record so his licence, documents and attendance history carry over.',
+    cbBulkType: 'This affects everyone on the roll. Type ARCHIVE to confirm.',
+    // ---- Duplicate: reuse or add new ----
+    cbDupSheetHint: 'Somebody in the bank already matches what you typed. Reusing his record keeps his old licence number, documents and attendance history, and updates it with the details you just entered.',
+    cbDupReuse: 'Reuse this record', cbDupAddNew: 'Add as a different person',
+    cbDupReused: 'updated and back on the roster ✓', cbDupStatusArchived: 'archived record',
+    cbDupStatusLeft: 'left the company', cbDupStatusActive: 'currently working',
     // ---- Duty board (driver/conductor ↔ bus) + Crew Manager ----
     asTitle: 'Duty board', asHint: 'Tap a name to change their bus, or tap a bus to fill the empty seat.',
     asNoBus: 'no bus assigned', asAssigned: 'assigned', asUnassigned: 'unassigned',
@@ -222,6 +236,20 @@ const I18N = {
     cbInsMissingMany: 'स्टाफ के ज़रूरी कागज़ नहीं हैं', cbInsDocsIncomplete: 'के कागज़ अधूरे',
     cbInsMissingDetail: 'और', cbInsMore: 'और लोग। स्टाफ बैंक खोलकर “कागज़ बाकी” छाँटें।', cbInsMissingList: 'नहीं है',
     cbIncomplete: 'अधूरा', cbOpenWord: 'खोलें',
+    // ---- Archived records ----
+    cbFArchived: 'पुराने रिकॉर्ड', cbArchivedBadge: 'पुराना', cbArchiveBtn: 'रिकॉर्ड पुराना करें',
+    cbRestoreBtn: 'वापस लाएं', cbArchivedOn: 'पुराना किया', cbArchivedToast: 'पुराना कर दिया — खोजने पर मिलेगा',
+    cbRestoredToast: 'दोबारा काम पर ✓',
+    cbArchivedNote: 'पुराना कागज़ी रिकॉर्ड, संभालकर रखा है। इसका मतलब नौकरी छोड़ना नहीं है।',
+    cbBulkArchive: 'पूरा रजिस्टर पुराना करें', cbBulkDone: 'रिकॉर्ड पुराने कर दिए ✓', cbBulkNothing: 'पुराना करने को कुछ नहीं',
+    cbBulkConfirm: 'अभी काम पर मौजूद सभी ड्राइवर और कंडक्टर को पुराना कर दें?',
+    cbBulkExplain: 'कुछ भी मिटेगा नहीं। सब “पुराने रिकॉर्ड” में चले जाएंगे और नाम, फ़ोन, लाइसेंस या आधार से खोजने पर मिलते रहेंगे। जब तक नए लोग नहीं जुड़ते हर बस खाली रहेगी। दफ़्तर जब किसी को दोबारा भरेगा, बैंक उसका पुराना रिकॉर्ड दिखाएगा ताकि लाइसेंस, कागज़ और हाज़िरी का इतिहास साथ चले।',
+    cbBulkType: 'यह सब पर लागू होगा। पक्का करने के लिए ARCHIVE लिखें।',
+    // ---- Duplicate: reuse or add new ----
+    cbDupSheetHint: 'आपने जो लिखा उससे मिलता-जुलता कोई पहले से बैंक में है। उसी रिकॉर्ड को इस्तेमाल करने से उसका पुराना लाइसेंस नंबर, कागज़ और हाज़िरी का इतिहास बना रहेगा, और नई जानकारी अपडेट हो जाएगी।',
+    cbDupReuse: 'यही रिकॉर्ड इस्तेमाल करें', cbDupAddNew: 'अलग व्यक्ति के रूप में जोड़ें',
+    cbDupReused: 'अपडेट होकर दोबारा काम पर ✓', cbDupStatusArchived: 'पुराना रिकॉर्ड',
+    cbDupStatusLeft: 'नौकरी छोड़ चुका', cbDupStatusActive: 'अभी काम कर रहा है',
     // ---- Duty board (driver/conductor ↔ bus) + Crew Manager ----
     asTitle: 'ड्यूटी', asHint: 'बस बदलने के लिए नाम दबाएं, या खाली सीट भरने के लिए बस दबाएं।',
     asNoBus: 'कोई बस नहीं', asAssigned: 'दी गई', asUnassigned: 'नहीं दी',
@@ -445,6 +473,9 @@ const PERMS = {
   // Split off manageDrivers on purpose: minting logins and PINs for the whole
   // crew is an owner's job, not part of keeping their records.
   manageCrewLogins: ['owner', 'supervisor'],
+  // Archiving the entire roll in one go is an owner action — it empties every
+  // bus until people are added back.
+  bulkArchiveCrew: ['owner'],
   // Scoring somebody's driving is a supervisor's judgement, not record-keeping —
   // and the server refuses `incidents` writes from anyone else anyway.
   logIncident: ['owner', 'supervisor'],
@@ -694,7 +725,14 @@ const driverName = (id) => (driverById(id) || {}).name || '—';
  * keeping a bank rather than a list.
  */
 const crewRoleOf = (d) => (d && d.crewRole === 'conductor' ? 'conductor' : 'driver');
-const crewStatusOf = (d) => ((d && d.status) === 'left' ? 'left' : 'active');
+/* active | archived | left.
+ *   left     — he genuinely went. Carries a reason and a rehire flag, and that
+ *              is the record the duplicate check exists to surface.
+ *   archived — old paperwork being replaced. NOT a departure: nothing claims he
+ *              resigned, no reason is invented, and his bus assignment stays on
+ *              the record so bringing him back restores it. He simply drops out
+ *              of every working list until somebody reuses or restores him. */
+const crewStatusOf = (d) => { const st = d && d.status; return st === 'left' || st === 'archived' ? st : 'active'; };
 const CREW_ROLE_META = { driver: ['🧑‍✈️', 'roleDriver'], conductor: ['🎫', 'roleConductor'] };
 // Resolved on every render, never cached: switching language only re-renders.
 const crewRoleLabel = (role) => t(CREW_ROLE_META[role === 'conductor' ? 'conductor' : 'driver'][1]);
@@ -4669,7 +4707,8 @@ function viewDriverDetail(id) {
   const reps = (S.cache.driverreports || []).filter((r) => r.driverId === id).sort((a, b) => b.at - a.at);
   const byType = {}; incs.forEach((i) => { byType[i.type] = (byType[i.type] || 0) + 1; });
 
-  const crole = crewRoleOf(d), rmeta = CREW_ROLE_META[crole], hasLeft = crewStatusOf(d) === 'left';
+  const crole = crewRoleOf(d), rmeta = CREW_ROLE_META[crole];
+  const cstat = crewStatusOf(d), hasLeft = cstat === 'left', isArchived = cstat === 'archived', inactive = cstat !== 'active';
   const yrs = (ts) => (ts ? Math.floor((Date.now() - ts) / (365.25 * day)) : null);
   const age = yrs(d.dob), tenure = d.joinedAt ? yrs(d.joinedAt) : null;
   const canManage = can(S.user.role, 'manageDrivers');
@@ -4680,11 +4719,13 @@ function viewDriverDetail(id) {
         <div class="small muted">${esc(crewRoleLabel(crole))}${d.phone ? ' · ' + esc(d.phone) : ''}${crewLicenceNo(d) ? ' · ' + esc(crewLicenceNo(d)) : ''}</div></div>
       <span class="badge ${scoreClass(score)}">${score}/100</span></div>
     ${hasLeft ? `<div class="hr"></div><div class="tiny" style="color:#ef4444;font-weight:700">📦 ${t('cbLeftOn')}${d.leftAt ? ' ' + fmtDate(d.leftAt) : ''}${crewLeftReason(d) ? ' — ' + esc(crewLeftReason(d)) : ''}${d.rehire ? ` · ${t('cbDupRehire')}: ${esc(t(REHIRE_KEY[d.rehire] || 'cbRehireMaybe'))}` : ''}</div>` : ''}
+    ${isArchived ? `<div class="hr"></div><div class="tiny" style="font-weight:700">🗄️ ${t('cbArchivedOn')}${d.archivedAt ? ' ' + fmtDate(d.archivedAt) : ''}</div>
+      <div class="tiny muted" style="margin-top:3px">${t('cbArchivedNote')}</div>` : ''}
     <div class="hr"></div>
     <div class="row between"><div><div class="tiny muted">${t(crole === 'conductor' ? 'cbBus' : 'cbAssignedBus')}</div><b>${bus ? esc(bus.regNo) : '—'}</b></div>
       <div style="text-align:right"><div class="tiny muted">${t('cbRating')}</div><div class="stars">${starStr(scoreStars(score))}</div></div></div>
     <div class="spacer"></div>
-    <div class="btnrow">${hasLeft ? (canManage ? `<button class="btn sm" data-act="crewRejoin" data-driver="${d.id}">↩️ ${t('cbRejoinBtn')}</button>` : '')
+    <div class="btnrow">${inactive ? (canManage ? `<button class="btn sm" data-act="${isArchived ? 'crewRestore' : 'crewRejoin'}" data-driver="${d.id}">↩️ ${t(isArchived ? 'cbRestoreBtn' : 'cbRejoinBtn')}</button>` : '')
       : `<button class="btn sm" data-act="assignBus" data-driver="${d.id}">${t('cbChangeBus')}</button>
       ${can(S.user.role, 'logIncident') ? `<button class="btn sm" data-act="reportProblem" data-bus="${d.busId || ''}" data-driver="${d.id}">${t('cbLogReport')}</button>` : ''}`}</div></div>`;
 
@@ -4711,7 +4752,9 @@ function viewDriverDetail(id) {
   body += `<div class="card"><div class="row between"><h3>${t('cbDetails')}</h3>${
     canManage ? `<button class="btn sm ghost" data-act="editCrewProfile" data-driver="${d.id}" style="width:auto">✏️ ${t('cbEdit')}</button>` : ''}</div>
     ${details || `<div class="muted small">${t('cbNoDetails')}</div>`}
-    ${canManage && !hasLeft ? `<div class="spacer"></div><button class="btn sm ghost" data-act="crewExit" data-driver="${d.id}">📦 ${t('cbMarkLeftBtn')}</button>` : ''}</div>`;
+    ${canManage && !inactive ? `<div class="spacer"></div><div class="btnrow">
+      <button class="btn sm ghost" data-act="crewArchive" data-driver="${d.id}">🗄️ ${t('cbArchiveBtn')}</button>
+      <button class="btn sm ghost" data-act="crewExit" data-driver="${d.id}">📦 ${t('cbMarkLeftBtn')}</button></div>` : ''}</div>`;
 
   // Document vault summary (tap to manage)
   const ds = driverDocStatus(d);
@@ -5199,7 +5242,8 @@ async function saveDriverDoc(driverId, key) {
  */
 let _crewFilter = 'all';
 const CREW_FILTERS = [['all', 'cbFAll', ''], ['driver', 'cbFDrivers', '🧑‍✈️'], ['conductor', 'cbFConductors', '🎫'],
-  ['incomplete', 'cbFIncomplete', '⚠️'], ['expiring', 'cbFExpiring', '📅'], ['left', 'cbFLeft', '📦']];
+  ['incomplete', 'cbFIncomplete', '⚠️'], ['expiring', 'cbFExpiring', '📅'],
+  ['archived', 'cbFArchived', '🗄️'], ['left', 'cbFLeft', '📦']];
 
 const _digits = (s) => String(s || '').replace(/\D/g, '');
 const _phoneKey = (s) => { const d = _digits(s); return d.length >= 10 ? d.slice(-10) : ''; };
@@ -5212,7 +5256,10 @@ const crewAadhaarNo = (d) => ((docOf(d, 'aadhaar') || {}).number || '').trim();
 function crewMatchesFilter(d, f) {
   const st = crewStatusOf(d);
   if (f === 'left') return st === 'left';
-  if (st === 'left') return false;              // ex-staff only ever show under their own filter
+  if (f === 'archived') return st === 'archived';
+  // Ex-staff and archived paperwork only ever show under their own filter, so
+  // the working lists stay the people actually on the roll.
+  if (st !== 'active') return false;
   if (f === 'all') return true;
   if (f === 'driver' || f === 'conductor') return crewRoleOf(d) === f;
   if (f === 'incomplete') { const s2 = driverDocStatus(d); return s2.mandDone < s2.mandTotal; }
@@ -5222,9 +5269,10 @@ function crewMatchesFilter(d, f) {
 
 function crewLi(d) {
   const role = crewRoleOf(d), meta = CREW_ROLE_META[role], st = driverDocStatus(d);
-  const left = crewStatusOf(d) === 'left', bus = busName(d.busId);
+  const stat = crewStatusOf(d), left = stat !== 'active', bus = busName(d.busId);
   const exp = crewExpiring(d)[0];
-  const badge = left ? `<span class="badge b-low">${t('cbLeftBadge')}</span>`
+  const badge = stat === 'archived' ? `<span class="badge b-low">${t('cbArchivedBadge')}</span>`
+    : left ? `<span class="badge b-low">${t('cbLeftBadge')}</span>`
     : st.mandDone < st.mandTotal ? `<span class="badge b-red">${st.mandTotal - st.mandDone} ${t('cbDocsShort')}</span>`
     : exp ? `<span class="badge b-amber">${exp.dl < 0 ? t('expired') : exp.dl + 'd'}</span>`
     : `<span class="badge b-green">✓</span>`;
@@ -5271,7 +5319,8 @@ function viewCrewBank() {
   body += `<input id="crew-search" class="searchbox" placeholder="${esc(t('cbSearchPh'))}" autocomplete="off">`;
   body += `<div class="chiprow" id="crew-chips"></div>`;
   body += `<div class="card" id="crew-list"><div class="empty">Loading…</div></div>`;
-  body += `<div class="btnrow" style="margin-top:12px"><button class="btn sm ghost" data-act="exportCrew">⬇️ ${t('cbExport')}</button></div>`;
+  body += `<div class="btnrow" style="margin-top:12px"><button class="btn sm ghost" data-act="exportCrew">⬇️ ${t('cbExport')}</button>${
+    can(S.user.role, 'bulkArchiveCrew') && act.length ? `<button class="btn sm ghost" data-act="bulkArchive">🗄️ ${t('cbBulkArchive')}</button>` : ''}</div>`;
   shell(t('cbTitle'), body, { act: 'addCrew', icon: '+' });
   const s = document.getElementById('crew-search'); if (s) s.oninput = renderCrewList;
   renderCrewList();
@@ -5369,38 +5418,113 @@ async function saveCrew() {
   if (_crewNewRole === 'driver' && !lic) return toast(t('cbNeedLicence'));
   if (aadhaar && _digits(aadhaar).length !== 12) return toast(t('cbNeedAadhaar12'));
 
-  const dups = crewDuplicates(phone, aadhaar, lic, null);
-  if (dups.length && !confirm(`⚠️ ${t('cbDupTitle')}\n\n${dups.map(crewDupLine).join('\n')}\n\n${t('cbDupAddWord')} ${name} ${t('cbDupAsk')}`)) return;
-
   const now = Date.now();
-  const rec = {
-    id: 'crew-' + now.toString(36) + '-' + Math.random().toString(36).slice(2, 6),
+  const fields = {
     name, crewRole: _crewNewRole, status: 'active',
     phone, altPhone: v('c-phone2').trim(),
-    license: lic, busId: v('c-bus') || null, userId: null,
-    tripsLogged: 0, photo: _crewShot || '',
+    license: lic, busId: v('c-bus') || null,
+    photo: _crewShot || '',
     joinedAt: v('c-joined') ? new Date(v('c-joined') + 'T00:00:00').getTime() : now,
     dob: v('c-dob') ? new Date(v('c-dob') + 'T00:00:00').getTime() : null,
     address: v('c-addr').trim(), bloodGroup: v('c-blood'),
-    salaryMonthly: Number(_digits(v('c-sal'))) || 0,
     emgName: v('c-emg').trim(), emgPhone: v('c-emgph').trim(), emgRelation: v('c-emgrel').trim(),
     refName: v('c-ref').trim(), refPhone: v('c-refph').trim(),
-    docs: {}, source: 'crew-bank',
   };
+  if (document.getElementById('c-sal')) fields.salaryMonthly = Number(_digits(v('c-sal'))) || 0;
   // Numbers typed at joining go straight into the document vault so the licence
   // expiry starts being watched today — the card photo can follow later.
-  if (lic) rec.docs.license = { number: lic, at: now, by: S.user.id,
+  const docs = {};
+  if (lic) docs.license = { number: lic, at: now, by: S.user.id,
     expiry: v('c-licexp') ? new Date(v('c-licexp') + 'T00:00:00').getTime() : null };
-  if (aadhaar) rec.docs.aadhaar = { number: _digits(aadhaar), at: now, by: S.user.id };
+  if (aadhaar) docs.aadhaar = { number: _digits(aadhaar), at: now, by: S.user.id };
 
-  // A driver assigned to a bus takes it off whoever had it — one driver per bus.
-  if (rec.busId && rec.crewRole === 'driver') {
-    for (const o of activeDrivers()) if (o.busId === rec.busId) { o.busId = null; await DB.put('drivers', o); }
+  const dups = crewDuplicates(phone, aadhaar, lic, null);
+  if (dups.length) { _crewPending = { fields, docs }; return sheetCrewDuplicate(dups); }
+  return commitNewCrew({ fields, docs });
+}
+
+/* A bus carries one driver and one conductor — taking a seat frees whoever had
+ * it, but only that seat. */
+async function _clearSeat(busId, seat, exceptId) {
+  if (!busId) return;
+  for (const o of activeCrew()) {
+    if (o.id !== exceptId && o.busId === busId && crewRoleOf(o) === seat) { o.busId = null; await DB.put('drivers', o); }
   }
+}
+
+async function commitNewCrew({ fields, docs }) {
+  const now = Date.now();
+  const rec = Object.assign({
+    id: 'crew-' + now.toString(36) + '-' + Math.random().toString(36).slice(2, 6),
+    userId: null, tripsLogged: 0, salaryMonthly: 0, docs, source: 'crew-bank',
+  }, fields);
+  await _clearSeat(rec.busId, crewRoleOf(rec), rec.id);
   await DB.put('drivers', rec);
   await load(); closeSheet();
-  toast(`${name} ${t('cbAdded')}`);
+  toast(`${rec.name} ${t('cbAdded')}`);
   push({ name: 'drivers', id: rec.id });
+}
+
+/* ----- "This man is already in the bank" ---------------------------------
+ * The register is re-entered by hand, so the office WILL retype people who are
+ * already archived. Forcing a yes/no there would either block them or quietly
+ * create a second record for the same man. Reusing the old record instead keeps
+ * his id — and with it his documents, attendance and trips — while taking the
+ * details just typed. */
+let _crewPending = null;
+const CREW_STATUS_KEY = { active: 'cbDupStatusActive', archived: 'cbDupStatusArchived', left: 'cbDupStatusLeft' };
+
+function sheetCrewDuplicate(dups) {
+  const rows = dups.map(({ d, on }) => {
+    const st = crewStatusOf(d), why = st === 'left' ? crewLeftReason(d) : '';
+    return `<div class="li"><div class="ava">${d.photo ? `<img src="${esc(d.photo)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:14px">` : CREW_ROLE_META[crewRoleOf(d)][0]}</div>
+      <div class="main"><div class="t">${esc(d.name)}</div>
+        <div class="s">${esc(crewRoleLabel(crewRoleOf(d)))} · ${t(CREW_STATUS_KEY[st])} · ${esc(on.join(', '))}</div>
+        ${why ? `<div class="tiny" style="color:#ef4444">${esc(why)}</div>` : ''}
+        ${st === 'left' && d.rehire ? `<div class="tiny" style="color:#ef4444">${t('cbDupRehire')}: ${esc(t(REHIRE_KEY[d.rehire] || 'cbRehireMaybe'))}</div>` : ''}</div>
+      <button class="btn sm" data-act="crewReuse" data-driver="${d.id}" style="width:auto">${t('cbDupReuse')}</button></div>`;
+  }).join('');
+  openSheet('⚠️ ' + t('cbDupTitle'), `
+    <div class="tiny muted" style="margin-bottom:12px">${t('cbDupSheetHint')}</div>
+    <div class="card">${rows}</div>
+    <button class="btn" data-act="crewAddAnyway">${t('cbDupAddNew')}</button>`);
+}
+
+async function crewAddAnyway() {
+  const p = _crewPending; if (!p) return closeSheet();
+  _crewPending = null;
+  return commitNewCrew(p);
+}
+
+/* Reuse: the old record survives, so everything keyed to its id survives with
+ * it. A "do not rehire" flag still has to be answered for out loud. */
+async function crewReuse(id) {
+  if (!can(S.user.role, 'manageDrivers')) return toast(t('cbNotAllowed'));
+  const p = _crewPending; const d = driverById(id);
+  if (!p || !d) return closeSheet();
+  if (crewStatusOf(d) === 'left' && d.rehire === 'no'
+    && !confirm(`⚠️ ${d.name} ${t('cbNoRehireWarn')}\n\n${t('cbDupReason')}: ${crewLeftReason(d) || t('cbNotRecorded')}\n\n${t('cbBringBack')}`)) return;
+  _crewPending = null;
+  // Blank fields must not wipe what is already on file — an empty address typed
+  // today is not a statement that his old address was wrong.
+  Object.keys(p.fields).forEach((k) => { const val = p.fields[k]; if (val !== '' && val != null) d[k] = val; });
+  d.status = 'active';
+  // Typing his Aadhaar number again must not throw away the photo of the card
+  // already on file. Merge each document field by field, newest non-empty wins.
+  const docs = Object.assign({}, d.docs);
+  Object.keys(p.docs).forEach((k) => {
+    const merged = Object.assign({}, docs[k] || {});
+    Object.keys(p.docs[k]).forEach((f) => { const val = p.docs[k][f]; if (val !== '' && val != null) merged[f] = val; });
+    docs[k] = merged;
+  });
+  d.docs = docs;
+  d.archivedAt = null; d.leftAt = null; d.leftReason = ''; d.leftReasonKey = null; d.leftNote = ''; d.rehire = null;
+  d.rejoinedAt = Date.now();
+  await _clearSeat(d.busId, crewRoleOf(d), d.id);
+  await DB.put('drivers', d);
+  await load(); closeSheet();
+  toast(`${d.name} ${t('cbDupReused')}`);
+  push({ name: 'drivers', id: d.id });
 }
 
 /* ----- Editing an existing person's details ------------------------------- */
@@ -5498,6 +5622,43 @@ async function saveCrewExit(id) {
   d.busId = null;                      // his bus is free from today
   await DB.put('drivers', d);
   await load(); closeSheet(); toast(`${d.name} ${t('cbMarkedLeft')}`); rerender();
+}
+
+/* Archiving is not a departure — no reason, no rehire flag, and the bus stays
+ * on the record so bringing him back restores what he drove. He leaves every
+ * working list because those read `activeCrew()`. */
+async function archiveCrew(id) {
+  if (!can(S.user.role, 'manageDrivers')) return toast(t('cbNotAllowed'));
+  const d = driverById(id); if (!d) return;
+  d.status = 'archived'; d.archivedAt = Date.now();
+  await DB.put('drivers', d);
+  await load(); toast(`${d.name} ${t('cbArchivedToast')}`); rerender();
+}
+
+async function restoreCrew(id) {
+  if (!can(S.user.role, 'manageDrivers')) return toast(t('cbNotAllowed'));
+  const d = driverById(id); if (!d) return;
+  d.status = 'active'; d.archivedAt = null; d.rejoinedAt = Date.now();
+  await _clearSeat(d.busId, crewRoleOf(d), d.id);
+  await DB.put('drivers', d);
+  await load(); toast(`${d.name} ${t('cbRestoredToast')}`); rerender();
+}
+
+/* Replace the whole register at once, for the case this was built for: the
+ * imported roster is being re-entered by hand. Nothing is deleted — and it is
+ * gated behind both a confirmation and a typed word, because it empties every
+ * bus on the fleet. */
+async function bulkArchiveCrew() {
+  if (!can(S.user.role, 'bulkArchiveCrew')) return toast(t('cbNotAllowed'));
+  const list = activeCrew();
+  if (!list.length) return toast(t('cbBulkNothing'));
+  const drv = list.filter((d) => crewRoleOf(d) === 'driver').length;
+  if (!confirm(`⚠️ ${t('cbBulkConfirm')}\n\n${list.length} — ${drv} ${t('cbDrivers')}, ${list.length - drv} ${t('cbConductors')}\n\n${t('cbBulkExplain')}`)) return;
+  if ((window.prompt(t('cbBulkType')) || '').trim().toUpperCase() !== 'ARCHIVE') return;
+  const now = Date.now();
+  const upd = list.map((d) => Object.assign(d, { status: 'archived', archivedAt: now }));
+  await DB.bulkPut('drivers', upd);
+  await load(); toast(`${upd.length} ${t('cbBulkDone')}`); rerender();
 }
 
 async function rejoinCrew(id) {
@@ -6485,6 +6646,11 @@ function bind() {
       case 'crewExit': return sheetCrewExit(el.getAttribute('data-driver'));
       case 'saveCrewExit': return saveCrewExit(el.getAttribute('data-driver'));
       case 'crewRejoin': return rejoinCrew(el.getAttribute('data-driver'));
+      case 'crewArchive': return archiveCrew(el.getAttribute('data-driver'));
+      case 'crewRestore': return restoreCrew(el.getAttribute('data-driver'));
+      case 'bulkArchive': return bulkArchiveCrew();
+      case 'crewReuse': return crewReuse(el.getAttribute('data-driver'));
+      case 'crewAddAnyway': return crewAddAnyway();
       case 'exportCrew': return exportCrewCsv();
       case 'revealDocNum': {
         if (!can(S.user.role, 'manageDrivers')) return toast(t('cbNotAllowed'));

@@ -333,6 +333,7 @@ footer .stamp{font-family:"IBM Plex Mono",monospace;font-size:11.5px;letter-spac
 body[data-role]:not([data-role="all"]) .sec[data-roles]{display:none}
 body[data-role="owner"]:not([data-role="all"]) .sec[data-roles~="owner"],
 body[data-role="supervisor"]:not([data-role="all"]) .sec[data-roles~="supervisor"],
+body[data-role="crewmanager"]:not([data-role="all"]) .sec[data-roles~="crewmanager"],
 body[data-role="store"]:not([data-role="all"]) .sec[data-roles~="store"],
 body[data-role="mechanic"]:not([data-role="all"]) .sec[data-roles~="mechanic"],
 body[data-role="driver"]:not([data-role="all"]) .sec[data-roles~="driver"],
@@ -388,6 +389,7 @@ body[data-role="conductor"]:not([data-role="all"]) .sec[data-roles~="conductor"]
         <button data-role="all" aria-pressed="true">Everyone <span class="hi">सब</span></button>
         <button data-role="owner" aria-pressed="false"><span class="g">👑</span>Owner</button>
         <button data-role="supervisor" aria-pressed="false"><span class="g">🧑‍🔧</span>Supervisor</button>
+        <button data-role="crewmanager" aria-pressed="false"><span class="g">🗂️</span>Crew Mgr</button>
         <button data-role="store" aria-pressed="false"><span class="g">📦</span>Store</button>
         <button data-role="mechanic" aria-pressed="false"><span class="g">🔧</span>Mechanic</button>
         <button data-role="driver" aria-pressed="false"><span class="g">🧑‍✈️</span>Driver</button>
@@ -606,6 +608,42 @@ body[data-role="conductor"]:not([data-role="all"]) .sec[data-roles~="conductor"]
   </div>
 
   <!-- STORE -->
+  <div class="sec" data-roles="crewmanager">
+    <div class="rolehead"><div class="glyph">🗂️</div><h3>Crew Manager <span class="devnag">क्रू मैनेजर</span></h3></div>
+    <div class="tabs">
+      <span class="tab"><span class="g">🔁</span>Today</span>
+      <span class="tab"><span class="g">🗂️</span>Crew bank</span>
+      <span class="tab"><span class="g">👤</span>Me</span>
+    </div>
+    <div class="bi">
+      <div class="en"><p>You have two jobs and the app shows you nothing else. First: every bus needs a driver and a conductor today. Second: the crew bank — who these people are, their phone, their licence, their documents.</p></div>
+      <div class="hi"><p>आपके दो काम हैं और ऐप आपको इसके अलावा कुछ नहीं दिखाता। पहला: आज हर बस पर एक ड्राइवर और एक कंडक्टर होना चाहिए। दूसरा: स्टाफ़ बैंक — ये लोग कौन हैं, इनका फ़ोन, लाइसेंस और कागज़।</p></div>
+    </div>
+    <div class="bi">
+      <div class="en"><p>Your home screen opens on the gaps: <b>how many buses need a driver</b> and <b>how many need a conductor</b>, with the registration numbers underneath. Tap either line to open the duty board and fill them.</p></div>
+      <div class="hi"><p>आपकी होम स्क्रीन सीधे कमी दिखाती है: <b>कितनी बसों को ड्राइवर चाहिए</b> और <b>कितनी को कंडक्टर</b>, नीचे उनके नंबर। किसी भी लाइन को दबाकर ड्यूटी बोर्ड खोलिए और भर दीजिए।</p></div>
+    </div>
+    <div class="bi">
+      <div class="en"><p>On the duty board the chips at the top switch between <span class="ui">Driver</span> and <span class="ui">Conductor</span>. Each side shows who has no bus, and which buses have that seat empty. Tap a name to change his bus; tap a bus to fill its empty seat.</p></div>
+      <div class="hi"><p>ड्यूटी बोर्ड पर ऊपर की चिप से <span class="ui">ड्राइवर</span> और <span class="ui">कंडक्टर</span> बदलिए। हर तरफ़ दिखता है कि किसके पास बस नहीं है, और किन बसों की वह सीट खाली है। बस बदलने के लिए नाम दबाइए; खाली सीट भरने के लिए बस दबाइए।</p></div>
+    </div>
+    <div class="note warn">
+      <span class="tag">A bus has two seats · एक बस, दो सीटें</span>
+      <div class="bi">
+        <div class="en"><p>Putting a conductor on a bus never removes its driver, and the other way round. If a bus looks like it lost its driver after you assigned a conductor, that is a fault — tell the office, do not fix it by reassigning.</p></div>
+        <div class="hi"><p>किसी बस पर कंडक्टर लगाने से उसका ड्राइवर नहीं हटता, और न ही उल्टा। अगर कंडक्टर लगाने के बाद बस का ड्राइवर हटा हुआ दिखे तो यह गड़बड़ी है — दफ़्तर को बताइए, दोबारा सौंपकर ठीक मत कीजिए।</p></div>
+      </div>
+    </div>
+    <div class="bi">
+      <div class="en"><p>What you cannot do, by design: money, job cards, the store, crew logins and PINs, and driver ratings. You will not see a salary anywhere. If you need one of those, the owner or supervisor does it.</p></div>
+      <div class="hi"><p>जो आप नहीं कर सकते, जानबूझकर: पैसा, जॉब कार्ड, स्टोर, स्टाफ़ के लॉगिन और पिन, और ड्राइवर की रेटिंग। तनख्वाह आपको कहीं नहीं दिखेगी। इनमें से कुछ चाहिए तो मालिक या सुपरवाइज़र करेंगे।</p></div>
+    </div>
+    <div class="bi">
+      <div class="en"><p>Attendance is yours too, like everyone: <span class="ui">Me</span> → <span class="ui">Check In</span> at the start of the day, <span class="ui">Check Out</span> at the end.</p></div>
+      <div class="hi"><p>हाज़िरी आपकी भी है, सबकी तरह: दिन शुरू होते ही <span class="ui">मैं</span> → <span class="ui">हाज़िरी लगाएं</span>, और ख़त्म होने पर <span class="ui">छुट्टी</span>।</p></div>
+    </div>
+  </div>
+
   <div class="sec" data-roles="store">
     <div class="rolehead"><div class="glyph">📦</div><h3>Storekeeper <span class="devnag">स्टोरकीपर</span></h3></div>
     <div class="tabs">
@@ -767,7 +805,157 @@ body[data-role="conductor"]:not([data-role="all"]) .sec[data-roles~="conductor"]
 
 <!-- ============================ PART 3 ============================ -->
 <section class="part">
-  <header><span class="num">PART 3</span><h2>One repair, from complaint to sign-off <span class="devnag">एक मरम्मत, शिकायत से जाँच तक</span></h2></header>
+  <header><span class="num">PART 3</span><h2>The crew bank <span class="devnag">स्टाफ़ बैंक</span></h2></header>
+
+  <div class="sec" data-roles="owner supervisor crewmanager driver conductor">
+    <h3>What the bank is <span class="devnag">बैंक क्या है</span></h3>
+    <p class="who">Owner · Supervisor · Crew Manager · Driver · Conductor</p>
+    <div class="bi">
+      <div class="en"><p>One register of every driver and conductor the company has ever employed. Name, photo, phone, licence, Aadhaar, address, blood group, and who to call if something happens to him on the road. Open it from <span class="ui">People</span> → <span class="ui">Crew bank</span>.</p></div>
+      <div class="hi"><p>कंपनी में अब तक आए हर ड्राइवर और कंडक्टर का एक ही रजिस्टर। नाम, फोटो, फ़ोन, लाइसेंस, आधार, पता, ब्लड ग्रुप, और रास्ते में कुछ हो जाए तो किसे फ़ोन करना है। <span class="ui">लोग</span> → <span class="ui">स्टाफ़ बैंक</span> से खोलिए।</p></div>
+    </div>
+    <div class="bi">
+      <div class="en"><p>Search finds a man by name, phone, licence number, bus, or the <b>last four digits of his Aadhaar</b>. The chips above the list narrow it: drivers only, conductors only, whose documents are missing, whose papers expire this month.</p></div>
+      <div class="hi"><p>खोज नाम, फ़ोन, लाइसेंस नंबर, बस, या <b>आधार के आख़िरी चार अंकों</b> से आदमी ढूँढ लेती है। सूची के ऊपर की चिप छाँटती हैं: सिर्फ़ ड्राइवर, सिर्फ़ कंडक्टर, किसके कागज़ बाकी हैं, किसके इस महीने ख़त्म हो रहे हैं।</p></div>
+    </div>
+    <div class="note warn">
+      <span class="tag">Nothing is ever deleted · कुछ भी मिटता नहीं</span>
+      <div class="bi">
+        <div class="en"><p>This is the whole point of a bank instead of a list. A man who left in 2024 and turns up again in 2026 must be findable — with the licence number he gave last time and the reason he went. That is why there is no delete button anywhere in the bank.</p></div>
+        <div class="hi"><p>सूची की जगह बैंक रखने का यही मतलब है। जो आदमी 2024 में छोड़कर गया और 2026 में फिर आ जाए, वह मिलना चाहिए — पिछली बार दिए लाइसेंस नंबर और जाने के कारण के साथ। इसीलिए बैंक में कहीं मिटाने का बटन नहीं है।</p></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sec" data-roles="owner supervisor crewmanager">
+    <h3>Adding somebody new <span class="devnag">नया आदमी जोड़ना</span></h3>
+    <p class="who">Owner · Supervisor · Crew Manager</p>
+    <div class="bi">
+      <div class="en"><p>Tap the <span class="ui">+</span> button in the crew bank. First choose <span class="ui">Driver</span> or <span class="ui">Conductor</span> — that choice decides which documents the app will ask him for later.</p></div>
+      <div class="hi"><p>स्टाफ़ बैंक में <span class="ui">+</span> दबाइए। पहले <span class="ui">ड्राइवर</span> या <span class="ui">कंडक्टर</span> चुनिए — इसी से तय होता है कि ऐप आगे उससे कौन से कागज़ माँगेगा।</p></div>
+    </div>
+    <div class="bi">
+      <div class="en"><p>Only three things are compulsory: his <b>name</b>, a <b>10-digit phone</b>, and for a driver a <b>licence number</b>. Everything else can be filled in later — but fill what you know now, because nobody comes back to a half-empty record.</p></div>
+      <div class="hi"><p>सिर्फ़ तीन चीज़ें ज़रूरी हैं: <b>नाम</b>, <b>10 अंकों का फ़ोन</b>, और ड्राइवर के लिए <b>लाइसेंस नंबर</b>। बाकी बाद में भर सकते हैं — पर जो अभी पता है वह अभी भरिए, क्योंकि आधे-अधूरे रिकॉर्ड पर कोई दोबारा नहीं लौटता।</p></div>
+    </div>
+    <div class="bi">
+      <div class="en"><p>Take his photograph on the spot with <span class="ui">Take his photo</span>. A face in the register is what lets the office tell two men with the same name apart a year later.</p></div>
+      <div class="hi"><p>वहीं <span class="ui">फोटो लें</span> से उसकी फोटो ले लीजिए। रजिस्टर में चेहरा होने से ही एक साल बाद दफ़्तर एक जैसे नाम वाले दो आदमियों में फ़र्क़ कर पाता है।</p></div>
+    </div>
+    <div class="note warn">
+      <span class="tag">Fill the emergency contact · आपात संपर्क ज़रूर भरिए</span>
+      <div class="bi">
+        <div class="en"><p>Name, number and relation of somebody to call if there is an accident on the road at two in the morning. It takes ten seconds while he is sitting in front of you, and it is unfindable when you actually need it.</p></div>
+        <div class="hi"><p>रात दो बजे रास्ते में कुछ हो जाए तो किसे फ़ोन करना है — उसका नाम, नंबर और रिश्ता। जब वह सामने बैठा है तब यह दस सेकंड का काम है, और जब सच में ज़रूरत पड़ती है तब कहीं नहीं मिलता।</p></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sec" data-roles="owner supervisor crewmanager">
+    <h3>“He is already in the bank” <span class="devnag">“यह तो पहले से बैंक में है”</span></h3>
+    <p class="who">Owner · Supervisor · Crew Manager</p>
+    <div class="bi">
+      <div class="en"><p>If the phone, Aadhaar or licence you typed matches somebody already in the register — including people who left years ago — the app stops and shows you who, why it matched, and what happened to him.</p></div>
+      <div class="hi"><p>आपने जो फ़ोन, आधार या लाइसेंस लिखा वह अगर रजिस्टर में पहले से किसी से मिलता है — उनसे भी जो सालों पहले छोड़कर जा चुके — तो ऐप रुक जाता है और दिखाता है कौन, किस बात पर मिला, और उसके साथ क्या हुआ था।</p></div>
+    </div>
+    <div class="bi">
+      <div class="en"><p>You then have two choices, and they are not the same thing:</p></div>
+      <div class="hi"><p>अब आपके पास दो रास्ते हैं, और दोनों एक जैसे नहीं हैं:</p></div>
+    </div>
+    <div class="bi">
+      <div class="en"><p><span class="ui">Reuse this record</span> — it is the same man. His old record comes back to life and takes the details you just typed. His licence history, his documents, his attendance and his trips all stay attached, because it is still the same record underneath.</p></div>
+      <div class="hi"><p><span class="ui">यही रिकॉर्ड इस्तेमाल करें</span> — यह वही आदमी है। उसका पुराना रिकॉर्ड वापस चालू हो जाता है और अभी लिखी जानकारी ले लेता है। उसका लाइसेंस इतिहास, कागज़, हाज़िरी और ट्रिप सब जुड़े रहते हैं, क्योंकि अंदर वही रिकॉर्ड है।</p></div>
+    </div>
+    <div class="bi">
+      <div class="en"><p><span class="ui">Add as a different person</span> — it is genuinely somebody else who happens to share a phone. Two brothers on one number is normal. The app makes a fresh record and leaves the old one alone.</p></div>
+      <div class="hi"><p><span class="ui">अलग व्यक्ति के रूप में जोड़ें</span> — यह सचमुच कोई और है जिसका फ़ोन इत्तेफ़ाक़ से वही है। एक ही नंबर पर दो भाई होना आम बात है। ऐप नया रिकॉर्ड बनाता है और पुराने को छूता नहीं।</p></div>
+    </div>
+    <div class="note warn">
+      <span class="tag">Read the red line first · लाल लाइन पहले पढ़िए</span>
+      <div class="bi">
+        <div class="en"><p>If the man left and was marked <b>do not rehire</b>, the reason is printed right there in red. Reusing his record asks you a second time before it lets you do it. That warning is the single most valuable thing in the bank — do not tap past it.</p></div>
+        <div class="hi"><p>अगर आदमी छोड़कर गया था और उस पर <b>दोबारा न रखें</b> लिखा है, तो कारण वहीं लाल रंग में दिखेगा। उसका रिकॉर्ड दोबारा इस्तेमाल करने से पहले ऐप दोबारा पूछेगा। बैंक में यही चेतावनी सबसे क़ीमती चीज़ है — इसे बिना पढ़े आगे मत बढ़िए।</p></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sec" data-roles="owner supervisor crewmanager driver conductor">
+    <h3>Documents <span class="devnag">कागज़ात</span></h3>
+    <p class="who">Staff open anyone's · a driver or conductor opens his own</p>
+    <div class="bi">
+      <div class="en"><p>Six cards: driving licence, Aadhaar, photograph, PAN, police verification and medical certificate. The ring at the top shows how much is done. Tap a card to photograph the document and type its number.</p></div>
+      <div class="hi"><p>छह कार्ड: ड्राइविंग लाइसेंस, आधार, फोटो, पैन, पुलिस वेरिफिकेशन और मेडिकल सर्टिफिकेट। ऊपर का गोला बताता है कितना हो चुका। कागज़ की फोटो लेने और उसका नंबर लिखने के लिए कार्ड दबाइए।</p></div>
+    </div>
+    <div class="bi">
+      <div class="en"><p>What is <b>mandatory</b> depends on the job. A driver needs his licence, Aadhaar and photograph. A conductor needs Aadhaar and photograph — he does not drive, so no licence is demanded of him, and PAN is optional for everyone. Cards marked red are the ones still missing.</p></div>
+      <div class="hi"><p>क्या <b>ज़रूरी</b> है यह काम पर निर्भर करता है। ड्राइवर के लिए लाइसेंस, आधार और फोटो। कंडक्टर के लिए आधार और फोटो — वह गाड़ी नहीं चलाता इसलिए उससे लाइसेंस नहीं माँगा जाता, और पैन किसी के लिए ज़रूरी नहीं। लाल कार्ड वही हैं जो अभी बाकी हैं।</p></div>
+    </div>
+    <div class="bi">
+      <div class="en"><p>A card can show a number with <span class="ui">photo needed</span> under it. That means somebody typed the number at joining but the card itself was never photographed. It is half done, and the app says so rather than pretending.</p></div>
+      <div class="hi"><p>किसी कार्ड पर नंबर के नीचे <span class="ui">फोटो चाहिए</span> लिखा हो सकता है। इसका मतलब भर्ती के समय नंबर तो लिख दिया गया पर कागज़ की फोटो कभी नहीं ली गई। काम आधा है, और ऐप उसे छिपाता नहीं।</p></div>
+    </div>
+    <div class="note warn">
+      <span class="tag">Aadhaar stays covered · आधार ढका रहता है</span>
+      <div class="bi">
+        <div class="en"><p>Aadhaar always shows as <span class="pin">XXXX XXXX 1234</span> — in the list, on his page, and in the exported file. The last four digits are enough to tell two men apart, and search works on them. Only the owner or a supervisor can uncover the full number, one at a time, with <span class="ui">Show full number</span>. The law does not allow that number to be spread around, and a spreadsheet of a hundred of them on somebody's phone is exactly what that law is about.</p></div>
+        <div class="hi"><p>आधार हमेशा <span class="pin">XXXX XXXX 1234</span> की तरह दिखता है — सूची में, उसके पन्ने पर, और डाउनलोड की गई फ़ाइल में भी। दो आदमियों में फ़र्क़ करने के लिए आख़िरी चार अंक काफ़ी हैं, और खोज उन्हीं से चलती है। पूरा नंबर सिर्फ़ मालिक या सुपरवाइज़र, एक बार में एक, <span class="ui">पूरा नंबर दिखाएं</span> से देख सकते हैं। क़ानून यह नंबर फैलाने की इजाज़त नहीं देता, और किसी के फ़ोन में सौ नंबरों की फ़ाइल होना ठीक वही बात है जिसके लिए वह क़ानून बना है।</p></div>
+      </div>
+    </div>
+    <div class="bi">
+      <div class="en"><p>Put the expiry date on the licence, the police verification and the medical certificate. The app then warns the office a month before each one runs out, instead of a driver being stopped on the road with an expired licence.</p></div>
+      <div class="hi"><p>लाइसेंस, पुलिस वेरिफिकेशन और मेडिकल सर्टिफिकेट पर ख़त्म होने की तारीख़ ज़रूर डालिए। फिर ऐप हर एक के ख़त्म होने से एक महीना पहले दफ़्तर को चेतावनी देता है, बजाय इसके कि ड्राइवर ख़त्म हो चुके लाइसेंस के साथ रास्ते में पकड़ा जाए।</p></div>
+    </div>
+  </div>
+
+  <div class="sec" data-roles="owner supervisor crewmanager">
+    <h3>When somebody leaves — and when the record is just old <span class="devnag">जब कोई छोड़कर जाए — और जब रिकॉर्ड सिर्फ़ पुराना हो</span></h3>
+    <p class="who">Owner · Supervisor · Crew Manager</p>
+    <div class="bi">
+      <div class="en"><p>Two different buttons on a man's page, and using the wrong one puts a lie in the register.</p></div>
+      <div class="hi"><p>आदमी के पन्ने पर दो अलग बटन हैं, और ग़लत वाला दबाने से रजिस्टर में झूठ दर्ज हो जाता है।</p></div>
+    </div>
+    <div class="bi">
+      <div class="en"><p><span class="ui">Mark as left</span> — he actually went. Record the last working day, the reason, and whether you would take him back. His bus is freed the same day. This is the record that shows up in red if he ever applies again.</p></div>
+      <div class="hi"><p><span class="ui">नौकरी छोड़ी</span> — वह सचमुच चला गया। आख़िरी काम का दिन, कारण, और क्या आप उसे दोबारा रखेंगे — यह दर्ज कीजिए। उसकी बस उसी दिन खाली हो जाती है। अगर वह कभी दोबारा आया तो यही रिकॉर्ड लाल रंग में दिखेगा।</p></div>
+    </div>
+    <div class="bi">
+      <div class="en"><p><span class="ui">Archive this record</span> — he has not gone anywhere; the paperwork is just old and is being replaced. No reason is asked and nothing says he resigned. He drops out of the working lists and waits under the <span class="ui">Archived</span> chip, still searchable, ready to be reused when the office re-enters him properly.</p></div>
+      <div class="hi"><p><span class="ui">रिकॉर्ड पुराना करें</span> — वह कहीं नहीं गया; बस कागज़ी रिकॉर्ड पुराना है और दोबारा भरा जा रहा है। कोई कारण नहीं पूछा जाता और कहीं नहीं लिखा जाता कि उसने नौकरी छोड़ी। वह काम की सूचियों से हट जाता है और <span class="ui">पुराने रिकॉर्ड</span> चिप के नीचे रहता है — खोजने पर मिलता है, और दफ़्तर जब उसे ठीक से दोबारा भरे तब इस्तेमाल के लिए तैयार।</p></div>
+    </div>
+    <div class="bi">
+      <div class="en"><p>Both are reversible. An archived man comes back with <span class="ui">Bring back</span> and gets his bus back with him; somebody marked as left comes back with <span class="ui">Rejoin</span>.</p></div>
+      <div class="hi"><p>दोनों वापस हो सकते हैं। पुराना किया आदमी <span class="ui">वापस लाएं</span> से लौट आता है और उसकी बस भी उसके साथ लौटती है; नौकरी छोड़ चुका आदमी <span class="ui">वापस लें</span> से।</p></div>
+    </div>
+    <div class="note warn">
+      <span class="tag">Never use “left” for tidying up · सफ़ाई के लिए “छोड़ी” मत लगाइए</span>
+      <div class="bi">
+        <div class="en"><p>Marking a working man as left writes a reason and a rehire flag that are simply not true, and those are the exact fields the office trusts when he applies again two years later. If the record is only out of date, archive it.</p></div>
+        <div class="hi"><p>काम कर रहे आदमी पर “नौकरी छोड़ी” लगाने से कारण और दोबारा रखने का निशान दर्ज हो जाता है जो सच नहीं है — और दो साल बाद जब वह दोबारा आएगा तब दफ़्तर इन्हीं पर भरोसा करेगा। अगर रिकॉर्ड सिर्फ़ पुराना है तो उसे पुराना कीजिए।</p></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sec" data-roles="owner">
+    <h3>Replacing the whole register <span class="devnag">पूरा रजिस्टर बदलना</span></h3>
+    <p class="who">Owner only · सिर्फ़ मालिक</p>
+    <div class="bi">
+      <div class="en"><p>At the bottom of the crew bank the owner has <span class="ui">Archive the whole register</span>. It moves every driver and conductor currently on the roll into <span class="ui">Archived</span> in one go, so the office can re-enter them properly by hand.</p></div>
+      <div class="hi"><p>स्टाफ़ बैंक में सबसे नीचे मालिक के पास <span class="ui">पूरा रजिस्टर पुराना करें</span> है। यह अभी काम पर मौजूद हर ड्राइवर और कंडक्टर को एक साथ <span class="ui">पुराने रिकॉर्ड</span> में डाल देता है, ताकि दफ़्तर उन्हें हाथ से ठीक-ठीक दोबारा भर सके।</p></div>
+    </div>
+    <div class="bi">
+      <div class="en"><p>It asks twice — a confirmation and then the word <span class="pin">ARCHIVE</span> typed out — because <b>every bus loses its driver and conductor</b> until people are added back. Nothing is deleted, and every name stays searchable.</p></div>
+      <div class="hi"><p>यह दो बार पूछता है — एक पक्का करने के लिए और फिर <span class="pin">ARCHIVE</span> शब्द लिखवाकर — क्योंकि जब तक लोग दोबारा नहीं जुड़ते <b>हर बस का ड्राइवर और कंडक्टर हट जाता है</b>। कुछ मिटता नहीं, और हर नाम खोजने पर मिलता रहता है।</p></div>
+    </div>
+    <div class="bi">
+      <div class="en"><p>As the office re-enters each man, the duplicate screen offers his archived record — take it, and his documents and history come with him.</p></div>
+      <div class="hi"><p>दफ़्तर जैसे-जैसे हर आदमी को दोबारा भरेगा, वैसे-वैसे स्क्रीन उसका पुराना रिकॉर्ड दिखाएगी — उसे ले लीजिए, उसके कागज़ और इतिहास साथ आ जाएंगे।</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ PART 4 ============================ -->
+<section class="part">
+  <header><span class="num">PART 4</span><h2>One repair, from complaint to sign-off <span class="devnag">एक मरम्मत, शिकायत से जाँच तक</span></h2></header>
 
   <div class="sec">
     <h3>The job card is the spine <span class="devnag">जॉब कार्ड ही रीढ़ है</span></h3>
@@ -837,9 +1025,9 @@ body[data-role="conductor"]:not([data-role="all"]) .sec[data-roles~="conductor"]
   </div>
 </section>
 
-<!-- ============================ PART 4 ============================ -->
+<!-- ============================ PART 5 ============================ -->
 <section class="part">
-  <header><span class="num">PART 4</span><h2>Six rules that cannot be bent <span class="devnag">छह नियम जो नहीं टूटेंगे</span></h2></header>
+  <header><span class="num">PART 5</span><h2>Six rules that cannot be bent <span class="devnag">छह नियम जो नहीं टूटेंगे</span></h2></header>
 
   <div class="sec">
     <p class="who">Everyone · सबके लिए</p>
@@ -934,34 +1122,43 @@ body[data-role="conductor"]:not([data-role="all"]) .sec[data-roles~="conductor"]
             <th scope="col">Action · काम</th>
             <th scope="col">👑 Owner</th>
             <th scope="col">🧑‍🔧 Sup.</th>
+            <th scope="col">🗂️ Crew Mgr</th>
             <th scope="col">📦 Store</th>
             <th scope="col">🔧 Mech.</th>
             <th scope="col">🧑‍✈️ Driver</th>
           </tr>
         </thead>
         <tbody>
-          <tr><th scope="row">Add a bus · बस जोड़ना</th><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td><td class="n">—</td></tr>
-          <tr><th scope="row">Open a job card · जॉब कार्ड खोलना</th><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td><td class="n">—</td></tr>
-          <tr><th scope="row">Close a job · काम बंद करना</th><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td class="y">own</td><td class="n">—</td></tr>
-          <tr><th scope="row">Verify a job · काम जाँचना</th><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td><td class="n">—</td></tr>
-          <tr><th scope="row">Issue a part · पुर्जा जारी करना</th><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="n">ask</td><td class="n">—</td></tr>
-          <tr><th scope="row">Receive stock · स्टॉक लेना</th><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td></tr>
-          <tr><th scope="row">Supplier bills · सप्लायर बिल</th><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td></tr>
-          <tr><th scope="row">Assign driver to bus · ड्राइवर सौंपना</th><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td><td class="n">—</td></tr>
-          <tr><th scope="row">Money &amp; insights · पैसा और विश्लेषण</th><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td><td class="n">—</td></tr>
-          <tr><th scope="row">Challans · चालान</th><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td><td class="n">—</td></tr>
-          <tr><th scope="row">Report a bus problem · समस्या बताना</th><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td><td class="y">✓</td></tr>
-          <tr><th scope="row">Attendance · हाज़िरी</th><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td></tr>
+          <tr><th scope="row">Add a bus · बस जोड़ना</th><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td><td class="n">—</td><td class="n">—</td></tr>
+          <tr><th scope="row">Open a job card · जॉब कार्ड खोलना</th><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td><td class="n">—</td><td class="n">—</td></tr>
+          <tr><th scope="row">Close a job · काम बंद करना</th><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td><td class="y">own</td><td class="n">—</td></tr>
+          <tr><th scope="row">Verify a job · काम जाँचना</th><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td><td class="n">—</td><td class="n">—</td></tr>
+          <tr><th scope="row">Issue a part · पुर्जा जारी करना</th><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td class="y">✓</td><td class="n">ask</td><td class="n">—</td></tr>
+          <tr><th scope="row">Receive stock · स्टॉक लेना</th><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td></tr>
+          <tr><th scope="row">Supplier bills · सप्लायर बिल</th><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td></tr>
+          <tr><th scope="row">Assign driver / conductor to a bus · ड्राइवर या कंडक्टर सौंपना</th><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td><td class="n">—</td></tr>
+          <tr><th scope="row">Add someone to the crew bank · स्टाफ़ बैंक में जोड़ना</th><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td><td class="n">—</td></tr>
+          <tr><th scope="row">Edit details &amp; documents · जानकारी और कागज़ बदलना</th><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td><td class="y">own</td></tr>
+          <tr><th scope="row">See the full Aadhaar number · पूरा आधार नंबर देखना</th><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td><td class="n">—</td><td class="n">—</td></tr>
+          <tr><th scope="row">See a salary · तनख्वाह देखना</th><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td><td class="n">—</td><td class="n">—</td></tr>
+          <tr><th scope="row">Mark left / archive a record · नौकरी छोड़ी या पुराना करना</th><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td><td class="n">—</td></tr>
+          <tr><th scope="row">Archive the whole register · पूरा रजिस्टर पुराना करना</th><td class="y">✓</td><td class="n">—</td><td class="n">—</td><td class="n">—</td><td class="n">—</td><td class="n">—</td></tr>
+          <tr><th scope="row">Crew logins &amp; PINs · स्टाफ़ लॉगिन और पिन</th><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td><td class="n">—</td><td class="n">—</td></tr>
+          <tr><th scope="row">Score a driver · ड्राइवर की रेटिंग</th><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td><td class="n">—</td><td class="n">—</td></tr>
+          <tr><th scope="row">Money &amp; insights · पैसा और विश्लेषण</th><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td><td class="n">—</td><td class="n">—</td></tr>
+          <tr><th scope="row">Challans · चालान</th><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td><td class="n">—</td><td class="n">—</td></tr>
+          <tr><th scope="row">Report a bus problem · समस्या बताना</th><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td><td class="n">—</td><td class="y">✓</td></tr>
+          <tr><th scope="row">Attendance · हाज़िरी</th><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td></tr>
         </tbody>
       </table>
     </div>
-    <p class="legend"><b>own</b> — only jobs assigned to you. <b>ask</b> — request it; the storekeeper issues it. · <b>own</b> — सिर्फ़ अपने सौंपे हुए काम। <b>ask</b> — माँगिए; स्टोरकीपर जारी करेगा।</p>
+    <p class="legend"><b>own</b> — only your own: the jobs assigned to you, or your own documents. <b>ask</b> — request it; the storekeeper issues it. · <b>own</b> — सिर्फ़ अपना: अपने सौंपे हुए काम, या अपने कागज़। <b>ask</b> — माँगिए; स्टोरकीपर जारी करेगा।</p>
   </div>
 </section>
 
-<!-- ============================ PART 5 ============================ -->
+<!-- ============================ PART 6 ============================ -->
 <section class="part">
-  <header><span class="num">PART 5</span><h2>When something goes wrong <span class="devnag">कुछ गड़बड़ हो तो</span></h2></header>
+  <header><span class="num">PART 6</span><h2>When something goes wrong <span class="devnag">कुछ गड़बड़ हो तो</span></h2></header>
 
   <div class="sec">
     <p class="who">Everyone · सबके लिए</p>
@@ -1051,9 +1248,9 @@ body[data-role="conductor"]:not([data-role="all"]) .sec[data-roles~="conductor"]
   </div>
 </section>
 
-<!-- ============================ PART 6 ============================ -->
+<!-- ============================ PART 7 ============================ -->
 <section class="part">
-  <header><span class="num">PART 6</span><h2>Setting the garage up <span class="devnag">गैराज सेट करना</span></h2></header>
+  <header><span class="num">PART 7</span><h2>Setting the garage up <span class="devnag">गैराज सेट करना</span></h2></header>
 
   <div class="sec" data-roles="owner supervisor">
     <h3>Do these once, before the crew starts <span class="devnag">स्टाफ़ के शुरू करने से पहले, एक बार</span></h3>
