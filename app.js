@@ -6793,6 +6793,29 @@ function handleLoginLang(e, redraw) {
   if (e.target.closest('[data-loginlang]')) { LANG = LANG === 'en' ? 'hi' : 'en'; localStorage.setItem('lang', LANG); redraw(); return true; }
   return false;
 }
+/* Somebody added on one device was invisible on every other device's login
+ * screen. The role tiles are built from the roster in this phone's IndexedDB,
+ * and that roster only refreshes after a successful login — which you cannot do
+ * when the missing tile is your own. A crew manager created on the office
+ * laptop simply had no way onto a phone.
+ *
+ * A device that has logged in before still holds its token, so it can refresh
+ * the roster with nobody signed in. It repaints only if the list actually
+ * moved, and only while the reader is still on step one — never mid-PIN.
+ *
+ * A brand-new device has no token and still starts from the bundled roster;
+ * that case heals on its first login, which the seeded accounts allow. */
+async function refreshRosterAtLogin() {
+  try {
+    if (!navigator.onLine || !Sync.info().authed) return;
+    const sig = () => (S.cache.users || []).map((u) => u.id + ':' + u.role).sort().join(',');
+    const before = sig();
+    await Sync.tick();
+    await load();
+    if (sig() !== before && !S.user && document.querySelector('.login [data-role]')) renderLogin();
+  } catch (e) { /* offline, or the token has expired — the local roster still works */ }
+}
+
 function renderLogin() {
   _pinUser = null; _pin = '';
   const users = S.cache.users || [];
@@ -7100,6 +7123,7 @@ function userPhoto(u) { const d = crewForUser(u.id); return (d && d.photo) || nu
     try { await load(); } catch (_) { /* keep whatever cache we have */ }
   }
   renderLogin();
+  refreshRosterAtLogin();      // paint immediately, then pick up staff added elsewhere
   // Camera (selfies, job photos) and GPS only work over HTTPS (or localhost).
   // Warn loudly on a plain-http public host so it isn't a silent field failure.
   if (location.protocol === 'http:' && !isLocalHost()) {
