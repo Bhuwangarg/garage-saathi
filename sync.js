@@ -67,6 +67,7 @@ const Sync = (function () {
   // Skipped on push so one bad record can't wedge the whole outbox.
   let quarantine = JSON.parse(ls.getItem('quarantine') || '{}');
   let token = ls.getItem('token') || '';
+  let lastError = ls.getItem('lastSyncError') || '';
   let status = 'init';            // init | syncing | synced | offline
   let busy = false, kickTimer = null, pollTimer = null;
   let cbStatus = null, cbApplied = null, cbConflict = null;
@@ -116,6 +117,21 @@ const Sync = (function () {
     }
   }
   function logout() { token = ''; ls.removeItem('token'); }
+
+  /* Sessions last 12 hours. When one expired, pull() threw, tick() caught it and
+   * set "Offline" — so a device that had simply been signed in too long looked
+   * exactly like one in a tunnel, kept re-sending a dead token every four
+   * seconds, and silently received nothing for as long as the app stayed open.
+   * Records created elsewhere never arrived and nobody was told.
+   *
+   * Now the dead token is dropped and the state says so, so the app can ask for
+   * a sign-in instead of blaming the network. */
+  function sessionDead(where) {
+    token = ''; ls.removeItem('token');
+    const e = new Error('session expired — sign in again (' + where + ' 401)');
+    e.sessionExpired = true;
+    return e;
+  }
 
   // Owner/supervisor: materialize server login accounts for the whole synced crew
   // roster (drivers/conductors) so they can authenticate online (PIN 0000) and
@@ -253,8 +269,14 @@ const Sync = (function () {
       else { await push(); await pull(); }
       lastSyncAt = Date.now(); ls.setItem('lastSyncAt', String(lastSyncAt));
       setStatus('synced');
+      lastError = '';
     } catch (e) {
-      setStatus('offline');
+      // "Offline" was shown for a refused token, a 500, a broken cursor and a
+      // flat tyre alike, so a device that had been failing for days looked the
+      // same as one in a tunnel. Keep the reason; Me → Sync shows it.
+      lastError = (e && e.message) ? String(e.message) : 'sync failed';
+      ls.setItem('lastSyncError', lastError);
+      setStatus(e && e.sessionExpired ? 'signedout' : 'offline');
     } finally {
       busy = false;
     }
@@ -300,7 +322,8 @@ const Sync = (function () {
         outbox.delete(key); saveOutbox();
         continue;
       }
-      throw new Error('push ' + res.status);    // auth/lock/5xx → stop, retry later
+      if (res.status === 401) throw sessionDead('push');
+      throw new Error('push ' + res.status);    // lock/5xx → stop, retry later
     }
   }
 
@@ -339,10 +362,29 @@ const Sync = (function () {
     }
   }
 
+  /* Drain every page, not one per call.
+   *
+   * The server pages by rev and says `more` when it stopped early, but this used
+   * to fetch a single page and return — so one pull moved the cursor 600 records
+   * and no further. The background tick eventually caught up, but anything that
+   * pulls once (opening the app, the login screen refreshing its roster) did not:
+   * a device several pages behind saw only the OLDEST records it was missing,
+   * and the newest — a staff member added this morning, an archived record —
+   * arrive last and so never arrived at all. */
   async function pull() {
+    let guard = 0;
+    for (;;) {
+      const more = await pullPage();
+      if (!more) return;
+      if (++guard > 200) return;           // a cursor that never advances must not spin forever
+    }
+  }
+
+  async function pullPage() {
     setStatus('syncing');
     const res = await fetch(baseUrl() + '/pull?since=' + lastRev + '&deviceId=' + encodeURIComponent(deviceId),
       { headers: authHeaders() });
+    if (res.status === 401) throw sessionDead('pull');
     if (!res.ok) throw new Error('pull ' + res.status);
     const j = await res.json();
     let applied = 0; let conflicts = 0;
@@ -363,9 +405,13 @@ const Sync = (function () {
         applied++;
       }
     }
+    const before = lastRev;
     if (typeof j.maxRev === 'number') { lastRev = j.maxRev; ls.setItem('lastRev', String(lastRev)); }
     if (applied && cbApplied) await cbApplied(applied);
     if (conflicts && cbConflict) await cbConflict(conflicts);
+    // Only keep going while the cursor is actually moving, so a server that
+    // reports `more` without advancing cannot loop us.
+    return !!j.more && lastRev > before;
   }
 
   // One-time backfill for stores that were added to STORES after records already
@@ -395,11 +441,32 @@ const Sync = (function () {
     pollTimer = setInterval(tick, 4000);     // background reconcile
     backfillOnce().then(kick);               // enqueue any stranded records, then sync
     tick();
+    healOnce();                              // once per device: re-read the table
   }
 
   function setUrl(u) { ls.setItem('syncUrl', u); tick(); }
-  function reset() { ls.removeItem('lastRev'); lastRev = 0; tick(); }
-  const info = () => ({ deviceId, lastRev, pending: outbox.size, url: baseUrl(), status, authed: !!token, lastSyncAt,
+  // Re-download everything: rewind the cursor and pull the table again. Safe to
+  // run at any time — pull only overwrites a local record when the server copy
+  // is NEWER by updatedAt, and anything this device still owes the server is
+  // held in the outbox and pushed first.
+  function reset() { ls.removeItem('lastRev'); lastRev = 0; return tick(); }
+
+  /* One-time heal, on the deploy that fixed the paging bug above.
+   *
+   * Fixing the code does not fix the devices: a phone whose cursor has already
+   * run past records it never received will never ask for them again. So every
+   * device rewinds its cursor exactly once and re-reads the table. It costs one
+   * full sync, and it is the only way a fix reaches a device that is already
+   * wrong without somebody being talked through a menu. */
+  async function healOnce() {
+    const V = 'syncHeal_pullPaging_v1';
+    try {
+      if (ls.getItem(V)) return;
+      ls.setItem(V, String(Date.now()));   // set first: a failed heal must not retry on every boot
+      await reset();
+    } catch (e) { /* the 4s tick carries on regardless */ }
+  }
+  const info = () => ({ deviceId, lastRev, pending: outbox.size, url: baseUrl(), status, authed: !!token, lastSyncAt, lastError,
                         photosPending: Object.keys(photoQ).length, quarantined: Object.keys(quarantine).length });
 
   // Sync-safe delete used by feature code: tombstone + dirty so the deletion

@@ -284,7 +284,10 @@ const S = { user: null, route: { name: 'home' }, stack: [{ name: 'home' }], cach
 let SYNC_STATUS = 'init';
 function syncChipHtml() {
   const m = { synced: ['ok', '●', 'Synced'], syncing: ['warn', '◐', 'Sync…'],
-              offline: ['off', '○', 'Offline'], init: ['off', '○', '…'] };
+              offline: ['off', '○', 'Offline'], init: ['off', '○', '…'],
+              // An expired session is not a network fault — say so, or the
+              // device quietly stops receiving anything and nobody notices.
+              signedout: ['warn', '⚠', 'Sign in'] };
   const [cls, ic, lbl] = m[SYNC_STATUS] || m.init;
   return `<span class="syncchip ${cls}">${ic} ${lbl}</span>`;
 }
@@ -2676,7 +2679,7 @@ function viewMe() {
     <div class="li" data-act="lang"><div class="ava">🌐</div><div class="main"><div class="t">${t('lang') === 'हिंदी' ? 'भाषा / Language' : 'Language / भाषा'}</div><div class="s">${LANG === 'en' ? 'English' : 'हिंदी'} · tap to switch</div></div></div>
     <div class="li" data-act="theme"><div class="ava">${_isDark() ? '☀️' : '🌙'}</div><div class="main"><div class="t">${t('theme')}</div><div class="s">${_isDark() ? 'Dark' : 'Light'} · tap to switch</div></div></div>
     <div class="li" data-act="changePin"><div class="ava">🔑</div><div class="main"><div class="t">${t('changePin')}</div><div class="s">Set a new 4-digit login PIN</div></div></div>
-    <div class="li" data-act="openSync"><div class="ava">🔄</div><div class="main"><div class="t">${t('sync')}</div><div class="s">${SYNC_STATUS === 'synced' ? 'All devices up to date' : SYNC_STATUS === 'offline' ? 'Offline — will sync when connected' : 'Syncing…'}${si.pending ? ` · ${si.pending} pending` : ''}</div></div></div>
+    <div class="li" data-act="openSync"><div class="ava">🔄</div><div class="main"><div class="t">${t('sync')}</div><div class="s">${SYNC_STATUS === 'synced' ? 'All devices up to date' : SYNC_STATUS === 'signedout' ? '⚠️ Signed out — log in again to sync' : SYNC_STATUS === 'offline' ? 'Offline — will sync when connected' : 'Syncing…'}${si.pending ? ` · ${si.pending} pending` : ''}</div></div></div>
     <div class="li" data-act="logout"><div class="ava">🚪</div><div class="main"><div class="t">${t('logout')}</div></div></div>
   </div>`;
 
@@ -3523,7 +3526,8 @@ async function saveChangePin() {
 }
 function sheetSync() {
   const i = Sync.info();
-  const lbl = { synced: '✅ All devices up to date', syncing: '🔄 Syncing…', offline: '⚠️ Offline — changes are queued', init: '…' }[SYNC_STATUS] || '';
+  const lbl = { synced: '✅ All devices up to date', syncing: '🔄 Syncing…', offline: '⚠️ Offline — changes are queued',
+                signedout: '⚠️ Signed out — log in again to sync', init: '…' }[SYNC_STATUS] || '';
   openSheet('Sync', `
     <div class="card"><div class="row between"><span class="muted small">Status</span><b>${lbl}</b></div>
       <div class="hr"></div>
@@ -3531,6 +3535,7 @@ function sheetSync() {
       <div class="row between small"><span class="muted">Pending to send</span><b>${i.pending}</b></div>
       <div class="row between small"><span class="muted">Last reached server</span><b>${i.lastSyncAt ? timeAgo(i.lastSyncAt) : 'never'}</b></div>
       <div class="row between small"><span class="muted">Sync cursor</span><b>rev ${i.lastRev}</b></div>
+      ${i.lastError ? `<div class="row between small"><span class="muted">Last failure</span><b style="color:#ef4444">${esc(i.lastError)}</b></div>` : ''}
     </div>
     <label class="field"><span class="lbl">Server URL</span><input id="f-syncurl" value="${esc(i.url)}"></label>
     <div class="tiny muted" style="margin-bottom:10px">On a phone, set this to your computer's address, e.g. http://192.168.29.219:8766</div>
@@ -3538,7 +3543,10 @@ function sheetSync() {
     <div class="tiny muted" style="margin-bottom:10px">Stored only on this device. Enables the "Ask the advisor" box on AI Insights.</div>
     <button class="btn primary" data-act="saveSyncUrl">Save & sync now</button>
     <div class="spacer"></div>
-    <button class="btn" data-act="syncNow">Sync now</button>`);
+    <button class="btn" data-act="syncNow">Sync now</button>
+    <div class="spacer"></div>
+    <button class="btn ghost" data-act="syncRedownload">⤓ Re-download everything</button>
+    <div class="tiny muted" style="margin-top:6px">Use this if this device is missing people or records that other devices can see. It re-reads the whole server; nothing you have entered here is lost.</div>`);
 }
 
 function sheetStaff() {
@@ -6712,6 +6720,12 @@ function bind() {
       case 'saveReport': return saveReport(el.getAttribute('data-bus'), el.getAttribute('data-driver'));
       case 'reportToJob': return createJobFromReport(el.getAttribute('data-report'));
       case 'openSync': return sheetSync();
+      case 'syncRedownload': {
+        const stop = showBusyOverlay('Re-downloading…');
+        try { await Sync.reset(); await load(); } finally { if (stop) stop(); }
+        toast('Re-downloaded from the server ✓'); closeSheet(); rerender();
+        return;
+      }
       case 'openSetup': return sheetGarageSetup();
       case 'openRoutes': return push({ name: 'routes' });
       case 'checkRoutesNow': { toast('Checking live GPS…'); checkRoutes({ alert: true }).then((r) => toast(S.routeGpsOffline ? '⚠️ GPS offline — arrivals not captured' : (r.length ? `${r.length} at risk` : 'All on track ✓'))); return; }
@@ -6810,7 +6824,7 @@ async function refreshRosterAtLogin() {
     if (!navigator.onLine || !Sync.info().authed) return;
     const sig = () => (S.cache.users || []).map((u) => u.id + ':' + u.role).sort().join(',');
     const before = sig();
-    await Sync.tick();
+    await Sync.tick();          // pull() drains every page, so the newest records arrive too
     await load();
     if (sig() !== before && !S.user && document.querySelector('.login [data-role]')) renderLogin();
   } catch (e) { /* offline, or the token has expired — the local roster still works */ }
