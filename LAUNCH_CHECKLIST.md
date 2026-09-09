@@ -22,8 +22,8 @@ Do these as the **owner** login, then hand devices to staff.
 
 ## 2. Hosting & data (ops) — required for a real deployment
 
-- [ ] ⚙️ **Serve over HTTPS.** Phone **camera (selfies, job photos) and GPS only work on `https`** (or `localhost`). The bundled `python3 -m http.server` + `sync_server.py` are **dev servers** — host on a real platform (`render.yaml`/`Dockerfile` are included; or Netlify/Vercel for the static app + a hosted sync service).
-- [ ] ⚙️ **Persistent storage for `sync.db` and `uploads/`.** On free tiers the disk is **ephemeral → data loss on restart/redeploy**. Attach a persistent disk, or move to managed Postgres + object storage (the sync protocol is two endpoints — see `DEPLOY.md`/`README.md`; Supabase is a drop-in).
+- [x] ⚙️ **Serve over HTTPS.** Phone **camera (selfies, job photos) and GPS only work on `https`** (or `localhost`). The bundled `python3 -m http.server` + `sync_server.py` are **dev servers** — production is Vercel (`vercel.json` + `api/index.py`), which serves the PWA and `sync_server.py` from one HTTPS origin: <https://garage-saathi-sync.vercel.app>.
+- [x] ⚙️ **Persistent storage.** The host's disk is ephemeral, so nothing durable lives on it: records are in **Supabase Postgres** (`DATABASE_URL`) and photos in **Cloudflare R2** (`R2_*`). `/health` must report `dbMode: postgres`, `persistent: true`, `photos: r2` — see `DEPLOY.md` and `GO_LIVE.md`.
 - [ ] ⚙️ **Backups** of `sync.db` (the shared source of truth).
 - [ ] ⚙️ **Set a strong `GPS_INGEST_TOKEN`** (in `.gps_ingest_token`, already git-ignored) if you ingest real GPS; rotate it.
 

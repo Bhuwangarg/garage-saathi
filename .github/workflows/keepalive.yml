@@ -1,7 +1,8 @@
-name: Keep Render awake
+name: Keep the database awake
 
-# Pings the sync server's /health every ~10 minutes so the Render free instance
-# doesn't spin down (it sleeps after 15 min idle → cold-start login lag). Free:
+# Pings the sync server's /health every ~10 minutes. The host (Vercel) needs no
+# keeping awake, but every request reads Supabase Postgres, and a free Supabase
+# project PAUSES after ~7 days of inactivity — this is what stops that. Free:
 # GitHub Actions is unlimited on public repos. Scheduled runs can be delayed a
 # few minutes under load, so the step wakes-and-retries to cover a cold start.
 on:
@@ -20,14 +21,14 @@ jobs:
     steps:
       - name: Ping /health (wake + retry)
         run: |
-          URL="https://garage-saathi-sync.onrender.com/health"
+          URL="https://garage-saathi-sync.vercel.app/health"
           for i in 1 2 3 4; do
             code=$(curl -s -o /tmp/h.json -w "%{http_code}" --max-time 90 "$URL" || echo 000)
             if [ "$code" = "200" ]; then
               echo "OK ($code): $(cat /tmp/h.json)"
               exit 0
             fi
-            echo "attempt $i got HTTP $code — server may be cold, retrying in 20s"
+            echo "attempt $i got HTTP $code — database may be waking, retrying in 20s"
             sleep 20
           done
           echo "health check failed after retries"

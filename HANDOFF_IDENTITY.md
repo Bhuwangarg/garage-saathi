@@ -47,13 +47,12 @@ Owner decision: **device-bound identity** — keep `0000` for humans, make the *
 - `node --check` clean on all JS; `sync_server.py` parses.
 
 ## TO DEPLOY (owner action — nothing is live yet)
-1. **Frontend (GitHub Pages):** commit + push `sync.js`, `app.js`, `db.js` to `main`. (No seed-version bump needed for the `locSet` default — existing devices read undefined as not-set, the honest default.)
-2. **Backend (Render):** **Manual Deploy** — REQUIRED, `sync_server.py` changed. Without it the client pushes to an old server that still accepts forged writes. (autoDeploy is OFF.)
-3. **Post-deploy check:** first owner/supervisor login online auto-runs `register-roster` (~164 crew accounts); confirm `/health` green + one crew member logs in online with `0000` and syncs a trip.
-4. **Close Fix B:** capture the real garage geofence on-site.
+1. **Push to `main`.** Vercel serves the PWA and `sync_server.py` from one origin and deploys automatically, so client and server ship together — there is no ordering problem and no manual step. (No seed-version bump needed for the `locSet` default — existing devices read undefined as not-set, the honest default.)
+2. **Post-deploy check:** first owner/supervisor login online auto-runs `register-roster` (~164 crew accounts); confirm `/health` green + one crew member logs in online with `0000` and syncs a trip.
+3. **Close Fix B:** capture the real garage geofence on-site.
 
-## Server env already on Render (unchanged)
-`TURSO_URL`, `TURSO_AUTH_TOKEN`, `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `R2_PUBLIC_URL`.
+## Server env already on Vercel (unchanged)
+`DATABASE_URL` (Supabase Postgres), `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `R2_PUBLIC_URL`.
 
 ## Known follow-ups / notes
 - `_by` is recorded server-side but readers (Pilferage Radar, audits) still key off business fields (e.g. `assignedTo`). Wiring readers to cross-check `_by` (e.g. attendance.userId === _by) is a future refinement, not required for the security property.

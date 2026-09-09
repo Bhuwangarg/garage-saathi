@@ -2,7 +2,7 @@
 """Restore a device backup (export.html) into a fresh sync server.
 
     python3 scripts/restore-backup.py backup.json \
-        --server https://garage-saathi-sync.onrender.com \
+        --server https://garage-saathi-sync.vercel.app \
         --user u-owner --pin 1111 --import-token "$IMPORT_TOKEN"
 
 Add --dry-run first: it reads the file, logs in, and reports exactly what would

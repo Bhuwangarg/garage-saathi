@@ -1,43 +1,49 @@
 # Deploying Garage Saathi
 
-Two pieces ship separately:
-- **Backend** (`sync_server.py`) — sync + auth + photo storage + GPS ingest. Needs a host that runs Python and gives an HTTPS URL.
-- **App** (the PWA: `index.html`, `app.js`, …) — static files. Any static host (Netlify, Vercel, Cloudflare Pages).
+**One `git push` to `main` ships everything.** Vercel serves the PWA *and* the
+Python sync server from a single origin — <https://garage-saathi-sync.vercel.app> —
+and deploys automatically on push. There is no manual step, no separate frontend
+deploy, and no ordering problem between client and server.
+
+- `vercel.json` + `api/index.py` wrap `sync_server.py` as one Vercel function.
+  `includeFiles` lists the static assets (`index.html`, `app.js`, `styles.css`,
+  `icons/**`, …) so the function serves them too — Vercel detects no framework
+  here and would otherwise ship no static output at all.
+- The durable store is **Supabase Postgres** (`DATABASE_URL`), photos are on
+  **Cloudflare R2**. Neither lives in the repo; both are environment variables in
+  the Vercel project.
+- The app talks to `location.origin`, so there is no CORS surface for the hosted
+  PWA (commit `4d23aea`). `PROD_SYNC` in `sync.js` covers only the packaged
+  iOS/Android app, which has no origin of its own.
+
+Verify after pushing:
+
+```bash
+curl -s https://garage-saathi-sync.vercel.app/health | python3 -m json.tool
+```
+
+`commit` should be the SHA you just pushed, `dbMode` `postgres`, `persistent`
+`true`. The live `app.js` should match `git show HEAD:app.js`.
+
+> **The GitHub Pages copy is retired.** Served from `bhuwangarg.github.io` the app
+> looks for an API on that host, which does not exist. Vercel is the URL to
+> install from.
 
 ---
 
-## A. Right now (interim) — public URL via tunnel
-For letting AirFi test immediately, a Cloudflare quick-tunnel exposes the local server:
+## Local development
+Two small servers: one serves the app, one is the local "cloud" for sync.
 
 ```bash
 export GPS_INGEST_TOKEN="$(cat .gps_ingest_token)"
-python3 sync_server.py &                       # terminal stays open
-cloudflared tunnel --url http://localhost:8766 # prints https://xxxx.trycloudflare.com
+python3 -m http.server 8765        # the app  (terminal 1)
+python3 sync_server.py             # sync/cloud (terminal 2)
 ```
 
-⚠️ **This URL is temporary**: it changes each run and stops when your laptop sleeps or the
-process ends. Good for a first integration test — **not** for production.
-
----
-
-## B. Permanent backend — Render.com (recommended, free tier)
-The repo already contains `Dockerfile` + `render.yaml`.
-
-1. Push this folder to a **GitHub** repo.
-2. Go to **render.com → New → Blueprint** and pick the repo. Render reads `render.yaml`,
-   builds the `Dockerfile`, attaches a 1 GB disk at `/data` (SQLite + photos persist).
-3. In the service's **Environment**, set `GPS_INGEST_TOKEN` to the value in
-   `.gps_ingest_token` (a strong random token — keep it secret).
-4. Deploy → you get a stable URL like `https://garage-saathi-sync.onrender.com`.
-
-That stable URL is what goes to AirFi. (Fly.io or Railway work the same way from the
-`Dockerfile`; Render is the least-clicks path.)
-
-## C. App (PWA) — Netlify / Vercel / Cloudflare Pages
-1. Deploy the folder as a static site (drag-and-drop on Netlify works).
-2. The app auto-targets the backend at `:8766` of its own host; for production set the
-   backend URL once in the app under **Me → Sync → Server URL** (e.g. your Render URL),
-   on each device. HTTPS here also unlocks phone **camera + GPS**.
+On `localhost` the app targets `:8766` of its own host automatically. To expose a
+local server to an outside integrator for an hour, `cloudflared tunnel --url
+http://localhost:8766` prints a temporary HTTPS URL — it changes each run and dies
+with the process, so it is a test tool, never production.
 
 ---
 
@@ -51,13 +57,16 @@ Done:
       that have signed in there.
 - [x] **Session expiry** — tokens expire after `SESSION_TTL_SEC` (default 12h).
 - [x] **CORS is configurable** — set `ALLOWED_ORIGIN` to your app's domain (default `*`).
+- [x] **Durable database** — Supabase Postgres via `DATABASE_URL`
+      (`aws-0-ap-south-1.pooler.supabase.com`); `/health` reports `dbMode: postgres`,
+      `persistent: true`. The server refuses to start if `DATABASE_URL` is set but
+      Postgres is unreachable, rather than quietly serving an empty database.
+- [x] **Photos in object storage** — Cloudflare R2 (`R2_*` env vars); `/health` reports
+      `photos: r2`, `photosPersistent: true`. No photo depends on the function's disk.
 
 Still to do:
 - [ ] **Rotate** `GPS_INGEST_TOKEN`; never commit it (already in `.gitignore`).
 - [ ] Set `ALLOWED_ORIGIN` to the real app domain once deployed (don't leave `*`).
-- [ ] Move photos from local disk to **object storage** (S3 / Supabase Storage / R2).
 - [ ] Add token **refresh** (so 12h expiry doesn't interrupt a working shift).
 - [ ] Optional: IP-allowlist AirFi's egress on `/gps/ingest`.
 - [ ] Consider 6-digit PINs for higher-privilege (owner/supervisor) accounts.
-```
-```

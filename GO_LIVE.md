@@ -1,8 +1,12 @@
 # Go live — ordered runbook
 
-Takes the backend off Turso onto the persistent disk Render already mounts, restores
-the real dataset from a device backup, and closes the published-PIN hole before
-anyone gets a phone.
+Takes the backend onto Supabase Postgres, restores the real dataset from a device
+backup, and closes the published-PIN hole before anyone gets a phone.
+
+> **Historical note.** This runbook was written and executed against the Render
+> deployment in Aug 2026. The app now runs on Vercel and deploys automatically on
+> push to `main` — the URLs and the "deploy" steps below have been updated to
+> match, but the ordering and the traps are unchanged.
 
 Every step below was rehearsed end to end against the real 2026-08-20 backup:
 2,893 records restored, 0 rejected, and a clean device pulled back 103 buses,
@@ -14,16 +18,19 @@ Every step below was rehearsed end to end against the real 2026-08-20 backup:
 
 ## 1. Back up the owner's device — before touching anything
 
-On the phone holding the garage data:
+On the phone holding the garage data, open `export.html` **on the same origin the
+app was installed from**:
 
-    https://bhuwangarg.github.io/garage-saathi/export.html
+    https://garage-saathi-sync.vercel.app/export.html
 
 Check the counts, tap **Save backup file**, get it off the phone.
 
 *"No data on this device"* means the page was opened from a different address than
-the app, or that phone isn't the one with the data. IndexedDB is per-origin.
+the app, or that phone isn't the one with the data. IndexedDB is per-origin — a
+device installed before Aug 2026 holds its data under the retired
+`bhuwangarg.github.io` origin, so export from *that* address on those phones.
 
-> Turso will not connect, so do not assume the server has a copy.
+> Do not assume the server has a copy.
 
 ## 2. Clean the backup
 
@@ -44,22 +51,28 @@ to keep the history.
 
 ## 3. Create the Supabase database
 
-Render persistent disks need a paid instance, so the durable store is Supabase
-Postgres (free tier, 500 MB — the full garage is ~3 MB).
+The durable store is Supabase Postgres (free tier, 500 MB — the full garage is
+~3 MB). Nothing on the host is persistent: the Vercel function's filesystem is
+read-only apart from `/tmp` and is discarded between invocations, so Postgres is
+the only source of truth.
 
 1. supabase.com → **New project**. Pick a region near Jaipur (Mumbai / ap-south-1).
-2. Project Settings → **Database** → **Connection string** → **URI**. It looks like
-   `postgresql://postgres:PASSWORD@db.<ref>.supabase.co:5432/postgres`.
+2. Project Settings → **Database** → **Connection string** → take the
+   **Transaction pooler** URI, not the direct one. It looks like
+   `postgresql://postgres.<ref>:PASSWORD@aws-0-ap-south-1.pooler.supabase.com:6543/postgres`.
+   A Vercel function is short-lived and can start many concurrent instances; the
+   direct `db.<ref>.supabase.co:5432` connection runs the project out of
+   connections under that pattern.
 3. Substitute the password you set for the project into the URI.
 
 Nothing needs creating inside the database — the server builds its own schema on
 first boot.
 
 > Free Supabase projects **pause after ~7 days of inactivity**. The existing
-> `keepalive.yml` cron pings the web service; because every request now reads
-> Postgres, that also keeps the database warm. Leave it enabled.
+> `keepalive.yml` cron pings `/health`; because every request now reads Postgres,
+> that also keeps the database warm. Leave it enabled.
 
-## 4. Set the environment on Render, then deploy
+## 4. Set the environment on Vercel, then deploy
 
 **Add:**
 
@@ -75,21 +88,27 @@ first boot.
 | `TURSO_URL` | delete |
 | `TURSO_AUTH_TOKEN` | delete |
 
+Both are already gone on the live deployment — `/health` reports
+`tursoConfigured: false`. Turso support still exists in `sync_server.py` but is dormant.
+
 Leave `ENABLE_DEMO_SEED` unset for now — the seeded owner account is how you get
 into a fresh database. Step 7 removes it.
 
-Then **Manual Deploy** (`autoDeploy: false` is deliberate).
+Vercel deploys on push to `main`, but **an env-var change alone does not redeploy** —
+it only takes effect on the next deployment, so redeploy from the dashboard (or push)
+after editing the variables.
 
 ```bash
-curl -s https://garage-saathi-sync.onrender.com/health | python3 -m json.tool
+curl -s https://garage-saathi-sync.vercel.app/health | python3 -m json.tool
 ```
 
 Required:
 
 ```
 "dbMode": "postgres",   "persistent": true,
-"pgHost": "db.<ref>.supabase.co:5432",
-"build": "2026-08-20-postgres"
+"tursoConfigured": false,
+"pgHost": "aws-0-ap-south-1.pooler.supabase.com:6543",
+"build": "2026-08-22-vercel-10"
 ```
 
 `pgHost` is parsed from the URI so the password can never appear on this public
@@ -98,13 +117,13 @@ reach the process — fix that before restoring.
 
 The server **refuses to start** if `DATABASE_URL` is set but Postgres is
 unreachable, rather than quietly serving an empty local file. A failed deploy here
-is the guard working: Render keeps routing to the previous container.
+is the guard working: Vercel keeps serving the previous deployment.
 
 ## 5. Restore
 
 ```bash
 python3 scripts/restore-backup.py backup-clean.json \
-  --server https://garage-saathi-sync.onrender.com \
+  --server https://garage-saathi-sync.vercel.app \
   --user u-owner --pin 1111 --import-token "$IMPORT_TOKEN" --dry-run
 ```
 
@@ -147,7 +166,7 @@ and logs which. Verify all of these return **401**:
 ```bash
 for u in u-owner:1111 u-sup:2222 u-store:3333 u-m1:0001 u-m2:0002 u-m3:0003 u-d1:0010; do
   printf "%-9s " "${u%%:*}"
-  curl -s -o /dev/null -w "%{http_code}\n" -X POST https://garage-saathi-sync.onrender.com/auth/login \
+  curl -s -o /dev/null -w "%{http_code}\n" -X POST https://garage-saathi-sync.vercel.app/auth/login \
     -H 'Content-Type: application/json' -d "{\"userId\":\"${u%%:*}\",\"pin\":\"${u##*:}\"}"
 done
 ```

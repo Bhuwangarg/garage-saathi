@@ -45,8 +45,9 @@ TURSO_TOKEN = os.environ.get("TURSO_AUTH_TOKEN", "")
 DATABASE_URL = (os.environ.get("DATABASE_URL") or "").strip()
 _USE_PG = bool(DATABASE_URL)
 _USE_TURSO = bool(TURSO_URL and TURSO_TOKEN) and not _USE_PG
-# Is the SQLite file on a mounted disk that survives a redeploy? On Render the
-# blueprint mounts one at /data; anywhere else say so explicitly. Without this the
+# Is the SQLite file on a mounted disk that survives a redeploy? Nothing mounts one
+# on the current (serverless) host, so this stays false there unless a deployment
+# explicitly mounts /data or sets DB_DISK_PERSISTENT=1. Without this the
 # disk-backed path reports itself as ephemeral and looks like data loss waiting
 # to happen, which is how Turso got added in the first place.
 _DISK_PERSISTENT = (os.environ.get("DB_DISK_PERSISTENT", "") == "1"
@@ -122,10 +123,10 @@ def _r2_client():
 ECHALLAN_API_KEY = os.environ.get("ECHALLAN_API_KEY", "")
 ECHALLAN_BASE = os.environ.get("ECHALLAN_BASE", "https://api.echallan.app")
 
-# Bumped by hand whenever a server change needs to be confirmed live. Render's
-# auto-deploy is off, so setting an env var restarts the process with the OLD
-# code — /health reporting a stale build is the only way to tell that apart from
-# a missing route, without dashboard access.
+# Bumped by hand whenever a server change needs to be confirmed live. Vercel
+# deploys on push, but an env-var change alone does NOT redeploy — it restarts the
+# function with the OLD code. /health reporting a stale build (alongside `commit`)
+# is the only way to tell that apart from a missing route, without dashboard access.
 BUILD_TAG = "2026-08-22-vercel-10"
 
 PORT = int(os.environ.get("PORT", "8766"))      # cloud hosts inject $PORT
@@ -185,8 +186,9 @@ except Exception:
     _WEBPUSH = False
 
 def _vapid_pem_path():
-    # 1) local dev file, or 2) a Render "Secret File" named vapid_private.pem
-    #    (mounted at /etc/secrets/…), or 3) the VAPID_PRIVATE_KEY env var.
+    # 1) local dev file, or 2) a host-mounted secret file named vapid_private.pem
+    #    (at /etc/secrets/…), or 3) the VAPID_PRIVATE_KEY env var — which is how
+    #    the Vercel deployment supplies it, since it mounts no secret files.
     for p in (".vapid_private.pem", "/etc/secrets/vapid_private.pem"):
         if os.path.exists(p):
             return p
@@ -310,7 +312,7 @@ class _PgConn:
 # static output — index.html/app.js/sw.js simply are not in the deployment, so
 # every asset fell through here and 404'd. Serving them from the function keeps
 # the repo layout intact (predeploy-gate.sh, mobile/build-www.mjs and the Android
-# workflow all read the root) and behaves the same on Vercel, Render and locally.
+# workflow all read the root) and behaves the same on Vercel and locally.
 APP_ROOT = os.path.dirname(os.path.abspath(__file__))
 _CTYPES = {
     ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8",
@@ -1669,7 +1671,7 @@ class Handler(BaseHTTPRequestHandler):
         u = urlparse(self.path)
         # "/" is the app when the PWA is bundled with the function, and only falls
         # back to health when it is not (a backend-only deploy). /health is always
-        # health, which is what render.yaml's healthCheckPath and the uptime cron use.
+        # health, which is what the keepalive cron and every deploy check use.
         if u.path == "/" and self._serve_static("/index.html"):
             return
         if u.path in ("/", "/health"):

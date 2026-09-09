@@ -24,7 +24,7 @@ import sys
 import urllib.error
 import urllib.request
 
-DEFAULT_SERVER = "https://garage-saathi-sync.onrender.com"
+DEFAULT_SERVER = "https://garage-saathi-sync.vercel.app"
 
 
 def post(server, path, payload, token=None):

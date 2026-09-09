@@ -6,8 +6,8 @@ Pilferage Radar) and money writes can be trusted. Closes Open Items: shared-PIN
 identity collapse + zero server write-validation/tenant scoping.
 
 Nothing deploys until `/g-saathi` passes all 5 roles against the enforcing server
-and a review subagent returns SHIP. autoDeploy is OFF (manual Render deploy; Pages
-on push).
+and a review subagent returns SHIP. Deploy is one `git push` to `main`: Vercel
+ships the PWA and `sync_server.py` together, automatically.
 
 ## Problem recap (verified in code 2026-07-29)
 - `app.js:4488` `_pin4 = () => '0000'` — all 107 drivers + 57 conductors share it.
@@ -90,7 +90,7 @@ change yet; provenance only.
    (assert store grew by 1) against the enforcing server. Any legitimate 403 = bug.
 3. A negative test: a driver-token push to `ledger` returns 403 and is quarantined.
 4. Review subagent SHIP.
-5. Only then: push (Pages) + Manual Deploy (Render).
+5. Only then: push to `main` (Vercel ships the app and the server together).
 
 ## Status
 - [x] Design (this file)
@@ -116,7 +116,7 @@ change yet; provenance only.
       field-tap regression still fixed; role scoping clean (crew can't see owner acts
       incl. activateCrewServer). 42 screenshots in /tmp/g-saathi/.
 - [ ] OPTIONAL: review subagent on the diff (security code — cheap insurance)
-- [ ] Deploy: push (Pages) + **Manual Deploy on Render** (server change → required).
+- [ ] Deploy: **push to `main`** — Vercel ships `app.js` and `sync_server.py` together.
       After deploy, the FIRST owner/supervisor login online auto-runs register-roster
       (materializes ~164 crew accounts) — verify /health + one crew online login.
 

@@ -47,12 +47,14 @@ cd mobile/ios && xcodebuild -project App/App.xcodeproj -scheme App \
 The packaged app serves itself from `https://localhost` (Android) or
 `capacitor://localhost` (iOS). The existing `_isLocalHost()` check reads that as "this is
 a dev machine" and would have pointed **every phone at port 8766 on itself**. `baseUrl()`
-now consults `_isNative()` first and defaults to the Render backend. On the web the guard
-is inert — verified both ways:
+now consults `_isNative()` first and defaults to `PROD_SYNC`, the hosted backend. On the
+web the guard is inert — the hosted PWA uses `location.origin`, because Vercel serves the
+app and the API together:
 
 | context | `Sync.info().url` |
 | --- | --- |
-| native (`Capacitor.isNativePlatform()`) | `https://garage-saathi-sync.onrender.com` |
+| native (`Capacitor.isNativePlatform()`) | `https://garage-saathi-sync.vercel.app` |
+| hosted browser | `location.origin` |
 | browser on `127.0.0.1` | `http://127.0.0.1:8766` |
 
 A device-level override (`localStorage.syncUrl`) still wins in both cases.
@@ -84,24 +86,26 @@ The packaged app sends `Origin: https://localhost` (Android) or `capacitor://loc
 the response before the app sees it. Confirmed from inside the running app:
 
 ```
-SENT    https://garage-saathi-sync.onrender.com/health
+SENT    https://garage-saathi-sync.vercel.app/health
 FAILED  {"errorText":"net::ERR_FAILED",
          "corsErrorStatus":{"corsError":"AllowOriginMismatch",
                             "failedParameter":"https://bhuwangarg.github.io"}}
 ```
 
-`sync_server.py` already fixes this (`_NATIVE_APP_ORIGIN`) — verified against the new code
-running locally:
+`sync_server.py` fixes this with `_NATIVE_APP_ORIGIN`. **This has since shipped** — verified
+against the live server on 2026-09-07:
 
 | request `Origin` | `Access-Control-Allow-Origin` |
 | --- | --- |
 | `https://localhost` (Android app) | `https://localhost` |
 | `capacitor://localhost` (iOS app) | `capacitor://localhost` |
-| `https://bhuwangarg.github.io` (PWA) | `https://bhuwangarg.github.io` |
-| `https://evil.example.com` | `https://bhuwangarg.github.io` → browser blocks |
+| `https://evil.example.com` | `https://garage-saathi-sync.vercel.app` → browser blocks |
 
-So **the Render Manual Deploy is a hard prerequisite for the phone apps**, not just for the
-Fix C enforcement work. Until it happens the apps run fine offline and sync nothing.
+The hosted PWA needs no CORS entry at all: Vercel serves it from the same origin as the API.
+
+> **The bundled copies of `sync.js` under `mobile/` are stale** — they still pin `PROD_SYNC`
+> to the retired `garage-saathi-sync.onrender.com`. Run `npx cap sync` to refresh them from
+> the repo root before building either app, or the packaged phone app talks to a dead host.
 
 ## Permissions
 `AndroidManifest.xml`: `INTERNET`, `CAMERA`, `ACCESS_FINE_LOCATION`,

@@ -48,8 +48,8 @@ git config core.hooksPath .githooks
 ```
 
 This turns on a `pre-push` hook that runs an automated smoke + regression suite
-before any push to **`main`** (the GitHub Pages deploy branch) and **blocks the
-push if a deploy-critical flow breaks**. It's git-local config, so every fresh
+before any push to **`main`** (which Vercel deploys automatically — see
+`DEPLOY.md`) and **blocks the push if a deploy-critical flow breaks**. It's git-local config, so every fresh
 clone must run that line once.
 
 - **What it checks** (`scripts/predeploy-gate.sh`, ~60s, no network/LLM): all five
@@ -74,9 +74,9 @@ The top bar shows **● Synced / ◐ Sync… / ○ Offline**.
 4. Stop `sync_server.py` → the chip goes **Offline**, the app keeps working, and changes
    **queue**. Start it again → everything catches up automatically.
 
-> This Python server demonstrates the architecture locally. For real production, point
-> `sync.js` at **Supabase** (free Postgres + realtime + auth + file storage) or a small
-> hosted Node service — it speaks the same endpoints, so the app code doesn't change.
+> The same Python server runs in production on Vercel, wrapped by `api/index.py` — the
+> difference is where its data lives: **Supabase Postgres** (`DATABASE_URL`) and photos on
+> **Cloudflare R2**, instead of the local `sync.db` file. See `DEPLOY.md`.
 
 ## Accounts & security (real auth)
 - Users live **on the server** with salted, SHA-256 **hashed PINs**. Login (`/auth/login`)
@@ -139,11 +139,11 @@ garage) and surfaces what paper hides:
   snapshot is sent as grounding context.
 
 ## What's NOT in this MVP (next phases)
-- **Phase 2 (done — dev version):** cross-device sync, **server-side accounts with hashed
+- **Phase 2 (done — live):** cross-device sync, **server-side accounts with hashed
   PINs + login tokens + protected endpoints**, **staff management**, and **photo object
-  storage** — all via `sync_server.py`. Still to harden for production: move onto a hosted
-  backend (Supabase/Node), token expiry/refresh, re-upload queue for offline photos,
-  WhatsApp alerts for expiring documents, payroll export from attendance.
+  storage** — all via `sync_server.py`, deployed on Vercel over Supabase Postgres + R2.
+  Still to harden: token refresh, re-upload queue for offline photos, WhatsApp alerts for
+  expiring documents, payroll export from attendance.
 - **Phase 3:** live GPS provider API integration, preventive-maintenance auto-scheduling from
   odometer, PDF reports per company.
 
