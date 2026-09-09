@@ -2860,6 +2860,8 @@ function viewMe() {
     <div class="li" data-act="lang"><div class="ava">🌐</div><div class="main"><div class="t">${t('lang') === 'हिंदी' ? 'भाषा / Language' : 'Language / भाषा'}</div><div class="s">${LANG === 'en' ? 'English' : 'हिंदी'} · tap to switch</div></div></div>
     <div class="li" data-act="theme"><div class="ava">${_isDark() ? '☀️' : '🌙'}</div><div class="main"><div class="t">${t('theme')}</div><div class="s">${_isDark() ? 'Dark' : 'Light'} · tap to switch</div></div></div>
     <div class="li" data-act="changePin"><div class="ava">🔑</div><div class="main"><div class="t">${t('changePin')}</div><div class="s">Set a new 4-digit login PIN</div></div></div>
+    <div class="li"><div class="ava">🪪</div><div class="main"><div class="t">${esc(S.user.name)}</div>
+      <div class="s">${esc(S.user.role)} · <span class="tiny muted">${esc(S.user.id)}</span></div></div></div>
     ${can(S.user.role, 'dashboard') ? `<div class="li" data-act="openUsage"><div class="ava">📈</div><div class="main"><div class="t">Usage &amp; adoption</div><div class="s">Who is using the app, which features, and what is slow</div></div></div>` : ''}
     <div class="li" data-act="openSync"><div class="ava">🔄</div><div class="main"><div class="t">${t('sync')}</div><div class="s">${SYNC_STATUS === 'synced' ? 'All devices up to date' : SYNC_STATUS === 'signedout' ? '⚠️ Signed out — log in again to sync' : SYNC_STATUS === 'offline' ? 'Offline — will sync when connected' : 'Syncing…'}${si.pending ? ` · ${si.pending} pending` : ''}</div></div></div>
     <div class="li" data-act="logout"><div class="ava">🚪</div><div class="main"><div class="t">${t('logout')}</div></div></div>
@@ -7466,9 +7468,15 @@ function renderRolePick(role) {
   const renderList = (q) => {
     const f = q ? list.filter((u) => u.name.toLowerCase().includes(q)) : list;
     const el = $('#namelist'); if (!el) return;
+    // Two accounts can carry the same name — a person added twice, which used to
+    // be easy to do. Identical tiles are unpickable, so when a name is shared the
+    // account id is shown under it; it is the only thing that differs.
+    const shared = {};
+    list.forEach((u) => { const k = _nameKey(u.name); shared[k] = (shared[k] || 0) + 1; });
     el.innerHTML = f.length ? f.map((u) => `<div class="u" data-login="${u.id}">
       <div style="font-size:20px">${ROLE_META[role][0]}</div>
-      <div style="font-weight:700;font-size:14px">${esc(u.name)}</div></div>`).join('') : `<div class="muted small">No match</div>`;
+      <div style="font-weight:700;font-size:14px">${esc(u.name)}</div>
+      ${shared[_nameKey(u.name)] > 1 ? `<div class="tiny muted" style="letter-spacing:.3px">${esc(u.id)}</div>` : ''}</div>`).join('') : `<div class="muted small">No match</div>`;
   };
   renderList('');
   const s = $('#login-search'); if (s) { s.oninput = () => renderList(s.value.trim().toLowerCase()); s.focus(); }
@@ -7481,6 +7489,28 @@ function renderRolePick(role) {
 }
 function renderPin(user) {
   _pinUser = user; _pin = '';
+  // A desktop has a keyboard. Making someone mouse-click four small buttons is
+  // the phone interaction pretending to work everywhere — so accept typing too.
+  // Self-removing: the first keystroke after the pad leaves the DOM detaches it,
+  // so navigating away cannot leave a stray handler swallowing keys.
+  const onKey = (e) => {
+    if (!$('.pinpad')) { document.removeEventListener('keydown', onKey); return; }
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.key >= '0' && e.key <= '9') {
+      e.preventDefault();
+      if (_pin.length < 4) { _pin += e.key; draw(); }
+      if (_pin.length === 4) attemptLogin(user, _pin, draw);
+      return;
+    }
+    if (e.key === 'Backspace') { e.preventDefault(); _pin = _pin.slice(0, -1); draw(); return; }
+    if (e.key === 'Enter') { e.preventDefault(); if (_pin.length === 4) attemptLogin(user, _pin, draw); return; }
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      document.removeEventListener('keydown', onKey);
+      return _pinUser ? renderRolePick(_pinUser.role) : renderLogin();
+    }
+  };
+  document.addEventListener('keydown', onKey);
   const draw = () => {
     root().innerHTML = `<div class="login">
       <div class="row" style="width:100%;max-width:420px;justify-content:center">${langSwitch()}</div>
