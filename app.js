@@ -21,6 +21,7 @@ const I18N = {
     tagline: 'Garage maintenance, Jaipur', enterPin: 'Enter PIN', wrongPin: 'Wrong PIN',
     recentHere: 'Recent on this phone', whoAreYou: 'Who are you?', selectName: 'Select your name', searchName: 'Search name…',
     cantReach: "Can't reach the server — check internet and try again",
+    tooManyTries: 'Too many wrong PINs. Try again in a few minutes, or ask your supervisor.',
     // Menu (More)
     more: 'More', supplierBills: 'Supplier bills & payments', drivers: 'Drivers', staff: 'Staff', sync: 'Sync', changePin: 'Change my PIN',
     // Home / actions
@@ -149,6 +150,7 @@ const I18N = {
     tagline: 'गैराज मरम्मत, जयपुर', enterPin: 'पिन डालें', wrongPin: 'गलत पिन',
     recentHere: 'इस फ़ोन पर हाल के', whoAreYou: 'आप कौन हैं?', selectName: 'अपना नाम चुनें', searchName: 'नाम खोजें…',
     cantReach: 'सर्वर से संपर्क नहीं — इंटरनेट जाँचें और फिर कोशिश करें',
+    tooManyTries: 'बहुत बार गलत पिन। कुछ मिनट बाद कोशिश कीजिए, या सुपरवाइज़र से कहिए।',
     // Menu (More)
     more: 'और', supplierBills: 'सप्लायर बिल और भुगतान', drivers: 'ड्राइवर', staff: 'स्टाफ', sync: 'सिंक', changePin: 'मेरा पिन बदलें',
     // Home / actions
@@ -7510,13 +7512,13 @@ function offlineClear(id) {
 async function attemptLogin(user, pin, redraw) {
   const r = await Sync.login(user.id, pin);
   if (r && r.user) { credSet(user.id, pin); offlineClear(user.id); return enterApp(user); }  // verified online
-  if (r && r.locked) { toast(`Too many attempts. Wait ${r.retryAfter}s`); _pin = ''; return redraw(); }
+  if (r && r.locked) { toast(t('tooManyTries')); _pin = ''; return redraw(); }
   // Fall back to this device's PIN when the server is unreachable OR when it
   // rejects an account it doesn't have — the bulk-seeded drivers/conductors live
   // only on the device (they were never pushed to the server), so their 0000 is
   // validated locally. The offline brute-force lock still applies.
   const left = offlineLockLeft(user.id);
-  if (left) { toast(`Too many tries. Wait ${left}s or connect online`); _pin = ''; return redraw(); }
+  if (left) { toast(t('tooManyTries')); _pin = ''; return redraw(); }
   // The server HOLDS this account and said no. That answer is final, and it also
   // means the PIN saved on this device is stale — someone rotated it. Drop the
   // stale copy: without this, the cached PIN silently outranks the server and a

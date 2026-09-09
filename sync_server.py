@@ -212,7 +212,12 @@ MAX_FAILS = int(os.environ.get("MAX_LOGIN_FAILS", "5"))        # per user (stric
 # Per-IP backstop is generous: a whole garage of staff shares one public IP, so
 # this must only catch a runaway script, not normal fat-fingering.
 MAX_IP_FAILS = int(os.environ.get("MAX_IP_FAILS", "50"))
-LOCK_WINDOW = int(os.environ.get("LOGIN_LOCK_SEC", "900"))     # 15 min
+# 5 minutes, not 15. The app no longer shows a countdown, so it can only say
+# "try again in a few minutes" — and that has to be true. 5 tries per 5 min is
+# one attempt a minute sustained: working through all 10,000 four-digit PINs
+# would take about a week of uninterrupted attack, so this still makes the PIN
+# a credential while no longer stranding a storekeeper who fat-fingered it.
+LOCK_WINDOW = int(os.environ.get("LOGIN_LOCK_SEC", "300"))     # 5 min
 
 # Mirrors the client seed so the same demo PINs work against the server.
 SEED_USERS = [
