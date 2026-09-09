@@ -431,10 +431,18 @@ img.ava{object-fit:cover}
    still a TOUCH device, so the bottom nav and the full-size tap targets stay;
    what changes is that it stops pretending the screen is 5 inches wide.
    ====================================================================== */
-@media (min-width:700px) and (max-width:1023px){
-  #app{max-width:920px}
-  .bottomnav{max-width:920px}
-  .fab{right:calc(50% - 428px)}
+@media (min-width:700px) and (max-width:1023px),
+       (min-width:700px) and (pointer:coarse){
+  /* Width alone put every landscape tablet (an iPad is 1180-1194 wide) into the
+     desktop tier, which is built for a mouse: a nav rail, 40px controls and
+     41px table rows. Pointer type is the honest test — a finger is coarse
+     whatever the screen is wide. */
+  #app{max-width:min(1100px,100%)}
+  .bottomnav{max-width:min(1100px,100%)}
+  /* calc(50% - 428px) assumed the shell was always its full width. At 768 that
+     resolves to -44px and the button sits off the right edge of the screen,
+     unreachable. Clamp it so it can never leave the viewport. */
+  .fab{right:max(18px,calc((100vw - 1100px) / 2 + 18px))}
   .content{
     display:grid;
     grid-template-columns:repeat(2,minmax(0,1fr));
@@ -451,9 +459,22 @@ img.ava{object-fit:cover}
   .content > .searchbox,
   .content > .btnrow,
   .content > .trow,
-  .content > .jobcard,
   .content > .listwrap,
   .content > input{grid-column:1 / -1}
+  /* Job cards flow two-up rather than one per row: a tablet showed three jobs
+     and a third of a blank screen. They stay cards, not desktop table rows,
+     because this is still a device operated with a finger.
+     The grid goes on #job-list, not .content — the cards live inside that
+     wrapper, so a rule on .content's children never reached them. Scoped by id
+     because .listwrap is also the fleet and parts lists, whose rows are meant
+     to stack. */
+  #job-list.listwrap{
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:14px;
+    align-items:start;
+  }
+  #job-list.listwrap > .jobcard{margin:0}
   .content.narrow{grid-template-columns:minmax(0,720px);justify-content:center}
   /* Two facts per row instead of one — the extra width is the whole point. */
   .li .main{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);
@@ -473,7 +494,7 @@ img.ava{object-fit:cover}
    dense, the nav becomes a rail, and sheets become dialogs. All of it is CSS
    over the same markup, so there is one codebase and the phone is untouched.
    ====================================================================== */
-@media (min-width:1024px){
+@media (min-width:1024px) and (pointer:fine){
   body{background:var(--bg2,#e9ecf3)}
 
   /* --- shell: nav rail + content, placed by area so source order is free --- */
@@ -626,7 +647,7 @@ img.ava{object-fit:cover}
 
 /* Wider still: a third column of cards, and the jobs table gets room for the
    columns that were squeezed out at 1024. */
-@media (min-width:1500px){
+@media (min-width:1500px) and (pointer:fine){
   #app{max-width:1560px;grid-template-columns:246px minmax(0,1fr)}
   .content{grid-template-columns:repeat(3,minmax(0,1fr))}
   .content.narrow{grid-template-columns:minmax(0,820px)}
