@@ -54,11 +54,35 @@ ck() { # desc, actual, expected
   if [ "$2" = "$3" ]; then PASS=$((PASS+1)); printf '  ✓ %s\n' "$1"
   else FAIL=$((FAIL+1)); printf '  ✗ %s (got "%s", expected "%s")\n' "$1" "$2" "$3"; fi
 }
+# Wait for a condition instead of guessing at it with sleep. Fixed sleeps made
+# this gate flaky: login is async (it tries the network first and only then falls
+# back to the device PIN), so a busy machine finished the sleep before the login
+# landed and the assertion read the PREVIOUS test's user — which is why failures
+# looked like "supervisor login got owner" and moved around between runs.
+settle() { # js-expression, expected, tries
+  local i=0
+  while [ "$i" -lt "${3:-25}" ]; do
+    [ "$(j "$1")" = "$2" ] && return 0
+    i=$((i+1)); sleep 0.4
+  done
+  return 1
+}
 login() { # role userid d1 d2 d3 d4
-  "$B" goto "$URL" >/dev/null 2>&1; sleep 2
-  "$B" click "[data-role=$1]" >/dev/null 2>&1; sleep 1
-  "$B" click "[data-login=$2]" >/dev/null 2>&1; sleep 1
-  for d in $3 $4 $5 $6; do "$B" click "[data-k=\"$d\"]" >/dev/null 2>&1; done; sleep 2
+  "$B" goto "$URL" >/dev/null 2>&1
+  # Wait for the tile itself, not merely for S.user to clear: during a reload
+  # S is briefly undefined while the OLD screen is still painted, so "no user
+  # yet" would fire before the login screen exists and the click would hit
+  # nothing — leaving the previous test's session in place.
+  settle "document.querySelector('[data-role=$1]')?'yes':'no'" "yes" 30 >/dev/null
+  "$B" click "[data-role=$1]" >/dev/null 2>&1
+  settle "document.querySelector('[data-login=$2]')?'yes':'no'" "yes" 15 >/dev/null
+  "$B" click "[data-login=$2]" >/dev/null 2>&1
+  settle "document.querySelector('[data-k=\"1\"]')?'yes':'no'" "yes" 15 >/dev/null
+  for d in $3 $4 $5 $6; do "$B" click "[data-k=\"$d\"]" >/dev/null 2>&1; done
+  # Generous on purpose: Sync.login tries the network first and only falls back
+  # to the device PIN when that aborts, which takes up to 12s on its own. A wait
+  # of the same length was landing exactly on that boundary.
+  settle "S.user?S.user.role:'none'" "$1" 70 >/dev/null
 }
 
 echo "── g-saathi pre-deploy gate ──"
