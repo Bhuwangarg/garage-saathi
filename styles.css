@@ -742,3 +742,42 @@ img.ava{object-fit:cover}
   .userpick{max-width:100%}
   #namelist{max-width:100%;max-height:46vh}
 }
+
+/* ==========================================================================
+   Phone (<=520px) — reclaiming the screen
+   --------------------------------------------------------------------------
+   Found by auditing the real screens at 375px rather than assuming the phone
+   was fine because it was the original design. Three things were spending
+   scarce screen on nothing.
+   ====================================================================== */
+@media (max-width:520px){
+  /* 1. The header. tb-right was 171px of 375 — 46% of the bar — so the screen
+        title truncated to "Garage Saa…". The sync chip keeps its dot (colour
+        still carries the state) and drops its word; theme and language stay,
+        because a Hindi reader needs the switch within reach, and both already
+        have a home in Me. */
+  .syncchip .sc-label{display:none}
+  .syncchip{padding:4px 6px;font-size:12px}
+  .tb-title{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+  /* 2. Filter chips scroll sideways, but the last one was cut flush at the
+        screen edge, which reads as clipped rather than scrollable — a
+        supervisor could not tell "Verified" existed. A soft right edge says
+        there is more, without stealing a row for arrows. */
+  /* No padding-right here: on a flex scroller it counts toward scrollWidth, and
+     it was making a row that fits (the mechanics filter) overflow by 13px — so
+     the app claimed there was more to scroll to when there was not. */
+  .chiprow{
+    -webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 18px),transparent);
+    mask-image:linear-gradient(90deg,#000 calc(100% - 18px),transparent);
+  }
+
+  /* 3. The job-card hero. Most buses have no photo of their own, so this was a
+        200px stock picture of somebody else's bus — a quarter of the screen,
+        above the fold, repeating the plate and problem printed again in the
+        card directly beneath it. Still there for orientation, no longer the
+        first thing between the mechanic and the job. */
+  .hero.cover img{height:132px}
+  .hero.contain img{height:168px}
+  .hero-t{font-size:17px}
+}
