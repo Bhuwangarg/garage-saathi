@@ -109,6 +109,9 @@ const I18N = {
     cbInsMissingMany: 'crew are missing a mandatory document', cbInsDocsIncomplete: 'docs incomplete',
     cbInsMissingDetail: 'and', cbInsMore: 'more. Open the crew bank and use the “Docs missing” filter.', cbInsMissingList: 'Missing',
     cbIncomplete: 'incomplete', cbOpenWord: 'open',
+    cbWipeConductors: 'Delete all conductors', cbWipeNothing: 'No conductor data to remove',
+    cbWipeDone: 'Conductors removed', cbWipeType: 'This cannot be undone. Type DELETE to confirm.',
+    cbWipeBusy: 'Deleting conductors…',
     // ---- Archived records ----
     cbFArchived: 'Archived', cbArchivedBadge: 'archived', cbArchiveBtn: 'Archive this record',
     cbRestoreBtn: 'Bring back', cbArchivedOn: 'Archived', cbArchivedToast: 'archived — still searchable',
@@ -238,6 +241,9 @@ const I18N = {
     cbInsMissingMany: 'स्टाफ के ज़रूरी कागज़ नहीं हैं', cbInsDocsIncomplete: 'के कागज़ अधूरे',
     cbInsMissingDetail: 'और', cbInsMore: 'और लोग। स्टाफ बैंक खोलकर “कागज़ बाकी” छाँटें।', cbInsMissingList: 'नहीं है',
     cbIncomplete: 'अधूरा', cbOpenWord: 'खोलें',
+    cbWipeConductors: 'सभी कंडक्टर हटाएं', cbWipeNothing: 'हटाने को कोई कंडक्टर डेटा नहीं',
+    cbWipeDone: 'कंडक्टर हटा दिए गए', cbWipeType: 'यह वापस नहीं होगा। पक्का करने के लिए DELETE लिखें।',
+    cbWipeBusy: 'कंडक्टर हटाए जा रहे हैं…',
     // ---- Archived records ----
     cbFArchived: 'पुराने रिकॉर्ड', cbArchivedBadge: 'पुराना', cbArchiveBtn: 'रिकॉर्ड पुराना करें',
     cbRestoreBtn: 'वापस लाएं', cbArchivedOn: 'पुराना किया', cbArchivedToast: 'पुराना कर दिया — खोजने पर मिलेगा',
@@ -5782,7 +5788,9 @@ function viewCrewBank() {
   body += `<div class="chiprow" id="crew-chips"></div>`;
   body += `<div class="card listwrap" id="crew-list"><div class="empty">Loading…</div></div>`;
   body += `<div class="btnrow" style="margin-top:12px"><button class="btn sm ghost" data-act="exportCrew">⬇️ ${t('cbExport')}</button>${
-    can(S.user.role, 'bulkArchiveCrew') && act.length ? `<button class="btn sm ghost" data-act="bulkArchive">🗄️ ${t('cbBulkArchive')}</button>` : ''}</div>`;
+    can(S.user.role, 'bulkArchiveCrew') && act.length ? `<button class="btn sm ghost" data-act="bulkArchive">🗄️ ${t('cbBulkArchive')}</button>` : ''}${
+    can(S.user.role, 'bulkArchiveCrew') && allCrew().some((d) => crewRoleOf(d) === 'conductor')
+      ? `<button class="btn sm ghost" data-act="wipeConductors" style="color:#ef4444">🗑️ ${t('cbWipeConductors')}</button>` : ''}</div>`;
   shell(t('cbTitle'), body, { act: 'addCrew', icon: '+' });
   const s = document.getElementById('crew-search'); if (s) s.oninput = renderCrewList;
   renderCrewList();
@@ -6146,6 +6154,45 @@ async function bulkArchiveCrew() {
   const upd = list.map((d) => Object.assign(d, { status: 'archived', archivedAt: now }));
   await DB.bulkPut('drivers', upd);
   await load(); toast(`${upd.length} ${t('cbBulkDone')}`); rerender();
+}
+
+/* Delete every conductor: the crew records, the login accounts, and the name
+ * each bus still carries. All three, or it does not stick — `bus.conductor` is
+ * what createCrewLogins and the backfill read, so leaving it would quietly
+ * rebuild the accounts on the next device that boots.
+ *
+ * Owner only, two confirmations, and irreversible: unlike archiving, this drops
+ * the licence numbers and phones that let the bank recognise a man who comes
+ * back. That is the trade, and it is stated before it happens. */
+async function deleteAllConductors() {
+  if (!can(S.user.role, 'bulkArchiveCrew')) return toast(t('cbNotAllowed'));
+  const recs = allCrew().filter((d) => crewRoleOf(d) === 'conductor');
+  const accts = (S.cache.users || []).filter((u) => u.role === 'conductor');
+  const buses = (S.cache.buses || []).filter((b) => b.conductor || b.conductorUserId);
+  if (!recs.length && !accts.length && !buses.length) return toast(t('cbWipeNothing'));
+
+  const open = recs.filter((d) => crewOpenWork(d).length);
+  if (open.length && !confirm(`⚠️ ${open.length} of them still have an open trip or job card:\n\n${
+    open.slice(0, 5).map((d) => '• ' + d.name + ' — ' + crewOpenWork(d).join('; ')).join('\n')}\n\nDeleting leaves all of it open with nobody watching it.\n\nContinue?`)) return;
+
+  if (!confirm(`⚠️ Delete every conductor?\n\n• ${recs.length} crew record${recs.length === 1 ? '' : 's'} — name, phone, licence, documents\n• ${accts.length} login${accts.length === 1 ? '' : 's'}\n• the conductor named on ${buses.length} bus${buses.length === 1 ? '' : 'es'}\n\nThis is not archiving. Nothing is kept, nothing is searchable afterwards, and re-entering somebody will not recognise him.`)) return;
+  if ((window.prompt(t('cbWipeType')) || '').trim().toUpperCase() !== 'DELETE') return;
+
+  const stop = showBusyOverlay(t('cbWipeBusy'));
+  let failed = 0;
+  try {
+    for (const u of accts) {
+      // Delete the credential first; if the server refuses, keep the roster row
+      // rather than hiding an account that can still authenticate.
+      try { await Sync.deleteStaff(u.id); await DB.softDel('users', u.id); credClear(u.id); }
+      catch (e) { failed++; }
+    }
+    for (const d of recs) await DB.softDel('drivers', d.id);
+    for (const b of buses) { b.conductor = ''; b.conductorUserId = null; await DB.put('buses', b); }
+    await load();
+  } finally { if (stop) stop(); }
+  toast(failed ? `${t('cbWipeDone')} — ${failed} login(s) refused by the server` : t('cbWipeDone'));
+  rerender();
 }
 
 async function rejoinCrew(id) {
@@ -7229,6 +7276,7 @@ const _dispatchClick = async (e) => {
       case 'crewArchive': return archiveCrew(el.getAttribute('data-driver'));
       case 'crewRestore': return restoreCrew(el.getAttribute('data-driver'));
       case 'bulkArchive': return bulkArchiveCrew();
+      case 'wipeConductors': return deleteAllConductors();
       case 'crewReuse': return crewReuse(el.getAttribute('data-driver'));
       case 'crewAddAnyway': return crewAddAnyway();
       case 'exportCrew': return exportCrewCsv();
