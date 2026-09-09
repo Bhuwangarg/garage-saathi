@@ -1205,7 +1205,7 @@ function viewFleet() {
 
   // Searchable bus list on number-plate chips.
   body += `<input id="fleet-search" class="searchbox" placeholder="Search plate, company, model…" style="margin-top:12px">`;
-  body += `<div class="card" id="fleet-list">${buses.map((b) => {
+  body += `<div class="card listwrap" id="fleet-list">${buses.map((b) => {
     const sv = serviceInfo(b);
     const cls = sv.status === 'overdue' ? 'crit' : sv.status === 'soon' ? 'warn' : 'ok';
     const word = sv.status === 'overdue' ? 'Service due' : sv.status === 'soon' ? 'Service soon' : 'OK';
@@ -1452,7 +1452,7 @@ function viewBuses() {
   let body = '';   // AirFi import + de-dup run automatically in the background (autoReconcileFleet)
   body += `<input id="bus-search" class="searchbox" placeholder="Search reg, company, model…" autocomplete="off">`;
   body += `<div class="chiprow" id="bus-chips"></div>`;
-  body += `<div class="card" id="bus-list"><div class="empty">Loading…</div></div>`;
+  body += `<div class="card listwrap" id="bus-list"><div class="empty">Loading…</div></div>`;
   shell(t('buses'), body, can(S.user.role, 'addBus') ? { act: 'addBus', icon: '+' } : null);
   const s = document.getElementById('bus-search'); if (s) s.oninput = renderBusList;
   renderBusList();           // paint immediately
@@ -1878,7 +1878,7 @@ function viewJobs() {
   jobs.sort((a, b) => (order[a.status] - order[b.status]) || (b.createdAt - a.createdAt));
   let body = jobsFilterBar();
   body += `<input id="job-search" class="searchbox" placeholder="Search bus or problem…" autocomplete="off">`;
-  body += jobs.length ? `<div id="job-list">${jobs.map(jobLi).join('')}</div>` : `<div class="card" id="job-list"><div class="empty">${t('noJobsMatch')}</div></div>`;
+  body += jobs.length ? `<div id="job-list" class="listwrap">${jobs.map(jobLi).join('')}</div>` : `<div class="card listwrap" id="job-list"><div class="empty">${t('noJobsMatch')}</div></div>`;
   shell(t('jobs'), body, can(S.user.role, 'addJob') ? { act: 'addJob', icon: '+' } : null);
   attachSearch('job-search', 'job-list');
   const jl = document.getElementById('job-list'); if (jl) staggerRows(jl);
@@ -2375,7 +2375,7 @@ function viewStore() {
   }
 
   body += `<input id="part-search" class="searchbox" placeholder="Search part name, no. or category…" autocomplete="off">`;
-  body += `<div class="card"><h3>Parts</h3><div id="part-list"></div></div>`;
+  body += `<div class="card listwrap"><h3>Parts</h3><div id="part-list"></div></div>`;
 
   shell(t('store'), body, can(S.user.role,'addPurchase') ? { act: 'addPurchase', icon: '📄' } : null);
   // Big catalogues (thousands of parts from an Excel import) render capped + search
@@ -5598,7 +5598,7 @@ function viewCrewBank() {
     <div class="tiny muted" style="margin-top:8px">${missing ? `⚠️ ${missing} ${t(missing === 1 ? 'cbMissingDocsOne' : 'cbMissingDocsMany')}` : '✓ ' + t('cbAllOnFile')}${expiring ? ` ${expiring} ${t('cbExpiringSoon')}` : ''}</div></div>`;
   body += `<input id="crew-search" class="searchbox" placeholder="${esc(t('cbSearchPh'))}" autocomplete="off">`;
   body += `<div class="chiprow" id="crew-chips"></div>`;
-  body += `<div class="card" id="crew-list"><div class="empty">Loading…</div></div>`;
+  body += `<div class="card listwrap" id="crew-list"><div class="empty">Loading…</div></div>`;
   body += `<div class="btnrow" style="margin-top:12px"><button class="btn sm ghost" data-act="exportCrew">⬇️ ${t('cbExport')}</button>${
     can(S.user.role, 'bulkArchiveCrew') && act.length ? `<button class="btn sm ghost" data-act="bulkArchive">🗄️ ${t('cbBulkArchive')}</button>` : ''}</div>`;
   shell(t('cbTitle'), body, { act: 'addCrew', icon: '+' });

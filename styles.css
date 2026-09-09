@@ -420,73 +420,106 @@ img.ava{object-fit:cover}
 }
 
 /* ==========================================================================
-   Desktop (>=1024px)
+   Tablet (700–1023px) — touch, but not a phone
    --------------------------------------------------------------------------
-   The app was built as a 520px phone column and centred on big screens, which
-   is right for a mechanic under a bus and wrong for the supervisor, who now
-   keeps every job card and does it sitting at a desk.
+   A tablet was getting the 520px phone column stranded in whitespace. It is
+   still a TOUCH device, so the bottom nav and the full-size tap targets stay;
+   what changes is that it stops pretending the screen is 5 inches wide.
+   ====================================================================== */
+@media (min-width:700px) and (max-width:1023px){
+  #app{max-width:920px}
+  .bottomnav{max-width:920px}
+  .fab{right:calc(50% - 428px)}
+  .content{
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:0 16px;
+    align-content:start;
+    align-items:start;
+    padding:16px 18px 100px;
+  }
+  .content > *{margin-bottom:14px;min-width:0}
+  .content > .greet,
+  .content > .hero,
+  .content > .chiprow,
+  .content > .banner,
+  .content > .searchbox,
+  .content > .btnrow,
+  .content > .trow,
+  .content > .jobcard,
+  .content > .listwrap,
+  .content > input{grid-column:1 / -1}
+  .content.narrow{grid-template-columns:minmax(0,720px);justify-content:center}
+  /* Two facts per row instead of one — the extra width is the whole point. */
+  .li .main{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+    gap:0 14px;align-items:baseline}
+  .li .main .s{margin-top:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+}
 
-   Three shape changes, all CSS — no markup moves, so every screen inherits them:
-     1. the bottom nav becomes a left rail (thumb reach is meaningless on a
-        monitor, and a fixed bar across a 1400px screen just wastes the bottom);
-     2. cards flow into two columns instead of one long ribbon;
-     3. sheets become centred dialogs rather than full-height slabs.
+/* ==========================================================================
+   Desktop (>=1024px) — a different interface, not a wider phone
+   --------------------------------------------------------------------------
+   The app is a phone app: fat rows sized for thumbs, one card per idea, one
+   column. That is right under a bus and wrong at the office desk, where the
+   supervisor now keeps every job card and wants to SCAN — thirty jobs at once,
+   not three.
+
+   So desktop is not the phone layout stretched. Lists become tables, rows get
+   dense, the nav becomes a rail, and sheets become dialogs. All of it is CSS
+   over the same markup, so there is one codebase and the phone is untouched.
    ====================================================================== */
 @media (min-width:1024px){
   body{background:var(--bg2,#e9ecf3)}
 
-  /* Areas rather than source order, so the nav can sit left of a topbar that
-     comes before it in the DOM. */
+  /* --- shell: nav rail + content, placed by area so source order is free --- */
   #app{
-    max-width:1180px;
+    max-width:1280px;
     display:grid;
-    grid-template-columns:236px minmax(0,1fr);
+    grid-template-columns:232px minmax(0,1fr);
     grid-template-rows:auto 1fr;
     grid-template-areas:"nav top" "nav main";
     box-shadow:0 24px 70px rgba(30,35,60,.14);
   }
-  .topbar{grid-area:top;padding:14px 26px}
-  .tb-title{text-align:left;font-size:19px}
-  .content{grid-area:main;padding:22px 26px 64px}
+  .topbar{grid-area:top;padding:13px 24px}
+  .tb-title{text-align:left;font-size:18px}
+  .tb-left{width:auto;min-width:0}
+  .tb-left:empty{display:none}
 
-  /* Bottom bar -> left rail. It is position:fixed on phones; sticky puts it
-     back in the grid so it can own a column. */
   .bottomnav{
     grid-area:nav;
     position:sticky;top:0;
     left:auto;right:auto;bottom:auto;
-    max-width:none;margin:0;
-    height:100vh;
-    flex-direction:column;justify-content:flex-start;gap:4px;
-    padding:16px 12px;
+    max-width:none;margin:0;height:100vh;
+    flex-direction:column;justify-content:flex-start;gap:2px;
+    padding:14px 10px;
     border-top:none;border-right:1px solid var(--line);
   }
   .bottomnav button{
-    flex:none;
-    flex-direction:row;align-items:center;justify-content:flex-start;gap:12px;
-    padding:11px 14px;border-radius:12px;
-    font-size:14.5px;text-align:left;width:100%;
+    flex:none;flex-direction:row;align-items:center;justify-content:flex-start;
+    gap:11px;padding:10px 13px;border-radius:10px;
+    font-size:14px;text-align:left;width:100%;
   }
   .bottomnav button:hover{background:var(--tile,rgba(0,0,0,.03))}
-  .bottomnav .ic{font-size:19px}
   .bottomnav button.active{background:var(--tile,rgba(0,0,0,.05))}
-  /* The active marker was a tab underline; on a rail it reads as a left bar. */
+  .bottomnav .ic{font-size:18px}
   .bottomnav button.active::before{
     top:50%;left:0;transform:translateY(-50%);
-    width:3px;height:20px;border-radius:0 4px 4px 0;
+    width:3px;height:18px;border-radius:0 4px 4px 0;
   }
 
-  /* Two columns of cards. align-content:start keeps rows from stretching to
-     fill the viewport, and the span rule keeps anything full-bleed — heroes,
-     chip rows, banners, button rows — across both. */
+  /* --- content grid. row-gap is 0 and spacing comes from each card's own
+         margin, so list rows (which set margin:0) can sit flush and read as
+         one table instead of a stack of separated cards. --- */
   .content{
+    grid-area:main;
+    padding:20px 24px 56px;
     display:grid;
     grid-template-columns:repeat(2,minmax(0,1fr));
-    gap:16px 20px;
+    gap:0 20px;
     align-content:start;
     align-items:start;
   }
-  .content > *{margin-bottom:0;min-width:0}
+  .content > *{margin-bottom:16px;min-width:0}
   .content > .greet,
   .content > .hero,
   .content > .chiprow,
@@ -496,31 +529,101 @@ img.ava{object-fit:cover}
   .content > .trow,
   .content > .spacer,
   .content > .jobcard,
-  .content > input,
-  .content > button{grid-column:1 / -1}
+  .content > .listwrap,
+  .content > input{grid-column:1 / -1}
 
-  /* A single-column screen (a job card, a form) should not be stretched to
-     1180px — long lines are harder to read, not easier. */
-  .content.narrow{grid-template-columns:minmax(0,760px)}
-
-  .fab{right:40px;bottom:40px}
-
-  /* Sheets become dialogs. */
-  .sheetwrap{align-items:center;padding:24px}
-  .sheet{
-    max-width:660px;height:auto;max-height:88vh;
-    border-radius:18px;padding:0 24px 24px;
+  /* A list of records reads as one table, so its container gets the frame and
+     the rows inside lose theirs. */
+  .content > .listwrap{
+    background:var(--surface);border:1px solid var(--line);
+    border-radius:14px;overflow:hidden;
   }
-  .sheethead{padding-top:20px;border-radius:18px 18px 0 0}
+  .content > .listwrap:not(.card){padding:0}
+  .listwrap > .jobcard:last-child{border-bottom:none}
 
-  /* Login is a centred card, not a full-bleed phone screen. */
-  .userpick{max-width:520px}
-  .pinpad{max-width:320px}
+  /* Full-width button rows would otherwise stretch two buttons across 1280px.
+     Actions sit at their natural size, left-aligned like every other control. */
+  .btnrow{justify-content:flex-start;flex-wrap:wrap}
+  .btnrow > .btn{flex:0 1 auto;width:auto;min-width:168px}
+  .content > .btn{width:auto;min-width:200px;justify-self:start}
+  .btn,.btn.sm{min-height:40px}
+  .btn{padding:10px 18px;border-radius:11px}
+  .btn.sm{min-height:32px;padding:7px 12px}
+  /* A record or a form is a document: one readable column, not 1280px of it. */
+  .content.narrow{grid-template-columns:minmax(0,780px)}
+
+  /* --- density. Phone padding is sized for thumbs; on a desktop it is just
+         scrolling. --- */
+  .card{padding:14px 16px;border-radius:14px}
+  .card h3{font-size:14.5px}
+  .hr{margin:11px -16px}
+
+  /* --- lists become tables. .main carries a title and a subtitle stacked; on a
+         desktop they sit side by side as two columns, which is what turns a
+         phone list row into a scannable table row. --- */
+  .card > .li{padding:8px 6px;gap:11px;border-radius:8px}
+  .card > .li:hover{background:var(--tile,rgba(0,0,0,.035))}
+  .li .ava{width:30px;height:30px;border-radius:8px;font-size:15px}
+  .li .main{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1.35fr);
+    gap:0 18px;align-items:baseline}
+  .li .main .t{font-size:13.5px}
+  .li .main .s{margin-top:0;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .thumb{width:56px;height:56px;border-radius:10px}
+  .photoadd{width:56px;height:56px;border-radius:10px;font-size:22px}
+
+  /* Triage rows are one-line summaries; they do not need 3 lines of height. */
+  .trow{padding:10px 14px}
+
+  /* --- the jobs board becomes a real table ---------------------------------
+     .jc-top wraps the plate and the status badge together, which would trap
+     both in one cell. display:contents dissolves that wrapper so each becomes
+     a column of the row's own grid. --- */
+  .jobcard{
+    display:grid;
+    grid-template-columns:118px minmax(120px,1fr) 208px 152px 88px;
+    align-items:center;
+    gap:2px 14px;
+    margin:0;padding:9px 12px;
+    border:none;border-left:3px solid var(--sc,#8b91a0);
+    border-bottom:1px solid var(--line,#e6e9f0);
+    border-radius:0;box-shadow:none;
+  }
+  .jobcard:hover{box-shadow:none;background:var(--tile,rgba(0,0,0,.035))}
+  .jobcard:active{transform:none}
+  .jobcard .jc-top{display:contents}
+  .jc-bus{grid-column:1;grid-row:1;font-size:13.5px}
+  .jobcard .jc-top > .badge{grid-column:5;grid-row:1;justify-self:end}
+  .jc-problem{grid-column:2;grid-row:1;margin:0;font-size:13.5px;font-weight:600;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .jc-meta{grid-column:3;grid-row:1;font-size:12px;flex-wrap:nowrap;overflow:hidden;gap:6px}
+  .jc-meta > span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .jc-foot{grid-column:4;grid-row:1;margin:0;padding:0;border-top:none;
+    gap:10px;justify-content:flex-end;font-size:12.5px;flex-wrap:nowrap}
+  .jc-foot > span{white-space:nowrap}
+  /* The driver's own words stay, clamped to one line under the fault. */
+  .jc-complaint{grid-column:2 / 5;grid-row:2;margin:2px 0 0;padding:3px 8px;
+    font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  /* Redundant with the status badge once the row is this compact. */
+  .jc-prog{display:none}
+
+  .fab{right:36px;bottom:36px}
+
+  /* --- sheets become dialogs, wide enough for side-by-side fields --- */
+  .sheetwrap{align-items:center;padding:24px}
+  .sheet{max-width:680px;height:auto;max-height:88vh;border-radius:18px;padding:0 24px 24px}
+  .sheethead{padding-top:20px;border-radius:18px 18px 0 0}
+  .sheet .grid2{gap:14px}
+
+  /* --- login is a centred card, not a full-bleed phone screen --- */
+  .userpick{max-width:560px;grid-template-columns:repeat(3,1fr)}
+  .pinpad{max-width:300px}
 }
 
-/* Wider still: a third column earns its place, and the shell can breathe. */
+/* Wider still: a third column of cards, and the jobs table gets room for the
+   columns that were squeezed out at 1024. */
 @media (min-width:1500px){
-  #app{max-width:1440px;grid-template-columns:250px minmax(0,1fr)}
+  #app{max-width:1560px;grid-template-columns:246px minmax(0,1fr)}
   .content{grid-template-columns:repeat(3,minmax(0,1fr))}
-  .content.narrow{grid-template-columns:minmax(0,760px)}
+  .content.narrow{grid-template-columns:minmax(0,820px)}
+  .jobcard{grid-template-columns:140px minmax(160px,1fr) 236px 176px 100px}
 }
