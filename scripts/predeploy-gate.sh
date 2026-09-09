@@ -68,6 +68,14 @@ settle() { # js-expression, expected, tries
   return 1
 }
 login() { # role userid d1 d2 d3 d4
+  # Two attempts. The gate serves the app from a static server with no
+  # /auth/login, so the PIN is validated against the device credential the app
+  # seeds on first load — and occasionally the pad is ready fractionally before
+  # that seed is. One clean retry costs a second and removes the last flake.
+  _login_once "$@" && return 0
+  _login_once "$@"
+}
+_login_once() { # role userid d1 d2 d3 d4
   "$B" goto "$URL" >/dev/null 2>&1
   # Wait for the tile itself, not merely for S.user to clear: during a reload
   # S is briefly undefined while the OLD screen is still painted, so "no user
@@ -83,6 +91,7 @@ login() { # role userid d1 d2 d3 d4
   # to the device PIN when that aborts, which takes up to 12s on its own. A wait
   # of the same length was landing exactly on that boundary.
   settle "S.user?S.user.role:'none'" "$1" 70 >/dev/null
+  [ "$(j "S.user?S.user.role:'none'")" = "$1" ]
 }
 
 echo "── g-saathi pre-deploy gate ──"
@@ -114,8 +123,14 @@ ck "mechanics still on the roster" \
 
 # 2) Stock-count regression + persistence (the bug that shipped) — as store.
 login store u-store 3 3 3 3
-"$B" js "document.querySelector('[data-act=openStoreHealth]')?.click()" >/dev/null 2>&1; sleep 1
-"$B" js "document.querySelector('[data-act=auditFull]')?.click()"       >/dev/null 2>&1; sleep 1
+# Same fixed-sleep trap the login steps had: one second is not enough to render
+# the store screen on a loaded machine, so the click landed on nothing and the
+# sheet assertions failed for reasons that had nothing to do with the sheet.
+settle "document.querySelector('[data-act=openStoreHealth]')?'yes':'no'" "yes" 25 >/dev/null
+"$B" js "document.querySelector('[data-act=openStoreHealth]')?.click()" >/dev/null 2>&1
+settle "document.querySelector('[data-act=auditFull]')?'yes':'no'" "yes" 25 >/dev/null
+"$B" js "document.querySelector('[data-act=auditFull]')?.click()"       >/dev/null 2>&1
+settle "document.querySelector('.au-count')?'yes':'no'" "yes" 25 >/dev/null
 ck "full-count sheet opens"                  "$(j "!!document.querySelector('.au-count')")" "true"
 # Clicking a count field must NOT navigate away (the exact regression).
 j "var f=document.querySelector('.au-count'); f&&f.dispatchEvent(new MouseEvent('click',{bubbles:true}));'x'" >/dev/null
@@ -124,7 +139,10 @@ ck "sheet still open after field tap"        "$(j "!!document.querySelector('.sh
 # Enter counts + submit -> a new audit must persist.
 BEFORE="$(j "(S.cache.audits||[]).length")"
 j "var n=0;document.querySelectorAll('.au-count').forEach(function(i){i.value=String(3+(n++));i.dispatchEvent(new Event('input',{bubbles:true}));});'set'" >/dev/null
-"$B" js "document.querySelector('[data-act=saveAudit]')?.click()" >/dev/null 2>&1; sleep 2
+"$B" js "document.querySelector('[data-act=saveAudit]')?.click()" >/dev/null 2>&1
+# The save is async (IndexedDB write, then reload); wait for the sheet to go
+# rather than guessing at two seconds.
+settle "document.querySelector('.sheetwrap')?'open':'closed'" "closed" 25 >/dev/null
 AFTER="$(j "(S.cache.audits||[]).length")"
 ck "stock count persists (audits grew)"      "$([ "${AFTER:-0}" -gt "${BEFORE:-0}" ] && echo yes || echo no)" "yes"
 ck "sheet closes after save"                 "$(j "!document.querySelector('.sheetwrap')")" "true"
@@ -132,7 +150,8 @@ ck "sheet closes after save"                 "$(j "!document.querySelector('.she
 # 3) Invariant sweep: form controls never navigate (owner's main tabs).
 login owner u-owner 1 1 1 1
 for SCREEN in home jobs store me; do
-  j "navTab('$SCREEN')" >/dev/null; sleep 1
+  j "navTab('$SCREEN')" >/dev/null
+  settle "S.route.name" "$SCREEN" 20 >/dev/null
   RES="$(j "var r=S.route.name;Array.from(document.querySelectorAll('input,select,textarea')).forEach(function(e){e.dispatchEvent(new MouseEvent('click',{bubbles:true}));});S.route.name===r?'stable':'MOVED'")"
   ck "owner/$SCREEN: form controls don't navigate" "$RES" "stable"
 done
