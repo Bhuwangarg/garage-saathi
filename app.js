@@ -310,6 +310,69 @@ function fmtDateTime(ts) {
   return new Date(ts).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 }
 function daysLeft(ts) { return Math.round((ts - Date.now()) / day); }
+
+/* ---- Workshop clock (the four times on the paper job card) ----------------
+ * The supervisor's paper slip records four separate moments, and the gaps
+ * between them are the whole point:
+ *
+ *   Enter time  10:30 ─┐
+ *                      ├─ waiting: bus in the yard, nobody on it yet
+ *   Job start   11:00 ─┘
+ *                      ├─ working: the only stretch anyone is being paid for
+ *   Completion   5:30 ─┐
+ *                      ├─ waiting: work done, bus still not released
+ *   Out time     6:30 ─┘
+ *
+ * Enter→Out is what the bus actually lost. Start→Completion is what the garage
+ * actually did. Recording only one of them hides where the day went.        */
+const _pad2 = (n) => String(n).padStart(2, '0');
+// "HH:MM" for an <input type="time">, or '' when the moment isn't recorded.
+function msToHHMM(ts) {
+  if (!ts) return '';
+  const d = new Date(ts);
+  return _pad2(d.getHours()) + ':' + _pad2(d.getMinutes());
+}
+// "YYYY-MM-DD" for an <input type="date">.
+function msToYMD(ts) {
+  const d = new Date(ts || Date.now());
+  return d.getFullYear() + '-' + _pad2(d.getMonth() + 1) + '-' + _pad2(d.getDate());
+}
+// Combine a date field and a time field into a timestamp. `after` pushes the
+// result to the next day when it would otherwise land before it — a job that
+// starts at 22:00 and completes at 01:30 finished the following morning, not
+// twenty hours earlier.
+function hhmmToMs(ymd, hhmm, after) {
+  if (!hhmm) return null;
+  const [y, mo, d] = String(ymd || msToYMD()).split('-').map(Number);
+  const [h, mi] = String(hhmm).split(':').map(Number);
+  if (!y || isNaN(h)) return null;
+  let ts = new Date(y, (mo || 1) - 1, d || 1, h, mi || 0, 0, 0).getTime();
+  if (after && ts < after) ts += day;
+  return ts;
+}
+// Minutes as "6h 30m" / "45m". Blank when the pair isn't fully recorded.
+function fmtDur(ms) {
+  if (ms == null || !isFinite(ms) || ms < 0) return '—';
+  const mins = Math.round(ms / 60000);
+  const h = Math.floor(mins / 60), m = mins % 60;
+  return h ? (m ? `${h}h ${m}m` : `${h}h`) : `${m}m`;
+}
+// The three spans, each null unless both of its endpoints were recorded.
+function jobTimes(j) {
+  const gap = (a, b) => (a && b && b >= a) ? (b - a) : null;
+  return {
+    waitBefore: gap(j.enterAt, j.startAt),   // arrived, not yet started
+    working: gap(j.startAt, j.completeAt),   // actual work
+    waitAfter: gap(j.completeAt, j.outAt),   // finished, not yet released
+    offRoad: gap(j.enterAt, j.outAt),        // total the bus was unavailable
+  };
+}
+// Idle time inside the workshop — the number a supervisor can actually act on.
+function jobIdleMs(j) {
+  const t = jobTimes(j);
+  if (t.waitBefore == null && t.waitAfter == null) return null;
+  return (t.waitBefore || 0) + (t.waitAfter || 0);
+}
 function isToday(ts) { const d = new Date(ts), n = new Date(); return d.getFullYear() === n.getFullYear() && d.getMonth() === n.getMonth() && d.getDate() === n.getDate(); }
 function timeAgo(ts) {
   const s = Math.max(0, Math.round((Date.now() - ts) / 1000));
@@ -485,7 +548,7 @@ const PERMS = {
   logService: ['owner', 'supervisor'],       // resets service + writes a verified job
   manageRoutes: ['owner', 'supervisor'],     // routes, stops, go-times, punctuality
   addFuel: ['owner', 'supervisor', 'store'], // log fuel fills; view mileage
-  requestPart: ['mechanic', 'supervisor', 'owner'], // mechanic asks store for a part (button was unreachable without this)
+  requestPart: ['supervisor', 'owner'],      // ask the store to issue a part against a job
   money: ['owner', 'supervisor'],            // Money tab (owner-weighted)
   fleet: ['owner', 'supervisor'],            // Fleet tab
   people: ['owner', 'supervisor'],           // People tab (owner-weighted)
@@ -501,9 +564,9 @@ const PERMS = {
   // Outstanding fines and court referrals are finance data, and each lookup
   // spends a billable credit — same gate the server applies.
   challans: ['owner', 'supervisor'],
-  viewStore: ['owner', 'supervisor', 'store', 'mechanic'],
-  viewJobs: ['owner', 'supervisor', 'store', 'mechanic'],
-  viewScoreboard: ['owner', 'supervisor', 'store', 'mechanic'],
+  viewStore: ['owner', 'supervisor', 'store'],
+  viewJobs: ['owner', 'supervisor', 'store'],
+  viewScoreboard: ['owner', 'supervisor', 'store'],
 };
 
 /* ------------------------------ Sheets ------------------------------------ */
@@ -564,6 +627,22 @@ function busImg(b) { return (b && b.photos && b.photos[0]) || PART_PHOTOS + 'bus
 const avatar = (img, fallbackEmoji) => img
   ? `<img class="ava" src="${esc(img)}" alt="">`
   : `<div class="ava">${fallbackEmoji}</div>`;
+
+// Carry an odometer reading from a job card onto the bus.
+//
+// Only ever forwards. A bus's odometer is monotonic in reality, so a reading
+// lower than the one on file is a typo (or a card being back-filled weeks late),
+// and letting it through would corrupt every ₹/km and km/l figure derived from
+// the gap between readings. Silently ignoring the lower value is the safe
+// direction to fail: the worst case is one stale reading, not a negative one.
+async function noteOdometer(busId, km) {
+  const bus = byId(S.cache.buses, busId);
+  if (!bus || !km || km <= 0) return false;
+  if (km <= (bus.odometer || 0)) return false;
+  bus.odometer = km;
+  await DB.put('buses', bus);
+  return true;
+}
 
 // Anti-pilferage core: a part can ONLY leave stock against a job card.
 async function issuePart({ partId, qty, jobId }) {
@@ -870,11 +949,17 @@ function bottomnav() {
     `<button data-nav="${n}" class="${active === n ? 'active' : ''}"><span class="ic">${ic}</span>${esc(lbl)}</button>`).join('')}</div>`;
 }
 
-function shell(title, body, fab) {
-  root().innerHTML = topbar(title) + `<div class="content">${body}</div>` +
+// `opts.narrow` keeps a screen in one readable column on desktop. Dashboards and
+// lists want the two/three-column grid; a form or a single record does not —
+// stretching a job card to 1440px makes every line harder to read, not easier.
+// No effect on phones, where there is only ever one column.
+function shell(title, body, fab, opts) {
+  const cls = (opts && opts.narrow) ? 'content narrow' : 'content';
+  root().innerHTML = topbar(title) + `<div class="${cls}">${body}</div>` +
     (fab ? `<button class="fab" data-act="${fab.act}">${fab.icon}</button>` : '') + bottomnav();
   bind();
 }
+const NARROW = { narrow: true };
 
 /* ----- Home / dashboard ----- */
 function fmtToday() { return new Date().toLocaleDateString('en-IN', { weekday: 'short', day: '2-digit', month: 'short' }); }
@@ -1837,6 +1922,8 @@ function viewJobDetail(id) {
     ${j.notes ? `<div class="small muted" style="margin-top:8px">📝 ${esc(j.notes)}</div>` : ''}
   </div>`;
 
+  body += serviceRecordCard(j, canEdit);
+
   // Photos — the proof-of-work fix
   body += `<div class="card">${photoStrip(j, 'beforePhotos', editable)}<div class="spacer"></div>${photoStrip(j, 'afterPhotos', editable || canAddProof)}
     <div class="tiny muted" style="margin-top:8px">⚠️ ${t('addPhotoNote')}</div></div>`;
@@ -1892,7 +1979,7 @@ function viewJobDetail(id) {
   const actions = actionsForJob(j, editable);
   if (actions) body += `<div class="card">${actions}</div>`;
 
-  shell('Job Card', body);
+  shell('Job Card', body, null, NARROW);
 }
 
 // All action buttons shown on a job card, in one place so edit/reassign,
@@ -2351,7 +2438,7 @@ function viewPartDetail(id) {
       <span class="tiny muted">${fmtDateTime(m.at)}</span></div>`;
   }).join('') : `<div class="muted small">No movement</div>`;
   body += `</div>`;
-  shell(esc(p.name), body);
+  shell(esc(p.name), body, null, NARROW);
 }
 
 /* ===== Rotable components — tyres, alternators & other refurbishable units ====
@@ -2707,7 +2794,7 @@ function viewMe() {
       </div></div>`;
   }
 
-  shell(t('me'), body);
+  shell(t('me'), body, null, NARROW);
 }
 
 /* ----------------------------- Attendance flow ---------------------------- */
@@ -2880,20 +2967,37 @@ function viewNewJob(prefill = {}) {
       <textarea id="f-prob" placeholder="e.g. Front brakes weak, pulls left">${esc(prefill.problem || '')}</textarea></label></div>
     <div class="card"><div class="lbl" style="margin-bottom:8px">🚩 Priority</div>
       <div style="display:flex;gap:8px">${seg('high', '🔴 High')}${seg('medium', '🟡 Medium')}${seg('low', '🟢 Low')}</div></div>
-    <div class="card"><label class="field"><span class="lbl">👷 Assign to</span>
-      <select id="f-mech">${assignees.map((m) => `<option value="${m.id}">${esc(m.name)}</option>`).join('')}</select></label></div>
-    <div class="card"><label class="field"><span class="lbl">🏪 Outside vendor (optional)</span>
-      <input id="f-vendor" placeholder="Leave blank if done in-house"></label>
+    <div class="card"><label class="field"><span class="lbl">👷 Work done by</span>
+      <select id="f-mech">${assignees.map((m) => `<option value="${m.id}">${esc(m.name)}</option>`).join('')}</select></label>
+      <div class="tiny muted">Who is on the job. They do not log in — you keep the card for them.</div></div>
+    <div class="card"><div class="lbl" style="margin-bottom:8px">🕒 Workshop clock</div>
+      <label class="field"><span class="lbl">📅 Date</span><input id="f-jdate" type="date" value="${msToYMD()}"></label>
+      <div class="grid2" style="margin-top:8px">
+        <label class="field"><span class="lbl">⬇️ Enter time</span><input id="f-enter" type="time" value="${msToHHMM(Date.now())}"></label>
+        <label class="field"><span class="lbl">▶️ Job start time</span><input id="f-start" type="time"></label></div>
+      <div class="tiny muted" style="margin-top:6px">Enter time is when the bus reached the garage. Job start is when work actually began — leave it blank if it hasn't.</div>
+      <label class="field" style="margin-top:8px"><span class="lbl">🛞 Odometer (km)</span>
+        <input id="f-odo" type="number" inputmode="numeric" placeholder="e.g. 487200" value="${(byId(buses, sel) || {}).odometer || ''}"></label></div>
+    <div class="card"><label class="field"><span class="lbl">🏪 Outside vendor / workshop (optional)</span>
+      <input id="f-vendor" placeholder="e.g. Noida Eicher workshop — blank if done in-house"></label>
       <div class="grid2" style="margin-top:8px">
         <label class="field"><span class="lbl">₹ Outside cost</span><input id="f-extcost" type="number" inputmode="numeric"></label>
         <label class="field"><span class="lbl">⏱️ Labour hours</span><input id="f-hrs" type="number" inputmode="decimal"></label></div></div>
     <div class="card"><label class="field"><span class="lbl">📝 Notes (optional)</span>
-      <textarea id="f-notes" placeholder="Any extra detail for the mechanic"></textarea></label></div>
+      <textarea id="f-notes" placeholder="Any extra detail about the work"></textarea></label></div>
     <button class="btn primary" data-act="saveJob" style="font-size:16px;padding:15px;margin-top:2px">✓ Create job card</button>
     <div class="spacer"></div>`;
-  shell('New job card', body);
+  shell('New job card', body, null, NARROW);
   const busSel = document.getElementById('f-bus');
-  if (busSel) busSel.addEventListener('change', () => { const rp = document.getElementById('f-reports'); if (rp) rp.innerHTML = reportPicklistRich(busSel.value); });
+  if (busSel) busSel.addEventListener('change', () => {
+    const rp = document.getElementById('f-reports'); if (rp) rp.innerHTML = reportPicklistRich(busSel.value);
+    // Re-seed the odometer from the newly picked bus, but never overwrite a
+    // reading the supervisor has already typed for this card.
+    const odo = document.getElementById('f-odo');
+    if (odo && !odo.dataset.touched) odo.value = (byId(S.cache.buses, busSel.value) || {}).odometer || '';
+  });
+  const odoEl = document.getElementById('f-odo');
+  if (odoEl) odoEl.addEventListener('input', () => { odoEl.dataset.touched = '1'; });
 }
 function setPrio(v) {
   const h = document.getElementById('f-prio'); if (h) h.value = v;
@@ -2910,14 +3014,24 @@ async function saveJob() {
   const presetId = ($('#f-reportId') || {}).value;
   if (presetId && !linkedReports.includes(presetId)) linkedReports.push(presetId);
   const jobId = uid('j-');
+  const ymd = ($('#f-jdate') || {}).value || msToYMD();
+  const enterAt = hhmmToMs(ymd, ($('#f-enter') || {}).value);
+  const startAt = hhmmToMs(ymd, ($('#f-start') || {}).value, enterAt);
+  const odometer = Number(($('#f-odo') || {}).value) || 0;
   await DB.put('jobcards', {
     id: jobId, busId, problem: prob, priority: $('#f-prio').value,
-    status: 'open', reportedBy: S.user.id, assignedTo,
+    // Work started already → the card opens in-progress rather than pretending
+    // nobody has touched it.
+    status: startAt ? 'in-progress' : 'open', reportedBy: S.user.id, assignedTo,
     beforePhotos: [], afterPhotos: [], partsUsed: [],
     labourHours: Number($('#f-hrs').value) || 0,
+    jobDate: ymd, enterAt, startAt, completeAt: null, outAt: null, odometer, remark: '',
     externalVendor: $('#f-vendor').value.trim(), externalCost: Number($('#f-extcost').value) || 0,
     reportIds: linkedReports, notes: ($('#f-notes') ? $('#f-notes').value.trim() : ''), createdAt: Date.now(), closedAt: null, verifiedBy: null,
   });
+  // A service reading is the freshest odometer we have for this bus; the ₹/km
+  // and mileage screens are blank without one, so let the job card feed them.
+  await noteOdometer(busId, odometer);
   // Tie the driver reports to this job (resolved when the job is verified).
   for (const rid of linkedReports) { const r = byId(S.cache.driverreports, rid); if (r && r.status === 'open') { r.jobId = jobId; await DB.put('driverreports', r); } }
   await load(); closeSheet(); toast(`Job created${linkedReports.length ? ` · ${linkedReports.length} report(s) linked` : ''}`); navTab('jobs');
@@ -3213,7 +3327,7 @@ function viewVendorDetail(id) {
     <span class="badge ${p.paymentStatus === 'paid' ? 'b-green' : 'b-amber'}">${p.paymentStatus}</span>
     ${p.billPhoto ? `<img class="thumb" style="width:42px;height:42px" src="${esc(p.billPhoto)}" data-act="viewPhoto" data-src="${esc(p.billPhoto)}">` : ''}</div>`).join('') : `<div class="muted small">No bills mapped yet.</div>`;
   body += `</div>`;
-  shell(esc(v.name), body);
+  shell(esc(v.name), body, null, NARROW);
 }
 const VENDOR_CATS = ['Parts', 'Tyre remould', 'Electricals', 'AdBlue/DEF', 'Lubricants', 'Fuel', 'Bodywork', 'Other'];
 function sheetAddVendor(id) {
@@ -3404,7 +3518,7 @@ function viewImport() {
     ${li ? `<div class="banner ${li.error ? 'warn' : 'ok'}" style="margin-top:6px">${esc(li.error || summary)}</div>` : ''}
   </div>`;
   body += `<div class="card"><div class="row between small"><span class="muted">In the system now</span><b>${(S.cache.parts || []).length} parts · ${(S.cache.vendors || []).length} vendors · ${(S.cache.buses || []).length} buses · ${activeDrivers().length} drivers · ${activeCrew().length - activeDrivers().length} conductors</b></div></div>`;
-  shell('Import from Excel', body);
+  shell('Import from Excel', body, null, NARROW);
   const inp = document.getElementById('imp-file');
   if (inp) inp.onchange = () => { const f = inp.files && inp.files[0]; if (f) handleImportFile(f); };
 }
@@ -3563,20 +3677,39 @@ function sheetStaff() {
       <label class="field"><span class="lbl">Name</span><input id="f-sname" placeholder="e.g. Rakesh"></label>
       <div class="grid2">
         <label class="field"><span class="lbl">Role</span><select id="f-srole">
-          <option value="mechanic">Mechanic</option><option value="store">Store</option><option value="driver">Driver</option>
+          <option value="mechanic">Mechanic — no login, for assigning work</option><option value="store">Store</option><option value="driver">Driver</option>
           ${S.user.role === 'owner' ? '<option value="crewmanager">Crew Manager — duty board + crew bank only</option><option value="supervisor">Supervisor</option>' : ''}</select></label>
-        <label class="field"><span class="lbl">4-digit PIN</span><input id="f-spin" inputmode="numeric" maxlength="4" placeholder="0000"></label>
+        <label class="field" id="f-spinwrap"><span class="lbl">4-digit PIN</span><input id="f-spin" inputmode="numeric" maxlength="4" placeholder="0000"></label>
       </div>
-      <div class="tiny muted" style="margin-bottom:10px">Account is created on the server and appears on every device.</div>
+      <div class="tiny muted" id="f-shint" style="margin-bottom:10px">Account is created on the server and appears on every device.</div>
       <button class="btn primary" data-act="saveStaff">Create account</button>
-    </div>`);
+    </div>`, (wrap) => {
+      // A mechanic never signs in, so asking for a PIN would mint one more unused
+      // credential. Hide the field for those roles and say what is being created.
+      const rl = wrap.querySelector('#f-srole'), pw = wrap.querySelector('#f-spinwrap'), hint = wrap.querySelector('#f-shint');
+      const sync = () => {
+        const noLogin = NO_LOGIN_ROLES.has(rl.value);
+        if (pw) pw.style.display = noLogin ? 'none' : '';
+        if (hint) hint.textContent = noLogin
+          ? 'Added to the team so work can be assigned to them. They do not sign in — the supervisor keeps their job cards.'
+          : 'Account is created on the server and appears on every device.';
+      };
+      if (rl) { rl.addEventListener('change', sync); sync(); }
+    });
 }
 async function saveStaff() {
   if (!can(S.user.role, 'manageStaff')) return toast('Only the owner or supervisor can do this');
   const name = $('#f-sname').value.trim();
   let role = $('#f-srole').value;
-  const pin = $('#f-spin').value.trim();
-  if (!name || !/^\d{4}$/.test(pin)) return toast('Enter a name and 4-digit PIN');
+  // Roles that never sign in get no PIN at all — a credential nobody uses is
+  // only an unguarded door. The server still needs a value, so send a random one
+  // that is never shown, cached or reused.
+  const noLogin = NO_LOGIN_ROLES.has(role);
+  const pin = noLogin
+    ? String(Math.floor(1000 + Math.random() * 9000))
+    : $('#f-spin').value.trim();
+  if (!name) return toast('Enter a name');
+  if (!noLogin && !/^\d{4}$/.test(pin)) return toast('Enter a name and 4-digit PIN');
   // Only the owner may create supervisors/owners — never trust the form alone.
   if (role !== 'mechanic' && role !== 'store' && role !== 'driver' && S.user.role !== 'owner') {
     return toast('Only the owner can create that role');
@@ -3584,10 +3717,12 @@ async function saveStaff() {
   try {
     const user = await Sync.addStaff({ name, role, pin });
     await DB.put('users', user);               // synced roster carries NO pin
-    credSet(user.id, pin);                      // cache on this (the owner's) device only
+    // Never cache a PIN for someone who cannot sign in — caching it is what
+    // would make the throwaway value above reachable.
+    if (!noLogin) credSet(user.id, pin);        // cache on this (the owner's) device only
     await load();
     closeSheet();
-    toast(`${name} added — they must first sign in online on each device`);
+    toast(noLogin ? `${name} added to the team` : `${name} added — they must first sign in online on each device`);
     rerender();
   } catch (e) {
     toast(Sync.info().authed ? 'Could not reach server' : 'Sign in online first to add staff');
@@ -3892,7 +4027,16 @@ function maintForecast(b) {
     detail: dl < 0 ? `expired ${-dl}d` : `expires in ${dl}d`, daysLeft: dl, status: dl < 0 ? 'overdue' : dl <= 14 ? 'soon' : 'ok' }); });
   return items.sort((a, c) => a.daysLeft - c.daysLeft);
 }
-const jobDownDays = (j) => Math.max(0, ((j.closedAt || (['open', 'in-progress'].includes(j.status) ? Date.now() : j.createdAt)) - j.createdAt) / day);
+// Downtime, best source first. Enter→Out is what the supervisor actually wrote
+// down and is the honest figure; created→closed is only a proxy for it (a card
+// opened the day before the bus arrives overstates downtime badly). Fall back to
+// the proxy so jobs recorded before the workshop clock existed still count.
+function jobDownDays(j) {
+  if (j.enterAt && j.outAt && j.outAt >= j.enterAt) return (j.outAt - j.enterAt) / day;
+  if (j.enterAt && ['open', 'in-progress'].includes(j.status)) return Math.max(0, (Date.now() - j.enterAt) / day);
+  const end = j.closedAt || (['open', 'in-progress'].includes(j.status) ? Date.now() : j.createdAt);
+  return Math.max(0, (end - j.createdAt) / day);
+}
 function busDownDays(b, since) {
   return (S.cache.jobs || []).filter((j) => j.busId === b.id && (!since || (j.closedAt || j.createdAt) >= since))
     .reduce((s, j) => s + jobDownDays(j), 0);
@@ -4427,6 +4571,94 @@ function photoGateReady(job) {
 // viewJobDetail and adds ONE call site: partsCardExtras(j). It renders the
 // "Need a part" request flow plus any pending requests and (for the assigned
 // mechanic) the close-with-hours button + photo-gate checklist.
+/* The paper job card, on screen. Four moments and the gaps between them, so the
+ * supervisor can see at a glance that a bus lost eight hours to gain six and a
+ * half of work — the idle stretch is the part worth arguing about. */
+function serviceRecordCard(j, canEdit) {
+  const T = jobTimes(j);
+  const idle = jobIdleMs(j);
+  const row = (icon, label, ts, dur, durLabel) => `
+    <div class="row between small" style="padding:5px 0">
+      <span>${icon} ${esc(label)}</span>
+      <b class="money">${ts ? msToHHMM(ts) : '—'}</b>
+    </div>
+    ${dur != null ? `<div class="row between tiny muted" style="padding:0 0 5px 18px;border-left:2px solid var(--line);margin-left:6px">
+      <span>${esc(durLabel)}</span><span>${fmtDur(dur)}</span></div>` : ''}`;
+
+  let h = `<div class="card"><div class="row between"><h3>🕒 Service record</h3>
+    ${canEdit ? `<button class="btn sm" data-act="editService" data-job="${j.id}">✏️ Edit</button>` : ''}</div>`;
+
+  if (!j.enterAt && !j.startAt && !j.completeAt && !j.outAt) {
+    h += `<div class="muted small">No times recorded yet.${canEdit ? ' Tap Edit to fill in the workshop clock.' : ''}</div>`;
+  } else {
+    h += `<div class="tiny muted" style="margin-bottom:4px">${esc(j.jobDate || msToYMD(j.enterAt || j.createdAt))}</div>`;
+    h += row('⬇️', 'Enter time', j.enterAt, T.waitBefore, 'waiting to start');
+    h += row('▶️', 'Job start time', j.startAt, T.working, 'working');
+    h += row('⏹️', 'Job completion', j.completeAt, T.waitAfter, 'waiting to leave');
+    h += row('⬆️', 'Out time', j.outAt, null, '');
+    h += `<div class="hr"></div>`;
+    h += `<div class="row between small"><span>🚌 Bus off the road</span><b>${fmtDur(T.offRoad)}</b></div>`;
+    h += `<div class="row between small"><span>🔧 Actually worked on</span><b>${fmtDur(T.working)}</b></div>`;
+    if (idle != null && idle > 0) {
+      // The one number a supervisor can act on: hours the bus sat in the yard
+      // with nobody on it. Amber past an hour, because that is a shift decision
+      // rather than a rounding error.
+      h += `<div class="row between small"><span>⏳ Idle in the workshop</span>
+        <b style="color:${idle >= 3600000 ? 'var(--amber)' : 'var(--mute,#5d6675)'}">${fmtDur(idle)}</b></div>`;
+    }
+  }
+  if (j.odometer) h += `<div class="row between small" style="margin-top:6px"><span>🛞 Odometer</span><b>${Number(j.odometer).toLocaleString('en-IN')} km</b></div>`;
+  if (j.remark) h += `<div class="small muted" style="margin-top:8px">🗒️ ${esc(j.remark)}</div>`;
+  h += `</div>`;
+  return h;
+}
+
+// Edit the workshop clock after the fact — a slip written on paper at 6pm gets
+// typed in the next morning, and the times must still be the real ones.
+function sheetEditService(jobId) {
+  const j = byId(S.cache.jobs, jobId);
+  if (!j) return;
+  if (!['owner', 'supervisor'].includes(S.user.role)) return toast('Not allowed');
+  const ymd = j.jobDate || msToYMD(j.enterAt || j.createdAt);
+  openSheet('Service record', `
+    <label class="field"><span class="lbl">📅 Date</span><input id="sv-date" type="date" value="${esc(ymd)}"></label>
+    <div class="grid2" style="margin-top:8px">
+      <label class="field"><span class="lbl">⬇️ Enter time</span><input id="sv-enter" type="time" value="${msToHHMM(j.enterAt)}"></label>
+      <label class="field"><span class="lbl">▶️ Job start</span><input id="sv-start" type="time" value="${msToHHMM(j.startAt)}"></label>
+      <label class="field"><span class="lbl">⏹️ Completion</span><input id="sv-complete" type="time" value="${msToHHMM(j.completeAt)}"></label>
+      <label class="field"><span class="lbl">⬆️ Out time</span><input id="sv-out" type="time" value="${msToHHMM(j.outAt)}"></label>
+    </div>
+    <label class="field" style="margin-top:8px"><span class="lbl">🛞 Odometer (km)</span>
+      <input id="sv-odo" type="number" inputmode="numeric" value="${j.odometer || ''}"></label>
+    <label class="field"><span class="lbl">🗒️ Remark</span>
+      <input id="sv-remark" value="${esc(j.remark || '')}" placeholder="e.g. Rep. at Noida Eicher workshop"></label>
+    <div class="tiny muted">Leave a time blank if it has not happened yet.</div>
+    <button class="btn primary" data-act="saveService" data-job="${jobId}" style="margin-top:10px">Save</button>`);
+}
+
+async function saveService(jobId) {
+  const j = byId(S.cache.jobs, jobId);
+  if (!j) return;
+  if (!['owner', 'supervisor'].includes(S.user.role)) return toast('Not allowed');
+  const ymd = ($('#sv-date') || {}).value || msToYMD(j.enterAt || j.createdAt);
+  // Chained so each moment is anchored to the previous one; an overnight job
+  // rolls forward instead of producing a negative span.
+  const enterAt = hhmmToMs(ymd, ($('#sv-enter') || {}).value);
+  const startAt = hhmmToMs(ymd, ($('#sv-start') || {}).value, enterAt);
+  const completeAt = hhmmToMs(ymd, ($('#sv-complete') || {}).value, startAt || enterAt);
+  const outAt = hhmmToMs(ymd, ($('#sv-out') || {}).value, completeAt || startAt || enterAt);
+  const odo = Number(($('#sv-odo') || {}).value) || 0;
+  Object.assign(j, { jobDate: ymd, enterAt, startAt, completeAt, outAt,
+    remark: (($('#sv-remark') || {}).value || '').trim() });
+  if (odo > 0) j.odometer = odo;
+  // Started but not yet closed → reflect that on the board rather than leaving
+  // it sitting in "open" while someone is under the bus.
+  if (startAt && j.status === 'open') j.status = 'in-progress';
+  await DB.put('jobcards', j);
+  await noteOdometer(j.busId, odo);
+  await load(); closeSheet(); toast('Service record saved ✓'); viewJobDetail(jobId);
+}
+
 function partsCardExtras(job) {
   let h = '';
   const mine = job.assignedTo === S.user.id;
@@ -4448,8 +4680,12 @@ function partsCardExtras(job) {
         <span>🙋 ${esc(p ? p.name : (r.partName || r.partId))} × ${r.qty || 1}</span>${fulfil}</div>`;
     }).join('');
   }
-  // Photo-gate checklist + close-with-hours for the assigned mechanic.
-  if (mine && (job.status === 'open' || job.status === 'in-progress')) {
+  // Photo-gate checklist + close-with-hours. This used to be for the assigned
+  // mechanic only, which left it unreachable once mechanics stopped logging in —
+  // the supervisor keeps the card on their behalf, so whoever may edit the job
+  // closes it.
+  const mayClose = mine || ['owner', 'supervisor'].includes(S.user.role);
+  if (mayClose && (job.status === 'open' || job.status === 'in-progress')) {
     h += `<div class="hr"></div>${photoGateChecklist(job)}`;
     const ready = photoGateReady(job);
     h += `<button class="btn primary" data-act="closeJob" data-job="${job.id}" style="margin-top:8px${ready ? '' : ';opacity:.5'}"${ready ? '' : ' disabled'}>✅ ${t('closeJobBtn')}</button>`;
@@ -4506,7 +4742,23 @@ function sheetCloseJob(jobId) {
     return openSheet(t('closeJobBtn'), `<div class="banner warn">⚠️ ${t('addPhotoNote')}</div>`);
   }
   const hrs = j.labourHours || 2;
+  const now = msToHHMM(Date.now());
   openSheet(t('closeJobBtn'), `
+    <div class="lbl">🕒 Workshop clock</div>
+    <label class="field" style="margin-top:6px"><span class="lbl">📅 Date</span>
+      <input id="f-cjdate" type="date" value="${esc(j.jobDate || msToYMD(j.enterAt || j.createdAt))}"></label>
+    <div class="grid2" style="margin-top:8px">
+      <label class="field"><span class="lbl">⏹️ Job completion time</span>
+        <input id="f-complete" type="time" value="${msToHHMM(j.completeAt) || now}"></label>
+      <label class="field"><span class="lbl">⬆️ Out time</span>
+        <input id="f-out" type="time" value="${msToHHMM(j.outAt)}"></label>
+    </div>
+    <div class="tiny muted" style="margin-top:6px">Completion is when work finished. Out time is when the bus actually left — leave it blank if it is still standing here.</div>
+    <label class="field" style="margin-top:10px"><span class="lbl">🛞 Odometer (km)</span>
+      <input id="f-codo" type="number" inputmode="numeric" value="${j.odometer || ''}" placeholder="reading at service"></label>
+    <label class="field"><span class="lbl">🗒️ Remark</span>
+      <input id="f-remark" value="${esc(j.remark || '')}" placeholder="e.g. Rep. at Noida Eicher workshop"></label>
+    <div class="hr"></div>
     <div class="lbl">${t('closeJobHours')}</div>
     <div class="row" style="gap:14px;align-items:center;justify-content:center;margin:10px 0">
       <button class="btn" data-act="hrsStep" data-dir="-1" style="font-size:24px;min-width:56px">−</button>
@@ -4528,8 +4780,20 @@ async function confirmCloseJob(jobId) {
   if (!photoGateReady(j)) { closeSheet(); return toast(t('photoGateBefore')); }
   const el = $('#f-hrs');
   j.labourHours = el ? (Number(el.getAttribute('data-hrs')) || j.labourHours || 0) : (j.labourHours || 0);
-  j.status = 'done'; j.closedAt = Date.now();
+  const ymd = ($('#f-cjdate') || {}).value || j.jobDate || msToYMD(j.enterAt || j.createdAt);
+  j.jobDate = ymd;
+  // Each moment must land after the one before it. An overnight job completing
+  // at 01:30 belongs to the next morning, not to twenty hours earlier the same
+  // day — hhmmToMs rolls it forward rather than producing a negative duration.
+  j.completeAt = hhmmToMs(ymd, ($('#f-complete') || {}).value, j.startAt || j.enterAt);
+  j.outAt = hhmmToMs(ymd, ($('#f-out') || {}).value, j.completeAt || j.startAt || j.enterAt);
+  j.remark = (($('#f-remark') || {}).value || '').trim();
+  const odo = Number(($('#f-codo') || {}).value) || 0;
+  if (odo > 0) j.odometer = odo;
+  j.status = 'done'; j.closedAt = j.completeAt || Date.now();
+  j.closedBy = S.user.id;      // who signed it off — verify checks this
   await DB.put('jobcards', j);
+  await noteOdometer(j.busId, odo);
   await load(); closeSheet(); toast(t('closeJobDone')); viewJobDetail(jobId);
 }
 
@@ -4545,12 +4809,20 @@ async function markDone(jobId) {
     return toast('⚠️ Add before AND after photos first');
   }
   j.status = 'done'; j.closedAt = Date.now();
+  j.closedBy = S.user.id;
   await DB.put('jobcards', j);
   await load(); toast('Marked done — waiting for verify'); viewJobDetail(jobId);
 }
 async function verifyJob(jobId) {
   if (!can(S.user.role, 'verifyJob')) return toast(t('cbNotAllowed'));
   const j = byId(S.cache.jobs, jobId);
+  // Two pairs of eyes. Separation used to come for free — a mechanic closed the
+  // job and a supervisor verified it. With mechanics off the app the supervisor
+  // does both, and a sign-off on your own work checks nothing. So whoever closed
+  // it cannot be the one to verify it; the owner (or another supervisor) does.
+  if (j.closedBy && j.closedBy === S.user.id) {
+    return toast('You closed this job — someone else must verify it');
+  }
   // Verification = signing off that the work is real. Enforce the same proof
   // rule as Mark Done so nobody can verify a job with no evidence.
   const hasProof = j.externalVendor
@@ -6558,6 +6830,8 @@ function bind() {
       case 'saveRequestPart': return saveRequestPart(el.getAttribute('data-job'));
       case 'fulfilRequest': return fulfilRequest(el.getAttribute('data-job'), el.getAttribute('data-req'));
       case 'closeJob': return sheetCloseJob(el.getAttribute('data-job'));
+      case 'editService': return sheetEditService(el.getAttribute('data-job'));
+      case 'saveService': return saveService(el.getAttribute('data-job'));
       case 'confirmCloseJob': return confirmCloseJob(el.getAttribute('data-job'));
       case 'hrsStep': return hrsStep(el.getAttribute('data-dir'));
       case 'addPhotoSafe': return addJobPhotoSafe(el.getAttribute('data-job'), el.getAttribute('data-field'));
@@ -6791,6 +7065,15 @@ async function testNotification() {
 }
 
 const ROLE_META = { owner: ['👑', 'Owner'], supervisor: ['🧑‍🔧', 'Supervisor'], crewmanager: ['🗂️', 'Crew Manager'], store: ['📦', 'Store'], mechanic: ['🔧', 'Mechanic'], driver: ['🧑‍✈️', 'Driver'], conductor: ['🎫', 'Conductor'] };
+
+// Roles that exist as PEOPLE but not as logins.
+//
+// Mechanics never wanted to keep the paperwork, and a login nobody uses is just
+// an unguarded door — so they were taken off the login screen. They are still
+// first-class records: jobs are assigned to them, the scorecard ranks them and
+// the pilferage radar scores them. Only the sign-in went away. The supervisor
+// keeps the job card on their behalf.
+const NO_LOGIN_ROLES = new Set(['mechanic']);
 const roleEmoji = (r) => (ROLE_META[r] || ['🔧'])[0];
 // Step 1 — pick your role. (Keeps the list manageable across a big fleet.)
 // Prominent bilingual switch shown on every login step (spec C5).
@@ -6834,8 +7117,10 @@ function renderLogin() {
   _pinUser = null; _pin = '';
   const users = S.cache.users || [];
   const counts = {}; users.forEach((u) => { counts[u.role] = (counts[u.role] || 0) + 1; });
-  const roles = Object.keys(ROLE_META).filter((r) => counts[r]);
-  const recent = recentUsers();
+  const roles = Object.keys(ROLE_META).filter((r) => counts[r] && !NO_LOGIN_ROLES.has(r));
+  // A mechanic on a recent-users tile would walk straight past the role picker,
+  // so filter that list too.
+  const recent = recentUsers().filter((u) => !NO_LOGIN_ROLES.has(u.role));
   root().innerHTML = `<div class="login">
     <div class="row" style="width:100%;max-width:420px;justify-content:center">${langSwitch()}</div>
     <div class="bigicon">🚌</div>
