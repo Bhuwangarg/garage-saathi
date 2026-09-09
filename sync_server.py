@@ -433,6 +433,14 @@ def db():
             PRIMARY KEY(store, id))""")
         c.execute("""CREATE TABLE IF NOT EXISTS users(
             id TEXT PRIMARY KEY, name TEXT, role TEXT, salt TEXT, pin_hash TEXT)""")
+        # When this account last authenticated. Without it two accounts with the
+        # same name are indistinguishable, and deciding which of them to delete
+        # means guessing — which is how you lock somebody out of their own app.
+        # ALTER on an existing table, so a deployed database picks it up.
+        try:
+            c.execute("ALTER TABLE users ADD COLUMN last_login BIGINT")
+        except Exception:
+            pass
         c.execute("""CREATE TABLE IF NOT EXISTS pushsubs(
             endpoint TEXT PRIMARY KEY, sub TEXT, role TEXT, at BIGINT)""")
         # Private server-side key/value — NOT exposed via /pull (which only reads `records`).
@@ -624,6 +632,21 @@ def do_login(user_id, pin):
     c.close()
     if not row or hash_pin(row[3], pin) != row[4]:
         return None
+    # Stamp the login, and push it through the synced roster rather than widening
+    # the public /roster: when an account was last used is operational data for
+    # whoever manages staff, and `users` is only readable with a token.
+    now = now_ms()
+    try:
+        with _lock:
+            c2 = db()
+            c2.execute("UPDATE users SET last_login=? WHERE id=?", (now, row[0]))
+            rev = c2.execute("SELECT COALESCE(MAX(rev),0) FROM records").fetchone()[0]
+            _upsert_record(c2, "users", row[0],
+                           {"id": row[0], "name": row[1], "role": row[2], "lastLoginAt": now}, now, rev)
+            c2.commit()
+            c2.close()
+    except Exception:
+        pass          # a login must never fail because bookkeeping did
     return {"token": _make_token(row[0]), "user": {"id": row[0], "name": row[1], "role": row[2]}}
 
 

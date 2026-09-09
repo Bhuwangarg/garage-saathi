@@ -3784,14 +3784,20 @@ function sheetStaff() {
       ${users.map((u) => {
         const dupe = users.filter((o) => _nameKey(o.name) === _nameKey(u.name)).length > 1;
         const self = u.id === S.user.id;
+        // Which of two identical names is the live one? The last login answers
+        // it, and among duplicates the most recent is highlighted, because that
+        // is the account somebody is actually signing in with.
+        const seen = u.lastLoginAt || 0;
+        const newest = dupe && seen && seen === Math.max(...users.filter((o) => _nameKey(o.name) === _nameKey(u.name)).map((o) => o.lastLoginAt || 0));
         return `<div class="li"><div class="ava">${roleEmoji(u.role)}</div>
-        <div class="main"><div class="t">${esc(u.name)}${dupe ? ' <span class="badge b-amber">duplicate</span>' : ''}</div>
-          <div class="s">${esc(u.role)} · <span class="tiny muted">${esc(u.id)}</span>${self ? ' · you' : ''}</div></div>
+        <div class="main"><div class="t">${esc(u.name)}${dupe ? ' <span class="badge b-amber">duplicate</span>' : ''}${newest ? ' <span class="badge b-green">in use</span>' : ''}</div>
+          <div class="s">${esc(u.role)} · <span class="tiny muted">${esc(u.id)}</span>${self ? ' · you' : ''}</div>
+          <div class="tiny muted">${seen ? 'last signed in ' + timeAgo(seen) : 'never signed in'}</div></div>
         ${canRemoveStaff(u) ? `<button class="btn sm ghost" data-act="removeStaff" data-id="${esc(u.id)}" style="width:auto">Remove</button>` : ''}</div>`;
       }).join('')}
     </div>
     ${users.filter((u) => users.filter((o) => _nameKey(o.name) === _nameKey(u.name)).length > 1).length
-      ? `<div class="tiny muted" style="margin:-6px 0 12px">Two accounts with the same name are two different logins. Remove the ones nobody uses — check with the person which PIN works before removing any.</div>` : ''}
+      ? `<div class="tiny muted" style="margin:-6px 0 12px">Two accounts with the same name are two different logins. The one marked <b>in use</b> is the one signed into most recently — keep that, remove the rest. If none is marked, nobody has signed in since this was added: ask the person to sign in once, then look again.</div>` : ''}
     <div class="card"><h3>Add staff</h3>
       <label class="field"><span class="lbl">Name</span><input id="f-sname" placeholder="e.g. Rakesh"></label>
       <div class="grid2">
