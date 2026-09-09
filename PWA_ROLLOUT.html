@@ -1,0 +1,138 @@
+<!-- Served to phones, so the Devanagari needs an explicit charset — see the note
+     at the top of TRAINING_MANUAL.html. Kept as HTML rather than the .md it began
+     as because _STATIC_OK in sync_server.py is an allow-list of extensions, and
+     adding .md would publish every internal doc at the repo root. -->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Garage Saathi — moving phones to the web app</title>
+<style>
+:root{
+  --paper:#F5F7FA; --card:#FFFFFF; --ink:#141922; --ink2:#39424F; --mute:#67707F;
+  --line:#DCE2EA; --plate:#F2B705; --plate-ink:#3B2C00; --stop:#CF3A3E; --stop-wash:#FBE9E9;
+  --go:#12855C; --go-wash:#E3F4EC; --warn-wash:#FBF0DE; --warn:#B06A00;
+  --shadow:0 1px 2px rgba(20,25,34,.05),0 6px 18px -10px rgba(20,25,34,.18);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --paper:#0E1219; --card:#161C26; --ink:#EAEEF4; --ink2:#C0C8D4; --mute:#8B95A5;
+  --line:#262E3B; --stop-wash:#2A1A1C; --go-wash:#132A22; --warn-wash:#2A2214;
+}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);line-height:1.65;
+  font-family:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  -webkit-text-size-adjust:100%}
+.hi{font-family:"IBM Plex Sans Devanagari","Noto Sans Devanagari",system-ui,sans-serif;line-height:1.8}
+.wrap{max-width:760px;margin:0 auto;padding:22px 16px 60px}
+header.top{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:18px}
+.logo{width:38px;height:38px;border-radius:12px;background:var(--ink);color:var(--paper);
+  display:grid;place-items:center;font-weight:800;font-size:13px;flex:none}
+h1{font-size:23px;line-height:1.25;margin:0;letter-spacing:-.4px}
+h2{font-size:17px;margin:0 0 10px;letter-spacing:-.2px}
+.sub{color:var(--mute);font-size:13.5px;margin-top:2px}
+.sec{background:var(--card);border:1px solid var(--line);border-radius:16px;
+  padding:18px 18px 16px;margin-bottom:14px;box-shadow:var(--shadow)}
+p{margin:0 0 11px}
+ol,ul{margin:0 0 11px;padding-left:22px}
+li{margin-bottom:7px}
+code,.url{font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  font-size:13px;background:rgba(127,140,160,.13);padding:2px 6px;border-radius:6px;word-break:break-all}
+.url{display:inline-block;margin:4px 0}
+.ui{font-weight:600;background:rgba(127,140,160,.13);padding:1px 7px;border-radius:6px;font-size:13.5px;white-space:nowrap}
+.note{border-radius:14px;padding:14px 15px;margin:12px 0 4px}
+.note.stop{background:var(--stop-wash);border:1px solid rgba(207,58,62,.32)}
+.note.warn{background:var(--warn-wash);border:1px solid rgba(176,106,0,.30)}
+.note.go{background:var(--go-wash);border:1px solid rgba(18,133,92,.28)}
+.tag{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;
+  margin-bottom:7px;color:var(--warn)}
+.note.stop .tag{color:var(--stop)} .note.go .tag{color:var(--go)}
+.plate{display:inline-block;background:var(--plate);color:var(--plate-ink);font-weight:800;
+  padding:2px 9px;border-radius:6px;font-size:13px}
+.muted{color:var(--mute);font-size:13px}
+button{font:inherit;font-weight:600;border:1px solid var(--line);background:var(--card);
+  color:var(--ink);border-radius:999px;padding:8px 16px;cursor:pointer}
+@media print{
+  body{background:#fff} .sec{box-shadow:none;break-inside:avoid} button{display:none}
+}
+</style>
+
+<div class="wrap">
+<header class="top">
+  <div class="logo">GS</div>
+  <div style="flex:1;min-width:200px">
+    <h1>Moving staff phones to the web app</h1>
+    <div class="sub">Garage Saathi · decided 9 September 2026</div>
+  </div>
+  <button onclick="print()">Print / प्रिंट</button>
+</header>
+
+<div class="sec">
+  <h2>Why we are doing this</h2>
+  <p>The installed Android/iPhone app carries its <b>own frozen copy</b> of the code. It never
+  fetches anything from the server, so <b>no update can reach it</b> — however many times we fix
+  something.</p>
+  <p>On 9 September the copy inside it was dated <b>2 August</b>. Five weeks old. It had no crew
+  bank, no Crew Manager login, and none of the sync repairs. A phone running it could not show a
+  person added that week, and — because the old code reported an expired session as
+  “Offline” — it had quietly stopped receiving anything at all while still looking like it worked.</p>
+  <p>The web app has no such gap. It checks for new code every time it opens online, so a fix
+  reaches every phone on its own.</p>
+</div>
+
+<div class="sec">
+  <h2>What each person does, once</h2>
+  <p>Open <b>Chrome</b> on Android, or <b>Safari</b> on iPhone — on an iPhone it must be Safari,
+  Chrome cannot do this — and go to:</p>
+  <div class="url">https://garage-saathi-sync.vercel.app</div>
+  <ol>
+    <li><b>Android:</b> ⋮ menu → <span class="ui">Install app</span> (or <span class="ui">Add to Home screen</span>).</li>
+    <li><b>iPhone:</b> Share button → <span class="ui">Add to Home Screen</span>.</li>
+    <li>Open it from the new icon, and <b>log in once while the internet is on</b>, so the phone gets a session and pulls the staff list.</li>
+  </ol>
+  <div class="note go">
+    <span class="tag">Read this out to staff · स्टाफ़ को यही बताइए</span>
+    <p class="hi" style="margin:0">क्रोम में (आईफ़ोन पर सफ़ारी में) यह पता खोलिए, मेन्यू से
+    <b>होम स्क्रीन पर जोड़ें</b> दबाइए, फिर नए आइकन से ऐप खोलकर एक बार इंटरनेट चालू रखते हुए
+    लॉगिन कीजिए। पुराना ऐप फ़ोन से हटा दीजिए।</p>
+  </div>
+</div>
+
+<div class="sec">
+  <h2>Then delete the old app</h2>
+  <div class="note stop">
+    <span class="tag">This is the step that matters</span>
+    <p style="margin:0 0 9px">Uninstall <span class="plate">Garage Saathi</span>
+    (<code>com.mahalaxmi.garagesaathi</code>) from every phone.</p>
+    <p style="margin:0">Both icons look the same. A phone left on the old one keeps showing
+    five-week-old data and <b>gets no warning</b> — its code is frozen, and the only message the
+    server can make it display is a PIN lockout. There is no way to tell it to update.
+    Removing it is the only reliable fix.</p>
+  </div>
+</div>
+
+<div class="sec">
+  <h2>Checking a phone is on the new one</h2>
+  <p>Open <span class="ui">Me</span> → <span class="ui">Sync</span>.</p>
+  <ul>
+    <li>If there is a <span class="ui">⤓ Re-download everything</span> button, the phone is
+      running current code. That button only exists in the new version, so seeing it is proof.</li>
+    <li>If it is missing, they are still on the old app — check which icon they opened.</li>
+  </ul>
+  <div class="note warn">
+    <span class="tag">While you are on that screen</span>
+    <p style="margin:0"><b>Status</b> now tells the truth. “Signed out — log in again to sync”
+    means exactly that; it used to be hidden behind the word “Offline”, which is how a phone
+    could stop receiving records for days without anybody noticing.</p>
+  </div>
+</div>
+
+<div class="sec">
+  <h2>Do not sideload the old app again</h2>
+  <p><code>mobile/</code> stays in the repo as a working native project, but it is
+  <b>not maintained</b> and its bundled copy is stale. Do not hand out a build from it without
+  first running <code>cd mobile &amp;&amp; npm run sync</code> to copy the current code in — and even
+  then, every future fix needs a rebuild and a reinstall on every phone, which is the problem
+  this change exists to end.</p>
+  <p class="muted">If a native app is ever wanted again, the maintainable shape is to set
+  <code>server.url</code> in <code>capacitor.config.json</code> to the deployed address, so the
+  shell loads the live app instead of carrying its own copy.</p>
+</div>
+</div>
