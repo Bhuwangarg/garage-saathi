@@ -7350,22 +7350,75 @@ function seedCreds() {
 // it applies once per data version on every device (fresh AND already-seeded),
 // and never floods the sync outbox (notify=false). Crew login PINs are planted
 // locally so drivers/conductors can sign in.
+/* The bundle is a STARTING POINT, never an authority.
+ *
+ * It used to blind-write every row and let bulkPut stamp updatedAt = now. Two
+ * things followed, and both were silent. A record archived or deleted elsewhere
+ * came back to life, because the bundle predates it and carries no status. And
+ * because the rewritten row was now the NEWEST copy anywhere, pull() — which
+ * only applies a server record that is newer by updatedAt — could never put it
+ * right again. The device stayed wrong permanently, and re-syncing did nothing.
+ *
+ * It fired on any device whose seed flag was missing: a fresh browser profile,
+ * an incognito window, cleared site data, or a bumped seed version.
+ *
+ * So: fill gaps only, never overwrite; count tombstones as known, so a deletion
+ * is not undone; and write with a low updatedAt so the server always wins. */
+async function seedFill(store, rows) {
+  if (!rows || !rows.length) return 0;
+  const known = new Set((await DB._rawAll(store)).map((x) => x && x.id));
+  const fresh = rows.filter((x) => x && !known.has(x.id))
+                    .map((x) => Object.assign({}, x, { updatedAt: x.updatedAt || 1 }));
+  if (fresh.length) await DB.bulkPut(store, fresh, false, false);
+  return fresh.length;
+}
+
 async function applyBundledSeed() {
   const seed = window.GS_SEED; if (!seed) return;
   const ver = 'gsSeed:' + (seed.version || '1');
   if (localStorage.getItem('gsSeedVer') === ver) return;
   try {
-    if (seed.vendors) await DB.bulkPut('vendors', seed.vendors, false);
-    if (seed.parts)   await DB.bulkPut('parts', seed.parts, false);
-    if (seed.buses)   await DB.bulkPut('buses', seed.buses, false);
-    if (seed.drivers) await DB.bulkPut('drivers', seed.drivers, false);
-    if (seed.users)   await DB.bulkPut('users', seed.users, false);
+    await seedFill('vendors', seed.vendors);
+    await seedFill('parts', seed.parts);
+    await seedFill('buses', seed.buses);
+    await seedFill('drivers', seed.drivers);
+    await seedFill('users', seed.users);
     // Overwrite so a PIN reset (e.g. everyone → 0000) reaches devices on the next
     // version. Only crew (driver/conductor) ids are in seed.creds.
     if (seed.creds) Object.keys(seed.creds).forEach((id) => credSet(id, seed.creds[id]));
     localStorage.setItem('gsSeedVer', ver);
   } catch (e) { console.error('Bundled seed failed:', e); }
 }
+/* Devices are already poisoned, and fixing the code does not fix them: rows the
+ * old seed rewrote still carry a fresh updatedAt, so the server can never
+ * correct them. Lower those rows back down once, then re-read the table.
+ *
+ * Order matters. Anything this device still owes the server is pushed FIRST, so
+ * lowering a timestamp cannot lose an edit that was never sent — after the push
+ * the server's copy IS that edit. And it only runs on a signed-in device; with no
+ * token there is nothing to push and nothing to re-read, so the flag stays unset
+ * and it tries again on a later boot. */
+async function healSeedClobberOnce() {
+  const V = 'gsSeedClobberHeal_v1';
+  try {
+    if (localStorage.getItem(V)) return;
+    const seed = window.GS_SEED; if (!seed) return;
+    if (!Sync.info().authed) return;                 // retry once signed in
+    localStorage.setItem(V, String(Date.now()));     // set before the work: never loop on a failure
+    try { await Sync.tick(); } catch (e) { /* offline — the lowering below still stands */ }
+    let lowered = 0;
+    for (const store of ['vendors', 'parts', 'buses', 'drivers', 'users']) {
+      const rows = seed[store]; if (!rows || !rows.length) continue;
+      const ids = new Set(rows.map((x) => x && x.id));
+      const local = await DB._rawAll(store);
+      const fix = local.filter((x) => x && ids.has(x.id) && (x.updatedAt || 0) > 1)
+                       .map((x) => Object.assign({}, x, { updatedAt: 1 }));
+      if (fix.length) { await DB.bulkPut(store, fix, false, false); lowered += fix.length; }
+    }
+    if (lowered) { try { await Sync.reset(); await load(); } catch (e) { /* next tick picks it up */ } }
+  } catch (e) { console.error('Seed-clobber heal failed:', e); }
+}
+
 // Link each bus to its Google Drive document folder (RC/Permit/Fitness/Insurance),
 // and create buses that only exist in Drive. Versioned + idempotent like the seed.
 async function applyDriveDocs() {
@@ -7530,6 +7583,7 @@ function userPhoto(u) { const d = crewForUser(u.id); return (d && d.photo) || nu
   }
   renderLogin();
   refreshRosterAtLogin();      // paint immediately, then pick up staff added elsewhere
+  healSeedClobberOnce();       // once per device: let the server correct seed-clobbered rows
   // Camera (selfies, job photos) and GPS only work over HTTPS (or localhost).
   // Warn loudly on a plain-http public host so it isn't a silent field failure.
   if (location.protocol === 'http:' && !isLocalHost()) {

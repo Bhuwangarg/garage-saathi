@@ -82,13 +82,16 @@ const DB = {
   },
   // Bulk insert/update in ONE transaction — for Excel/master imports (thousands
   // of rows). Stamps updatedAt and notifies onChange per record so they still sync.
-  async bulkPut(store, arr, notify = true) {
+  // `stamp: false` keeps each row's own updatedAt instead of marking it as
+  // changed now. Bundled defaults must use it: stamping them "newest" is what
+  // let seed data outrank the server and become impossible to correct.
+  async bulkPut(store, arr, notify = true, stamp = true) {
     if (!arr || !arr.length) return 0;
     const now = Date.now();
     const os = await tx(store, 'readwrite');
     await new Promise((res, rej) => {
       let i = 0;
-      const next = () => { if (i >= arr.length) return; const o = arr[i]; o.updatedAt = now; const r = os.put(o); r.onsuccess = () => { i++; next(); }; r.onerror = () => rej(r.error); };
+      const next = () => { if (i >= arr.length) return; const o = arr[i]; o.updatedAt = stamp ? now : (o.updatedAt || 1); const r = os.put(o); r.onsuccess = () => { i++; next(); }; r.onerror = () => rej(r.error); };
       os.transaction.oncomplete = () => res();
       os.transaction.onerror = () => rej(os.transaction.error);
       next();
@@ -132,6 +135,17 @@ const DB = {
     return obj;
   },
   // Raw get that DOES return tombstones (sync internals only).
+  // Every row INCLUDING tombstones. `all()` hides deleted records, which is right
+  // for the app but wrong for anything deciding whether a record is already known
+  // — a deleted record is known, and must not be re-created.
+  async _rawAll(store) {
+    const os = await tx(store);
+    return new Promise((res, rej) => {
+      const r = os.getAll();
+      r.onsuccess = () => res(r.result || []);
+      r.onerror = () => rej(r.error);
+    });
+  },
   async _rawGet(store, id) {
     const os = await tx(store);
     return new Promise((res, rej) => {
