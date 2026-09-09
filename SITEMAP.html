@@ -1,0 +1,206 @@
+<!-- Bilingual-adjacent but English: this is an owner/engineer document, like
+     DEPLOY.md, not a staff-facing one. TRAINING_MANUAL.html is the staff copy. -->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Garage Saathi — site map &amp; audit</title>
+<style>
+:root{
+  --paper:#F5F7FA; --card:#FFFFFF; --ink:#141922; --ink2:#39424F; --mute:#67707F;
+  --line:#DCE2EA; --plate:#F2B705; --plate-ink:#3B2C00;
+  --go:#12855C; --go-wash:#E3F4EC; --stop:#CF3A3E; --stop-wash:#FBE9E9;
+  --warn:#B06A00; --warn-wash:#FBF0DE; --info:#24528F; --info-wash:#E6EDF7;
+  --shadow:0 1px 2px rgba(20,25,34,.05),0 6px 18px -10px rgba(20,25,34,.18);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --paper:#0E1219; --card:#161C26; --ink:#EAEEF4; --ink2:#C0C8D4; --mute:#8B95A5;
+  --line:#262E3B; --go-wash:#132A22; --stop-wash:#2A1A1C; --warn-wash:#2A2214; --info-wash:#151F2E;
+}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);line-height:1.6;
+  font-family:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-text-size-adjust:100%}
+.wrap{max-width:900px;margin:0 auto;padding:22px 16px 70px}
+header.top{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:6px}
+.logo{width:38px;height:38px;border-radius:12px;background:var(--ink);color:var(--paper);
+  display:grid;place-items:center;font-weight:800;font-size:13px;flex:none}
+h1{font-size:24px;margin:0;letter-spacing:-.4px}
+h2{font-size:19px;margin:26px 0 10px;letter-spacing:-.3px}
+h3{font-size:15px;margin:0 0 8px}
+.sub{color:var(--mute);font-size:13.5px}
+.sec{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px 18px;margin-bottom:14px;box-shadow:var(--shadow)}
+p{margin:0 0 10px}
+ul{margin:0 0 10px;padding-left:20px}li{margin-bottom:5px}
+code{font-family:"IBM Plex Mono",ui-monospace,Menlo,monospace;font-size:12.5px;
+  background:rgba(127,140,160,.13);padding:1px 5px;border-radius:5px}
+.scroller{overflow-x:auto;-webkit-overflow-scrolling:touch}
+table{border-collapse:collapse;width:100%;font-size:13px;min-width:640px}
+th,td{border-bottom:1px solid var(--line);padding:7px 9px;text-align:left;vertical-align:top}
+th{font-weight:700;white-space:nowrap}
+td.y{color:var(--go);font-weight:700}td.n{color:var(--mute)}
+.badge{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;white-space:nowrap}
+.b-fixed{background:var(--go-wash);color:var(--go)}
+.b-open{background:var(--warn-wash);color:var(--warn)}
+.b-clean{background:var(--info-wash);color:var(--info)}
+.b-role{background:rgba(127,140,160,.15);color:var(--ink2)}
+.note{border-radius:14px;padding:13px 15px;margin:10px 0}
+.note.stop{background:var(--stop-wash);border:1px solid rgba(207,58,62,.30)}
+.note.warn{background:var(--warn-wash);border:1px solid rgba(176,106,0,.28)}
+.note.go{background:var(--go-wash);border:1px solid rgba(18,133,92,.26)}
+.tag{display:block;font-size:11px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;margin-bottom:6px;color:var(--warn)}
+.note.stop .tag{color:var(--stop)}.note.go .tag{color:var(--go)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
+.tile{border:1px solid var(--line);border-radius:14px;padding:12px 14px;background:var(--card)}
+.tile .t{font-weight:700;font-size:14px;margin-bottom:3px}
+.tile .d{font-size:12.5px;color:var(--mute)}
+.muted{color:var(--mute);font-size:13px}
+@media print{body{background:#fff}.sec,.tile{box-shadow:none;break-inside:avoid}}
+</style>
+
+<div class="wrap">
+<header class="top">
+  <div class="logo">GS</div>
+  <div>
+    <h1>Garage Saathi — site map &amp; audit</h1>
+    <div class="sub">What exists, who can reach it, and the mistake classes found in it · September 2026</div>
+  </div>
+</header>
+
+<h2>1 · Who can do what</h2>
+<div class="sec">
+  <p>Seven roles. Rights are declared once in <code>PERMS</code>, navigation is gated by
+  <code>ROUTE_PERM</code>, and the server enforces writes independently in
+  <code>WRITE_ROLES</code> — a client-side check alone would be decoration.</p>
+  <div class="scroller">
+  <table>
+    <thead><tr><th>Area</th><th>👑 Owner</th><th>🧑‍🔧 Supervisor</th><th>🗂️ Crew Mgr</th><th>📦 Store</th><th>🔧 Mechanic</th><th>🧑‍✈️ Driver</th><th>🎫 Conductor</th></tr></thead>
+    <tbody>
+      <tr><th>Money, accounting, insights</th><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td><td class="n">—</td><td class="n">—</td><td class="n">—</td></tr>
+      <tr><th>Fleet &amp; bus documents</th><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td><td class="n">—</td><td class="n">—</td><td class="n">—</td></tr>
+      <tr><th>Job cards</th><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td class="y">view</td><td class="y">own</td><td class="n">—</td><td class="n">—</td></tr>
+      <tr><th>Store &amp; stock</th><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td class="y">✓</td><td class="y">view</td><td class="n">—</td><td class="n">—</td></tr>
+      <tr><th>Supplier bills</th><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td><td class="n">—</td></tr>
+      <tr><th>Duty board (driver ↔ bus)</th><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td><td class="n">—</td><td class="n">—</td></tr>
+      <tr><th>Crew bank &amp; documents</th><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td><td class="y">own</td><td class="y">own</td></tr>
+      <tr><th>Full Aadhaar number</th><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td><td class="n">—</td><td class="n">—</td><td class="n">—</td></tr>
+      <tr><th>Salary</th><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td><td class="n">—</td><td class="n">—</td><td class="n">—</td></tr>
+      <tr><th>Crew logins &amp; PINs</th><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td><td class="n">—</td><td class="n">—</td><td class="n">—</td></tr>
+      <tr><th>Archive whole register</th><td class="y">✓</td><td class="n">—</td><td class="n">—</td><td class="n">—</td><td class="n">—</td><td class="n">—</td><td class="n">—</td></tr>
+      <tr><th>Driver scoring / incidents</th><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td><td class="n">—</td><td class="n">—</td><td class="n">—</td></tr>
+      <tr><th>Trips &amp; trip cash</th><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td><td class="n">—</td><td class="y">✓</td><td class="n">—</td></tr>
+      <tr><th>Attendance</th><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td></tr>
+      <tr><th>Usage &amp; adoption report</th><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td><td class="n">—</td><td class="n">—</td><td class="n">—</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="muted"><b>own</b> — only their own records: the job cards assigned to them, or their own documents.
+  A mechanic has no login at all: work is assigned to them and the supervisor keeps the job card.</p>
+</div>
+
+<h2>2 · The screens</h2>
+<div class="sec">
+  <h3>Money <span class="badge b-role">owner · supervisor</span></h3>
+  <div class="grid">
+    <div class="tile"><div class="t">Money</div><div class="d">Running cost, where the money goes, month windows</div></div>
+    <div class="tile"><div class="t">Reports · Bus report</div><div class="d">Per-bus and per-company cost breakdowns</div></div>
+    <div class="tile"><div class="t">Accounting · Bus account</div><div class="d">Per-bus P&amp;L</div></div>
+    <div class="tile"><div class="t">Fuel · AdBlue/DEF</div><div class="d">Fills, mileage km/l, ₹/km</div></div>
+    <div class="tile"><div class="t">Purchases &amp; bills</div><div class="d">Supplier invoices, payment status</div></div>
+    <div class="tile"><div class="t">Vendors</div><div class="d">Supplier registry, bills mapped to a vendor</div></div>
+    <div class="tile"><div class="t">Warranty</div><div class="d">Parts still under warranty</div></div>
+    <div class="tile"><div class="t">Challans</div><div class="d">Live eChallan lookup per registration (billable)</div></div>
+  </div>
+</div>
+<div class="sec">
+  <h3>Fleet <span class="badge b-role">owner · supervisor</span></h3>
+  <div class="grid">
+    <div class="tile"><div class="t">Buses</div><div class="d">Registry, documents with expiry, photos, odometer</div></div>
+    <div class="tile"><div class="t">Alerts</div><div class="d">Expiring documents, service due</div></div>
+    <div class="tile"><div class="t">Live map · Track</div><div class="d">GPS position and per-bus tracking</div></div>
+    <div class="tile"><div class="t">Routes</div><div class="d">Stops, go-times, punctuality</div></div>
+    <div class="tile"><div class="t">Forecast</div><div class="d">Predicted service, part life, document expiry</div></div>
+    <div class="tile"><div class="t">Link GPS</div><div class="d">Map a bus to its tracker</div></div>
+  </div>
+</div>
+<div class="sec">
+  <h3>People <span class="badge b-role">owner · supervisor · crew manager</span></h3>
+  <div class="grid">
+    <div class="tile"><div class="t">Crew bank</div><div class="d">Every driver and conductor ever employed — licence, Aadhaar, phone, photo, next of kin</div></div>
+    <div class="tile"><div class="t">Crew documents</div><div class="d">Six cards per person, mandatory by job, expiry watched</div></div>
+    <div class="tile"><div class="t">Duty board</div><div class="d">Driver ↔ bus and conductor ↔ bus, daily</div></div>
+    <div class="tile"><div class="t">Drivers · Scoreboard · Scorecard</div><div class="d">Performance scoring from incidents and GPS events</div></div>
+    <div class="tile"><div class="t">Safety</div><div class="d">GPS safety events — overspeed, harsh braking, night movement</div></div>
+    <div class="tile"><div class="t">Crew logins &amp; PINs</div><div class="d">Mint and rotate crew app accounts</div></div>
+  </div>
+</div>
+<div class="sec">
+  <h3>Workshop &amp; store <span class="badge b-role">supervisor · store · mechanic</span></h3>
+  <div class="grid">
+    <div class="tile"><div class="t">Job cards</div><div class="d">Complaint → work → parts → verify, with before/after photos</div></div>
+    <div class="tile"><div class="t">Store</div><div class="d">Parts catalogue, stock, issue against a job</div></div>
+    <div class="tile"><div class="t">Store health · Audits</div><div class="d">Physical counts, shrinkage reconciliation</div></div>
+    <div class="tile"><div class="t">Components</div><div class="d">Rotables — tyres, alternators — per-unit life and repair history</div></div>
+    <div class="tile"><div class="t">Pilferage radar</div><div class="d">Anomalies across issues, counts and attribution</div></div>
+    <div class="tile"><div class="t">Import</div><div class="d">Parts and vendor masters from the billing system's Excel</div></div>
+  </div>
+</div>
+<div class="sec">
+  <h3>Everyone</h3>
+  <div class="grid">
+    <div class="tile"><div class="t">Attendance</div><div class="d">Check in / check out, on every role's Me screen</div></div>
+    <div class="tile"><div class="t">My bus · My duty</div><div class="d">Driver and conductor home: the bus, the route, the pairing</div></div>
+    <div class="tile"><div class="t">Report a problem</div><div class="d">Driver raises a fault → feeds maintenance</div></div>
+    <div class="tile"><div class="t">Trips</div><div class="d">Driver cash session — allowance and categorised expenses</div></div>
+    <div class="tile"><div class="t">Usage &amp; adoption</div><div class="d">Owner-only: which features are used, by whom, and what is slow</div></div>
+  </div>
+</div>
+
+<h2>3 · Mistake classes — what we found</h2>
+<div class="sec">
+  <p>The duplicate-Sumit bug was not a one-off. It belongs to a family that shows up in
+  almost every product, so the whole app was audited against that family rather than
+  patched at the one place it surfaced.</p>
+
+  <div class="note stop">
+    <span class="tag">Found and fixed</span>
+    <ul>
+      <li><b>Creating the same thing twice.</b> Every "add" minted a new id with no check, so one Sumit became five accounts. Now staff, buses (by normalised registration), vendors, parts and drivers all warn with the matching records and say plainly that this makes a <i>second</i> record, not an update.</li>
+      <li><b>No in-flight lock.</b> Exactly one guard existed across 232 actions. A slow button looks dead and gets pressed again — that double-counts a fuel fill or a supplier bill just as easily as it duplicates a person. The lock is now on the clicked element, in the one place every action passes through, so actions added later are covered without anyone remembering.</li>
+      <li><b>An auth failure reported as a network failure.</b> A 12-hour session expiring showed "Offline", so a device silently received nothing for days while looking fine. It now drops the dead token and says "Sign in again".</li>
+      <li><b>Paging that stopped after one page.</b> <code>pull()</code> ignored the server's <code>more</code> flag, so a device several pages behind got only the <i>oldest</i> records it lacked — and the newest, where a person added today always sits, never arrived.</li>
+      <li><b>Default data outranking live data.</b> The bundled seed rewrote every row and stamped it as newest, resurrecting archived crew <i>and</i> making it permanent, because the server's correct copy could then never win. It now fills gaps only, respects deletions, and writes with a low timestamp.</li>
+      <li><b>A circular dependency in login.</b> The login screen was built from local data only, so a person created on another device had no tile — and the tile is what you need in order to sign in and sync. It now asks the server directly.</li>
+      <li><b>No undo.</b> There was no way to remove a staff account, so five Sumits were permanent. Removal now exists, guarded so you cannot remove yourself or the last owner.</li>
+      <li><b>Orphaning dependents.</b> Archiving a driver mid-trip left that trip open with its allowance unreconciled; removing a mechanic left job cards assigned to a name that no longer exists. Both now say what is still open before they let you continue.</li>
+    </ul>
+  </div>
+
+  <div class="note go">
+    <span class="tag">Audited and clean</span>
+    <ul>
+      <li><b>Unguarded routes.</b> Every screen has a permission entry except <code>home</code> and <code>me</code> (open by design) and crew documents, which is permission-or-self and checked per record. This class had bitten twice before and was fixed then.</li>
+      <li><b>Client-only permission checks.</b> The server enforces writes independently per store and role, so a crafted request cannot do what the UI forbids.</li>
+      <li><b>Silent exception swallowing.</b> 18 empty catch blocks, all on <code>localStorage</code>, history and service-worker calls — legitimately ignorable, none on a data-write path.</li>
+      <li><b>Crashing on a missing reference.</b> Lookups degrade to "—" rather than throwing.</li>
+    </ul>
+  </div>
+
+  <div class="note warn">
+    <span class="tag">Known, accepted, worth knowing</span>
+    <ul>
+      <li><b>Last-write-wins.</b> Two devices editing one record concurrently: the later write survives and the other is told, but the earlier edit is gone. Acceptable for this app's shape; it would not be for a shared ledger.</li>
+      <li><b>A brand-new device with no network</b> starts from the bundled roster. It heals on its first online load.</li>
+      <li><b>Aadhaar</b> is masked everywhere and revealed one number at a time, but it <i>is</i> stored. That is a deliberate trade for a register that has to survive an RTO inspection.</li>
+      <li><b>Removing a staff account</b> takes it off every login screen but leaves the server's own user row, because there is no delete endpoint. Login is only reachable by picking a name from the roster, so the account is unusable.</li>
+    </ul>
+  </div>
+</div>
+
+<h2>4 · Where the truth lives</h2>
+<div class="sec">
+  <p>One origin serves the app and the API: <code>garage-saathi-sync.vercel.app</code>, deploying
+  on every push. Data is local-first in IndexedDB and synced to Postgres (Supabase) by rev
+  cursor. Staff use the web app added to the home screen — the packaged native app bundles
+  frozen code and cannot be updated, which is why it was retired.</p>
+  <p class="muted">Related documents: <code>TRAINING_MANUAL.html</code> (staff, bilingual, role-filtered) ·
+  <code>PWA_ROLLOUT.html</code> (moving phones to the web app) · <code>CREW_BANK.md</code> (crew register design notes).</p>
+</div>
+</div>

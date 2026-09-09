@@ -601,7 +601,8 @@ async function load() {
   ]);
   // Keyed by registration, not id — one snapshot row per bus, replaced on refresh.
   const challans = await DB.all('challans').catch(() => []);
-  S.cache = { users, buses, parts, jobs, ledger, att, purchases, drivers, incidents, driverreports, routes, triplog, fuel, gpsevents, audits, components, def, vendors, trips, challans, garage };
+  const usage = await DB.all('usage').catch(() => []);
+  S.cache = { users, buses, parts, jobs, ledger, att, purchases, drivers, incidents, driverreports, routes, triplog, fuel, gpsevents, audits, components, def, vendors, trips, challans, usage, garage };
   refreshBiz();   // keep the displayed business name in sync with garage config
 }
 const byId = (arr, id) => arr.find((x) => x.id === id);
@@ -924,7 +925,7 @@ const TAB_OF = {
   livemap: 'fleet', track: 'fleet', routes: 'fleet', forecast: 'fleet', busreport: 'fleet',
   // people
   drivers: 'people', assignments: 'people', safety: 'people', scoreboard: 'people',
-  scorecard: 'people', crewpins: 'people', crewbank: 'people',
+  scorecard: 'people', crewpins: 'people', crewbank: 'people', usage: 'me',
   // home triage entries
   insights: 'home', pilferage: 'home',
 };
@@ -1251,6 +1252,97 @@ function viewCrewManagerHome() {
     <div class="trow" data-act="openCrewBank"><div class="ti">🗂️</div><div class="tm"><div class="tt">${t('cbTitle')}</div>
       <div class="tiny muted">${activeCrew().length} ${t('cbOnRoll')}</div></div><div class="tc">›</div></div></div>`;
   shell(t('today'), body);
+}
+
+/* ===== Usage report =======================================================
+ * Owner-facing, and deliberately answers questions rather than showing numbers:
+ * who has actually started using this, which screens earn their place, which
+ * were built and never opened, and what is slow enough to be worth fixing.
+ * English only, like the other owner-analysis screens. */
+const USAGE_SCREENS = ['money', 'fleet', 'people', 'bills', 'buses', 'jobs', 'store', 'purchases', 'alerts',
+  'challans', 'insights', 'drivers', 'assignments', 'crewbank', 'crewpins', 'driverdocs', 'routes', 'livemap',
+  'track', 'reports', 'busreport', 'fuel', 'safety', 'warranty', 'storehealth', 'linkgps', 'newjob', 'forecast',
+  'scoreboard', 'scorecard', 'pilferage', 'components', 'def', 'vendors', 'import', 'accounting', 'busacct'];
+const USAGE_LABEL = { crewbank: 'Crew bank', crewpins: 'Crew logins & PINs', driverdocs: 'Crew documents',
+  busacct: 'Bus account', busreport: 'Bus report', newjob: 'New job card', storehealth: 'Store health',
+  linkgps: 'Link GPS', livemap: 'Live map', def: 'AdBlue / DEF', pilferage: 'Pilferage radar',
+  assignments: 'Duty board', scorecard: 'Scorecard', forecast: 'Forecast' };
+const usageLabel = (k) => USAGE_LABEL[k] || k.charAt(0).toUpperCase() + k.slice(1);
+
+function usageBars(counts, limit) {
+  const rows = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, limit || 10);
+  if (!rows.length) return '<div class="muted small">Nothing recorded yet.</div>';
+  const max = rows[0][1] || 1;
+  return rows.map(([k, n]) => `<div style="margin:7px 0">
+    <div class="row between tiny"><span>${esc(usageLabel(k))}</span><b>${n}</b></div>
+    <div style="height:7px;border-radius:4px;background:var(--tile,#f1f3f8);overflow:hidden">
+      <i style="display:block;height:100%;width:${Math.max(3, Math.round(n / max * 100))}%;background:var(--brand2,#2563eb)"></i></div></div>`).join('');
+}
+
+function viewUsage() {
+  const rows = S.cache.usage || [];
+  const today = usageDate(), since = (d) => usageDate(Date.now() - d * day);
+  const inWindow = (n) => rows.filter((r) => r.date >= since(n));
+
+  const people = (n) => new Set(inWindow(n).map((r) => r.userId)).size;
+  const screens = {}, acts = {}, slow = {};
+  inWindow(30).forEach((r) => {
+    Object.entries(r.screens || {}).forEach(([k, v]) => { screens[k] = (screens[k] || 0) + v; });
+    Object.entries(r.acts || {}).forEach(([k, v]) => { acts[k] = (acts[k] || 0) + v; });
+    Object.entries(r.slow || {}).forEach(([k, v]) => {
+      const c = slow[k] || { n: 0, worstMs: 0 };
+      slow[k] = { n: c.n + (v.n || 0), worstMs: Math.max(c.worstMs, v.worstMs || 0) };
+    });
+  });
+
+  const staff = (S.cache.users || []).filter((u) => !NO_LOGIN_ROLES.has(u.role));
+  const everUsed = new Set(rows.map((r) => r.userId));
+  const neverUsed = staff.filter((u) => !everUsed.has(u.id));
+  const unopened = USAGE_SCREENS.filter((k) => !screens[k]);
+
+  let body = `<div class="card"><div class="row between">
+      <div><div style="font-weight:800;font-size:18px">${people(1)} used it today</div>
+        <div class="small muted">${people(7)} this week · ${people(30)} this month · ${staff.length} with a login</div></div>
+      <div class="ava" style="width:46px;height:46px;font-size:22px">📈</div></div>
+    <div class="tiny muted" style="margin-top:8px">Counts which screens and actions were used, per person per day. It records no names of parts, no amounts and nothing anyone typed — only that a feature was used, and how long it took.</div></div>`;
+
+  if (neverUsed.length) {
+    body += `<div class="card"><div class="row between"><h3>Never signed in</h3><span class="badge b-amber">${neverUsed.length}</span></div>
+      <div class="tiny muted" style="margin-bottom:8px">They have a login but have never opened the app. Training, a wrong PIN, or an app they never installed.</div>
+      ${neverUsed.slice(0, 12).map((u) => `<div class="row between small" style="padding:3px 0"><span>${esc(u.name)}</span><span class="muted">${esc(u.role)}</span></div>`).join('')}
+      ${neverUsed.length > 12 ? `<div class="tiny muted">…and ${neverUsed.length - 12} more</div>` : ''}</div>`;
+  }
+
+  body += `<div class="card"><h3>Most-opened screens <span class="tiny muted">30 days</span></h3>${usageBars(screens, 10)}</div>`;
+  body += `<div class="card"><h3>Most-used actions <span class="tiny muted">30 days</span></h3>${usageBars(acts, 10)}</div>`;
+
+  body += `<div class="card"><div class="row between"><h3>Built but never opened</h3><span class="badge ${unopened.length ? 'b-amber' : 'b-green'}">${unopened.length}</span></div>
+    <div class="tiny muted" style="margin-bottom:8px">In 30 days nobody opened these. Either they are not needed, or nobody knows they are there.</div>
+    ${unopened.length ? `<div class="row" style="flex-wrap:wrap;gap:6px">${unopened.map((k) => `<span class="badge b-low">${esc(usageLabel(k))}</span>`).join('')}</div>`
+      : '<div class="muted small">Every screen was opened at least once 👍</div>'}</div>`;
+
+  const slowRows = Object.entries(slow).sort((a, b) => b[1].worstMs - a[1].worstMs).slice(0, 8);
+  body += `<div class="card"><div class="row between"><h3>Slow actions</h3><span class="badge ${slowRows.length ? 'b-amber' : 'b-green'}">${slowRows.length}</span></div>
+    <div class="tiny muted" style="margin-bottom:8px">Actions that took over a second. A slow button is what gets pressed twice.</div>
+    ${slowRows.length ? slowRows.map(([k, v]) => `<div class="row between small" style="padding:3px 0">
+      <span>${esc(usageLabel(k))}</span><b>${(v.worstMs / 1000).toFixed(1)}s worst · ${v.n}×</b></div>`).join('')
+      : '<div class="muted small">Nothing took longer than a second 👍</div>'}</div>`;
+
+  const byPerson = {};
+  inWindow(30).forEach((r) => {
+    const p = byPerson[r.userId] || (byPerson[r.userId] = { name: r.name, role: r.role, days: 0, taps: 0, lastAt: 0 });
+    p.days++; p.taps += r.taps || 0; p.lastAt = Math.max(p.lastAt, r.lastAt || 0);
+    p.name = r.name || p.name; p.role = r.role || p.role;
+  });
+  const persons = Object.values(byPerson).sort((a, b) => b.lastAt - a.lastAt);
+  body += `<div class="card"><div class="row between"><h3>Who is using it <span class="tiny muted">30 days</span></h3><span class="badge b-low">${persons.length}</span></div>
+    ${persons.length ? persons.map((p) => `<div class="li"><div class="ava">${roleEmoji(p.role)}</div>
+      <div class="main"><div class="t">${esc(p.name || '—')}</div>
+        <div class="s">${esc(p.role || '')} · ${p.days} day${p.days > 1 ? 's' : ''} · ${p.taps} action${p.taps === 1 ? '' : 's'}</div></div>
+      <span class="tiny muted">${p.lastAt ? timeAgo(p.lastAt) : ''}</span></div>`).join('')
+      : '<div class="empty">No activity recorded yet — it starts counting from this version.</div>'}</div>`;
+
+  shell('Usage', body);
 }
 
 function viewPeople() {
@@ -2768,6 +2860,7 @@ function viewMe() {
     <div class="li" data-act="lang"><div class="ava">🌐</div><div class="main"><div class="t">${t('lang') === 'हिंदी' ? 'भाषा / Language' : 'Language / भाषा'}</div><div class="s">${LANG === 'en' ? 'English' : 'हिंदी'} · tap to switch</div></div></div>
     <div class="li" data-act="theme"><div class="ava">${_isDark() ? '☀️' : '🌙'}</div><div class="main"><div class="t">${t('theme')}</div><div class="s">${_isDark() ? 'Dark' : 'Light'} · tap to switch</div></div></div>
     <div class="li" data-act="changePin"><div class="ava">🔑</div><div class="main"><div class="t">${t('changePin')}</div><div class="s">Set a new 4-digit login PIN</div></div></div>
+    ${can(S.user.role, 'dashboard') ? `<div class="li" data-act="openUsage"><div class="ava">📈</div><div class="main"><div class="t">Usage &amp; adoption</div><div class="s">Who is using the app, which features, and what is slow</div></div></div>` : ''}
     <div class="li" data-act="openSync"><div class="ava">🔄</div><div class="main"><div class="t">${t('sync')}</div><div class="s">${SYNC_STATUS === 'synced' ? 'All devices up to date' : SYNC_STATUS === 'signedout' ? '⚠️ Signed out — log in again to sync' : SYNC_STATUS === 'offline' ? 'Offline — will sync when connected' : 'Syncing…'}${si.pending ? ` · ${si.pending} pending` : ''}</div></div></div>
     <div class="li" data-act="logout"><div class="ava">🚪</div><div class="main"><div class="t">${t('logout')}</div></div></div>
   </div>`;
@@ -6805,7 +6898,7 @@ async function askAi() {
  */
 const current = () => S.stack[S.stack.length - 1];
 // Role guard: routes restricted to certain roles fall back to home for others.
-const ROUTE_PERM = { money: 'money', fleet: 'fleet', people: 'people', bills: 'bills', insights: 'insights', drivers: 'manageDrivers', assignments: 'assignDriver', routes: 'manageRoutes', reports: 'dashboard', busreport: 'dashboard', livemap: 'dashboard', track: 'dashboard', fuel: 'addFuel', safety: 'dashboard', warranty: 'addFuel', storehealth: 'issuePart', linkgps: 'addBus', newjob: 'addJob', forecast: 'dashboard', pilferage: 'insights', components: 'issuePart', def: 'addFuel', vendors: 'addPurchase', import: 'addPurchase', crewpins: 'manageCrewLogins', crewbank: 'manageDrivers', accounting: 'dashboard', busacct: 'dashboard',
+const ROUTE_PERM = { money: 'money', fleet: 'fleet', people: 'people', bills: 'bills', insights: 'insights', drivers: 'manageDrivers', assignments: 'assignDriver', routes: 'manageRoutes', reports: 'dashboard', busreport: 'dashboard', livemap: 'dashboard', track: 'dashboard', fuel: 'addFuel', safety: 'dashboard', warranty: 'addFuel', storehealth: 'issuePart', linkgps: 'addBus', newjob: 'addJob', forecast: 'dashboard', pilferage: 'insights', components: 'issuePart', def: 'addFuel', vendors: 'addPurchase', import: 'addPurchase', crewpins: 'manageCrewLogins', crewbank: 'manageDrivers', usage: 'dashboard', accounting: 'dashboard', busacct: 'dashboard',
   // `purchases` renders the same view as `bills`; without its own entry the
   // `bills` permission was bypassable just by using the other route name.
   purchases: 'bills', alerts: 'dashboard', buses: 'fleet',
@@ -6823,6 +6916,7 @@ function render(r) {
   // permission-or-self, and has to be checked per id rather than per route.
   if (r.name === 'driverdocs' && !canDriverDocs(r.id)) r = { name: 'home' };
   S.route = r;
+  trackScreen(r.name);
   switch (r.name) {
     case 'home': return viewHome();
     case 'money': return viewMoney();
@@ -6863,6 +6957,7 @@ function render(r) {
     case 'import': return viewImport();
     case 'crewpins': return viewCrewPins();
     case 'crewbank': return viewCrewBank();
+    case 'usage': return viewUsage();
     case 'accounting': return viewAccounting();
     case 'busacct': return viewBusAccounting(r.id);
     default: return viewHome();
@@ -6888,6 +6983,59 @@ window.addEventListener('popstate', () => {
 });
 
 /* ----------------------------- Event binding ------------------------------ */
+/* ===== Usage analytics ====================================================
+ * What the app records: which SCREENS were opened and which ACTIONS were used,
+ * counted per person per day, plus how long each action took. What it does not
+ * record: anything anyone typed, read or was shown. It is a count of features,
+ * not a log of work — enough to answer "is this being used, and is it slow",
+ * which is the question a screen nobody opens should have to answer.
+ *
+ * One row per person per day keeps it cheap: fifty staff make fifty rows a day,
+ * not fifty thousand events. Writes are buffered and flushed on a timer, and the
+ * outbox collapses repeated writes of the same row into one push.
+ */
+const _usage = { row: null, dirty: false };
+const SLOW_ACTION_MS = 1000;
+
+const usageDate = (ts) => {
+  const d = new Date(ts == null ? Date.now() : ts);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
+function _usageRow() {
+  if (!S.user) return null;                      // nothing is counted before sign-in
+  const date = usageDate(), id = S.user.id + '|' + date;
+  if (!_usage.row || _usage.row.id !== id) {
+    _usage.row = (S.cache.usage || []).find((u) => u.id === id)
+      || { id, userId: S.user.id, name: S.user.name, role: S.user.role, date,
+           screens: {}, acts: {}, slow: {}, taps: 0, firstAt: Date.now(), lastAt: Date.now() };
+  }
+  return _usage.row;
+}
+function trackScreen(name) {
+  const r = _usageRow(); if (!r || !name) return;
+  r.screens[name] = (r.screens[name] || 0) + 1; r.lastAt = Date.now(); _usage.dirty = true;
+}
+function trackAct(name, ms) {
+  const r = _usageRow(); if (!r || !name) return;
+  r.acts[name] = (r.acts[name] || 0) + 1; r.taps++; r.lastAt = Date.now();
+  // Only the slow ones are timed individually — an average over every tap would
+  // be dominated by the instant ones and hide the screen that takes four seconds.
+  if (ms >= SLOW_ACTION_MS) {
+    const cur = r.slow[name] || { n: 0, worstMs: 0 };
+    r.slow[name] = { n: cur.n + 1, worstMs: Math.max(cur.worstMs, Math.round(ms)) };
+  }
+  _usage.dirty = true;
+}
+async function flushUsage() {
+  if (!_usage.dirty || !_usage.row) return;
+  _usage.dirty = false;
+  try { await DB.put('usage', _usage.row); } catch (e) { /* counting must never break the app */ }
+}
+setInterval(flushUsage, 20000);
+window.addEventListener('visibilitychange', () => { if (document.hidden) flushUsage(); });
+window.addEventListener('pagehide', flushUsage);
+
 /* One tap, one record.
  *
  * Every mutating action in the app is a data-act click, and none of them stopped
@@ -6912,8 +7060,12 @@ function bind() {
     }
     _clickBusy.add(hit);
     hit.setAttribute('aria-busy', 'true');
+    const t0 = Date.now();
     try { return await _dispatchClick(e); }
-    finally { _clickBusy.delete(hit); hit.removeAttribute('aria-busy'); }
+    finally {
+      _clickBusy.delete(hit); hit.removeAttribute('aria-busy');
+      trackAct(hit.getAttribute('data-act'), Date.now() - t0);
+    }
   };
 }
 
@@ -7130,6 +7282,7 @@ const _dispatchClick = async (e) => {
       case 'reportProblem': return sheetTripReport(el.getAttribute('data-bus'), el.getAttribute('data-driver'));
       case 'saveReport': return saveReport(el.getAttribute('data-bus'), el.getAttribute('data-driver'));
       case 'reportToJob': return createJobFromReport(el.getAttribute('data-report'));
+      case 'openUsage': return push({ name: 'usage' });
       case 'openSync': return sheetSync();
       case 'syncRedownload': {
         const stop = showBusyOverlay('Re-downloading…');
