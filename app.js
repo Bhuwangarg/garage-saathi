@@ -2866,6 +2866,9 @@ function sheetAddBus() {
 async function saveBus() {
   const reg = $('#f-reg').value.trim();
   if (!reg) return toast('Enter registration no.');
+  const sameReg = (S.cache.buses || []).filter((b) => _normReg(b.regNo) === _normReg(reg))
+    .map((b) => `${b.regNo} — ${b.company || 'no company'} ${b.model || ''}`.trim());
+  if (!confirmNotDuplicate('the fleet', reg, sameReg)) return;
   const odo = Number($('#f-odo').value) || 0;
   await DB.put('buses', {
     id: uid('b-'), regNo: reg, company: $('#f-co').value.trim(), model: $('#f-model').value.trim(),
@@ -3116,6 +3119,9 @@ function sheetAddPart() {
 async function saveAddPart() {
   const name = $('#f-pname').value.trim();
   if (!name) return toast('Enter a part name');
+  const samePart = (S.cache.parts || []).filter((x) => _nameKey(x.name) === _nameKey(name))
+    .map((x) => `${x.name}${x.partNo ? ' (' + x.partNo + ')' : ''} — ${x.qty || 0} in stock`);
+  if (!confirmNotDuplicate('the catalogue', name, samePart)) return;
   const qty = Number($('#f-pqty').value) || 0;
   const partId = uid('p-');
   await DB.put('parts', {
@@ -3345,6 +3351,11 @@ function sheetAddVendor(id) {
 async function saveVendor(id) {
   const name = (($('#v-name') || {}).value || '').trim(); if (!name) return toast('Enter a vendor name');
   const v = id ? byId(S.cache.vendors, id) : null;
+  if (!id) {
+    const same = (S.cache.vendors || []).filter((x) => _nameKey(x.name) === _nameKey(name))
+      .map((x) => `${x.name}${x.phone ? ' · ' + x.phone : ''}${x.category ? ' · ' + x.category : ''}`);
+    if (!confirmNotDuplicate('your vendors', name, same)) return;
+  }
   const rec = Object.assign(v || { id: uid('v-'), createdAt: Date.now() }, {
     name, category: ($('#v-cat') || {}).value || 'Other',
     phone: (($('#v-phone') || {}).value || '').trim(), gstin: (($('#v-gstin') || {}).value || '').trim(),
@@ -3670,9 +3681,17 @@ function sheetStaff() {
   const users = [...S.cache.users].sort((a, b) => a.role.localeCompare(b.role));
   openSheet('Staff accounts', `
     <div class="card"><h3>Team (${users.length})</h3>
-      ${users.map((u) => `<div class="li"><div class="ava">${roleEmoji(u.role)}</div>
-        <div class="main"><div class="t">${esc(u.name)}</div><div class="s">${esc(u.role)}</div></div></div>`).join('')}
+      ${users.map((u) => {
+        const dupe = users.filter((o) => _nameKey(o.name) === _nameKey(u.name)).length > 1;
+        const self = u.id === S.user.id;
+        return `<div class="li"><div class="ava">${roleEmoji(u.role)}</div>
+        <div class="main"><div class="t">${esc(u.name)}${dupe ? ' <span class="badge b-amber">duplicate</span>' : ''}</div>
+          <div class="s">${esc(u.role)} · <span class="tiny muted">${esc(u.id)}</span>${self ? ' · you' : ''}</div></div>
+        ${canRemoveStaff(u) ? `<button class="btn sm ghost" data-act="removeStaff" data-id="${esc(u.id)}" style="width:auto">Remove</button>` : ''}</div>`;
+      }).join('')}
     </div>
+    ${users.filter((u) => users.filter((o) => _nameKey(o.name) === _nameKey(u.name)).length > 1).length
+      ? `<div class="tiny muted" style="margin:-6px 0 12px">Two accounts with the same name are two different logins. Remove the ones nobody uses — check with the person which PIN works before removing any.</div>` : ''}
     <div class="card"><h3>Add staff</h3>
       <label class="field"><span class="lbl">Name</span><input id="f-sname" placeholder="e.g. Rakesh"></label>
       <div class="grid2">
@@ -3682,7 +3701,7 @@ function sheetStaff() {
         <label class="field" id="f-spinwrap"><span class="lbl">4-digit PIN</span><input id="f-spin" inputmode="numeric" maxlength="4" placeholder="0000"></label>
       </div>
       <div class="tiny muted" id="f-shint" style="margin-bottom:10px">Account is created on the server and appears on every device.</div>
-      <button class="btn primary" data-act="saveStaff">Create account</button>
+      <button class="btn primary" id="f-ssave" data-act="saveStaff">Create account</button>
     </div>`, (wrap) => {
       // A mechanic never signs in, so asking for a PIN would mint one more unused
       // credential. Hide the field for those roles and say what is being created.
@@ -3710,6 +3729,16 @@ async function saveStaff() {
     : $('#f-spin').value.trim();
   if (!name) return toast('Enter a name');
   if (!noLogin && !/^\d{4}$/.test(pin)) return toast('Enter a name and 4-digit PIN');
+  // Every call to /auth/users mints a fresh id, so a second tap is a second
+  // person. On a slow phone the button looked unresponsive and got tapped again;
+  // that is how one Sumit became four.
+  const btn = document.getElementById('f-ssave');
+  if (btn && btn.disabled) return;
+  // Nothing stopped the same name being added twice, and the login screen shows
+  // no way to tell the accounts apart. Say so before making another one.
+  const same = (S.cache.users || []).filter((u) => _nameKey(u.name) === _nameKey(name));
+  if (same.length && !confirm(`⚠️ Already on the team\n\n${same.map((u) => `• ${u.name} — ${u.role} (${u.id})`).join('\n')}\n\nThis will create a SEPARATE second login with its own PIN, not update the one above.\n\nAdd ${name} anyway?`)) return;
+  if (btn) { btn.disabled = true; btn.textContent = 'Creating…'; }
   // Only the owner may create supervisors/owners — never trust the form alone.
   if (role !== 'mechanic' && role !== 'store' && role !== 'driver' && S.user.role !== 'owner') {
     return toast('Only the owner can create that role');
@@ -3725,7 +3754,53 @@ async function saveStaff() {
     toast(noLogin ? `${name} added to the team` : `${name} added — they must first sign in online on each device`);
     rerender();
   } catch (e) {
+    // Re-enable on failure only — on success the sheet is already closed, and
+    // leaving it live is what invites the retry that creates a duplicate.
+    if (btn) { btn.disabled = false; btn.textContent = 'Create account'; }
     toast(Sync.info().authed ? 'Could not reach server' : 'Sign in online first to add staff');
+  }
+}
+
+// Names are compared loosely: "Sumit", "sumit " and "Sumit  Kumar" typed twice
+// should all be recognised as the same person being added again.
+const _nameKey = (n) => String(n || '').trim().toLowerCase().replace(/\s+/g, ' ');
+
+/* Two records for one real thing is the quietest kind of wrong: stock splits
+ * across two part rows, spend splits across two vendors, and the totals stay
+ * plausible. Every add path asks the same question before making a second one.
+ * Returns true if the caller should go ahead. */
+function confirmNotDuplicate(kind, label, existing) {
+  if (!existing.length) return true;
+  return confirm(`⚠️ Already in ${kind}\n\n${existing.map((x) => '• ' + x).join('\n')}\n\n`
+    + `Adding ${label} again creates a SECOND, separate record — it does not update the one above.\n\nAdd it anyway?`);
+}
+
+/* Removing a staff account tombstones its roster record, which syncs, so the
+ * account stops being offered on every device's login screen. The server's own
+ * users row is left alone — there is no endpoint to delete it — but login is
+ * only reachable by picking a name from the roster, so a removed account cannot
+ * be signed into. Guard rails: never yourself (you would lock yourself out mid
+ * change), and never the last owner. */
+function canRemoveStaff(u) {
+  if (!can(S.user.role, 'manageStaff') || S.user.role !== 'owner') return false;
+  if (u.id === S.user.id) return false;
+  if (u.role === 'owner' && (S.cache.users || []).filter((o) => o.role === 'owner').length <= 1) return false;
+  return true;
+}
+
+async function removeStaff(id) {
+  const u = (S.cache.users || []).find((x) => x.id === id);
+  if (!u) return;
+  if (!canRemoveStaff(u)) return toast('Not allowed');
+  if (!confirm(`Remove ${u.name} (${u.role})?\n\nAccount: ${u.id}\n\nThis takes the account off the login screen on every device. If this is the one they actually use, they will not be able to sign in — check first.`)) return;
+  try {
+    await Sync.remove('users', id);
+    credClear(id);
+    await load();
+    toast(`${u.name} removed`);
+    sheetStaff();
+  } catch (e) {
+    toast('Could not remove — check the connection');
   }
 }
 
@@ -6032,6 +6107,11 @@ async function saveDriver() {
   if (!name) return toast('Enter a name');
   const busId = $('#f-dbus').value || null, pin = $('#f-dpin').value.trim();
   if (pin && !/^\d{4}$/.test(pin)) return toast('PIN must be 4 digits');
+  // The crew bank asks this properly, on phone, Aadhaar and licence; this older
+  // form should at least not add the same man twice in silence.
+  const dups = crewDuplicates($('#f-dphone').value.trim(), '', $('#f-dlic').value.trim(), null)
+    .map(({ d, on }) => `${d.name} — ${crewRoleLabel(crewRoleOf(d))}, ${t(CREW_STATUS_KEY[crewStatusOf(d)])} (${on.join(', ')})`);
+  if (!confirmNotDuplicate('the crew bank', name, dups)) return;
   // Save the driver record FIRST — the optional app login is a bonus, not a
   // gate. A server hiccup must never lose the driver the user just entered.
   const driver = { id: uid('d-'), name, phone: $('#f-dphone').value.trim(), license: $('#f-dlic').value.trim(), busId, userId: null, tripsLogged: 0, joinedAt: Date.now(), photo: '' };
@@ -6779,9 +6859,36 @@ window.addEventListener('popstate', () => {
 });
 
 /* ----------------------------- Event binding ------------------------------ */
+/* One tap, one record.
+ *
+ * Every mutating action in the app is a data-act click, and none of them stopped
+ * the same button being pressed twice while the first press was still working.
+ * On a slow phone the button looks dead, so it gets pressed again — which is how
+ * one staff member became four accounts, and would equally have double-counted a
+ * fuel fill, a supplier bill, a stock issue or a trip.
+ *
+ * The lock is on the clicked ELEMENT, not on a list of action names: anything
+ * added later is covered without anyone remembering to add it, and an action
+ * that finishes instantly releases before a human could tap again, so steppers
+ * and navigation are unaffected. */
+const _clickBusy = new WeakSet();
+
 function bind() {
   const r = root();
   r.onclick = async (e) => {
+    const hit = e.target.closest('[data-act]');
+    if (!hit || _clickBusy.has(hit)) {
+      if (hit) return;                       // already running — ignore the second tap
+      return _dispatchClick(e);
+    }
+    _clickBusy.add(hit);
+    hit.setAttribute('aria-busy', 'true');
+    try { return await _dispatchClick(e); }
+    finally { _clickBusy.delete(hit); hit.removeAttribute('aria-busy'); }
+  };
+}
+
+const _dispatchClick = async (e) => {
     const el = e.target.closest('[data-act],[data-nav],[data-bus],[data-job],[data-part],[data-driver],[data-company],[data-routebus]');
     if (!el) return;
     const nav = el.getAttribute('data-nav');
@@ -6979,6 +7086,7 @@ function bind() {
       case 'syncChallans': return syncChallans(el.getAttribute('data-force') === '1');
       case 'openStaff': return sheetStaff();
       case 'saveStaff': return saveStaff();
+      case 'removeStaff': return removeStaff(el.getAttribute('data-id'));
       case 'openDrivers': return push({ name: 'drivers' });
       case 'addDriver': return sheetAddDriver();
       case 'saveDriver': return saveDriver();
@@ -7023,8 +7131,7 @@ function bind() {
         Sync.logout(); S.user = null; return renderLogin();
       }
     }
-  };
-}
+};
 
 /* ------------------------------- Login ------------------------------------ */
 let _pinUser = null, _pin = '';
