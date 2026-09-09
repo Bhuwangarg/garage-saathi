@@ -1942,6 +1942,41 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(400, {"error": "name and pin required"})
             return self._send(200, {"user": create_user(name, role, pin)})
 
+        if u.path == "/auth/users/delete":   # delete a login for good (owner only)
+            me = self._auth_user()
+            if not me:
+                return self._send(401, {"error": "unauthorized"})
+            # Owner only, and checked HERE rather than trusting the client: this
+            # removes the credential itself, and a client check is a suggestion.
+            if me["role"] != "owner":
+                return self._send(403, {"error": "only the owner can delete a login"})
+            uid = ((self._body() or {}).get("id") or "").strip()
+            if not uid:
+                return self._send(400, {"error": "id required"})
+            if uid == me["id"]:
+                return self._send(400, {"error": "you cannot delete the account you are signed in with"})
+            with _lock:
+                c = db()
+                row = c.execute("SELECT id,name,role FROM users WHERE id=?", (uid,)).fetchone()
+                if not row:
+                    c.close()
+                    return self._send(404, {"error": "no such account"})
+                if row[2] == "owner" and c.execute(
+                        "SELECT COUNT(*) FROM users WHERE role='owner'").fetchone()[0] <= 1:
+                    c.close()
+                    return self._send(400, {"error": "that is the last owner — the garage would be locked out"})
+                c.execute("DELETE FROM users WHERE id=?", (uid,))
+                # Tombstone the synced roster row too, so every device drops the
+                # name from its login screen instead of offering an account that
+                # can no longer authenticate.
+                rev = c.execute("SELECT COALESCE(MAX(rev),0) FROM records").fetchone()[0]
+                _upsert_record(c, "users", uid, {"id": uid, "_deleted": True}, now_ms(), rev)
+                c.commit()
+                c.close()
+            # Historical records still carry this uid in `_by`; that provenance is
+            # deliberately left alone, so the trail of who did what stays intact.
+            return self._send(200, {"ok": True, "deleted": {"id": row[0], "name": row[1], "role": row[2]}})
+
         if u.path == "/auth/setpin":         # change own PIN, or owner/supervisor reset staff
             me = self._auth_user()
             if not me:

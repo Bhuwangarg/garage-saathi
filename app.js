@@ -291,7 +291,10 @@ function syncChipHtml() {
               // device quietly stops receiving anything and nobody notices.
               signedout: ['warn', '⚠', 'Sign in'] };
   const [cls, ic, lbl] = m[SYNC_STATUS] || m.init;
-  return `<span class="syncchip ${cls}">${ic} ${lbl}</span>`;
+  // The label is wrapped so a phone can drop it and keep the dot: on a 375px
+  // header this chip was 76px of 375, and with the theme and language buttons
+  // beside it the screen title had no room left and truncated to 'Garage Saa…'.
+  return `<span class="syncchip ${cls}">${ic}<span class="sc-label"> ${lbl}</span></span>`;
 }
 function updateSyncChip() { document.querySelectorAll('.syncchip').forEach((e) => { e.outerHTML = syncChipHtml(); }); }
 
@@ -3891,15 +3894,20 @@ async function removeStaff(id) {
   if (!canRemoveStaff(u)) return toast('Not allowed');
   const openJobs = (S.cache.jobs || []).filter((j) => j.assignedTo === u.id && (j.status === 'open' || j.status === 'in-progress'));
   if (openJobs.length && !confirm(`⚠️ ${u.name} still has ${openJobs.length} job card${openJobs.length > 1 ? 's' : ''} assigned.\n\nRemoving the account leaves them assigned to a name that no longer exists — reassign them first.\n\nRemove anyway?`)) return;
-  if (!confirm(`Remove ${u.name} (${u.role})?\n\nAccount: ${u.id}\n\nThis takes the account off the login screen on every device. If this is the one they actually use, they will not be able to sign in — check first.`)) return;
+  if (!confirm(`Remove ${u.name} (${u.role})?\n\nAccount: ${u.id}\n\nThe login is deleted on the server and the name goes from every device. It cannot be undone — you would have to create a new account. If this is the one they actually use, check with them first.`)) return;
   try {
+    // Delete the credential on the server first. Tombstoning the roster row alone
+    // only hides the account: the login would still work for anyone who could
+    // reach it. If the server refuses — the last owner, or your own account — say
+    // why rather than removing it locally and looking successful.
+    await Sync.deleteStaff(id);
     await Sync.remove('users', id);
     credClear(id);
     await load();
-    toast(`${u.name} removed`);
+    toast(`${u.name} deleted`);
     sheetStaff();
   } catch (e) {
-    toast('Could not remove — check the connection');
+    toast((e && e.message) ? e.message : 'Could not remove — check the connection');
   }
 }
 

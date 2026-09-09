@@ -162,6 +162,20 @@ const Sync = (function () {
     return await res.json();
   }
 
+  /* Owner: delete a login for good. Tombstoning the synced roster row takes the
+   * name off every login screen, but the credential itself lives in the server's
+   * own users table and survives that — so an account removed only client-side
+   * could still authenticate. This removes it. */
+  async function deleteStaff(id) {
+    const res = await fetch(baseUrl() + '/auth/users/delete', {
+      method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ id }),
+    });
+    let j = {}; try { j = await res.json(); } catch (e) { /* ignore */ }
+    if (!res.ok) throw new Error(j.error || ('deleteStaff ' + res.status));
+    return j;
+  }
+
   // Owner/supervisor: create a staff account on the server.
   async function addStaff({ name, role, pin }) {
     const res = await fetch(baseUrl() + '/auth/users', {
@@ -506,7 +520,7 @@ const Sync = (function () {
     } catch (e) { return null; }
   }
 
-  return { start, tick, kick, setUrl, reset, info, login, logout, roster, addStaff, registerRoster, setPin, ai, aiVision, challans, fleet, latest, uploadPhoto,
+  return { start, tick, kick, setUrl, reset, info, login, logout, roster, addStaff, deleteStaff, registerRoster, setPin, ai, aiVision, challans, fleet, latest, uploadPhoto,
            queuePhoto, remove, clearQuarantine, subscribePush, pushTest,
            get status() { return status; } };
 })();
