@@ -16,6 +16,9 @@ const Sync = (function () {
   // Only real business data syncs — local-only meta (seed flag, garage config) stays put.
   const STORES = ['users', 'buses', 'parts', 'jobcards', 'ledger', 'attendance', 'purchases',
                   'drivers', 'incidents', 'driverreports', 'routes', 'triplog', 'fuel', 'gpsevents', 'audits',
+                  // One aggregated row per person per day, so the owner can see which
+                  // features are actually used across the fleet, not just on one phone.
+                  'usage',
                   // Added 2026-07-29: these four shipped without a sync mapping, so the
                   // vendor registry, rotable components, DEF log and every trip cash
                   // session lived on exactly one phone with no backup. Now synced;
@@ -117,6 +120,17 @@ const Sync = (function () {
     }
   }
   function logout() { token = ''; ls.removeItem('token'); }
+
+  /* The login roster, with no token. A device that has never synced cannot pull,
+   * and cannot get a token without first picking a name off the login screen —
+   * which is built from the very roster it is missing. This breaks that circle.
+   * Returns id/name/role only; the server sends no credential of any kind. */
+  async function roster() {
+    const res = await fetch(baseUrl() + '/roster', { headers: { 'Accept': 'application/json' } });
+    if (!res.ok) throw new Error('roster ' + res.status);
+    const j = await res.json();
+    return Array.isArray(j.users) ? j.users : [];
+  }
 
   /* Sessions last 12 hours. When one expired, pull() threw, tick() caught it and
    * set "Offline" — so a device that had simply been signed in too long looked
@@ -492,7 +506,7 @@ const Sync = (function () {
     } catch (e) { return null; }
   }
 
-  return { start, tick, kick, setUrl, reset, info, login, logout, addStaff, registerRoster, setPin, ai, aiVision, challans, fleet, latest, uploadPhoto,
+  return { start, tick, kick, setUrl, reset, info, login, logout, roster, addStaff, registerRoster, setPin, ai, aiVision, challans, fleet, latest, uploadPhoto,
            queuePhoto, remove, clearQuarantine, subscribePush, pushTest,
            get status() { return status; } };
 })();

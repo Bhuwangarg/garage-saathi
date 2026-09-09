@@ -3792,6 +3792,8 @@ async function removeStaff(id) {
   const u = (S.cache.users || []).find((x) => x.id === id);
   if (!u) return;
   if (!canRemoveStaff(u)) return toast('Not allowed');
+  const openJobs = (S.cache.jobs || []).filter((j) => j.assignedTo === u.id && (j.status === 'open' || j.status === 'in-progress'));
+  if (openJobs.length && !confirm(`⚠️ ${u.name} still has ${openJobs.length} job card${openJobs.length > 1 ? 's' : ''} assigned.\n\nRemoving the account leaves them assigned to a name that no longer exists — reassign them first.\n\nRemove anyway?`)) return;
   if (!confirm(`Remove ${u.name} (${u.role})?\n\nAccount: ${u.id}\n\nThis takes the account off the login screen on every device. If this is the one they actually use, they will not be able to sign in — check first.`)) return;
   try {
     await Sync.remove('users', id);
@@ -5967,6 +5969,8 @@ function sheetCrewExit(id) {
 async function saveCrewExit(id) {
   if (!can(S.user.role, 'manageDrivers')) return toast(t('cbNotAllowed'));
   const d = driverById(id); if (!d) return;
+  const open = crewOpenWork(d);
+  if (open.length && !confirm(`⚠️ ${d.name} still has:\n\n${open.map((x) => '• ' + x).join('\n')}\n\nMarking him as left frees his bus and takes him off every list — settle this first, or it stays open with nobody watching it.\n\nMark as left anyway?`)) return;
   const v = (x) => (document.getElementById(x) || {}).value || '';
   d.status = 'left';
   d.leftAt = v('x-date') ? new Date(v('x-date') + 'T00:00:00').getTime() : Date.now();
@@ -5982,9 +5986,30 @@ async function saveCrewExit(id) {
 /* Archiving is not a departure — no reason, no rehire flag, and the bus stays
  * on the record so bringing him back restores what he drove. He leaves every
  * working list because those read `activeCrew()`. */
+/* Taking somebody off the roster does not settle what is still open in their
+ * name. A driver archived mid-trip leaves that trip active with its allowance
+ * and expenses unreconciled — real money, and invisible once he is out of every
+ * working list. Same for a mechanic still holding job cards. Neither is blocked;
+ * both are said out loud first. */
+function crewOpenWork(d) {
+  const out = [];
+  const trip = (S.cache.trips || []).find((t) => t.driverId === d.id && t.status === 'active');
+  if (trip) {
+    const spent = (trip.expenses || []).reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+    out.push(`an open trip${trip.fromTo ? ' (' + trip.fromTo + ')' : ''} — ${money(trip.allowance || 0)} allowance, ${money(spent)} spent, not closed`);
+  }
+  if (d.userId) {
+    const jobs = (S.cache.jobs || []).filter((j) => j.assignedTo === d.userId && (j.status === 'open' || j.status === 'in-progress'));
+    if (jobs.length) out.push(`${jobs.length} job card${jobs.length > 1 ? 's' : ''} still assigned`);
+  }
+  return out;
+}
+
 async function archiveCrew(id) {
   if (!can(S.user.role, 'manageDrivers')) return toast(t('cbNotAllowed'));
   const d = driverById(id); if (!d) return;
+  const open = crewOpenWork(d);
+  if (open.length && !confirm(`⚠️ ${d.name} still has:\n\n${open.map((x) => '• ' + x).join('\n')}\n\nArchiving takes him off every working list — settle this first, or it stays open with nobody watching it.\n\nArchive anyway?`)) return;
   d.status = 'archived'; d.archivedAt = Date.now();
   await DB.put('drivers', d);
   await load(); toast(`${d.name} ${t('cbArchivedToast')}`); rerender();
@@ -6008,6 +6033,8 @@ async function bulkArchiveCrew() {
   const list = activeCrew();
   if (!list.length) return toast(t('cbBulkNothing'));
   const drv = list.filter((d) => crewRoleOf(d) === 'driver').length;
+  const withOpen = list.filter((d) => crewOpenWork(d).length);
+  if (withOpen.length && !confirm(`⚠️ ${withOpen.length} of them still have an open trip or job card:\n\n${withOpen.slice(0, 5).map((d) => '• ' + d.name + ' — ' + crewOpenWork(d).join('; ')).join('\n')}${withOpen.length > 5 ? `\n• …and ${withOpen.length - 5} more` : ''}\n\nArchiving leaves all of it open with nobody watching it.\n\nContinue?`)) return;
   if (!confirm(`⚠️ ${t('cbBulkConfirm')}\n\n${list.length} — ${drv} ${t('cbDrivers')}, ${list.length - drv} ${t('cbConductors')}\n\n${t('cbBulkExplain')}`)) return;
   if ((window.prompt(t('cbBulkType')) || '').trim().toUpperCase() !== 'ARCHIVE') return;
   const now = Date.now();
@@ -7210,14 +7237,28 @@ function handleLoginLang(e, redraw) {
  * A brand-new device has no token and still starts from the bundled roster;
  * that case heals on its first login, which the seeded accounts allow. */
 async function refreshRosterAtLogin() {
+  const sig = () => (S.cache.users || []).map((u) => u.id + ':' + u.role).sort().join(',');
+  const before = sig();
   try {
-    if (!navigator.onLine || !Sync.info().authed) return;
-    const sig = () => (S.cache.users || []).map((u) => u.id + ':' + u.role).sort().join(',');
-    const before = sig();
-    await Sync.tick();          // pull() drains every page, so the newest records arrive too
+    if (!navigator.onLine) return;
+    if (Sync.info().authed) {
+      await Sync.tick();        // pull() drains every page, so the newest records arrive too
+    } else {
+      // No token, and no way to get one: the login screen is built from the
+      // roster this device holds, so somebody created elsewhere has no tile —
+      // and the tile is what you need in order to sign in and sync. Ask the
+      // server for the roster directly. It carries no credential.
+      const users = await Sync.roster();
+      const known = new Map((await DB._rawAll('users')).map((u) => [u.id, u]));
+      // Written with a low updatedAt so a real sync always outranks this, and
+      // never for somebody deleted here — a removed account must stay removed.
+      const add = users.filter((u) => u && u.id && !known.has(u.id))
+                       .map((u) => ({ id: u.id, name: u.name, role: u.role, updatedAt: 1 }));
+      if (add.length) await DB.bulkPut('users', add, false, false);
+    }
     await load();
-    if (sig() !== before && !S.user && document.querySelector('.login [data-role]')) renderLogin();
-  } catch (e) { /* offline, or the token has expired — the local roster still works */ }
+  } catch (e) { /* offline, expired token, or an older server with no /roster */ }
+  if (sig() !== before && !S.user && document.querySelector('.login [data-role]')) renderLogin();
 }
 
 function renderLogin() {

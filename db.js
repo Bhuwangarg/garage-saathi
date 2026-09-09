@@ -5,7 +5,7 @@
  */
 
 const DB_NAME = 'garage-saathi';
-const DB_VERSION = 11;  // v11 adds the challans store (eChallan snapshot per RC) — onupgradeneeded creates any missing
+const DB_VERSION = 12;  // v12 adds the usage store (daily per-person feature counters) — onupgradeneeded creates any missing
 
 const STORES = {
   users: 'id',
@@ -28,6 +28,7 @@ const STORES = {
   vendors: 'id',        // supplier registry — maps bills/invoices (incl. emailed ones) to a known vendor
   trips: 'id',          // a driver's trip = cash session (₹ allowance + categorised expenses) → per-bus accounting
   challans: 'rc',       // eChallan snapshot per registration — keyed by RC, one row per bus, replaced on each refresh
+  usage: 'id',          // one row per person per day: which screens and actions were used, and how often
   meta: 'key',
 };
 

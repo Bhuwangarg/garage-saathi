@@ -722,6 +722,9 @@ WRITE_ROLES = {
     "triplog":       {"owner", "supervisor", "driver"},
     # Operational stores every role legitimately writes:
     "attendance":    {"owner", "supervisor", "crewmanager", "store", "mechanic", "driver", "conductor"},
+    # Every role records its own daily usage counters; the report is read-only
+    # aggregation over them, and nothing here carries business data.
+    "usage":         {"owner", "supervisor", "crewmanager", "store", "mechanic", "driver", "conductor"},
     "driverreports": {"owner", "supervisor", "store", "mechanic", "driver", "conductor"},
     # Server-ingest only — no client ever pushes these (AirFi → ingest_gps):
     "gpsevents":     set(),
@@ -1741,6 +1744,18 @@ class Handler(BaseHTTPRequestHandler):
             ct = "image/png" if name.endswith(".png") else "image/jpeg"
             with open(fp, "rb") as f:
                 return self._send(200, raw=f.read(), ctype=ct)
+        # The login screen is built from whoever this device knows about, and a
+        # device that has never synced knows only the bundled roster. So a person
+        # created on the office laptop had no tile on a new phone, and the tile is
+        # what you need in order to sign in and sync. Unauthenticated on purpose:
+        # seed-data.js already ships every staff name to anyone who opens the app,
+        # so this exposes nothing new — and it carries no PIN, hash or salt.
+        if u.path == "/roster":
+            with _lock:
+                c = db()
+                rows = c.execute("SELECT id,name,role FROM users ORDER BY role,name").fetchall()
+                c.close()
+            return self._send(200, {"users": [{"id": r[0], "name": r[1], "role": r[2]} for r in rows]})
         if u.path == "/pull":
             if not self._auth_user():
                 return self._send(401, {"error": "unauthorized"})
