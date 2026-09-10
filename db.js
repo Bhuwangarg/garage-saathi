@@ -5,7 +5,7 @@
  */
 
 const DB_NAME = 'garage-saathi';
-const DB_VERSION = 12;  // v12 adds the usage store (daily per-person feature counters) — onupgradeneeded creates any missing
+const DB_VERSION = 13;  // v12 adds the usage store (daily per-person feature counters) — onupgradeneeded creates any missing
 
 const STORES = {
   users: 'id',
@@ -29,6 +29,8 @@ const STORES = {
   trips: 'id',          // a driver's trip = cash session (₹ allowance + categorised expenses) → per-bus accounting
   challans: 'rc',       // eChallan snapshot per registration — keyed by RC, one row per bus, replaced on each refresh
   usage: 'id',          // one row per person per day: which screens and actions were used, and how often
+  stockmoves: 'id',     // server-written, append-only: every change to a part's qty, who made it,
+                        // and whether a ledger row justified it. Clients pull it and never push it.
   meta: 'key',
 };
 

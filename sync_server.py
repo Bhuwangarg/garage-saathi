@@ -765,7 +765,103 @@ WRITE_ROLES = {
 
 # Stores the server alone writes, from an upstream it controls. Enforced ahead of
 # every role check, owner included — see may_write().
-SERVER_INGEST_ONLY = {"gpsevents", "gpslive", "challans", "odometerlogs", "waconv"}
+# `stockmoves` is server-written too: it is the tamper-evident record of every
+# change to a part's quantity, so the people it watches must not be able to add
+# to it or delete from it.
+SERVER_INGEST_ONLY = {"gpsevents", "gpslive", "challans", "odometerlogs", "waconv",
+                      "stockmoves"}
+
+# A phone with a wrong clock is normal; a record dated 2100 is not. Without a
+# bound, last-write-wins makes a far-future write permanent — the owner's
+# correction is silently discarded because its timestamp is "older".
+MAX_FUTURE_SKEW_MS = 5 * 60 * 1000
+
+# Proof that the work happened. Mirrors photoGateReady() in app.js — but that one
+# runs in the browser, which a thief simply does not use.
+def _has_proof(d):
+    before = d.get("beforePhotos") or []
+    after = d.get("afterPhotos") or []
+    if d.get("externalVendor"):
+        return bool(before or after)      # a vendor's bill photo stands in
+    return bool(before and after)
+
+
+def _guard_write(store, rid, data, actor, existing):
+    """Enforce, server-side, the rules the app promises.
+
+    Everything here was previously enforced only in app.js. Staff are given a
+    login, not a copy of app.js, so any of it could be walked straight past with
+    one authenticated HTTP request. Returns a reason to reject, or None to allow;
+    may rewrite `data` in place to stamp server truth over anything the body
+    claimed.
+    """
+    if not actor or not isinstance(data, dict):
+        return None
+    old = existing or {}
+
+    if store == "attendance":
+        # Whose attendance this is comes from the token, never the body —
+        # otherwise anyone can mark a colleague present who never came in.
+        data["userId"] = actor["id"]
+        return None
+
+    if store == "ledger":
+        # The stock ledger is the audit trail for parts leaving the store. It is
+        # append-only: the people it audits must not be able to edit or delete a
+        # row that incriminates them.
+        if old:
+            return "ledger is append-only"
+        if data.get("_deleted"):
+            return "ledger entries cannot be deleted"
+        return None
+
+    if store == "jobcards":
+        status = data.get("status")
+        prev = old.get("status")
+
+        # Reaching done/verified without photographs is the whole proof-of-work
+        # rule. It has to hold here, not just in the browser.
+        if status in ("done", "verified") and prev not in ("done", "verified"):
+            if not _has_proof(data):
+                return "job needs before and after photos (or a vendor bill) to close"
+
+        # Who closed it is server truth, so the two-person rule below cannot be
+        # defeated by editing the field that it reads.
+        if status == "done" and prev != "done":
+            data["closedBy"] = actor["id"]
+            data["closedAt"] = data.get("closedAt") or now_ms()
+        else:
+            data["closedBy"] = old.get("closedBy", data.get("closedBy"))
+
+        if status == "verified" and prev != "verified":
+            # Only the TRANSITION is an act of verifying. A job that is already
+            # verified stays verified, and a later write that merely carries that
+            # status along — the storekeeper attaching a part, say — is not
+            # somebody signing off and must not be refused as if it were.
+            if actor["role"] not in ("owner", "supervisor"):
+                return "only an owner or supervisor may verify"
+            closer = old.get("closedBy") or data.get("closedBy")
+            if closer and closer == actor["id"]:
+                return "you closed this job — someone else must verify it"
+            # Signing off is an identity claim; take it from the token.
+            data["verifiedBy"] = actor["id"]
+            data["verifiedAt"] = now_ms()
+        elif status == "verified":
+            # Already signed off: carry the original sign-off, ignore the body's.
+            data["verifiedBy"] = old.get("verifiedBy")
+            data["verifiedAt"] = old.get("verifiedAt")
+        else:
+            # Never let a body carry a sign-off it did not earn.
+            if old.get("status") == "verified":
+                data["verifiedBy"] = old.get("verifiedBy")
+                data["verifiedAt"] = old.get("verifiedAt")
+            else:
+                data.pop("verifiedBy", None)
+                data.pop("verifiedAt", None)
+        return None
+
+    return None
+
 
 
 def may_write(role, store):
@@ -782,6 +878,28 @@ def may_write(role, store):
     if allowed is None:
         return False            # unknown store → deny (allow-list)
     return role in allowed
+
+
+def _log_stock_move(c, part_id, was, now_q, actor, batch, rev):
+    """Append an immutable record of a quantity change.
+
+    The store role can legitimately edit `parts`, so this is not about refusing
+    the write — it is about making sure it cannot happen quietly. `justified` is
+    False when no ledger row for this part arrived in the same push, which is
+    exactly the shape of taking stock off the shelf and then correcting the book
+    so the count comes out even.
+    """
+    justified = any(
+        (b.get("store") == "ledger" and isinstance(b.get("data"), dict)
+         and b["data"].get("partId") == part_id)
+        for b in (batch or []))
+    mid = "sm-%s-%d" % (part_id, now_ms())
+    return _upsert_record(c, "stockmoves", mid, {
+        "id": mid, "partId": part_id,
+        "was": was, "now": now_q, "delta": (now_q or 0) - (was or 0),
+        "by": actor["id"], "byRole": actor["role"],
+        "justified": justified, "at": now_ms(),
+    }, now_ms(), rev)
 
 
 def push(records, actor=None):
@@ -810,8 +928,35 @@ def push(records, actor=None):
                 data["_by"] = actor["id"]
                 data["_byRole"] = actor["role"]
                 data["_org"] = "mahalaxmi"
-            row = c.execute("SELECT updatedAt FROM records WHERE store=? AND id=?", (store, rid)).fetchone()
+            # Clamp, do not reject: phone clocks drift, and refusing the write
+            # would lose real work. But a date beyond the skew window would make
+            # the record permanent under last-write-wins.
+            if upd > now_ms() + MAX_FUTURE_SKEW_MS:
+                upd = now_ms()
+            row = c.execute("SELECT updatedAt,data FROM records WHERE store=? AND id=?",
+                            (store, rid)).fetchone()
+            existing = None
+            if row is not None:
+                try:
+                    existing = json.loads(row[1])
+                except Exception:
+                    existing = None
+            if actor:
+                reason = _guard_write(store, rid, data, actor, existing)
+                if reason:
+                    rejected += 1
+                    print("push refused: %s/%s by %s — %s" % (store, rid, actor["id"], reason))
+                    continue
             if row is None or upd > (row[0] or 0):
+                # A part's quantity is money. Record every change of it in a store
+                # no client can write or delete, with who did it and whether a
+                # ledger row justified it — so "correcting" the book to match an
+                # emptier shelf stops being invisible.
+                if store == "parts" and actor and isinstance(data, dict):
+                    was = (existing or {}).get("qty")
+                    now_q = data.get("qty")
+                    if was is not None and now_q is not None and was != now_q:
+                        rev = _log_stock_move(c, rid, was, now_q, actor, records, rev)
                 rev = _upsert_record(c, store, rid, data, upd, rev)
                 applied += 1
         c.commit()

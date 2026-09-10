@@ -605,7 +605,8 @@ async function load() {
   // Keyed by registration, not id — one snapshot row per bus, replaced on refresh.
   const challans = await DB.all('challans').catch(() => []);
   const usage = await DB.all('usage').catch(() => []);
-  S.cache = { users, buses, parts, jobs, ledger, att, purchases, drivers, incidents, driverreports, routes, triplog, fuel, gpsevents, audits, components, def, vendors, trips, challans, usage, garage };
+  const stockmoves = await DB.all('stockmoves').catch(() => []);
+  S.cache = { users, buses, parts, jobs, ledger, att, purchases, drivers, incidents, driverreports, routes, triplog, fuel, gpsevents, audits, components, def, vendors, trips, challans, usage, stockmoves, garage };
   refreshBiz();   // keep the displayed business name in sync with garage config
 }
 const byId = (arr, id) => arr.find((x) => x.id === id);
@@ -2361,6 +2362,13 @@ function storeStats() {
   const trust = Math.max(0, Math.round(100 - Math.min(60, shrinkPct * 3)));
   return { stockValue, receivedValue, issuedValue, shrinkValue, shrinkPct, lastAudit, trust, count: audits.length };
 }
+function unexplainedStockMoves(days) {
+  const since = Date.now() - (days || 90) * 86400000;
+  return (S.cache.stockmoves || [])
+    .filter((m) => !m.justified && (m.at || 0) >= since)
+    .sort((a, b) => (b.at || 0) - (a.at || 0));
+}
+
 function viewStoreHealth() {
   const st = storeStats();
   const tcol = st.trust >= 80 ? 'var(--green)' : st.trust >= 50 ? '#f59e0b' : '#ef4444';
@@ -2388,6 +2396,23 @@ function viewStoreHealth() {
   body += `<div class="card"><h3>Recent counts</h3>` + (recent.length ? recent.map((a) => `<div class="li"><div class="ava">${a.shrinkValue > 0 ? '⚠️' : '✓'}</div>
     <div class="main"><div class="t">${a.lines.length} parts · ${a.shrinkValue > 0 ? money(a.shrinkValue) + ' short' : 'matched'}</div>
       <div class="s">${fmtDateTime(a.at)} · ${esc(userName(a.by))} · ${a.mode}</div></div></div>`).join('') : `<div class="empty">No stock counts yet</div>`) + `</div>`;
+  // Every change to a part's quantity that arrived without a ledger row to
+  // explain it. A stock count legitimately does this, so these are not
+  // accusations — but a shelf quietly corrected to match an emptier shelf looks
+  // exactly like this, and it used to leave no trace at all.
+  const unexp = unexplainedStockMoves(90);
+  body += `<div class="card"><div class="row between"><h3>🔎 Unexplained stock changes</h3>
+      <span class="badge ${unexp.length ? 'b-amber' : 'b-green'}">${unexp.length}</span></div>
+    <div class="tiny muted" style="margin-bottom:6px">Quantity changed with no ledger entry, last 90 days. A stock count does this legitimately — anything else is worth a question.</div>`;
+  body += unexp.length ? unexp.slice(0, 25).map((m) => {
+    const p = byId(S.cache.parts, m.partId);
+    const down = (m.delta || 0) < 0;
+    return `<div class="li" data-part="${esc(m.partId)}"><div class="ava">${down ? '📉' : '📈'}</div>
+      <div class="main"><div class="t">${esc(p ? p.name : m.partId)}</div>
+        <div class="s">${esc(userName(m.by))} · ${m.was} → ${m.now} · ${fmtDate(m.at)}</div></div>
+      <span class="badge ${down ? 'b-red' : 'b-low'}">${down ? '' : '+'}${m.delta}</span></div>`;
+  }).join('') : `<div class="muted small">None — every stock change has a ledger entry behind it. 👍</div>`;
+  body += `</div>`;
   shell('Store health', body);
 }
 function sheetAudit(mode) {
@@ -2615,8 +2640,10 @@ function viewComponents() {
   body += `<div class="chiprow">${kinds.map((k) => `<button class="chip ${_compFilter === k ? 'active' : ''}" data-act="compFilter" data-v="${k}">${k === 'all' ? 'All' : COMP_KINDS[k][0] + ' ' + COMP_KINDS[k][1]}</button>`).join('')}</div>`;
   const list = comps.filter((c) => _compFilter === 'all' || c.kind === _compFilter)
     .sort((a, b) => (COMP_RANK[a.state] - COMP_RANK[b.state]) || (componentLife(b).pct - componentLife(a).pct));
-  body += list.length ? `<div class="card" style="padding:6px 12px">${list.map(compLi).join('')}</div>` : `<div class="empty">No components yet — tap + to add a tyre or a part you refurbish.</div>`;
+  body += `<input id="cmp-search" class="searchbox" placeholder="Search serial, bus or kind…" autocomplete="off">`;
+  body += list.length ? `<div class="card listwrap" id="cmp-list" style="padding:6px 12px">${list.map(compLi).join('')}</div>` : `<div class="empty">No components yet — tap + to add a tyre or a part you refurbish.</div>`;
   shell('Tyres & components', body, can(S.user.role, 'issuePart') ? { act: 'addComponent', icon: '+' } : null);
+  attachSearch('cmp-search', 'cmp-list');
 }
 const HIST_ICON = { install: '🔧', remove: '📤', 'send-out': '🚚', return: '📥', scrap: '🗑️' };
 function viewComponentDetail(id) {
@@ -3405,13 +3432,15 @@ const vendorBills = (vid) => { const v = byId(S.cache.vendors, vid); if (!v) ret
 function viewVendors() {
   const vendors = [...(S.cache.vendors || [])].sort((a, b) => a.name.localeCompare(b.name));
   let body = `<div class="card"><div class="tiny muted">Suppliers you buy from or send work to. Map every bill — including the ones vendors email — to a vendor to see spend &amp; pending per supplier.</div></div>`;
-  body += `<div class="card"><h3>Vendors</h3>`;
+  body += `<input id="vnd-search" class="searchbox" placeholder="Search vendor, category or email…" autocomplete="off">`;
+  body += `<div class="card listwrap" id="vnd-list"><h3>Vendors</h3>`;
   body += vendors.length ? vendors.map((v) => { const bills = vendorBills(v.id); const pending = bills.filter((b) => b.paymentStatus !== 'paid').reduce((s, b) => s + (b.amount || 0), 0);
     return `<div class="li" data-act="openVendor" data-id="${v.id}"><div class="ava">🏪</div>
       <div class="main"><div class="t">${esc(v.name)}</div><div class="s">${esc(v.category || '')}${v.email ? ' · ' + esc(v.email) : ''}</div></div>
       ${pending ? `<span class="badge b-amber">${money(pending)} due</span>` : `<span class="tiny muted">${bills.length} bill(s)</span>`}</div>`; }).join('') : `<div class="empty">No vendors yet — tap + to add one.</div>`;
   body += `</div>`;
   shell('Vendors', body, can(S.user.role, 'addPurchase') ? { act: 'addVendor', icon: '+' } : null);
+  attachSearch('vnd-search', 'vnd-list');
 }
 function viewVendorDetail(id) {
   const v = byId(S.cache.vendors, id); if (!v) return viewVendors();
@@ -3921,7 +3950,8 @@ function viewPurchases() {
   const list = [...S.cache.purchases].sort((a, b) => b.at - a.at);
   const pending = list.filter((p) => p.paymentStatus === 'pending').reduce((s, p) => s + p.amount, 0);
   let body = `<div class="card"><div class="muted small">Pending to suppliers</div><div class="stat" style="color:var(--amber)">${money(pending)}</div></div>`;
-  body += `<div class="card"><h3>${t('purchases')}</h3>`;
+  body += `<input id="pur-search" class="searchbox" placeholder="Search supplier or item…" autocomplete="off">`;
+  body += `<div class="card listwrap" id="pur-list"><h3>${t('purchases')}</h3>`;
   const canPay = can(S.user.role, 'addPurchase');
   body += list.length ? list.map((p) => `<div class="li">
     <div class="ava">🧾</div>
@@ -3933,6 +3963,7 @@ function viewPurchases() {
   </div>`).join('') : `<div class="muted small">No bills yet</div>`;
   body += `</div>`;
   shell(t('purchases'), body, can(S.user.role,'addPurchase') ? { act: 'addPurchase', icon: '+' } : null);
+  attachSearch('pur-search', 'pur-list');
 }
 
 function viewAlerts() {
@@ -3951,13 +3982,15 @@ function viewAlerts() {
       <button class="btn ${tot.fine ? 'primary' : ''}" data-act="openChallans" style="margin-top:10px">🚦 Open challans</button></div>`;
   }
 
-  body += `<div class="card"><h3>${t('docAlerts')}</h3>`;
+  body += `<input id="alr-search" class="searchbox" placeholder="Search plate, company or document…" autocomplete="off">`;
+  body += `<div class="card listwrap" id="alr-list"><h3>${t('docAlerts')}</h3>`;
   body += alerts.length ? alerts.map((a) => `<div class="li" data-bus="${a.bus.id}">
     <div class="ava">📄</div>
     <div class="main"><div class="t">${esc(a.bus.regNo)} · ${esc(a.doc.type)}</div><div class="s">${esc(a.bus.company)} · expires ${fmtDate(a.doc.expiry)}</div></div>
     <span class="badge ${a.st.cls}">${a.st.txt}</span></div>`).join('') : `<div class="empty">All documents valid 👍</div>`;
   body += `</div>`;
   shell(t('docAlerts'), body);
+  attachSearch('alr-search', 'alr-list');
 }
 
 /* ===== Traffic challans (eChallan) ======================================
@@ -4011,7 +4044,8 @@ function viewChallans() {
   }
   body += `</div>`;
 
-  body += `<div class="card"><h3>By bus</h3>`;
+  body += `<input id="chl-search" class="searchbox" placeholder="Search a number plate…" autocomplete="off">`;
+  body += `<div class="card listwrap" id="chl-list"><h3>By bus</h3>`;
   body += rows.map(({ b, c }) => {
     const bad = c && c.pendingCount;
     const right = !lookupable(b.regNo)
@@ -4029,6 +4063,7 @@ function viewChallans() {
   }).join('');
   body += `</div>`;
   shell('Challans', body);
+  attachSearch('chl-search', 'chl-list');
 }
 
 // Drill-in: every challan on one bus, pending first, newest first.
@@ -4411,12 +4446,14 @@ function penLine(label, count, pen) {
 function viewScoreboard() {
   const mechs = S.cache.users.filter((u) => u.role === 'mechanic').map((u) => ({ u, s: mechanicScore(u.id).score })).sort((a, b) => b.s - a.s);
   let body = `<div class="card"><div class="tiny muted">Work-quality score, last 90 days — from rework, proof photos, turnaround &amp; punctuality. Tap a name for the detail.</div></div>`;
-  body += `<div class="card"><h3>Mechanic leaderboard</h3>`;
+  body += `<input id="sb-search" class="searchbox" placeholder="Search a name…" autocomplete="off">`;
+  body += `<div class="card listwrap" id="sb-list"><h3>Mechanic leaderboard</h3>`;
   body += mechs.length ? mechs.map(({ u, s }, i) => `<div class="li" data-act="scorecard" data-user="${u.id}" style="cursor:pointer">
     <div class="ava">${i === 0 ? '🏆' : '🔧'}</div><div class="main"><div class="t">${i + 1}. ${esc(u.name)}${u.id === S.user.id ? ' (you)' : ''}</div></div>
     <span class="badge ${scoreClass(s)}">${s}</span></div>`).join('') : `<div class="empty">No mechanics yet</div>`;
   body += `</div>`;
   shell('Mechanic leaderboard', body);
+  attachSearch('sb-search', 'sb-list');
 }
 function viewScorecard(userId) {
   const u = byId(S.cache.users, userId);
@@ -5133,8 +5170,10 @@ function viewDrivers() {
   if (can(S.user.role, 'assignDriver')) {
     body += `<button class="btn" data-act="openAssignments" style="margin-bottom:12px">🔁 Driver ↔ Bus assignments</button>`;
   }
-  body += `<div class="card">${list.length ? list.map(driverLi).join('') : '<div class="empty">No drivers yet</div>'}</div>`;
+  body += `<input id="drv-search" class="searchbox" placeholder="Search name, bus or phone…" autocomplete="off">`;
+  body += `<div class="card listwrap" id="drv-list">${list.length ? list.map(driverLi).join('') : '<div class="empty">No drivers yet</div>'}</div>`;
   shell('Drivers', body, can(S.user.role, 'addBus') ? { act: 'addDriver', icon: '+' } : null);
+  attachSearch('drv-search', 'drv-list');
 }
 
 // Dedicated one-screen view of who drives what — reassign in one place.
@@ -5560,12 +5599,14 @@ function viewCrewPins() {
     <button class="btn primary" data-act="makeCrewLogins" style="margin-top:10px">👥 Create missing logins &amp; PINs</button>
     <button class="btn" data-act="activateCrewServer" style="margin-top:8px">🔐 Activate crew server logins</button>
     <div class="tiny muted" style="margin-top:6px">Activation registers each crew member on the server so their check-ins, trips &amp; work carry a verified identity (not just a shared 0000). Runs once automatically; use this if any crew still can't sync.</div></div>`;
-  body += `<div class="card"><h3>Drivers &amp; conductors (${users.length})</h3>`;
+  body += `<input id="cp-search" class="searchbox" placeholder="Search name, role or bus…" autocomplete="off">`;
+  body += `<div class="card listwrap" id="cp-list"><h3>Drivers &amp; conductors (${users.length})</h3>`;
   body += users.length ? users.map((u) => `<div class="li"><div class="ava">${ROLE_META[u.role][0]}</div>
     <div class="main"><div class="t">${esc(u.name)}</div><div class="s">${u.role}${busOf(u) ? ' · ' + esc(busOf(u)) : ''}</div></div>
     <span class="badge b-low" style="font-size:14px;letter-spacing:1px">${esc(credGet(u.id) || '— set —')}</span></div>`).join('') : `<div class="empty">No driver/conductor logins yet — tap “Create missing logins”.</div>`;
   body += `</div>`;
   shell('Crew logins & PINs', body);
+  attachSearch('cp-search', 'cp-list');
 }
 
 /* ===== Driver document vault ============================================= */

@@ -28,7 +28,11 @@ const Sync = (function () {
                   // proxy, pulled by every device, never pushed. Without it here the
                   // same mistake as the four above repeats — one phone sweeps the
                   // fleet and nobody else ever sees the liability.
-                  'challans'];
+                  'challans',
+                  // Server-written record of every change to a part's quantity.
+                  // Pulled so the owner can see unexplained ones; never pushed —
+                  // the whole point is that the people it watches cannot touch it.
+                  'stockmoves'];
 
   const ls = window.localStorage;
   // Default sync backend: a device's explicit setting always wins. Otherwise, on
