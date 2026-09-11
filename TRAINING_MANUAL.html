@@ -803,6 +803,13 @@ body[data-role="conductor"]:not([data-role="all"]) .sec[data-roles~="conductor"]
         </ul>
       </div>
     </div>
+    <div class="note">
+      <span class="tag">Finding a part, and pricing a used one · पुर्जा ढूँढ़ना, और पुराने का दाम</span>
+      <div class="bi">
+        <div class="en"><p>The part list is long, so <span class="ui">Issue part</span> starts with a search box instead of a list: type any part of the name, the part number, or the category. With nothing typed it shows the parts that actually have stock, because that is nearly always what you are reaching for.</p><p>Tick <span class="ui">♻️ Used / second-hand</span> when the part going out is not new, and enter what it is honestly worth. The job is then charged <b>that</b> price and not the new one — which is the whole point, because a job billed at new-part prices for a salvaged part makes a bus look more expensive than it is.</p><p><b>The shelf count still comes down.</b> New or used, something physical left the store, and every part that leaves must be on the ledger against a job. The tick changes the price, never the count. If a salvaged part is not in the store yet, add it first at its salvage value — then the shelf and the book agree.</p></div>
+        <div class="hi"><p>पुर्जों की सूची लंबी है, इसलिए <span class="ui">पुर्जा जारी करें</span> अब सूची से नहीं, खोज बॉक्स से शुरू होता है: नाम का कोई हिस्सा, पुर्जा नंबर, या श्रेणी — कुछ भी लिखिए। कुछ न लिखें तो वही पुर्जे दिखते हैं जिनका स्टॉक मौजूद है, क्योंकि ज़रूरत लगभग हमेशा उन्हीं की होती है।</p><p>जो पुर्जा जा रहा है वह नया न हो तो <span class="ui">♻️ पुराना / सेकंड-हैंड</span> पर निशान लगाइए और उसकी सही कीमत डालिए। तब काम पर <b>वही</b> कीमत चढ़ेगी, नए की नहीं — और बात यही है, क्योंकि पुराने पुर्जे को नए के दाम पर चढ़ाने से बस असल से महँगी दिखने लगती है।</p><p><b>शेल्फ़ का अंक फिर भी घटेगा।</b> नया हो या पुराना, माल स्टोर से बाहर गया है, और जो भी बाहर जाए वह किसी जॉब कार्ड पर दर्ज होना ही चाहिए। निशान से दाम बदलता है, गिनती कभी नहीं। पुराना पुर्जा अभी स्टोर में है ही नहीं तो पहले उसे उसकी पुरानी कीमत पर जोड़िए — तब शेल्फ़ और किताब मिलते हैं।</p></div>
+      </div>
+    </div>
     <div class="note warn">
       <span class="tag">The stock count · स्टॉक गिनती</span>
       <div class="bi">
@@ -1167,6 +1174,42 @@ body[data-role="conductor"]:not([data-role="all"]) .sec[data-roles~="conductor"]
     </div>
   </div>
 
+  <div class="sec" data-roles="owner supervisor mechanic">
+    <h3>Completed work — and the repair after it <span class="devnag">पूरा हुआ काम — और उसके बाद वाली मरम्मत</span></h3>
+    <p class="who">Owner &amp; supervisor · मालिक और सुपरवाइज़र</p>
+    <div class="bi">
+      <div class="en"><p>Every other screen is about work that is happening now. <span class="ui">Completed work</span> is about work that has already been done, because that is the only place a <i>pattern</i> lives. Open it from the jobs board, from the owner's home screen, or from a bus — <span class="ui">Service history</span> → <span class="ui">Completed work</span> to see one bus on its own.</p></div>
+      <div class="hi"><p>बाकी हर स्क्रीन उस काम की है जो अभी चल रहा है। <span class="ui">पूरा हुआ काम</span> उस काम की है जो हो चुका — क्योंकि <i>पैटर्न</i> वहीं मिलता है, और कहीं नहीं। इसे जॉब बोर्ड से, मालिक की होम स्क्रीन से, या किसी बस से खोलिए — <span class="ui">सर्विस इतिहास</span> → <span class="ui">पूरा हुआ काम</span> से सिर्फ़ वही बस दिखेगी।</p></div>
+    </div>
+    <div class="bi">
+      <div class="en">
+        <p>At the top sits the <span class="ui">watch list</span>, and it says two different things:</p>
+        <ul>
+          <li><span class="ui">Due now</span> / <span class="ui">Due soon</span> — this bus has had this system done several times, the gaps between them average out to something, and that much time (or that many kilometres) has now passed again. The interval is taken from <b>this bus's own history</b>, not from a manual, because the interval that matters on your routes is the one the bus has actually kept.</li>
+          <li><span class="ui">Came back</span> — the same system needed doing again within six weeks. That is not a service interval; that is the same fault walking back in. Look at the two job cards side by side before ordering the part a third time.</li>
+        </ul>
+        <p>Each line shows its workings — how many times, how far apart in days and in kilometres, and when it was last done. A number with no workings behind it is a guess, and nobody in a workshop should act on one.</p>
+        <p>Below that is every finished job, newest first: the bus, the fault, the date, the odometer, who did it, what it cost, and whether it was verified. Search by bus, by fault or by mechanic. Tap any line to open the card itself, with its photos and its parts.</p>
+      </div>
+      <div class="hi">
+        <p>सबसे ऊपर <span class="ui">ध्यान देने वाले</span> की सूची है, और वह दो अलग बातें कहती है:</p>
+        <ul>
+          <li><span class="ui">अभी करना है</span> / <span class="ui">जल्दी करना है</span> — इस बस में यह हिस्सा कई बार बन चुका है, उनके बीच का औसत अंतर निकलता है, और उतना समय (या उतने किलोमीटर) फिर से बीत गए हैं। यह अंतर <b>इसी बस के अपने इतिहास</b> से निकला है, किसी किताब से नहीं — क्योंकि आपके रूट पर वही अंतर मायने रखता है जो बस ने सचमुच निभाया है।</li>
+          <li><span class="ui">फिर आया</span> — वही हिस्सा छह हफ़्ते के अंदर दोबारा बनाना पड़ा। यह सर्विस का अंतर नहीं है; यह वही खराबी है जो लौट आई। तीसरी बार पुर्जा मँगाने से पहले दोनों जॉब कार्ड साथ रखकर देखिए।</li>
+        </ul>
+        <p>हर लाइन अपना हिसाब भी दिखाती है — कितनी बार, कितने दिन और कितने किलोमीटर के अंतर पर, और पिछली बार कब। जिस अंक के पीछे हिसाब न दिखे वह अंदाज़ा है, और वर्कशॉप में अंदाज़े पर कोई काम नहीं होता।</p>
+        <p>उसके नीचे हर पूरा हुआ काम है, नया सबसे ऊपर: बस, खराबी, तारीख़, ओडोमीटर, किसने किया, कितना लगा, और जाँच हुई या नहीं। बस, खराबी या मैकेनिक से खोज सकते हैं। किसी भी लाइन को दबाइए और वही कार्ड खुल जाएगा, फोटो और पुर्जों के साथ।</p>
+      </div>
+    </div>
+    <div class="note">
+      <span class="tag">Two things worth knowing · दो बातें जान लीजिए</span>
+      <div class="bi">
+        <div class="en"><p>The app groups jobs by system by reading the <b>fault you typed</b>. Write the fault plainly — "brake lining worn", "AC not cooling" — and it lands in the right group. Write it vaguely and it lands in <span class="ui">Other</span>, which is never flagged, because two unrelated repairs in one bucket must not be reported as the same thing coming back.</p><p>A mechanic opening this screen sees <b>their own</b> finished work and nobody else's — the same as their job board.</p></div>
+        <div class="hi"><p>ऐप जॉब कार्डों को हिस्से के हिसाब से जोड़ता है, और यह <b>आपकी लिखी खराबी</b> पढ़कर करता है। खराबी साफ़ लिखिए — "ब्रेक लाइनिंग घिसी", "एसी ठंडा नहीं कर रहा" — तो वह सही समूह में जाएगी। गोलमोल लिखेंगे तो <span class="ui">अन्य</span> में चली जाएगी, जिस पर कभी निशान नहीं लगता — क्योंकि एक ही डिब्बे में पड़े दो अलग-अलग काम "वही चीज़ फिर आई" नहीं कहलाने चाहिए।</p><p>मैकेनिक इस स्क्रीन पर <b>अपना</b> पूरा किया काम ही देखता है, किसी और का नहीं — ठीक अपने जॉब बोर्ड की तरह।</p></div>
+      </div>
+    </div>
+  </div>
+
 <!-- ============================ PART 5 ============================ -->
 <section class="part">
   <header><span class="num">PART 5</span><h2>Six rules that cannot be bent <span class="devnag">छह नियम जो नहीं टूटेंगे</span></h2></header>
@@ -1286,6 +1329,13 @@ body[data-role="conductor"]:not([data-role="all"]) .sec[data-roles~="conductor"]
       </table>
     </div>
     <p class="legend"><b>✓*</b> — but never a job you closed yourself; someone else signs that one off. <b>A mechanic</b> signs in only to see the work assigned to them: no closing, no verifying, no money. The supervisor keeps their job cards, and the work is recorded in their name. · <b>✓*</b> — पर वह काम नहीं जो आपने खुद बंद किया; उसे कोई और जाँचेगा। <b>मैकेनिक</b> लॉगिन सिर्फ़ अपना दिया हुआ काम देखने के लिए करते हैं: न बंद करना, न जाँचना, न पैसा। कार्ड सुपरवाइज़र भरता है, और काम उन्हीं के नाम दर्ज होता है।</p>
+    <div class="note">
+      <span class="tag">Why there are two supervisors · दो सुपरवाइज़र क्यों हैं</span>
+      <div class="bi">
+        <div class="en"><p><b>Vajid</b> and <b>Latif</b> both hold supervisor logins, and they work alternate shifts. This is not only about cover. Nobody may verify a job they closed themselves — with one supervisor every closed card had to wait for the owner, so the queue simply moved to him. With two, each signs off the other's work and the check stays a real check instead of a formality.</p></div>
+        <div class="hi"><p><b>वाजिद</b> और <b>लतीफ़</b>, दोनों के पास सुपरवाइज़र लॉगिन है और दोनों बारी-बारी ड्यूटी करते हैं। बात सिर्फ़ छुट्टी की नहीं है। अपना बंद किया हुआ काम कोई खुद नहीं जाँच सकता — एक ही सुपरवाइज़र होने पर हर बंद कार्ड मालिक के इंतज़ार में रुकता था, यानी कतार बस उन तक खिसक जाती थी। दो होने से हर एक दूसरे का काम जाँचता है, और जाँच दिखावा नहीं, सचमुच की जाँच रहती है।</p></div>
+      </div>
+    </div>
   </div>
 </section>
 
