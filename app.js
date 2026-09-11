@@ -25,6 +25,22 @@ const I18N = {
     wizStep1: 'Bus & fault', wizStep2: 'Who & when', wizStep3: 'Cost & notes',
     wizNext: 'Next', wizBack: 'Back', wizCreate: 'Create job card',
     wizCheck: 'Check before you create', wizCheckHint: 'Go back to any step to change something.',
+    hmNothing: 'nothing needs you right now', hmNotCheckedIn: 'You are not checked in today.',
+    hmLast30: 'last 30 days', hmLast7: 'Repair cost', hmReports: 'reports',
+    hmToVerify: 'Waiting for your sign-off', hmToVerifySub: 'closed by somebody else',
+    hmUnexplained: 'Unexplained stock changes', hmUnexplainedSub: 'quantity edited with no job card',
+    hmPilferage: 'Pilferage flags', hmPilferageSub: 'worth asking about',
+    hmChallans: 'Traffic challans owed', hmDocsExpired: 'Documents expired',
+    hmDocsExpiredSub: 'the bus is not legal to run', hmDocsSoon: 'Documents expiring',
+    hmDocsSoonSub: 'within 15 days', hmOwed: 'Owed to suppliers', hmOwedSub: 'unpaid bills',
+    hmFleetHealth: 'Fleet health', hmBreakdownsSub: 'failures on the road, 90 days',
+    hmServiceDue: 'Service overdue', hmAllServiced: 'every bus is up to date',
+    hmInShop: 'In the workshop now', hmShopEmpty: 'Nothing in the workshop. Enjoy it.',
+    hmIdle: 'idle', hmMore: 'more',
+    hmComplaints: 'Driver complaints', hmNoDriver: 'Buses with no driver',
+    hmLowStock: 'Parts running low', hmLowStockSub: 'order before a job stops',
+    hmWaitingSignoff: 'Waiting on somebody else', hmWaitingSignoffSub: 'You closed these. The owner or another supervisor signs them off — nothing for you to do.',
+    hmLoad: 'Who is carrying what',
     bdTitle: 'Breakdowns', bdSub: 'Failures on the road — last 90 days',
     bdBlurb: 'Every failure that happened on the road. The point of the whole system is to stop needing these, so the figures here are the ones to watch go down.',
     bdLast180: 'Breakdowns (180 days)', bdOffRoad: 'Buses off the road', bdHrs: 'h',
@@ -178,6 +194,22 @@ const I18N = {
     wizStep1: 'बस और खराबी', wizStep2: 'कौन और कब', wizStep3: 'खर्च और नोट',
     wizNext: 'आगे', wizBack: 'पीछे', wizCreate: 'जॉब कार्ड बनाएं',
     wizCheck: 'बनाने से पहले देख लीजिए', wizCheckHint: 'कुछ बदलना हो तो किसी भी कदम पर वापस जाइए।',
+    hmNothing: 'अभी कुछ बाकी नहीं', hmNotCheckedIn: 'आज आपकी हाज़िरी नहीं लगी है।',
+    hmLast30: 'पिछले 30 दिन', hmLast7: 'मरम्मत खर्च', hmReports: 'रिपोर्ट',
+    hmToVerify: 'आपकी जाँच बाकी', hmToVerifySub: 'किसी और ने बंद किए',
+    hmUnexplained: 'बिना वजह बदला स्टॉक', hmUnexplainedSub: 'जॉब कार्ड के बिना मात्रा बदली',
+    hmPilferage: 'पिलफ़रेज निशान', hmPilferageSub: 'पूछने लायक',
+    hmChallans: 'बकाया चालान', hmDocsExpired: 'कागज़ात समाप्त',
+    hmDocsExpiredSub: 'बस चलाना कानूनी नहीं', hmDocsSoon: 'कागज़ात समाप्त हो रहे',
+    hmDocsSoonSub: '15 दिन के अंदर', hmOwed: 'सप्लायर को देना है', hmOwedSub: 'बकाया बिल',
+    hmFleetHealth: 'बेड़े की सेहत', hmBreakdownsSub: 'रास्ते में खराबी, 90 दिन',
+    hmServiceDue: 'सर्विस बाकी', hmAllServiced: 'हर बस की सर्विस समय पर है',
+    hmInShop: 'अभी वर्कशॉप में', hmShopEmpty: 'वर्कशॉप खाली है। अच्छी बात है।',
+    hmIdle: 'खाली खड़ी', hmMore: 'और',
+    hmComplaints: 'ड्राइवर शिकायतें', hmNoDriver: 'बिना ड्राइवर वाली बसें',
+    hmLowStock: 'पुर्जे कम पड़ रहे', hmLowStockSub: 'काम रुकने से पहले मंगाइए',
+    hmWaitingSignoff: 'किसी और पर बाकी', hmWaitingSignoffSub: 'ये आपने बंद किए हैं। जाँच मालिक या दूसरा सुपरवाइज़र करेगा — आपको कुछ नहीं करना।',
+    hmLoad: 'किसके पास कितना काम',
     bdTitle: 'ब्रेकडाउन', bdSub: 'रास्ते में हुई खराबी — पिछले 90 दिन',
     bdBlurb: 'रास्ते में हुई हर खराबी। पूरे सिस्टम का मक़सद ही यह है कि ये न हों, इसलिए यहाँ के आँकड़े वही हैं जिन्हें घटते देखना है।',
     bdLast180: 'ब्रेकडाउन (180 दिन)', bdOffRoad: 'बसें बंद रहीं', bdHrs: 'घं',
@@ -1170,7 +1202,7 @@ function viewMechanicHome() {
       const started = j.startAt;
       return `<div class="li" data-job="${j.id}"><div class="ava">${started ? '🔧' : '⏳'}</div>
         <div class="main"><div class="t">${esc(busName(j.busId))} · ${esc(j.problem)}</div>
-          <div class="s">${PRIO_PILL[j.priority] || ''} · ${t('mchSince')} ${fmtDateTime(inAt)}${started ? ` · ${t('mchStarted')} ${msToHHMM(started)}` : ` · ${t('mchNotStarted')}`}</div></div>
+          <div class="s">${PRIO_PILL[j.priority] || ''} · ${t('mchSince')} ${fmtDateTime(inAt)}${started ? ` · ${t('mchStarted')} ${msToHHMM(started)}` : (j.status === 'open' ? ` · ${t('mchNotStarted')}` : '')}</div></div>
         ${statusBadge(j.status)}</div>`;
     }).join('') : `<div class="muted small">${t('mchNothingToday')}</div>`;
   body += `</div>`;
@@ -1506,7 +1538,155 @@ function viewPeople() {
   shell(t('people'), body);
 }
 
+/* One shared triage row, so "what needs you" looks and behaves the same on every
+ * home and each row drills straight to where the work is done. */
+function triageRow(cls, icon, title, sub, attr, count) {
+  return `<div class="trow ${cls}" ${attr || ''}><div class="ti">${icon}</div>
+    <div class="tm"><div class="tt">${title}</div><div class="ts">${sub}</div></div>
+    <div class="tc">${count == null ? '›' : count}</div></div>`;
+}
+function triageCard(rows) {
+  return `<div class="card"><h3>🔔 ${t('needsYouNow')}</h3>` + (rows.length
+    ? rows.join('')
+    : triageRow('ok', '✓', t('allClear'), t('hmNothing'), '', null)) + `</div>`;
+}
+const greetBlock = (emoji, line2) => `<div class="greet"><div class="greet-av">${emoji}</div>
+  <div><div class="greet-hi">${t('namaste')}, ${esc(S.user.name.split(' ')[0])} 👋</div>
+    <div class="muted small">${esc(line2 || (BIZ + ' · ' + fmtToday()))}</div></div></div>`;
+const notCheckedInBanner = () => {
+  const mine = (S.cache.att || []).filter((a) => a.userId === S.user.id);
+  const inToday = mine.length && mine[mine.length - 1].type === 'in' && isToday(mine[mine.length - 1].at);
+  return inToday ? '' : `<div class="banner warn">⏰ ${t('hmNotCheckedIn')}
+    <button class="btn sm" data-nav="me" style="margin-left:auto">${t('checkin')}</button></div>`;
+};
+
+/* ===== The owner's home ====================================================
+ * The owner is not on the floor. What they need on opening the app is what the
+ * fleet is costing, and the short list of things only they can settle — money
+ * owed, work waiting on a second signature, and the flags that mean somebody
+ * should be asked a question. Nothing here is a task they would do themselves.
+ */
+function viewOwnerHome() {
+  const cost30 = costLast30();
+  const prev30 = (() => {
+    const a = Date.now() - 60 * day, b = Date.now() - 30 * day;
+    return S.cache.jobs.filter((j) => { const ts = j.closedAt || j.createdAt; return ts >= a && ts < b; })
+      .reduce((x, j) => x + jobCost(j).total, 0);
+  })();
+  const trend = prev30 > 0 ? Math.round((cost30 - prev30) / prev30 * 100) : null;
+  const owed = S.cache.purchases.filter((x) => x.paymentStatus === 'pending').reduce((x, p) => x + (p.amount || 0), 0);
+
+  // Only work somebody ELSE closed is the owner's to sign off — the whole point
+  // of the two-person rule, and it keeps their list honest.
+  const toVerify = S.cache.jobs.filter((j) => j.status === 'done' && j.closedBy !== S.user.id);
+  const unexplained = (typeof unexplainedStockMoves === 'function') ? unexplainedStockMoves(30) : [];
+  const pf = pilferageRadar();
+  const alerts = allDocAlerts(); const expired = alerts.filter((a) => a.st.dl <= 0);
+  const ch = fleetChallanTotals();
+  const bd90 = breakdownsFor(null, Date.now() - 90 * day);
+  const overdue = busesDueService().filter((x) => x.sv.status === 'overdue');
+
+  let body = greetBlock('👑');
+
+  body += `<div class="card" data-act="openReports" style="cursor:pointer">
+    <div class="row between"><h3>${t('runningCost')}</h3>
+      ${trend == null ? '' : `<span class="schip ${trend <= 0 ? 'ok' : 'crit'}"><i></i>${trend <= 0 ? '▼' : '▲'} ${Math.abs(trend)}%</span>`}</div>
+    <div class="stat money">${money(cost30)}</div>
+    <div class="tiny muted">${t('hmLast30')}${owed ? ` · ${t('youOwe')} ${money(owed)}` : ''}</div></div>`;
+
+  const rows = [];
+  if (toVerify.length) rows.push(triageRow('crit', '☑️', t('hmToVerify'), t('hmToVerifySub'), 'data-nav="jobs"', toVerify.length));
+  if (unexplained.length) rows.push(triageRow('crit', '🔎', t('hmUnexplained'), t('hmUnexplainedSub'), 'data-nav="storehealth"', unexplained.length));
+  if (pf.length) rows.push(triageRow('crit', '🕵️', t('hmPilferage'), t('hmPilferageSub'), 'data-act="openPilferage"', pf.length));
+  if (ch.fine) rows.push(triageRow('crit', '🚦', t('hmChallans'), money(ch.fine), 'data-act="openChallans"', ch.pending));
+  if (expired.length) rows.push(triageRow('crit', '📄', t('hmDocsExpired'), t('hmDocsExpiredSub'), 'data-act="openAlerts"', expired.length));
+  else if (alerts.length) rows.push(triageRow('warn', '📄', t('hmDocsSoon'), t('hmDocsSoonSub'), 'data-act="openAlerts"', alerts.length));
+  if (owed) rows.push(triageRow('warn', '🧾', t('hmOwed'), t('hmOwedSub'), 'data-act="openPurchases"', money(owed)));
+  body += triageCard(rows);
+
+  body += `<div class="card"><h3>${t('hmFleetHealth')}</h3>
+    ${triageRow(bd90.length ? 'warn' : 'ok', '🛠️', t('bdTitle'), t('hmBreakdownsSub'), 'data-act="openBreakdowns"', bd90.length)}
+    ${triageRow(overdue.length ? 'warn' : 'ok', '🔧', t('hmServiceDue'), overdue.length ? esc(overdue.slice(0, 3).map((x) => x.b.regNo).join(', ')) : t('hmAllServiced'), 'data-nav="fleet"', overdue.length)}
+    ${triageRow('', '📊', t('mpTitle'), t('mpSub'), 'data-act="openScoreboard"', null)}</div>`;
+
+  const series = costSeries(7);
+  const max = Math.max(1, ...series.map((d) => d.value));
+  body += `<div class="card" data-act="openReports" style="cursor:pointer">
+    <div class="row between"><h3>${t('hmLast7')}</h3><span class="badge b-low">${t('hmReports')} ›</span></div>
+    <div class="chart">${series.map((d) => `<div class="bar"><i style="height:${Math.round(d.value / max * 100)}%"></i><span>${d.label}</span></div>`).join('')}</div></div>`;
+
+  shell(t('today'), body);
+}
+
+/* ===== The supervisor's home ===============================================
+ * The opposite job. A supervisor is on the floor and needs to know what is in
+ * the workshop RIGHT NOW and how long it has been standing there — which is the
+ * one thing the old shared home never showed, because it was written for the
+ * owner and the supervisor was handed the same screen.
+ */
+function viewSupervisorHome() {
+  const inShop = S.cache.jobs
+    .filter((j) => j.status === 'open' || j.status === 'in-progress')
+    .sort((a, b) => (a.enterAt || a.createdAt) - (b.enterAt || b.createdAt));
+  const mineToVerify = S.cache.jobs.filter((j) => j.status === 'done' && j.closedBy === S.user.id);
+  const othersToVerify = S.cache.jobs.filter((j) => j.status === 'done' && j.closedBy !== S.user.id);
+  const openReports = (S.cache.driverreports || []).filter((r) => r.status === 'open').sort((a, b) => b.at - a.at);
+  const noDriver = (S.cache.buses || []).filter((b) => !driverOfBus(b.id));
+  const overdue = busesDueService().filter((x) => x.sv.status === 'overdue');
+  const alerts = allDocAlerts();
+  const low = (S.cache.parts || []).filter(isLow);
+
+  let body = greetBlock('🧑‍🔧') + notCheckedInBanner();
+
+  // What is standing in the yard, oldest first, with the clock running.
+  body += `<div class="card"><div class="row between"><h3>🏭 ${t('hmInShop')}</h3>
+      <span class="badge ${inShop.length ? 'b-amber' : 'b-green'}">${inShop.length}</span></div>`;
+  body += inShop.length ? inShop.slice(0, 8).map((j) => {
+    const since = j.enterAt || j.createdAt;
+    const idle = jobIdleMs(j);
+    return `<div class="li" data-job="${j.id}"><div class="ava">${j.startAt ? '🔧' : '⏳'}</div>
+      <div class="main"><div class="t">${esc(busName(j.busId))} · ${esc(j.problem)}</div>
+        <div class="s">${t('mchSince')} ${timeAgo(since)}${(!j.startAt && j.status === 'open') ? ' · ' + t('mchNotStarted') : ''}${idle ? ' · ' + t('hmIdle') + ' ' + Math.round(idle / 3600000) + t('bdHrs') : ''}</div></div>
+      ${statusBadge(j.status)}</div>`;
+  }).join('') + (inShop.length > 8 ? `<div class="tiny muted" style="margin-top:6px" data-nav="jobs">+${inShop.length - 8} ${t('hmMore')} ›</div>` : '')
+    : `<div class="muted small">${t('hmShopEmpty')}</div>`;
+  body += `</div>`;
+
+  const rows = [];
+  if (openReports.length) rows.push(triageRow('crit', '🗣️', t('hmComplaints'), esc(busName(openReports[0].busId)) + (openReports.length > 1 ? ' +' + (openReports.length - 1) : ''), `data-bus="${esc(openReports[0].busId)}"`, openReports.length));
+  if (othersToVerify.length) rows.push(triageRow('crit', '☑️', t('hmToVerify'), t('hmToVerifySub'), 'data-nav="jobs"', othersToVerify.length));
+  if (noDriver.length) rows.push(triageRow('warn', '🧑‍✈️', t('hmNoDriver'), esc(noDriver.slice(0, 3).map((b) => b.regNo).join(', ')), 'data-act="openAssignments"', noDriver.length));
+  if (overdue.length) rows.push(triageRow('warn', '🔧', t('hmServiceDue'), esc(overdue.slice(0, 3).map((x) => x.b.regNo).join(', ')), 'data-nav="fleet"', overdue.length));
+  if (alerts.length) rows.push(triageRow(alerts.some((a) => a.st.dl <= 0) ? 'crit' : 'warn', '📄', t('hmDocsSoon'), t('hmDocsSoonSub'), 'data-act="openAlerts"', alerts.length));
+  if (low.length) rows.push(triageRow('warn', '📦', t('hmLowStock'), t('hmLowStockSub'), 'data-nav="store"', low.length));
+  body += triageCard(rows);
+
+  // Work they have closed that is not theirs to sign off. Not a task — the
+  // point is that it is off their plate, and who it is waiting on.
+  if (mineToVerify.length) {
+    body += `<div class="card"><div class="row between"><h3>⏳ ${t('hmWaitingSignoff')}</h3>
+        <span class="badge b-low">${mineToVerify.length}</span></div>
+      <div class="tiny muted">${t('hmWaitingSignoffSub')}</div></div>`;
+  }
+
+  // Who is carrying what, so the next card goes to somebody who can take it.
+  const mechs = (S.cache.users || []).filter((u) => u.role === 'mechanic');
+  if (mechs.length) {
+    const load = mechs.map((u) => ({ u, n: inShop.filter((j) => j.assignedTo === u.id).length }))
+      .sort((a, b) => b.n - a.n);
+    body += `<div class="card" data-act="openScoreboard" style="cursor:pointer">
+      <div class="row between"><h3>👷 ${t('hmLoad')}</h3><span class="tiny muted">${t('mpTitle')} ›</span></div>`;
+    body += load.map(({ u, n }) => `<div class="row between small" style="padding:4px 0">
+        <span>${esc(u.name)}</span><b style="color:${n > 4 ? 'var(--red)' : 'var(--text)'}">${n}</b></div>`).join('');
+    body += `</div>`;
+  }
+
+  shell(t('today'), body);
+}
+
 function viewHome() {
+  if (S.user.role === 'owner') return viewOwnerHome();
+  if (S.user.role === 'supervisor') return viewSupervisorHome();
   if (S.user.role === 'crewmanager') return viewCrewManagerHome();
   if (S.user.role === 'driver') return viewDriverHome();
   if (S.user.role === 'conductor') return viewConductorHome();
