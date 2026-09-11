@@ -22,6 +22,9 @@ const I18N = {
     recentHere: 'Recent on this phone', whoAreYou: 'Who are you?', selectName: 'Select your name', searchName: 'Search name…',
     cantReach: "Can't reach the server — check internet and try again",
     odoBroken: 'Odometer not working on this bus',
+    wizStep1: 'Bus & fault', wizStep2: 'Who & when', wizStep3: 'Cost & notes',
+    wizNext: 'Next', wizBack: 'Back', wizCreate: 'Create job card',
+    wizCheck: 'Check before you create', wizCheckHint: 'Go back to any step to change something.',
     odoBrokenHint: 'Tick this instead of guessing a number. Cost per km and mileage are left blank for this bus until it is repaired, rather than being worked out from a reading that never moves.',
     tooManyTries: 'Too many wrong PINs. Try again in a few minutes, or ask your supervisor.',
     // Menu (More)
@@ -153,6 +156,9 @@ const I18N = {
     recentHere: 'इस फ़ोन पर हाल के', whoAreYou: 'आप कौन हैं?', selectName: 'अपना नाम चुनें', searchName: 'नाम खोजें…',
     cantReach: 'सर्वर से संपर्क नहीं — इंटरनेट जाँचें और फिर कोशिश करें',
     odoBroken: 'इस बस का ओडोमीटर काम नहीं कर रहा',
+    wizStep1: 'बस और खराबी', wizStep2: 'कौन और कब', wizStep3: 'खर्च और नोट',
+    wizNext: 'आगे', wizBack: 'पीछे', wizCreate: 'जॉब कार्ड बनाएं',
+    wizCheck: 'बनाने से पहले देख लीजिए', wizCheckHint: 'कुछ बदलना हो तो किसी भी कदम पर वापस जाइए।',
     odoBrokenHint: 'अंदाज़े से नंबर डालने के बजाय यह लगाइए। ठीक होने तक इस बस का प्रति किमी खर्च और माइलेज खाली रहेगा — रुके हुए ओडोमीटर से निकाला गया गलत आँकड़ा नहीं दिखेगा।',
     tooManyTries: 'बहुत बार गलत पिन। कुछ मिनट बाद कोशिश कीजिए, या सुपरवाइज़र से कहिए।',
     // Menu (More)
@@ -3184,19 +3190,30 @@ function viewNewJob(prefill = {}) {
   const PCOL = { high: '#ef4444', medium: '#f59e0b', low: '#16a571' };
   const seg = (v, label) => { const on = prio === v, c = PCOL[v];
     return `<button class="prio-seg" data-act="setPrio" data-v="${v}" style="flex:1;padding:12px;border-radius:12px;cursor:pointer;font-weight:${on ? 800 : 600};border:1.5px solid ${on ? c : 'var(--line,#e6e9f0)'};color:${on ? '#161922' : '#8b91a0'};background:${on ? c + '22' : '#fff0'}">${label}</button>`; };
+  const stepHead = (n, label) => `<button type="button" class="wz-dot" data-act="wizGo" data-step="${n}">
+      <span class="wz-n">${n}</span><span class="wz-l">${label}</span></button>`;
   const body = `
     <input type="hidden" id="f-reportId" value="${prefill.reportId || ''}">
     <input type="hidden" id="f-prio" value="${prio}">
-    <div class="card"><label class="field"><span class="lbl">🚌 Bus</span>
-      <select id="f-bus">${buses.map((b) => `<option value="${b.id}" ${b.id === sel ? 'selected' : ''}>${esc(b.regNo)}${b.company ? ' — ' + esc(b.company) : ''}</option>`).join('')}</select></label>
-      <div id="f-reports" style="margin-top:8px">${reportPicklistRich(sel)}</div></div>
-    <div class="card"><label class="field"><span class="lbl">🔧 Problem reported</span>
-      <textarea id="f-prob" placeholder="e.g. Front brakes weak, pulls left">${esc(prefill.problem || '')}</textarea></label></div>
-    <div class="card"><div class="lbl" style="margin-bottom:8px">🚩 Priority</div>
-      <div style="display:flex;gap:8px">${seg('high', '🔴 High')}${seg('medium', '🟡 Medium')}${seg('low', '🟢 Low')}</div></div>
-    <div class="card"><label class="field"><span class="lbl">👷 Work done by</span>
-      <select id="f-mech">${assignees.map((m) => `<option value="${m.id}">${esc(m.name)}</option>`).join('')}</select></label>
-      <div class="tiny muted">Who is on the job. They do not log in — you keep the card for them.</div></div>
+    <div class="wz-bar" id="f-wizbar">
+      <div class="wz-track"><i id="f-wizfill"></i></div>
+      <div class="wz-dots">${stepHead(1, t('wizStep1'))}${stepHead(2, t('wizStep2'))}${stepHead(3, t('wizStep3'))}</div>
+    </div>
+
+    <section class="wz-step" data-step="1">
+      <div class="card"><label class="field"><span class="lbl">🚌 Bus</span>
+        <select id="f-bus">${buses.map((b) => `<option value="${b.id}" ${b.id === sel ? 'selected' : ''}>${esc(b.regNo)}${b.company ? ' — ' + esc(b.company) : ''}</option>`).join('')}</select></label>
+        <div id="f-reports" style="margin-top:8px">${reportPicklistRich(sel)}</div></div>
+      <div class="card"><label class="field"><span class="lbl">🔧 Problem reported</span>
+        <textarea id="f-prob" placeholder="e.g. Front brakes weak, pulls left">${esc(prefill.problem || '')}</textarea></label></div>
+      <div class="card"><div class="lbl" style="margin-bottom:8px">🚩 Priority</div>
+        <div style="display:flex;gap:8px">${seg('high', '🔴 High')}${seg('medium', '🟡 Medium')}${seg('low', '🟢 Low')}</div></div>
+    </section>
+
+    <section class="wz-step" data-step="2">
+      <div class="card"><label class="field"><span class="lbl">👷 Work done by</span>
+        <select id="f-mech">${assignees.map((m) => `<option value="${m.id}">${esc(m.name)}</option>`).join('')}</select></label>
+        <div class="tiny muted">Who is on the job. They do not log in — you keep the card for them.</div></div>
     <div class="card"><div class="lbl" style="margin-bottom:8px">🕒 Workshop clock</div>
       <label class="field"><span class="lbl">📅 Date</span><input id="f-jdate" type="date" value="${msToYMD()}"></label>
       <div class="grid2" style="margin-top:8px">
@@ -3209,14 +3226,24 @@ function viewNewJob(prefill = {}) {
         <input type="checkbox" id="f-odobroken" ${(byId(buses, sel) || {}).odoBroken ? 'checked' : ''} style="width:18px;height:18px;flex:none">
         <span class="small">🚫 ${t('odoBroken')}</span></label>
       <div class="tiny muted" style="margin-top:4px">${t('odoBrokenHint')}</div></div>
-    <div class="card"><label class="field"><span class="lbl">🏪 Outside vendor / workshop (optional)</span>
-      <input id="f-vendor" placeholder="e.g. Noida Eicher workshop — blank if done in-house"></label>
-      <div class="grid2" style="margin-top:8px">
-        <label class="field"><span class="lbl">₹ Outside cost</span><input id="f-extcost" type="number" inputmode="numeric"></label>
-        <label class="field"><span class="lbl">⏱️ Labour hours</span><input id="f-hrs" type="number" inputmode="decimal"></label></div></div>
-    <div class="card"><label class="field"><span class="lbl">📝 Notes (optional)</span>
-      <textarea id="f-notes" placeholder="Any extra detail about the work"></textarea></label></div>
-    <button class="btn primary" data-act="saveJob" style="font-size:16px;padding:15px;margin-top:2px">✓ Create job card</button>
+    </section>
+
+    <section class="wz-step" data-step="3">
+      <div class="card"><label class="field"><span class="lbl">🏪 Outside vendor / workshop (optional)</span>
+        <input id="f-vendor" placeholder="e.g. Noida Eicher workshop — blank if done in-house"></label>
+        <div class="grid2" style="margin-top:8px">
+          <label class="field"><span class="lbl">₹ Outside cost</span><input id="f-extcost" type="number" inputmode="numeric"></label>
+          <label class="field"><span class="lbl">⏱️ Labour hours</span><input id="f-hrs" type="number" inputmode="decimal"></label></div></div>
+      <div class="card"><label class="field"><span class="lbl">📝 Notes (optional)</span>
+        <textarea id="f-notes" placeholder="Any extra detail about the work"></textarea></label></div>
+      <div class="card" id="f-summary"></div>
+    </section>
+
+    <div class="wz-foot">
+      <button class="btn" id="f-back" data-act="wizBack">‹ ${t('wizBack')}</button>
+      <button class="btn primary" id="f-next" data-act="wizNext">${t('wizNext')} ›</button>
+      <button class="btn primary" id="f-create" data-act="saveJob" style="display:none">✓ ${t('wizCreate')}</button>
+    </div>
     <div class="spacer"></div>`;
   shell('New job card', body, null, NARROW);
   const busSel = document.getElementById('f-bus');
@@ -3229,6 +3256,7 @@ function viewNewJob(prefill = {}) {
   });
   const odoEl = document.getElementById('f-odo');
   if (odoEl) odoEl.addEventListener('input', () => { odoEl.dataset.touched = '1'; });
+  _wizStep = 1; wizRender();
   const obEl = document.getElementById('f-odobroken');
   const syncOdo = () => { if (!odoEl || !obEl) return;
     odoEl.disabled = obEl.checked; odoEl.style.opacity = obEl.checked ? '.45' : '';
@@ -3265,6 +3293,64 @@ function viewNewJob(prefill = {}) {
     form.addEventListener('change', saveJobDraft);
   }
 }
+/* The job card is a sequence, so it is now presented as one: bus and fault,
+ * then who and when, then the money and notes. Every field stays in the DOM the
+ * whole time — only visibility changes — so saveJob(), the draft save and the
+ * draft restore all keep working on the same ids without knowing about steps. */
+let _wizStep = 1;
+const WIZ_LAST = 3;
+function wizRender() {
+  document.querySelectorAll('.wz-step').forEach((el) => {
+    el.classList.toggle('on', Number(el.dataset.step) === _wizStep);
+  });
+  document.querySelectorAll('.wz-dot').forEach((el) => {
+    const n = Number(el.dataset.step);
+    el.classList.toggle('on', n === _wizStep);
+    el.classList.toggle('done', n < _wizStep);
+  });
+  const fill = document.getElementById('f-wizfill');
+  if (fill) fill.style.width = ((_wizStep - 1) / (WIZ_LAST - 1) * 100) + '%';
+  const back = document.getElementById('f-back'), next = document.getElementById('f-next'),
+        create = document.getElementById('f-create');
+  if (back) back.style.visibility = _wizStep === 1 ? 'hidden' : '';
+  if (next) next.style.display = _wizStep === WIZ_LAST ? 'none' : '';
+  if (create) create.style.display = _wizStep === WIZ_LAST ? '' : 'none';
+  if (_wizStep === WIZ_LAST) wizSummary();
+  const c = root().querySelector('.content'); if (c) c.scrollTop = 0;
+  window.scrollTo(0, 0);
+}
+/* Read back what is about to be created, before it is created. */
+function wizSummary() {
+  const box = document.getElementById('f-summary'); if (!box) return;
+  const busSel = document.getElementById('f-bus');
+  const bus = busSel ? byId(S.cache.buses, busSel.value) : null;
+  const prob = (($('#f-prob') || {}).value || '').trim();
+  const who = document.getElementById('f-mech');
+  const whoName = who && who.selectedOptions[0] ? who.selectedOptions[0].textContent : '';
+  const odoBroken = !!($('#f-odobroken') || {}).checked;
+  const odo = (($('#f-odo') || {}).value || '').trim();
+  const row = (k, v) => v ? `<div class="row between small" style="padding:3px 0"><span class="muted">${k}</span><b>${esc(v)}</b></div>` : '';
+  box.innerHTML = `<h3>${t('wizCheck')}</h3>` +
+    row(t('buses'), bus ? bus.regNo : '—') +
+    row(t('describeProblem'), prob || '—') +
+    row('👷', whoName) +
+    row('🛞', odoBroken ? t('odoBroken') : (odo ? odo + ' km' : '—')) +
+    `<div class="tiny muted" style="margin-top:6px">${t('wizCheckHint')}</div>`;
+}
+function wizGo(n) {
+  n = Math.max(1, Math.min(WIZ_LAST, Number(n) || 1));
+  // Going forward past step 1 needs a fault described — the one field a job card
+  // cannot be created without, and better refused here than after three screens.
+  if (n > 1 && !((($('#f-prob') || {}).value || '').trim())) {
+    _wizStep = 1; wizRender();
+    const el = document.getElementById('f-prob'); if (el) el.focus();
+    return toast(t('describeProblem'));
+  }
+  _wizStep = n; wizRender();
+}
+const wizNext = () => wizGo(_wizStep + 1);
+const wizBack = () => wizGo(_wizStep - 1);
+
 function setPrio(v) {
   const h = document.getElementById('f-prio'); if (h) h.value = v;
   const PCOL = { high: '#ef4444', medium: '#f59e0b', low: '#16a571' };
@@ -3304,6 +3390,8 @@ async function saveJob() {
   if (!odoBroken) await noteOdometer(busId, odometer);
   // Tie the driver reports to this job (resolved when the job is verified).
   for (const rid of linkedReports) { const r = byId(S.cache.driverreports, rid); if (r && r.status === 'open') { r.jobId = jobId; await DB.put('driverreports', r); } }
+  // The card exists now, so the draft of it must not be offered back next time.
+  clearJobDraft();
   await load(); closeSheet(); toast(`Job created${linkedReports.length ? ` · ${linkedReports.length} report(s) linked` : ''}`); navTab('jobs');
 }
 
@@ -7471,6 +7559,9 @@ const _dispatchClick = async (e) => {
       case 'aiGradeCore': return aiGradeCore(el.getAttribute('data-job'), el.getAttribute('data-cr'));
       case 'scanSerial': return scanSerial(el.getAttribute('data-target'));
       case 'setPrio': return setPrio(el.getAttribute('data-v'));
+      case 'wizNext': return wizNext();
+      case 'wizBack': return wizBack();
+      case 'wizGo': return wizGo(el.getAttribute('data-step'));
       case 'busFilter': _busFilter = el.getAttribute('data-v'); return renderBusList();
       case 'crewFilter': _crewFilter = el.getAttribute('data-v'); return renderCrewList();
       case 'openCrewBank': return push({ name: 'crewbank' });

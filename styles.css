@@ -802,3 +802,40 @@ img.ava{object-fit:cover}
   .hero.contain img{height:168px}
   .hero-t{font-size:17px}
 }
+
+/* ==========================================================================
+   Job card wizard — a sequence presented as one
+   --------------------------------------------------------------------------
+   Every field stays in the DOM at all times; only visibility changes. That is
+   what lets saveJob(), the draft save and the draft restore keep working on the
+   same ids without any of them knowing the form is now stepped.
+   ====================================================================== */
+.wz-bar{position:sticky;top:0;z-index:15;background:var(--bg);padding:10px 0 14px;margin:-4px 0 4px}
+.wz-track{position:relative;height:3px;border-radius:2px;background:var(--line);margin:0 22px 12px}
+.wz-track i{position:absolute;inset:0 auto 0 0;width:0;background:var(--accent);
+  border-radius:2px;transition:width .28s cubic-bezier(.4,0,.2,1)}
+.wz-dots{display:flex;gap:6px}
+.wz-dot{flex:1;background:none;border:none;padding:0;display:flex;flex-direction:column;
+  align-items:center;gap:5px;cursor:pointer;color:var(--muted);font:inherit}
+.wz-n{width:27px;height:27px;border-radius:50%;display:grid;place-items:center;
+  font-size:12.5px;font-weight:800;background:var(--surface2);color:var(--muted);
+  border:1.5px solid var(--line);transition:background .18s ease,color .18s ease,border-color .18s ease}
+.wz-l{font-size:11px;font-weight:700;letter-spacing:.01em;text-align:center;line-height:1.2}
+.wz-dot.on .wz-n{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.wz-dot.on{color:var(--text)}
+.wz-dot.done .wz-n{background:var(--accent-wash);color:var(--accent);border-color:var(--accent)}
+.wz-dot.done .wz-n::after{content:'✓';font-size:13px}
+.wz-dot.done .wz-n{font-size:0}
+.wz-dot:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:8px}
+
+.wz-step{display:none}
+.wz-step.on{display:block;animation:wzIn .22s ease both}
+@keyframes wzIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+.wz-foot{display:flex;gap:10px;margin-top:4px}
+.wz-foot .btn{flex:1}
+
+@media (prefers-reduced-motion:reduce){
+  .wz-step.on{animation:none}
+  .wz-track i{transition:none}
+}
