@@ -553,7 +553,7 @@ body[data-role="conductor"]:not([data-role="all"]) .sec[data-roles~="conductor"]
           <li><b>Syncing…</b> — it is being sent right now. Wait a few seconds.</li>
           <li><b>Offline — will sync when connected</b> — no network. Your work is safe on this phone and will go up on its own. You do not have to do it again.</li>
         </ul>
-        <p>A number like <span class="ui">3 pending</span> means three things are still waiting to be sent.</p><p>There is also a small coloured dot at the top of every screen: <b>green</b> everything is up to date, <b>amber</b> busy or needs you to sign in again, <b>grey</b> offline. Tap through to <span class="ui">Sync</span> when you want it in words.</p>
+        <p>A number like <span class="ui">3 pending</span> means three things are still waiting to be sent.</p><p><b>There is no longer a status dot on every screen.</b> When sync is healthy the top bar stays clean — a green dot that said "fine" all day was telling you nothing, and it was eating the space the screen title needed. A mark appears only when something actually needs you: <b>⚠</b> means you have been signed out and should log in again, and <b>○</b> with a number means you are offline with that many changes not yet sent. Tap either one to open Sync. No mark means there is nothing to do.</p>
       </div>
       <div class="hi">
         <p><span class="ui">मैं</span> → <span class="ui">सिंक</span> खोलिए। वहाँ तीन में से एक बात लिखी होगी:</p>
@@ -562,7 +562,7 @@ body[data-role="conductor"]:not([data-role="all"]) .sec[data-roles~="conductor"]
           <li><b>Syncing…</b> — अभी भेजा जा रहा है। कुछ सेकंड रुकिए।</li>
           <li><b>Offline — will sync when connected</b> — नेटवर्क नहीं है। आपका काम फ़ोन में सुरक्षित है और अपने आप चला जाएगा। दोबारा करने की ज़रूरत नहीं।</li>
         </ul>
-        <p><span class="ui">3 pending</span> जैसा नंबर मतलब तीन चीज़ें अभी भेजी जानी बाकी हैं।</p><p>हर स्क्रीन के ऊपर एक छोटा रंगीन बिंदु भी रहता है: <b>हरा</b> सब अपडेट है, <b>पीला</b> काम चल रहा है या दोबारा लॉगिन चाहिए, <b>स्लेटी</b> ऑफ़लाइन। शब्दों में देखना हो तो <span class="ui">सिंक</span> खोल लीजिए।</p>
+        <p><span class="ui">3 pending</span> जैसा नंबर मतलब तीन चीज़ें अभी भेजी जानी बाकी हैं।</p><p><b>अब हर स्क्रीन पर रंगीन बिंदु नहीं रहता।</b> सिंक ठीक चल रहा हो तो ऊपर की पट्टी साफ़ रहती है — दिन भर "सब ठीक है" कहता हरा बिंदु कुछ बताता ही नहीं था, और स्क्रीन के नाम की जगह खा रहा था। निशान तभी आता है जब सचमुच कुछ करना हो: <b>⚠</b> यानी आप लॉगआउट हो गए हैं, दोबारा लॉगिन कीजिए; और <b>○</b> के साथ नंबर यानी आप ऑफ़लाइन हैं और इतनी चीज़ें अभी भेजी नहीं गईं। किसी भी निशान को दबाकर सिंक खोल सकते हैं। निशान न हो तो कुछ करने को नहीं है।</p>
       </div>
     </div>
   </div>
@@ -1429,8 +1429,10 @@ body[data-role="conductor"]:not([data-role="all"]) .sec[data-roles~="conductor"]
         <summary><span class="en">The screen shows old information</span><span class="hi">स्क्रीन पर पुरानी जानकारी दिख रही है</span></summary>
         <div class="body">
           <div class="bi">
-            <div class="en"><p>Close the app fully and open it again. If it is still old, check <span class="ui">Me</span> → <span class="ui">Sync</span> — if that says offline, the phone simply has not been able to fetch what other people did.</p></div>
-            <div class="hi"><p>ऐप पूरी तरह बंद करके दोबारा खोलिए। फिर भी पुरानी दिखे तो <span class="ui">मैं</span> → <span class="ui">सिंक</span> देखिए — अगर वहाँ offline लिखा है तो फ़ोन बाकी लोगों का किया हुआ अभी ला ही नहीं पाया है।</p></div>
+            <div class="en"><p>Close the app fully and open it again. If it is still old, check <span class="ui">Me</span> → <span class="ui">Sync</span> — if that says offline, the phone simply has not been able to fetch what other people did.</p>
+              <p><b>Old <i>information</i> and an old <i>version of the app</i> are different problems.</b> The app now opens from the copy already on the phone, which is why it opens instantly even on a bad line, and it fetches any newer version in the background. So for a short while after the office ships a change you can still be running the previous one. It swaps itself over as soon as you are not in the middle of something — no sheet open, nothing typed, a few seconds untouched — or on the next time you open it. Neither is anything to report unless it lasts a whole day.</p></div>
+            <div class="hi"><p>ऐप पूरी तरह बंद करके दोबारा खोलिए। फिर भी पुरानी दिखे तो <span class="ui">मैं</span> → <span class="ui">सिंक</span> देखिए — अगर वहाँ offline लिखा है तो फ़ोन बाकी लोगों का किया हुआ अभी ला ही नहीं पाया है।</p>
+              <p><b>पुरानी <i>जानकारी</i> और ऐप का पुराना <i>संस्करण</i> — ये दो अलग बातें हैं।</b> ऐप अब फ़ोन में पहले से रखी कॉपी से खुलता है, इसीलिए खराब लाइन पर भी तुरंत खुल जाता है, और नया संस्करण पीछे-पीछे उतार लेता है। इसलिए दफ़्तर कोई बदलाव भेजे उसके थोड़ी देर बाद तक आप पुराने पर ही चल सकते हैं। जैसे ही आप किसी काम के बीच में नहीं होते — कोई शीट खुली नहीं, कुछ टाइप नहीं हो रहा, कुछ सेकंड से कोई छुआ नहीं — यह खुद बदल जाता है, या अगली बार खोलने पर। दोनों में से कोई बात दिनभर बनी रहे तभी बताइए।</p></div>
           </div>
         </div>
       </details>
