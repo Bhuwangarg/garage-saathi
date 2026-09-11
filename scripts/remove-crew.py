@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
-"""Permanently remove drivers and conductors, and collapse duplicate logins.
+"""Permanently remove crew — drivers, conductors, or both — and collapse duplicate logins.
 
-    /usr/bin/python3 scripts/remove-crew.py --server https://garage-saathi-sync.vercel.app
+    # conductors only, drivers left alone
+    /usr/bin/python3 scripts/remove-crew.py --role conductor \\
+        --server https://garage-saathi-sync.vercel.app
+
+--role is required and has no default. Deleting the wrong half of the crew is
+not a mistake the backup makes painless, so the choice has to be typed out.
 
 Owner PIN only, typed at a prompt and never echoed.
 
@@ -26,6 +31,15 @@ import urllib.error
 import urllib.request
 
 CREW_ROLES = ("driver", "conductor")
+
+
+def rec_role(r):
+    """A record in the `drivers` store is a conductor only if it says so.
+
+    Matches crewRoleOf() in app.js — conductors were added to the existing
+    store rather than a new one, and anything not flagged is a driver.
+    """
+    return "conductor" if (r.get("data") or {}).get("crewRole") == "conductor" else "driver"
 
 
 def call(base, path, payload, token=None, method="POST", timeout=60):
@@ -72,12 +86,19 @@ def pull_all(base, token):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--server", required=True)
+    ap.add_argument("--role", required=True, choices=("conductor", "driver", "both"),
+                    help="which half of the crew goes. No default, on purpose.")
     ap.add_argument("--user", default="u-owner")
     ap.add_argument("--dry-run", action="store_true", help="show what would go, change nothing")
     a = ap.parse_args()
     base = a.server.rstrip("/")
+    target = CREW_ROLES if a.role == "both" else (a.role,)
+    what = "drivers and conductors" if a.role == "both" else a.role + "s"
+    adj = "crew" if a.role == "both" else a.role          # "conductor records", not "conductors records"
 
     print("Server: %s" % base)
+    print("Removing: %s%s" % (what, "" if a.role == "both" else
+                              " only — the %s stay" % ("drivers" if a.role == "conductor" else "conductors")))
     pin = getpass.getpass("  owner PIN (not echoed): ")
     st, res = call(base, "/auth/login", {"userId": a.user, "pin": pin})
     del pin
@@ -92,28 +113,40 @@ def main():
 
     roster = get(base, "/roster", None)
     roster = roster.get("users") if isinstance(roster, dict) else roster
-    crew_logins = [u for u in roster if u.get("role") in CREW_ROLES]
+    crew_logins = [u for u in roster if u.get("role") in target]
 
     records = pull_all(base, token)
     crew_recs = [r for r in records
-                 if r.get("store") == "drivers" and not (r.get("data") or {}).get("_deleted")]
+                 if r.get("store") == "drivers" and not (r.get("data") or {}).get("_deleted")
+                 and rec_role(r) in target]
     buses = [r for r in records if r.get("store") == "buses" and not (r.get("data") or {}).get("_deleted")]
 
-    # duplicates by name, among everyone who is NOT crew (crew is going anyway)
+    # Duplicates by name, among everyone who is NOT already being deleted.
+    # Whoever is staying can still have twins worth collapsing.
     from collections import defaultdict
     by_name = defaultdict(list)
     for u in roster:
-        if u.get("role") not in CREW_ROLES:
+        if u.get("role") not in target:
             by_name[(u.get("name") or "").strip().lower()].append(u)
     dupes = {n: us for n, us in by_name.items() if len(us) > 1}
 
+    # Only unhook the seat that is being emptied. Deleting the conductors must
+    # not wipe the driver names off the fleet as a side effect.
+    bus_fields = []
+    if "conductor" in target:
+        bus_fields += ["conductor", "conductorUserId"]
+    if "driver" in target:
+        bus_fields += ["driverCrew"]
+    linked = [b for b in buses if any((b.get("data") or {}).get(f) for f in bus_fields)]
+
     print("About to remove:")
-    print("  %-34s %d" % ("crew records (drivers store)", len(crew_recs)))
-    print("  %-34s %d" % ("crew logins (driver/conductor)", len(crew_logins)))
-    linked = [b for b in buses
-              if (b.get("data") or {}).get("conductor") or (b.get("data") or {}).get("conductorUserId")
-              or (b.get("data") or {}).get("driverCrew")]
-    print("  %-34s %d" % ("buses whose crew fields get cleared", len(linked)))
+    print("  %-34s %d" % ("%s records" % adj, len(crew_recs)))
+    print("  %-34s %d" % ("%s logins" % adj, len(crew_logins)))
+    print("  %-34s %d" % ("buses losing the %s name" % adj, len(linked)))
+    staying = [r for r in records if r.get("store") == "drivers"
+               and not (r.get("data") or {}).get("_deleted") and rec_role(r) not in target]
+    if staying:
+        print("  %-34s %d  (untouched)" % ("crew records staying", len(staying)))
     if dupes:
         print("\nDuplicate NON-crew logins (same name, more than one account):")
         for n, us in dupes.items():
@@ -170,7 +203,8 @@ def main():
     # and unhook them from the buses, so the fleet is not pointing at ghosts
     for b in linked:
         d = dict(b.get("data") or {})
-        d.pop("conductor", None); d.pop("conductorUserId", None); d.pop("driverCrew", None)
+        for f in bus_fields:
+            d.pop(f, None)
         batch.append({"store": "buses", "id": b["id"], "data": d, "updatedAt": now})
 
     applied = 0
@@ -229,8 +263,10 @@ def main():
 
     left = get(base, "/roster", None)
     left = left.get("users") if isinstance(left, dict) else left
-    print("\nRoster now: %d accounts (%d crew remaining)."
-          % (len(left), len([u for u in left if u.get("role") in CREW_ROLES])))
+    print("\nRoster now: %d accounts (%d %s remaining, %d other crew)."
+          % (len(left),
+             len([u for u in left if u.get("role") in target]), what,
+             len([u for u in left if u.get("role") in CREW_ROLES and u.get("role") not in target])))
     return 0
 
 
