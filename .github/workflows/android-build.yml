@@ -69,26 +69,44 @@ jobs:
         run: |
           pub=mobile/android/app/src/main/assets/public
 
-          # These are copied byte-for-byte, so any difference means a stale sync.
-          for f in app.js styles.css db.js sync.js seed-data.js seed-docs.js; do
+          # Copied byte-for-byte, so any difference means a stale sync.
+          # app.js is NOT in this list any more: the CDN URLs moved out of
+          # index.html into loadMapLib()/loadFaceLib(), so build-www.mjs now
+          # rewrites app.js too and it is expected to differ. It is checked
+          # below by what the rewrite must have done, which is the stronger
+          # assertion anyway — equality only ever proved the file was copied.
+          for f in styles.css db.js sync.js seed-data.js seed-docs.js; do
             if ! diff -q "$f" "$pub/$f" >/dev/null; then
               echo "::error::$f in the APK differs from the repo copy — cap sync did not take"
               exit 1
             fi
           done
 
-          # index.html is deliberately rewritten for native: CDN URLs are swapped
-          # for vendored copies so the map and face detection work offline, the
-          # native bridge shim is injected, and the service worker is disabled
-          # (it would shadow the Capacitor scheme). Assert the rewrite happened
-          # rather than that the file matches — equality here would mean
+          # index.html and app.js are deliberately rewritten for native: CDN URLs
+          # are swapped for vendored copies so the map and face detection work
+          # offline, the native bridge shim is injected, and the service worker is
+          # disabled (it would shadow the Capacitor scheme). Assert the rewrite
+          # happened rather than that a file matches — equality would mean
           # build-www.mjs silently did nothing.
           fail=0
-          grep -q 'src="vendor/leaflet.js"'      "$pub/index.html" || { echo "::error::leaflet not vendored"; fail=1; }
-          grep -q 'src="vendor/face-api.js"'     "$pub/index.html" || { echo "::error::face-api not vendored"; fail=1; }
           grep -q 'native-bridge-shim.js'        "$pub/index.html" || { echo "::error::native bridge shim missing"; fail=1; }
           grep -q 'isNativePlatform'             "$pub/index.html" || { echo "::error::service worker not disabled for native"; fail=1; }
-          grep -q 'unpkg.com\|cdn.jsdelivr.net'  "$pub/index.html" && { echo "::error::a CDN URL survived — the app would need the network to render"; fail=1; }
+          grep -q 'vendor/leaflet.js'            "$pub/app.js"     || { echo "::error::leaflet not vendored into app.js"; fail=1; }
+          grep -q 'vendor/face-api.js'           "$pub/app.js"     || { echo "::error::face-api not vendored into app.js"; fail=1; }
+          # A packaged app must never reach for a CDN: it is expected to work in
+          # a workshop with no signal.
+          for f in index.html app.js; do
+            grep -q 'unpkg.com/leaflet\|cdn.jsdelivr.net/npm/@vladmandic/face-api/dist' "$pub/$f" \
+              && { echo "::error::a CDN URL survived in $f — the app would need the network to render"; fail=1; }
+          done
+          # app.js must still be the current build in every other respect.
+          if ! diff <(sed -e 's#vendor/leaflet.css#https://unpkg.com/leaflet@1.9.4/dist/leaflet.css#g' \
+                          -e 's#vendor/leaflet.js#https://unpkg.com/leaflet@1.9.4/dist/leaflet.js#g' \
+                          -e 's#vendor/face-api.js#https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js#g' \
+                          "$pub/app.js") app.js >/dev/null; then
+            echo "::error::app.js in the APK differs from the repo copy beyond the CDN rewrite — cap sync did not take"
+            fail=1
+          fi
           [ "$fail" = 0 ] || exit 1
 
           echo "web bundle is current and the native rewrite is intact"
