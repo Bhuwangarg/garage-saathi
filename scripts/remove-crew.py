@@ -121,12 +121,23 @@ def main():
                  and rec_role(r) in target]
     buses = [r for r in records if r.get("store") == "buses" and not (r.get("data") or {}).get("_deleted")]
 
-    # Duplicates by name, among everyone who is NOT already being deleted.
-    # Whoever is staying can still have twins worth collapsing.
+    # Duplicates by name, among management accounts only.
+    #
+    # Crew are NEVER matched by name. A crew account id is derived from the bus
+    # (u-drv-<REG>-0), so two accounts sharing a name are normally two different
+    # men on two different buses: Gauri Shankar on NL07B902 is not Gauri Shankar
+    # on MP44ZD9385, and collapsing them deletes a real driver's login. Only
+    # management accounts are created by hand with a random id, which is the only
+    # way one person ends up with several — five Sumits, all crewmanager.
+    #
+    # This was briefly wrong. When --role arrived, the filter became "any role not
+    # being deleted", which let the surviving half of the crew in, and a run that
+    # was told to remove conductors also offered two same-named drivers as
+    # duplicates.
     from collections import defaultdict
     by_name = defaultdict(list)
     for u in roster:
-        if u.get("role") not in target:
+        if u.get("role") not in target and u.get("role") not in CREW_ROLES:
             by_name[(u.get("name") or "").strip().lower()].append(u)
     dupes = {n: us for n, us in by_name.items() if len(us) > 1}
 
@@ -148,7 +159,8 @@ def main():
     if staying:
         print("  %-34s %d  (untouched)" % ("crew records staying", len(staying)))
     if dupes:
-        print("\nDuplicate NON-crew logins (same name, more than one account).")
+        print("\nDuplicate management logins (same name, more than one account).")
+        print("Crew are never listed here — two drivers can share a name.")
         print("You pick one to keep from each set; the rest go:")
         for n, us in dupes.items():
             print("  %s ×%d" % (us[0].get("name"), len(us)))
