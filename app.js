@@ -25,6 +25,20 @@ const I18N = {
     wizStep1: 'Bus & fault', wizStep2: 'Who & when', wizStep3: 'Cost & notes',
     wizNext: 'Next', wizBack: 'Back', wizCreate: 'Create job card',
     wizCheck: 'Check before you create', wizCheckHint: 'Go back to any step to change something.',
+    bdTitle: 'Breakdowns', bdSub: 'Failures on the road — last 90 days',
+    bdBlurb: 'Every failure that happened on the road. The point of the whole system is to stop needing these, so the figures here are the ones to watch go down.',
+    bdLast180: 'Breakdowns (180 days)', bdOffRoad: 'Buses off the road', bdHrs: 'h',
+    bdBySystem: 'What is failing', bdTopHint: 'Most common failure:',
+    bdWorstBuses: 'Buses breaking down most', bdBetween: 'between failures', bdNotEnough: 'not enough history yet',
+    bdAll: 'All breakdowns', bdNone: 'No breakdowns recorded. Long may it last.',
+    bdSearch: 'Search plate, system or place…', bdLinked: 'job card', bdNoJob: 'no job yet',
+    bdNew: 'Record a breakdown', bdEdit: 'Breakdown', bdWhatFailed: 'What failed',
+    bdWhatHappened: 'What happened', bdDescHint: 'e.g. clutch plate gave way on the Jaipur–Delhi run',
+    bdTime: 'Time', bdWhere: 'Where', bdWhereHint: 'e.g. NH48 near Shahpura',
+    bdOdo: 'Odometer (km)', bdDowntime: 'Off road (hours)', bdTowed: 'Had to be towed',
+    bdWhyHint: 'The odometer matters: kilometres between failures is what tells you a bus is getting worse before it strands somebody.',
+    bdMakeJob: 'Create the job card for this', bdSaved: 'Breakdown recorded',
+    bdNeedBus: 'Pick the bus', bdNeedWhat: 'Say what happened',
     mpTitle: 'Mechanic performance', mpSub: 'Score, open work, rework and turnaround — last 90 days',
     mpBlurb: 'Work-quality score over the last 90 days, built from rework, proof photos, turnaround and punctuality. The columns are the figures behind it. Tap a name for the full breakdown.',
     mpOpen: 'open', mpRework: 'rework', mpDays: 'avg', mpJobs: 'jobs', mpLate: 'late',
@@ -164,6 +178,20 @@ const I18N = {
     wizStep1: 'बस और खराबी', wizStep2: 'कौन और कब', wizStep3: 'खर्च और नोट',
     wizNext: 'आगे', wizBack: 'पीछे', wizCreate: 'जॉब कार्ड बनाएं',
     wizCheck: 'बनाने से पहले देख लीजिए', wizCheckHint: 'कुछ बदलना हो तो किसी भी कदम पर वापस जाइए।',
+    bdTitle: 'ब्रेकडाउन', bdSub: 'रास्ते में हुई खराबी — पिछले 90 दिन',
+    bdBlurb: 'रास्ते में हुई हर खराबी। पूरे सिस्टम का मक़सद ही यह है कि ये न हों, इसलिए यहाँ के आँकड़े वही हैं जिन्हें घटते देखना है।',
+    bdLast180: 'ब्रेकडाउन (180 दिन)', bdOffRoad: 'बसें बंद रहीं', bdHrs: 'घं',
+    bdBySystem: 'क्या खराब हो रहा है', bdTopHint: 'सबसे ज़्यादा खराबी:',
+    bdWorstBuses: 'सबसे ज़्यादा बंद होने वाली बसें', bdBetween: 'दो खराबी के बीच', bdNotEnough: 'अभी पर्याप्त रिकॉर्ड नहीं',
+    bdAll: 'सारे ब्रेकडाउन', bdNone: 'कोई ब्रेकडाउन दर्ज नहीं। ऐसे ही रहे।',
+    bdSearch: 'नंबर, हिस्सा या जगह खोजें…', bdLinked: 'जॉब कार्ड', bdNoJob: 'काम बाकी',
+    bdNew: 'ब्रेकडाउन दर्ज करें', bdEdit: 'ब्रेकडाउन', bdWhatFailed: 'क्या खराब हुआ',
+    bdWhatHappened: 'क्या हुआ', bdDescHint: 'जैसे: जयपुर–दिल्ली रास्ते में क्लच प्लेट फेल',
+    bdTime: 'समय', bdWhere: 'कहाँ', bdWhereHint: 'जैसे: NH48, शाहपुरा के पास',
+    bdOdo: 'ओडोमीटर (किमी)', bdDowntime: 'कितने घंटे बंद', bdTowed: 'टो करवाना पड़ा',
+    bdWhyHint: 'ओडोमीटर ज़रूरी है: दो खराबी के बीच कितने किलोमीटर चले — यही बताता है कि बस बिगड़ रही है, किसी को रास्ते में छोड़ने से पहले।',
+    bdMakeJob: 'इसका जॉब कार्ड बनाएं', bdSaved: 'ब्रेकडाउन दर्ज हुआ',
+    bdNeedBus: 'बस चुनिए', bdNeedWhat: 'क्या हुआ यह बताइए',
     mpTitle: 'मैकेनिक प्रदर्शन', mpSub: 'स्कोर, खुला काम, दोबारा काम और समय — पिछले 90 दिन',
     mpBlurb: 'पिछले 90 दिन का काम-गुणवत्ता स्कोर — दोबारा किया काम, सबूत फोटो, समय और समय-पालन से बनता है। कॉलम वही आँकड़े हैं जिनसे यह बना है। पूरा हिसाब देखने के लिए नाम दबाइए।',
     mpOpen: 'खुले', mpRework: 'दोबारा', mpDays: 'औसत', mpJobs: 'काम', mpLate: 'देर',
@@ -665,7 +693,8 @@ async function load() {
   const challans = await DB.all('challans').catch(() => []);
   const usage = await DB.all('usage').catch(() => []);
   const stockmoves = await DB.all('stockmoves').catch(() => []);
-  S.cache = { users, buses, parts, jobs, ledger, att, purchases, drivers, incidents, driverreports, routes, triplog, fuel, gpsevents, audits, components, def, vendors, trips, challans, usage, stockmoves, garage };
+  const breakdowns = await DB.all('breakdowns').catch(() => []);
+  S.cache = { users, buses, parts, jobs, ledger, att, purchases, drivers, incidents, driverreports, routes, triplog, fuel, gpsevents, audits, components, def, vendors, trips, challans, usage, stockmoves, breakdowns, garage };
   refreshBiz();   // keep the displayed business name in sync with garage config
 }
 const byId = (arr, id) => arr.find((x) => x.id === id);
@@ -1002,7 +1031,7 @@ const TAB_OF = {
   buses: 'fleet', alerts: 'fleet', driverdocs: 'fleet', def: 'fleet', linkgps: 'fleet',
   livemap: 'fleet', track: 'fleet', routes: 'fleet', forecast: 'fleet', busreport: 'fleet',
   // people
-  drivers: 'people', assignments: 'people', safety: 'people', scoreboard: 'people',
+  drivers: 'people', assignments: 'people', safety: 'people', scoreboard: 'people', breakdowns: 'fleet',
   scorecard: 'people', crewpins: 'people', crewbank: 'people', usage: 'me',
   // home triage entries
   insights: 'home', pilferage: 'home',
@@ -1302,6 +1331,12 @@ function viewFleet() {
   if (docAlerts.length) body += `<div class="trow ${docCrit.length ? 'crit' : 'warn'}" data-act="openAlerts"><div class="ti">📄</div>
     <div class="tm"><div class="tt">Documents expiring</div><div class="ts">${docCrit.length ? docCrit.length + ' expired' : docAlerts.length + ' within 15 days'}</div></div><div class="tc">${docAlerts.length}</div></div>`;
   body += `<div class="trow info" data-act="openLiveMap"><div class="ti">🗺️</div><div class="tm"><div class="tt">Live map</div><div class="ts">Track every bus, Uber-style</div></div><div class="tc">›</div></div>`;
+  if (can(S.user.role, 'logIncident')) {
+    const bd90 = breakdownsFor(null, Date.now() - 90 * day).length;
+    body += `<div class="trow ${bd90 ? 'warn' : ''}" data-act="openBreakdowns"><div class="ti">🛠️</div>
+      <div class="tm"><div class="tt">${t('bdTitle')}</div><div class="ts">${t('bdSub')}</div></div>
+      <div class="tc">${bd90 || '›'}</div></div>`;
+  }
 
   // Searchable bus list on number-plate chips.
   body += `<input id="fleet-search" class="searchbox" placeholder="Search plate, company, model…" style="margin-top:12px">`;
@@ -3398,7 +3433,7 @@ function setPrio(v) {
   document.querySelectorAll('.prio-seg').forEach((b) => { const bv = b.getAttribute('data-v'), on = bv === v, c = PCOL[bv];
     b.style.fontWeight = on ? 800 : 600; b.style.borderColor = on ? c : 'var(--line,#e6e9f0)'; b.style.color = on ? '#161922' : '#8b91a0'; b.style.background = on ? c + '22' : '#fff0'; });
 }
-async function saveJob() {
+async function saveJob(prefill = (S.route && S.route.prefill) || {}) {
   const busId = $('#f-bus').value, prob = $('#f-prob').value.trim();
   if (!prob) return toast('Describe the problem');
   const assignedTo = $('#f-mech').value;
@@ -3424,13 +3459,19 @@ async function saveJob() {
     labourHours: Number($('#f-hrs').value) || 0,
     jobDate: ymd, enterAt, startAt, completeAt: null, outAt: null, odometer, remark: '',
     externalVendor: $('#f-vendor').value.trim(), externalCost: Number($('#f-extcost').value) || 0,
-    reportIds: linkedReports, notes: ($('#f-notes') ? $('#f-notes').value.trim() : ''), createdAt: Date.now(), closedAt: null, verifiedBy: null,
+    reportIds: linkedReports, breakdownId: prefill.breakdownId || null,
+    notes: ($('#f-notes') ? $('#f-notes').value.trim() : ''), createdAt: Date.now(), closedAt: null, verifiedBy: null,
   });
   // A service reading is the freshest odometer we have for this bus; the ₹/km
   // and mileage screens are blank without one, so let the job card feed them.
   if (!odoBroken) await noteOdometer(busId, odometer);
   // Tie the driver reports to this job (resolved when the job is verified).
   for (const rid of linkedReports) { const r = byId(S.cache.driverreports, rid); if (r && r.status === 'open') { r.jobId = jobId; await DB.put('driverreports', r); } }
+  // Close the loop: the breakdown now points at the card that dealt with it.
+  if (prefill && prefill.breakdownId) {
+    const bd = (S.cache.breakdowns || []).find((x) => x.id === prefill.breakdownId);
+    if (bd && !bd.jobId) { bd.jobId = jobId; await DB.put('breakdowns', bd); }
+  }
   // The card exists now, so the draft of it must not be offered back next time.
   clearJobDraft();
   await load(); closeSheet(); toast(`Job created${linkedReports.length ? ` · ${linkedReports.length} report(s) linked` : ''}`); navTab('jobs');
@@ -4993,6 +5034,160 @@ function evDetail(e) {
   if (e.type === 'night') return 'moving ' + Math.round(e.value) + ' km/h at night';
   return '';
 }
+/* ===== Breakdowns =========================================================
+ * A breakdown is a failure that happened on the road, and the whole point of a
+ * maintenance system is to stop needing them. So they are recorded in a shape
+ * that can be counted: which system let go, on which bus, at what odometer, how
+ * long the bus was off the road, and whether it had been serviced recently.
+ *
+ * Deliberately not the same thing as a driver report (a symptom noticed on a
+ * trip) or a job card (the work done). A breakdown is the event those exist to
+ * prevent, and the number the owner should be watching go down. */
+const BREAKDOWN_SYSTEMS = [
+  { v: 'engine', icon: '⚙️', k: 'catEngine' },
+  { v: 'brakes', icon: '🛑', k: 'catBrakes' },
+  { v: 'tyre', icon: '🛞', k: 'catTyres' },
+  { v: 'gearbox', icon: '🔩', k: 'catGearbox' },
+  { v: 'electrical', icon: '⚡', k: 'catElectrical' },
+  { v: 'suspension', icon: '🪛', k: 'catSuspension' },
+  { v: 'ac', icon: '❄️', k: 'catAC' },
+  { v: 'fuel', icon: '⛽', k: 'fuel' },
+  { v: 'other', icon: '❓', k: 'catOther' },
+];
+const bdSystem = (v) => BREAKDOWN_SYSTEMS.find((x) => x.v === v) || BREAKDOWN_SYSTEMS[BREAKDOWN_SYSTEMS.length - 1];
+const breakdownsFor = (busId, sinceMs) => (S.cache.breakdowns || [])
+  .filter((b) => !b._deleted && (!busId || b.busId === busId) && (!sinceMs || (b.at || 0) >= sinceMs))
+  .sort((a, b) => (b.at || 0) - (a.at || 0));
+
+/* Kilometres between failures, per bus. The single most useful preventive
+ * number there is: a bus whose MTBF is falling is telling you something before
+ * it strands anybody. Null when there is not enough history to mean anything. */
+function busMTBF(busId) {
+  const list = breakdownsFor(busId).filter((b) => (b.odometer || 0) > 0)
+    .sort((a, b) => (a.odometer || 0) - (b.odometer || 0));
+  if (list.length < 2) return null;
+  const span = list[list.length - 1].odometer - list[0].odometer;
+  return span > 0 ? Math.round(span / (list.length - 1)) : null;
+}
+
+function viewBreakdowns() {
+  const since = Date.now() - 180 * day;
+  const all = breakdownsFor(null, since);
+  const byBus = {}; const bySys = {};
+  all.forEach((b) => { byBus[b.busId] = (byBus[b.busId] || 0) + 1; bySys[b.system] = (bySys[b.system] || 0) + 1; });
+  const worstBus = Object.entries(byBus).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  const worstSys = Object.entries(bySys).sort((a, b) => b[1] - a[1]);
+  const offRoad = all.reduce((s, b) => s + (Number(b.downtimeHours) || 0), 0);
+
+  let body = `<div class="card"><div class="tiny muted">${t('bdBlurb')}</div></div>`;
+  body += `<div class="grid2">
+    <div class="card tile"><div class="muted small">${t('bdLast180')}</div><div class="stat">${all.length}</div></div>
+    <div class="card tile"><div class="muted small">${t('bdOffRoad')}</div><div class="stat">${Math.round(offRoad)}<span style="font-size:14px"> ${t('bdHrs')}</span></div></div></div>`;
+
+  if (worstSys.length) {
+    const top = worstSys[0];
+    body += `<div class="card"><h3>${t('bdBySystem')}</h3>`;
+    body += worstSys.map(([sys, n]) => {
+      const m = bdSystem(sys);
+      const pct = Math.round(n / all.length * 100);
+      return `<div class="row between small" style="padding:5px 0">
+        <span>${m.icon} ${t(m.k)}</span>
+        <span style="flex:1;margin:0 10px;height:6px;border-radius:3px;background:var(--line);position:relative">
+          <i style="position:absolute;inset:0 auto 0 0;width:${pct}%;background:var(--accent);border-radius:3px"></i></span>
+        <b>${n}</b></div>`;
+    }).join('');
+    body += `<div class="tiny muted" style="margin-top:8px">${t('bdTopHint')} <b>${bdSystem(top[0]).icon} ${t(bdSystem(top[0]).k)}</b>.</div></div>`;
+  }
+
+  if (worstBus.length) {
+    body += `<div class="card"><h3>${t('bdWorstBuses')}</h3>`;
+    body += worstBus.map(([busId, n]) => {
+      const b = byId(S.cache.buses, busId);
+      const mtbf = busMTBF(busId);
+      return `<div class="li" data-bus="${busId}"><div style="flex:none">${plateChip(b)}</div>
+        <div class="main"><div class="s">${mtbf ? `${mtbf.toLocaleString('en-IN')} km ${t('bdBetween')}` : t('bdNotEnough')}</div></div>
+        <span class="badge ${n > 2 ? 'b-red' : 'b-amber'}">${n}</span></div>`;
+    }).join('');
+    body += `</div>`;
+  }
+
+  body += `<input id="bd-search" class="searchbox" placeholder="${t('bdSearch')}" autocomplete="off">`;
+  body += `<div class="card listwrap" id="bd-list"><h3>${t('bdAll')}</h3>`;
+  body += all.length ? all.map((b) => {
+    const bus = byId(S.cache.buses, b.busId), m = bdSystem(b.system);
+    return `<div class="li" data-act="openBreakdown" data-id="${b.id}"><div class="ava">${m.icon}</div>
+      <div class="main"><div class="t">${esc(bus ? bus.regNo : '—')} · ${t(m.k)}</div>
+        <div class="s">${fmtDate(b.at)}${b.place ? ' · ' + esc(b.place) : ''}${b.downtimeHours ? ' · ' + b.downtimeHours + t('bdHrs') : ''}${b.towed ? ' · 🚛' : ''}</div></div>
+      ${b.jobId ? `<span class="badge b-green">${t('bdLinked')}</span>` : `<span class="badge b-amber">${t('bdNoJob')}</span>`}</div>`;
+  }).join('') : `<div class="empty">${t('bdNone')}</div>`;
+  body += `</div>`;
+  shell(t('bdTitle'), body, can(S.user.role, 'logIncident') ? { act: 'addBreakdown', icon: '+' } : null);
+  attachSearch('bd-search', 'bd-list');
+}
+
+function sheetBreakdown(id) {
+  const b = id ? (S.cache.breakdowns || []).find((x) => x.id === id) : null;
+  const buses = [...(S.cache.buses || [])].sort((x, y) => (x.regNo || '').localeCompare(y.regNo || ''));
+  if (!buses.length) return openSheet(t('bdTitle'), `<div class="banner warn">Add a bus first.</div>`);
+  openSheet(b ? t('bdEdit') : t('bdNew'), `
+    <label class="field"><span class="lbl">🚌 ${t('buses')}</span>
+      <select id="bd-bus">${buses.map((x) => `<option value="${x.id}" ${b && b.busId === x.id ? 'selected' : ''}>${esc(x.regNo)}</option>`).join('')}</select></label>
+    <label class="field"><span class="lbl">🔧 ${t('bdWhatFailed')}</span>
+      <select id="bd-sys">${BREAKDOWN_SYSTEMS.map((m) => `<option value="${m.v}" ${b && b.system === m.v ? 'selected' : ''}>${m.icon} ${t(m.k)}</option>`).join('')}</select></label>
+    <label class="field"><span class="lbl">📝 ${t('bdWhatHappened')}</span>
+      <textarea id="bd-desc" placeholder="${t('bdDescHint')}">${b ? esc(b.description || '') : ''}</textarea></label>
+    <div class="grid2">
+      <label class="field"><span class="lbl">📅 ${t('today')}</span><input id="bd-date" type="date" value="${b ? msToYMD(b.at) : msToYMD()}"></label>
+      <label class="field"><span class="lbl">🕒 ${t('bdTime')}</span><input id="bd-time" type="time" value="${b ? msToHHMM(b.at) : msToHHMM(Date.now())}"></label>
+    </div>
+    <label class="field"><span class="lbl">📍 ${t('bdWhere')}</span>
+      <input id="bd-place" value="${b ? esc(b.place || '') : ''}" placeholder="${t('bdWhereHint')}"></label>
+    <div class="grid2">
+      <label class="field"><span class="lbl">🛞 ${t('bdOdo')}</span><input id="bd-odo" type="number" inputmode="numeric" value="${b ? (b.odometer || '') : ''}"></label>
+      <label class="field"><span class="lbl">⏱️ ${t('bdDowntime')}</span><input id="bd-down" type="number" inputmode="decimal" value="${b ? (b.downtimeHours || '') : ''}"></label>
+    </div>
+    <label class="row" style="gap:9px;margin:4px 0 10px;cursor:pointer">
+      <input type="checkbox" id="bd-towed" ${b && b.towed ? 'checked' : ''} style="width:18px;height:18px;flex:none">
+      <span class="small">🚛 ${t('bdTowed')}</span></label>
+    <div class="tiny muted" style="margin-bottom:10px">${t('bdWhyHint')}</div>
+    <button class="btn primary" data-act="saveBreakdown" data-id="${b ? b.id : ''}">${t('save')}</button>
+    ${b && !b.jobId ? `<button class="btn" data-act="breakdownToJob" data-id="${b.id}" style="margin-top:8px">→ ${t('bdMakeJob')}</button>` : ''}`);
+}
+
+async function saveBreakdown(id) {
+  if (!can(S.user.role, 'logIncident')) return toast(t('cbNotAllowed'));
+  const busId = ($('#bd-bus') || {}).value;
+  const desc = (($('#bd-desc') || {}).value || '').trim();
+  if (!busId) return toast(t('bdNeedBus'));
+  if (!desc) return toast(t('bdNeedWhat'));
+  const ymd = ($('#bd-date') || {}).value || msToYMD();
+  const at = hhmmToMs(ymd, ($('#bd-time') || {}).value) || Date.now();
+  const prev = id ? (S.cache.breakdowns || []).find((x) => x.id === id) : null;
+  const rec = Object.assign({}, prev || {}, {
+    id: id || uid('bd-'), busId, system: ($('#bd-sys') || {}).value || 'other',
+    description: desc, at,
+    place: (($('#bd-place') || {}).value || '').trim(),
+    odometer: Number(($('#bd-odo') || {}).value) || 0,
+    downtimeHours: Number(($('#bd-down') || {}).value) || 0,
+    towed: !!($('#bd-towed') || {}).checked,
+    jobId: prev ? prev.jobId || null : null,
+    reportedBy: prev ? prev.reportedBy || S.user.id : S.user.id,
+  });
+  await DB.put('breakdowns', rec);
+  // A breakdown with a real odometer reading is also the freshest reading we
+  // have for that bus, and MTBF is worthless without it.
+  if (rec.odometer) await noteOdometer(busId, rec.odometer);
+  await load(); closeSheet(); toast(t('bdSaved')); rerender();
+}
+
+/* Turn a breakdown into the job card that fixes it, and remember the link, so
+ * "what did we actually do about it" has an answer later. */
+function breakdownToJob(id) {
+  const b = (S.cache.breakdowns || []).find((x) => x.id === id); if (!b) return;
+  closeSheet();
+  push({ name: 'newjob', prefill: { busId: b.busId, problem: `${t(bdSystem(b.system).k)} — ${b.description}`, priority: 'high', breakdownId: b.id } });
+}
+
 function viewSafety() {
   const since = Date.now() - 7 * day;
   const evs = (S.cache.gpsevents || []).filter((e) => e.at >= since).sort((a, b) => b.at - a.at);
@@ -7281,7 +7476,7 @@ async function askAi() {
  */
 const current = () => S.stack[S.stack.length - 1];
 // Role guard: routes restricted to certain roles fall back to home for others.
-const ROUTE_PERM = { money: 'money', fleet: 'fleet', people: 'people', bills: 'bills', insights: 'insights', drivers: 'manageDrivers', assignments: 'assignDriver', routes: 'manageRoutes', reports: 'dashboard', busreport: 'dashboard', livemap: 'dashboard', track: 'dashboard', fuel: 'addFuel', safety: 'dashboard', warranty: 'addFuel', storehealth: 'issuePart', linkgps: 'addBus', newjob: 'addJob', forecast: 'dashboard', pilferage: 'insights', components: 'issuePart', def: 'addFuel', vendors: 'addPurchase', import: 'addPurchase', crewpins: 'manageCrewLogins', crewbank: 'manageDrivers', usage: 'dashboard', accounting: 'dashboard', busacct: 'dashboard',
+const ROUTE_PERM = { money: 'money', fleet: 'fleet', people: 'people', bills: 'bills', insights: 'insights', drivers: 'manageDrivers', assignments: 'assignDriver', routes: 'manageRoutes', reports: 'dashboard', busreport: 'dashboard', livemap: 'dashboard', track: 'dashboard', fuel: 'addFuel', safety: 'dashboard', breakdowns: 'logIncident', warranty: 'addFuel', storehealth: 'issuePart', linkgps: 'addBus', newjob: 'addJob', forecast: 'dashboard', pilferage: 'insights', components: 'issuePart', def: 'addFuel', vendors: 'addPurchase', import: 'addPurchase', crewpins: 'manageCrewLogins', crewbank: 'manageDrivers', usage: 'dashboard', accounting: 'dashboard', busacct: 'dashboard',
   // `purchases` renders the same view as `bills`; without its own entry the
   // `bills` permission was bypassable just by using the other route name.
   purchases: 'bills', alerts: 'dashboard', buses: 'fleet',
@@ -7325,6 +7520,7 @@ function render(r) {
     case 'busreport': return viewBusReport(r.id);
     case 'fuel': return viewFuel();
     case 'safety': return viewSafety();
+    case 'breakdowns': return viewBreakdowns();
     case 'warranty': return viewWarranty();
     case 'storehealth': return viewStoreHealth();
     case 'linkgps': return viewLinkGps();
@@ -7592,6 +7788,11 @@ const _dispatchClick = async (e) => {
       case 'setFleetRev': return setFleetRev();
       case 'openFuel': return push({ name: 'fuel' });
       case 'openSafety': return push({ name: 'safety' });
+      case 'openBreakdowns': return push({ name: 'breakdowns' });
+      case 'addBreakdown': return sheetBreakdown(null);
+      case 'openBreakdown': return sheetBreakdown(el.getAttribute('data-id'));
+      case 'saveBreakdown': return saveBreakdown(el.getAttribute('data-id') || null);
+      case 'breakdownToJob': return breakdownToJob(el.getAttribute('data-id'));
       case 'openWarranty': return push({ name: 'warranty' });
       case 'openStoreHealth': return push({ name: 'storehealth' });
       case 'openPilferage': return push({ name: 'pilferage' });

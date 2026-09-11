@@ -744,6 +744,10 @@ WRITE_ROLES = {
     # writes `drivers` (bus assignment, details, documents) and nothing else.
     "drivers":       {"owner", "supervisor", "crewmanager"},
     "incidents":     {"owner", "supervisor"},
+    # A breakdown is written at the roadside by whoever is dealing with it, which
+    # in practice is the supervisor or the owner. The driver reports the symptom
+    # through driverreports; this is the record of the failure itself.
+    "breakdowns":    {"owner", "supervisor"},
     "users":         {"owner", "supervisor"},
     "jobcards":      {"owner", "supervisor", "store", "mechanic"},
     "trips":         {"owner", "supervisor", "driver"},
