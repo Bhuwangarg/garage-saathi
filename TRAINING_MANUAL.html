@@ -335,6 +335,7 @@ body[data-role="owner"]:not([data-role="all"]) .sec[data-roles~="owner"],
 body[data-role="supervisor"]:not([data-role="all"]) .sec[data-roles~="supervisor"],
 body[data-role="crewmanager"]:not([data-role="all"]) .sec[data-roles~="crewmanager"],
 body[data-role="store"]:not([data-role="all"]) .sec[data-roles~="store"],
+body[data-role="mechanic"]:not([data-role="all"]) .sec[data-roles~="mechanic"],
 body[data-role="driver"]:not([data-role="all"]) .sec[data-roles~="driver"],
 body[data-role="conductor"]:not([data-role="all"]) .sec[data-roles~="conductor"]{display:block}
 .part.empty{display:none}
@@ -390,6 +391,7 @@ body[data-role="conductor"]:not([data-role="all"]) .sec[data-roles~="conductor"]
         <button data-role="supervisor" aria-pressed="false"><span class="g">🧑‍🔧</span>Supervisor</button>
         <button data-role="crewmanager" aria-pressed="false"><span class="g">🗂️</span>Crew Mgr</button>
         <button data-role="store" aria-pressed="false"><span class="g">📦</span>Store</button>
+        <button data-role="mechanic" aria-pressed="false"><span class="g">🔧</span>Mechanic</button>
         <button data-role="driver" aria-pressed="false"><span class="g">🧑‍✈️</span>Driver</button>
         <button data-role="conductor" aria-pressed="false"><span class="g">🎫</span>Conductor</button>
       </div>
@@ -480,8 +482,8 @@ body[data-role="conductor"]:not([data-role="all"]) .sec[data-roles~="conductor"]
       <li>
         <span class="actor">Step 2 · दूसरा कदम</span>
         <div class="bi">
-          <div class="en"><p>Tap your job: Owner, Supervisor, Crew Manager, Store, Driver or Conductor. If you have used this phone before, your name is already shown at the top under <span class="ui">Recent on this phone</span> — just tap it.</p></div>
-          <div class="hi"><p>अपना काम चुनिए: मालिक, सुपरवाइज़र, क्रू मैनेजर, स्टोर, ड्राइवर या कंडक्टर। अगर आप पहले इस फ़ोन पर आ चुके हैं तो आपका नाम ऊपर <span class="ui">इस फ़ोन पर हाल के</span> में दिखेगा — सीधे उसी पर दबाइए।</p></div>
+          <div class="en"><p>Tap your job: Owner, Supervisor, Crew Manager, Store, Mechanic, Driver or Conductor. If you have used this phone before, your name is already shown at the top under <span class="ui">Recent on this phone</span> — just tap it.</p></div>
+          <div class="hi"><p>अपना काम चुनिए: मालिक, सुपरवाइज़र, क्रू मैनेजर, स्टोर, मैकेनिक, ड्राइवर या कंडक्टर। अगर आप पहले इस फ़ोन पर आ चुके हैं तो आपका नाम ऊपर <span class="ui">इस फ़ोन पर हाल के</span> में दिखेगा — सीधे उसी पर दबाइए।</p></div>
         </div>
       </li>
       <li>
@@ -641,8 +643,8 @@ body[data-role="conductor"]:not([data-role="all"]) .sec[data-roles~="conductor"]
   <div class="sec" data-roles="supervisor owner">
     <div class="rolehead"><div class="glyph">🛠️</div><h3>Keeping the job card <span class="devnag">जॉब कार्ड भरना</span></h3></div>
     <div class="bi">
-      <div class="en"><p>Mechanics do the repairs. They do not use the app and they do not log in — <b>you keep the card for them</b>. You still say who did the work, because the scorecard and the pilferage radar are built on that name.</p></div>
-      <div class="hi"><p>मरम्मत मैकेनिक करते हैं। वे ऐप नहीं चलाते और लॉगिन नहीं करते — <b>कार्ड आप उनके लिए भरते हैं</b>। काम किसने किया यह फिर भी लिखना है, क्योंकि स्कोरकार्ड और पिलफ़रेज रडार उसी नाम पर टिके हैं।</p></div>
+      <div class="en"><p>Mechanics do the repairs, and <b>you keep the card for them</b>. They sign in only to see what they have been given — they cannot close a job or sign one off. You still say who did the work, because the scorecard and the pilferage radar are built on that name.</p></div>
+      <div class="hi"><p>मरम्मत मैकेनिक करते हैं, और <b>कार्ड आप उनके लिए भरते हैं</b>। वे लॉगिन सिर्फ़ यह देखने के लिए करते हैं कि उन्हें क्या काम मिला है — वे न काम बंद कर सकते हैं, न जाँच सकते हैं। काम किसने किया यह फिर भी लिखना है, क्योंकि स्कोरकार्ड और पिलफ़रेज रडार उसी नाम पर टिके हैं।</p></div>
     </div>
 
     <div class="note info">
@@ -684,6 +686,8 @@ body[data-role="conductor"]:not([data-role="all"]) .sec[data-roles~="conductor"]
           <li><span class="ui">Close job</span>. Fill in <span class="ui">Job completion</span>, <span class="ui">Out time</span>, the hours worked, and a <span class="ui">Remark</span> if there is one — for example <i>Rep. at Noida Eicher workshop</i>.</li>
         </ol>
         <p>Times written on paper at six in the evening and typed in next morning are still fine: <span class="ui">Edit</span> on the service record takes the real times, whenever you enter them.</p>
+        <p><b>The card is filled in three steps</b> — bus and fault, then who and when, then cost and notes — with a bar at the top showing where you are. The last step lists back what is about to be created; tap any step to go back and change it.</p>
+        <p><b>It keeps what you have typed.</b> If a call comes in, or the phone closes the app, reopening the card puts your half-finished one back with a note saying so. <span class="ui">Start fresh</span> throws it away. You no longer lose a card to an interruption.</p>
       </div>
       <div class="hi">
         <p><b>एक काम, शुरू से आख़िर तक:</b></p>
@@ -697,6 +701,8 @@ body[data-role="conductor"]:not([data-role="all"]) .sec[data-roles~="conductor"]
           <li><span class="ui">काम बंद करें</span>। <span class="ui">Job completion</span>, <span class="ui">Out time</span>, लगे घंटे, और कोई <span class="ui">Remark</span> हो तो वह भरिए — जैसे <i>Rep. at Noida Eicher workshop</i>।</li>
         </ol>
         <p>शाम छह बजे कागज़ पर लिखे और अगली सुबह टाइप किए समय भी चलेंगे: सर्विस रिकॉर्ड पर <span class="ui">Edit</span> दबाकर असली समय कभी भी डाल सकते हैं।</p>
+        <p><b>कार्ड तीन कदम में भरता है</b> — बस और खराबी, फिर कौन और कब, फिर खर्च और नोट — ऊपर पट्टी बताती है आप कहाँ हैं। आख़िरी कदम पर वह सब दिखता है जो बनने जा रहा है; बदलना हो तो किसी भी कदम पर दबाकर वापस जाइए।</p>
+        <p><b>जो लिखा है वह बचा रहता है।</b> बीच में फ़ोन आ जाए या ऐप बंद हो जाए, तो कार्ड दोबारा खोलने पर आपका अधूरा कार्ड वापस मिल जाता है और ऊपर लिखा आता है। फेंकना हो तो <span class="ui">Start fresh</span>। अब बीच में रुकने से कार्ड नहीं जाता।</p>
       </div>
     </div>
 
@@ -719,8 +725,10 @@ body[data-role="conductor"]:not([data-role="all"]) .sec[data-roles~="conductor"]
     <div class="note go">
       <span class="tag">Odometer on every card · हर कार्ड पर ओडोमीटर</span>
       <div class="bi">
-        <div class="en"><p>The kilometre reading you write on the card goes onto the bus too. That is what makes cost-per-kilometre and mileage work, so fill it in every time. A reading lower than the one already on file is ignored as a typo — the app never lets a bus travel backwards.</p></div>
-        <div class="hi"><p>कार्ड पर लिखा किलोमीटर बस पर भी चढ़ जाता है। प्रति किलोमीटर खर्च और माइलेज इसी से बनते हैं, इसलिए हर बार भरिए। पहले से दर्ज पढ़त से कम अंक टाइपिंग की गलती मानकर छोड़ दिया जाता है — ऐप किसी बस को पीछे नहीं जाने देता।</p></div>
+        <div class="en"><p>The kilometre reading you write on the card goes onto the bus too. That is what makes cost-per-kilometre and mileage work, so fill it in every time. A reading lower than the one already on file is ignored as a typo — the app never lets a bus travel backwards.</p>
+          <p><b>If the odometer is broken, say so</b> rather than guessing a number: tick <span class="ui">Odometer not working on this bus</span>, on the job card or the fuel log. Cost per km and mileage are then left blank for that bus until it is repaired, which is honest — a made-up reading quietly poisons every figure that divides by kilometres, and nobody can tell afterwards which ones.</p></div>
+        <div class="hi"><p>कार्ड पर लिखा किलोमीटर बस पर भी चढ़ जाता है। प्रति किलोमीटर खर्च और माइलेज इसी से बनते हैं, इसलिए हर बार भरिए। पहले से दर्ज पढ़त से कम अंक टाइपिंग की गलती मानकर छोड़ दिया जाता है — ऐप किसी बस को पीछे नहीं जाने देता।</p>
+          <p><b>ओडोमीटर खराब है तो वही लिखिए</b>, अंदाज़े से नंबर मत डालिए: जॉब कार्ड या ईंधन में <span class="ui">इस बस का ओडोमीटर काम नहीं कर रहा</span> पर निशान लगाइए। ठीक होने तक उस बस का प्रति किमी खर्च और माइलेज खाली रहेगा — यही ईमानदारी है। बनाया हुआ नंबर हर उस आँकड़े को चुपचाप बिगाड़ देता है जो किलोमीटर से बनता है, और बाद में पता भी नहीं चलता कि कौन से।</p></div>
       </div>
     </div>
   </div>
@@ -801,6 +809,35 @@ body[data-role="conductor"]:not([data-role="all"]) .sec[data-roles~="conductor"]
         <div class="en"><p><span class="ui">Store health</span> lets you count what is physically on the shelf against what the app says should be there. The difference is shrinkage — parts that left without a job card. Do this count regularly; it is the only way the gap ever gets found.</p><p><b>Every change to a quantity is recorded with your name on it</b> — the old number, the new one, and whether a job card explained it. Changes with no explanation are listed for the owner under <span class="ui">Unexplained stock changes</span>. A stock count is a perfectly normal reason to appear there, so do correct the book once you have counted; just correct it by counting, not by typing.</p><p>The issue history itself cannot be edited or deleted by anybody, including the owner. Once a part is issued against a job, that line stays.</p></div>
         <div class="hi"><p><span class="ui">स्टोर स्थिति</span> में आप शेल्फ़ पर असल में जो रखा है उसे ऐप के आँकड़े से मिला सकते हैं। जो फ़र्क निकलेगा वही नुकसान है — यानी वे पुर्जे जो बिना जॉब कार्ड के बाहर गए। यह गिनती नियमित कीजिए; फ़र्क पकड़ने का यही एक तरीका है।</p><p><b>मात्रा में हर बदलाव आपके नाम के साथ दर्ज होता है</b> — पुराना अंक, नया अंक, और यह भी कि किसी जॉब कार्ड ने उसे समझाया या नहीं। जिन बदलावों की कोई वजह नहीं मिलती वे मालिक को <span class="ui">Unexplained stock changes</span> में दिखते हैं। स्टॉक गिनती के बाद वहाँ नाम आना बिलकुल सामान्य है, इसलिए गिनकर आँकड़ा ठीक कीजिए; बस गिनकर कीजिए, अंदाज़े से टाइप करके नहीं।</p><p>पुर्जा जारी होने का रिकॉर्ड कोई नहीं बदल या मिटा सकता — मालिक भी नहीं। एक बार पुर्जा किसी काम पर जारी हुआ तो वह लाइन वहीं रहती है।</p></div>
       </div>
+    </div>
+  </div>
+
+  <!-- MECHANIC -->
+  <div class="sec" data-roles="mechanic">
+    <div class="rolehead"><div class="glyph">🔧</div><h3>Mechanic <span class="devnag">मैकेनिक</span></h3></div>
+    <div class="tabs">
+      <span class="tab"><span class="g">🛠️</span>My work</span>
+      <span class="tab"><span class="g">📦</span>Store</span>
+      <span class="tab"><span class="g">👤</span>Me</span>
+    </div>
+    <div class="bi">
+      <div class="en"><p>You sign in to see what has been given to you — nothing else. Your screen opens on your own jobs, most urgent first, with the bus, the fault, what time it came in, and whether work has started. Jobs still open from an earlier day stay on the list.</p></div>
+      <div class="hi"><p>आप लॉगिन इसलिए करते हैं कि आपको क्या काम मिला है यह दिख जाए — और कुछ नहीं। स्क्रीन पर आपके अपने काम खुलते हैं, सबसे ज़रूरी पहले, साथ में बस, खराबी, बस कितने बजे आई, और काम शुरू हुआ या नहीं। पिछले दिन के अधूरे काम भी सूची में बने रहते हैं।</p></div>
+    </div>
+    <div class="bi">
+      <div class="en"><p>You also have your score out of 100 and the team leaderboard, and the store, so you can look a part up before asking for it.</p></div>
+      <div class="hi"><p>आपका 100 में से स्कोर और टीम की सूची भी दिखती है, और स्टोर भी — ताकि पुर्जा माँगने से पहले देख सकें।</p></div>
+    </div>
+    <div class="note info">
+      <span class="tag">You do not close the card · कार्ड आप बंद नहीं करते</span>
+      <div class="bi">
+        <div class="en"><p>The supervisor keeps the job card and closes it; the owner or another supervisor signs it off. There is no close button on your screen, and the server refuses it too, so there is nothing to argue about. Tell the supervisor when the work is done — and make sure the after photo gets taken, because the card cannot close without it.</p></div>
+        <div class="hi"><p>जॉब कार्ड सुपरवाइज़र भरता है और वही बंद करता है; जाँच मालिक या दूसरा सुपरवाइज़र करता है। आपकी स्क्रीन पर बंद करने का बटन है ही नहीं, और सर्वर भी इसे नहीं मानता, इसलिए बहस की कोई बात नहीं। काम पूरा हो जाए तो सुपरवाइज़र को बता दीजिए — और बाद की फोटो ज़रूर लिवा दीजिए, क्योंकि उसके बिना कार्ड बंद ही नहीं होगा।</p></div>
+      </div>
+    </div>
+    <div class="bi">
+      <div class="en"><p>Attendance is yours like everyone's: <span class="ui">Me</span> → <span class="ui">Check In</span> at the start, <span class="ui">Check Out</span> at the end. Your score counts late marks, so it is worth doing on time.</p></div>
+      <div class="hi"><p>हाज़िरी आपकी भी है, सबकी तरह: शुरू में <span class="ui">मैं</span> → <span class="ui">हाज़िरी लगाएं</span>, और ख़त्म होने पर <span class="ui">छुट्टी</span>। देर से आना आपके स्कोर में गिना जाता है, इसलिए समय पर लगाना ही ठीक है।</p></div>
     </div>
   </div>
 
@@ -1092,6 +1129,44 @@ body[data-role="conductor"]:not([data-role="all"]) .sec[data-roles~="conductor"]
   </div>
 </section>
 
+  <div class="sec" data-roles="owner supervisor">
+    <h3>Breakdowns <span class="devnag">ब्रेकडाउन</span></h3>
+    <p class="who">Owner &amp; supervisor · मालिक और सुपरवाइज़र</p>
+    <div class="bi">
+      <div class="en"><p>A breakdown is a failure that happened <b>on the road</b>. It is not the same as a driver's report (something noticed on a trip) or a job card (the work done) — it is the thing those two exist to prevent, and the number this whole system is meant to drive down. Record every one: <span class="ui">Fleet</span> → <span class="ui">Breakdowns</span>.</p></div>
+      <div class="hi"><p>ब्रेकडाउन यानी वह खराबी जो <b>रास्ते में</b> हुई। यह न ड्राइवर की रिपोर्ट है (जो ट्रिप में महसूस हुआ) और न जॉब कार्ड (जो काम हुआ) — यह वही चीज़ है जिसे रोकने के लिए वे दोनों हैं, और पूरा सिस्टम इसी संख्या को घटाने के लिए है। हर एक दर्ज कीजिए: <span class="ui">बेड़ा</span> → <span class="ui">ब्रेकडाउन</span>।</p></div>
+    </div>
+    <div class="bi">
+      <div class="en">
+        <p>Six things, and each one earns its place:</p>
+        <ul>
+          <li><b>What failed</b> — engine, brakes, tyre, gearbox, electrical, and so on. This is what tells you, across the fleet, what keeps going wrong.</li>
+          <li><b>Which bus</b>, and <b>the odometer</b>. Without the reading there is no "kilometres between failures", which is the one figure that shows a bus getting worse <i>before</i> it strands anybody.</li>
+          <li><b>Where</b> and <b>when</b>.</li>
+          <li><b>Hours off the road</b>, and <b>whether it had to be towed</b> — the real cost of the failure, which is never just the part.</li>
+        </ul>
+        <p>Then use <span class="ui">Create the job card for this</span>. The fault carries across, and the breakdown keeps a link to the card — so months later "what did we actually do about it" has an answer.</p>
+      </div>
+      <div class="hi">
+        <p>छह बातें, और हर एक की वजह है:</p>
+        <ul>
+          <li><b>क्या खराब हुआ</b> — इंजन, ब्रेक, टायर, गियरबॉक्स, बिजली, वगैरह। इसी से पता चलता है कि पूरे बेड़े में बार-बार क्या बिगड़ता है।</li>
+          <li><b>कौन सी बस</b>, और <b>ओडोमीटर</b>। पढ़त के बिना "दो खराबी के बीच कितने किलोमीटर" निकलता ही नहीं — और यही एक आँकड़ा है जो बस के बिगड़ने की ख़बर किसी को रास्ते में छोड़ने <i>से पहले</i> देता है।</li>
+          <li><b>कहाँ</b> और <b>कब</b>।</li>
+          <li><b>कितने घंटे बस बंद रही</b>, और <b>टो करवाना पड़ा या नहीं</b> — खराबी की असली कीमत, जो कभी सिर्फ़ पुर्जे की नहीं होती।</li>
+        </ul>
+        <p>फिर <span class="ui">इसका जॉब कार्ड बनाएं</span> दबाइए। खराबी अपने आप कार्ड में चली जाती है, और ब्रेकडाउन पर कार्ड का लिंक रह जाता है — ताकि महीनों बाद "इसका किया क्या था" का जवाब मिल सके।</p>
+      </div>
+    </div>
+    <div class="note go">
+      <span class="tag">Why bother recording them · दर्ज करने से होता क्या है</span>
+      <div class="bi">
+        <div class="en"><p>Because three gearbox failures on one bus in six months is a decision — and nobody can see it from memory. The screen shows what fails most, which buses fail most, and how far each bus goes between failures. That is what turns repairing into preventing, which is the entire point.</p></div>
+        <div class="hi"><p>क्योंकि छह महीने में एक ही बस पर तीन बार गियरबॉक्स फेल होना एक फ़ैसला है — और याददाश्त से यह किसी को नहीं दिखता। स्क्रीन बताती है कि सबसे ज़्यादा क्या फेल होता है, कौन सी बसें सबसे ज़्यादा बंद होती हैं, और हर बस दो खराबी के बीच कितना चलती है। यही मरम्मत को रोकथाम में बदलता है, और पूरा मक़सद यही है।</p></div>
+      </div>
+    </div>
+  </div>
+
 <!-- ============================ PART 5 ============================ -->
 <section class="part">
   <header><span class="num">PART 5</span><h2>Six rules that cannot be bent <span class="devnag">छह नियम जो नहीं टूटेंगे</span></h2></header>
@@ -1210,7 +1285,7 @@ body[data-role="conductor"]:not([data-role="all"]) .sec[data-roles~="conductor"]
         </tbody>
       </table>
     </div>
-    <p class="legend"><b>✓*</b> — but never a job you closed yourself; someone else signs that one off. <b>Mechanics do not appear here:</b> they do the repairs but do not log in, so the supervisor keeps their job cards. Work is still recorded in their name. · <b>✓*</b> — पर वह काम नहीं जो आपने खुद बंद किया; उसे कोई और जाँचेगा। <b>मैकेनिक यहाँ नहीं हैं:</b> मरम्मत वे करते हैं पर लॉगिन नहीं करते, कार्ड सुपरवाइज़र भरता है। काम फिर भी उन्हीं के नाम दर्ज होता है।</p>
+    <p class="legend"><b>✓*</b> — but never a job you closed yourself; someone else signs that one off. <b>A mechanic</b> signs in only to see the work assigned to them: no closing, no verifying, no money. The supervisor keeps their job cards, and the work is recorded in their name. · <b>✓*</b> — पर वह काम नहीं जो आपने खुद बंद किया; उसे कोई और जाँचेगा। <b>मैकेनिक</b> लॉगिन सिर्फ़ अपना दिया हुआ काम देखने के लिए करते हैं: न बंद करना, न जाँचना, न पैसा। कार्ड सुपरवाइज़र भरता है, और काम उन्हीं के नाम दर्ज होता है।</p>
   </div>
 </section>
 
