@@ -1031,6 +1031,22 @@ def register_roster(crew=None, default_pin="0000"):
     account is never touched; tombstones are skipped."""
     with _lock:
         c = db()
+        # Never resurrect an account that was deliberately deleted.
+        #
+        # /auth/users/delete tombstones the synced roster row, but a device that
+        # has not pulled that tombstone yet still lists the person — and the crew
+        # list is SENT by the device. Pressing "Activate crew server logins" on a
+        # stale phone therefore re-created every account the owner had just
+        # removed: 57 conductor logins deleted, all 57 back minutes later, from
+        # one device that had not caught up. The tombstone here is the authority,
+        # not whatever a client sent.
+        dead = set()
+        for rid, data in c.execute("SELECT id,data FROM records WHERE store='users'").fetchall():
+            try:
+                if json.loads(data).get("_deleted"):
+                    dead.add(rid)
+            except Exception:
+                continue
         if crew:
             items = [(x.get("id"), x.get("name"), x.get("role")) for x in crew
                      if isinstance(x, dict) and x.get("role") in ("driver", "conductor") and x.get("id")]
@@ -1045,8 +1061,12 @@ def register_roster(crew=None, default_pin="0000"):
                     continue
                 items.append((rid, d.get("name"), d.get("role")))
         created = 0
+        skipped = 0
         for rid, name, role in items:
             if not rid:
+                continue
+            if rid in dead:
+                skipped += 1
                 continue
             if c.execute("SELECT 1 FROM users WHERE id=?", (rid,)).fetchone():
                 continue
@@ -1056,6 +1076,8 @@ def register_roster(crew=None, default_pin="0000"):
             created += 1
         c.commit()
         c.close()
+    if skipped:
+        print("register_roster: ignored %d deleted account(s) a client asked to re-create" % skipped)
     return created
 
 

@@ -87,6 +87,34 @@ check("fallback skips tombstoned crew", not account_exists("u-drvGone"))
 check("fallback skips non-crew record", not account_exists("u-ownerY"))
 check("fallback created exactly 1", created_fb == 1)
 
+print("Phase 1c — a deleted login is never re-created by a stale device")
+# What happened on 12 Sep: the owner deleted 57 conductor logins, then pressed
+# "Activate crew server logins" on a phone that had not yet pulled the tombstones.
+# The crew list is SENT by the device, so all 57 came straight back. The tombstone
+# is the authority; a client's list is not.
+STALE = [
+    {"id": "u-conDel", "name": "Conductor Deleted", "role": "conductor"},
+    {"id": "u-drvLive", "name": "Driver Live", "role": "driver"},
+]
+S.register_roster(STALE)
+check("both accounts exist to begin with",
+      account_exists("u-conDel") and account_exists("u-drvLive"))
+# Exactly what POST /auth/users/delete does: drop the credential, tombstone the
+# synced roster row.
+put_user_record("u-conDel", "Conductor Deleted", "conductor", deleted=True)
+_c = S.db()
+_c.execute("DELETE FROM users WHERE id=?", ("u-conDel",))
+_c.commit()
+_c.close()
+check("the deleted account is gone", not account_exists("u-conDel"))
+back = S.register_roster(STALE)          # the stale device presses the button
+check("a stale device cannot resurrect it", not account_exists("u-conDel"))
+check("nothing was created by that press", back == 0)
+check("the live crew member is untouched", account_exists("u-drvLive"))
+# but a genuinely new joiner must still be created
+check("a new joiner is still created",
+      S.register_roster([{"id": "u-drvNew", "name": "New Joiner", "role": "driver"}]) == 1)
+
 print("Phase 3 — role->store write matrix")
 OWNER = {"id": "u-owner", "role": "owner"}
 SUPER = {"id": "u-sup", "role": "supervisor"}
