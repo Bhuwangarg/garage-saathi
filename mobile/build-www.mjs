@@ -79,14 +79,31 @@ for (const img of LEAFLET_IMAGES) {
   await cp(cached, join(www, 'vendor', 'images', img));
 }
 
-// --- rewrite index.html to use the vendored copies --------------------------
+// --- point the vendored copies at local files -------------------------------
+// These URLs used to sit in <script> tags in index.html. They now live inside
+// loadMapLib() and loadFaceLib() in app.js, which fetch them on demand instead
+// of on every page load — so the rewrite has to follow them there. A packaged
+// app must never reach for a CDN: it is expected to work in a workshop with no
+// signal, and the whole point of vendoring is that the files are already on disk.
+const CDN_MAP = [
+  ['https://unpkg.com/leaflet@1.9.4/dist/leaflet.css', 'vendor/leaflet.css'],
+  ['https://unpkg.com/leaflet@1.9.4/dist/leaflet.js', 'vendor/leaflet.js'],
+  ['https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js', 'vendor/face-api.js'],
+];
+let rewrites = 0;
+for (const file of ['index.html', 'app.js']) {
+  const path = join(www, file);
+  if (!(await exists(path))) continue;
+  let src = await readFile(path, 'utf8');
+  const was = src;
+  for (const [from, to] of CDN_MAP) src = src.split(from).join(to);
+  if (src !== was) { await writeFile(path, src); rewrites += 1; }
+}
+if (!rewrites) {
+  throw new Error('CDN rewrite matched nothing in index.html or app.js — the URLs moved again, check loadMapLib()/loadFaceLib()');
+}
+
 let html = await readFile(join(www, 'index.html'), 'utf8');
-const before = html;
-html = html
-  .replace('https://unpkg.com/leaflet@1.9.4/dist/leaflet.css', 'vendor/leaflet.css')
-  .replace('https://unpkg.com/leaflet@1.9.4/dist/leaflet.js', 'vendor/leaflet.js')
-  .replace('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js', 'vendor/face-api.js');
-if (html === before) throw new Error('CDN rewrite matched nothing — index.html changed shape, check it');
 
 // The service worker is dead weight inside a native shell: the assets are already on
 // disk, and a stale SW cache would silently pin an old app.js across updates.

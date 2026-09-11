@@ -107,16 +107,18 @@ login owner      u-owner 1 1 1 1; ck "owner login"      "$(j "S.user?S.user.role
 login supervisor u-sup   2 2 2 2; ck "supervisor login" "$(j "S.user?S.user.role:'none'")" "supervisor"
 login store      u-store 3 3 3 3; ck "store login"      "$(j "S.user?S.user.role:'none'")" "store"
 login driver     u-d1    0 0 1 0; ck "driver login"     "$(j "S.user?S.user.role:'none'")" "driver"
-# Mechanics do the repairs but not the paperwork, so they were taken off the
-# login screen and the supervisor keeps their job cards. A login nobody uses is
-# an unguarded door — assert the door is actually gone, on the role picker AND
-# on the recent-users shortcut that bypasses it.
-"$B" goto "$URL" >/dev/null 2>&1; sleep 2
-ck "mechanic NOT offered a login" \
-  "$(j "document.querySelectorAll('[data-role=\\'mechanic\\']').length")" "0"
-ck "no mechanic on the recent-users shortcut" \
-  "$(j "[...document.querySelectorAll('[data-recent]')].filter(function(e){var u=(S.cache.users||[]).find(function(x){return x.id===e.getAttribute('data-recent')});return u&&u.role==='mechanic'}).length")" "0"
-# ...but they are still assignable people: the scorecard and pilferage radar are
+# Mechanics sign in again (2026-09-11, reversing the earlier removal) — but to
+# SEE their assigned work, not to keep the card. The supervisor still writes it.
+# So the assertion moved: the door is open, and what is behind it is limited.
+login mechanic u-m1 0 0 0 1; ck "mechanic login" "$(j "S.user?S.user.role:'none'")" "mechanic"
+# A mechanic sees only their own work. Anything else here is a leak of another
+# mechanic's jobs, and of the whole board to somebody with no business on it.
+ck "mechanic sees only their own jobs" \
+  "$(j "(function(){var n=(S.cache.jobs||[]).filter(function(x){return x.assignedTo!==S.user.id});var shown=[].slice.call(document.querySelectorAll('[data-job]')).map(function(e){return e.getAttribute('data-job')});return n.filter(function(x){return shown.indexOf(x.id)>=0}).length})()")" "0"
+# Closing is the supervisor's and the owner's. The button must not be there...
+ck "mechanic has no close button" \
+  "$(j "(function(){var j=(S.cache.jobs||[]).filter(function(x){return x.assignedTo===S.user.id&&(x.status==='open'||x.status==='in-progress')})[0];if(!j)return 'nojob';route({name:'jobs',id:j.id});return document.querySelector('[data-act=markDone]')?'yes':'no'})()")" "no"
+# ...and they are still assignable people: the scorecard and pilferage radar are
 # built on knowing who did the work.
 ck "mechanics still on the roster" \
   "$(j "(S.cache.users||[]).filter(function(u){return u.role==='mechanic'}).length>0")" "true"

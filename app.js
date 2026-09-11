@@ -25,6 +25,11 @@ const I18N = {
     wizStep1: 'Bus & fault', wizStep2: 'Who & when', wizStep3: 'Cost & notes',
     wizNext: 'Next', wizBack: 'Back', wizCreate: 'Create job card',
     wizCheck: 'Check before you create', wizCheckHint: 'Go back to any step to change something.',
+    mpTitle: 'Mechanic performance', mpSub: 'Score, open work, rework and turnaround — last 90 days',
+    mpBlurb: 'Work-quality score over the last 90 days, built from rework, proof photos, turnaround and punctuality. The columns are the figures behind it. Tap a name for the full breakdown.',
+    mpOpen: 'open', mpRework: 'rework', mpDays: 'avg', mpJobs: 'jobs', mpLate: 'late',
+    mchToday: 'Waiting for you', mchMyDay: 'My work', mchSince: 'in since',
+    mchStarted: 'started', mchNotStarted: 'not started yet', mchNothingToday: 'Nothing assigned to you.',
     odoBrokenHint: 'Tick this instead of guessing a number. Cost per km and mileage are left blank for this bus until it is repaired, rather than being worked out from a reading that never moves.',
     tooManyTries: 'Too many wrong PINs. Try again in a few minutes, or ask your supervisor.',
     // Menu (More)
@@ -159,6 +164,11 @@ const I18N = {
     wizStep1: 'बस और खराबी', wizStep2: 'कौन और कब', wizStep3: 'खर्च और नोट',
     wizNext: 'आगे', wizBack: 'पीछे', wizCreate: 'जॉब कार्ड बनाएं',
     wizCheck: 'बनाने से पहले देख लीजिए', wizCheckHint: 'कुछ बदलना हो तो किसी भी कदम पर वापस जाइए।',
+    mpTitle: 'मैकेनिक प्रदर्शन', mpSub: 'स्कोर, खुला काम, दोबारा काम और समय — पिछले 90 दिन',
+    mpBlurb: 'पिछले 90 दिन का काम-गुणवत्ता स्कोर — दोबारा किया काम, सबूत फोटो, समय और समय-पालन से बनता है। कॉलम वही आँकड़े हैं जिनसे यह बना है। पूरा हिसाब देखने के लिए नाम दबाइए।',
+    mpOpen: 'खुले', mpRework: 'दोबारा', mpDays: 'औसत', mpJobs: 'काम', mpLate: 'देर',
+    mchToday: 'आपके लिए बाकी', mchMyDay: 'मेरा काम', mchSince: 'आई',
+    mchStarted: 'शुरू', mchNotStarted: 'अभी शुरू नहीं', mchNothingToday: 'आपको कोई काम नहीं दिया गया।',
     odoBrokenHint: 'अंदाज़े से नंबर डालने के बजाय यह लगाइए। ठीक होने तक इस बस का प्रति किमी खर्च और माइलेज खाली रहेगा — रुके हुए ओडोमीटर से निकाला गया गलत आँकड़ा नहीं दिखेगा।',
     tooManyTries: 'बहुत बार गलत पिन। कुछ मिनट बाद कोशिश कीजिए, या सुपरवाइज़र से कहिए।',
     // Menu (More)
@@ -1114,8 +1124,27 @@ function viewMechanicHome() {
     <div class="tiny muted" style="margin-top:6px">Tap for your attendance, penalties &amp; how the score is built.</div></div>`;
   body += `<button class="btn" data-act="openScoreboard" style="margin-bottom:14px">🏆 Team leaderboard</button>`;
   body += `<div class="grid2">
-    <div class="card tile"><div class="muted small">My open jobs</div><div class="stat">${open.length}</div></div>
+    <div class="card tile"><div class="muted small">${t('mchToday')}</div><div class="stat">${open.length}</div></div>
     <div class="card tile"><div class="muted small">Completed</div><div class="stat">${myJobs.filter((j) => j.status === 'done' || j.status === 'verified').length}</div></div></div>`;
+
+  // What a mechanic needs on opening the app: what is waiting, most urgent
+  // first, and since when. Anything open from an earlier day is carried in
+  // rather than hidden — unfinished work does not stop mattering at midnight.
+  const _prank = { high: 0, medium: 1, low: 2 };
+  body += `<div class="card"><div class="row between"><h3>${t('mchMyDay')}</h3>
+      <span class="tiny muted">${fmtToday()}</span></div>`;
+  body += open.length ? [...open]
+    .sort((a, b) => ((_prank[a.priority] ?? 1) - (_prank[b.priority] ?? 1))
+                 || ((a.enterAt || a.createdAt) - (b.enterAt || b.createdAt)))
+    .map((j) => {
+      const inAt = j.enterAt || j.createdAt;
+      const started = j.startAt;
+      return `<div class="li" data-job="${j.id}"><div class="ava">${started ? '🔧' : '⏳'}</div>
+        <div class="main"><div class="t">${esc(busName(j.busId))} · ${esc(j.problem)}</div>
+          <div class="s">${PRIO_PILL[j.priority] || ''} · ${t('mchSince')} ${fmtDateTime(inAt)}${started ? ` · ${t('mchStarted')} ${msToHHMM(started)}` : ` · ${t('mchNotStarted')}`}</div></div>
+        ${statusBadge(j.status)}</div>`;
+    }).join('') : `<div class="muted small">${t('mchNothingToday')}</div>`;
+  body += `</div>`;
   const order = { open: 0, 'in-progress': 1, done: 2, verified: 3 };
   body += `<div class="card"><h3>My jobs</h3>`;
   body += myJobs.length ? [...myJobs].sort((a, b) => (order[a.status] - order[b.status]) || (b.createdAt - a.createdAt)).slice(0, 8).map(jobLi).join('') : `<div class="muted small">No jobs assigned to you.</div>`;
@@ -2042,7 +2071,15 @@ function viewJobs() {
     ? { done: 0, open: 1, 'in-progress': 2, verified: 3 }
     : { open: 0, 'in-progress': 1, done: 2, verified: 3 };
   jobs.sort((a, b) => (order[a.status] - order[b.status]) || (b.createdAt - a.createdAt));
-  let body = jobsFilterBar();
+  let body = '';
+  // The supervisor assigns every job but had no route to the mechanics' figures —
+  // their nav has no People tab. One row, above the board they work from.
+  if (['owner', 'supervisor'].includes(S.user.role)) {
+    body += `<div class="trow" data-act="openScoreboard" style="margin-bottom:10px"><div class="ti">📊</div>
+      <div class="tm"><div class="tt">${t('mpTitle')}</div>
+        <div class="ts">${t('mpSub')}</div></div><div class="tc">›</div></div>`;
+  }
+  body += jobsFilterBar();
   body += `<input id="job-search" class="searchbox" placeholder="Search bus or problem…" autocomplete="off">`;
   body += jobs.length ? `<div id="job-list" class="listwrap">${jobs.map(jobLi).join('')}</div>` : `<div class="card listwrap" id="job-list"><div class="empty">${t('noJobsMatch')}</div></div>`;
   shell(t('jobs'), body, can(S.user.role, 'addJob') ? { act: 'addJob', icon: '+' } : null);
@@ -2156,7 +2193,11 @@ function actionsForJob(j, editable) {
   if (['owner', 'supervisor'].includes(S.user.role) && j.status !== 'verified') {
     actions += `<button class="btn" data-act="editJob" data-job="${j.id}">✏️ ${t('editReassign')}</button>`;
   }
-  if (editable && (j.status === 'open' || j.status === 'in-progress')) {
+  // Closing a card belongs to the supervisor or the owner. A mechanic sees the
+  // work and its state; they do not sign it off. Mirrored in _guard_write on the
+  // server, which is where it actually holds.
+  const mayClose = ['owner', 'supervisor'].includes(S.user.role);
+  if (editable && mayClose && (j.status === 'open' || j.status === 'in-progress')) {
     actions += `<button class="btn primary" data-act="markDone" data-job="${j.id}">✅ ${t('markDone')}</button>`;
   }
   if (j.status === 'done' && can(S.user.role, 'verifyJob')) {
@@ -4673,12 +4714,29 @@ function penLine(label, count, pen) {
 }
 function viewScoreboard() {
   const mechs = S.cache.users.filter((u) => u.role === 'mechanic').map((u) => ({ u, s: mechanicScore(u.id).score })).sort((a, b) => b.s - a.s);
-  let body = `<div class="card"><div class="tiny muted">Work-quality score, last 90 days — from rework, proof photos, turnaround &amp; punctuality. Tap a name for the detail.</div></div>`;
+  let body = `<div class="card"><div class="tiny muted">${t('mpBlurb')}</div></div>`;
   body += `<input id="sb-search" class="searchbox" placeholder="Search a name…" autocomplete="off">`;
   body += `<div class="card listwrap" id="sb-list"><h3>Mechanic leaderboard</h3>`;
-  body += mechs.length ? mechs.map(({ u, s }, i) => `<div class="li" data-act="scorecard" data-user="${u.id}" style="cursor:pointer">
-    <div class="ava">${i === 0 ? '🏆' : '🔧'}</div><div class="main"><div class="t">${i + 1}. ${esc(u.name)}${u.id === S.user.id ? ' (you)' : ''}</div></div>
-    <span class="badge ${scoreClass(s)}">${s}</span></div>`).join('') : `<div class="empty">No mechanics yet</div>`;
+  body += mechs.length ? mechs.map(({ u, s }, i) => {
+    const m = mechanicScore(u.id);
+    const open = S.cache.jobs.filter((j) => j.assignedTo === u.id && (j.status === 'open' || j.status === 'in-progress')).length;
+    // The figures behind the score, because "who should take this job" is not a
+    // question a single number answers: someone can score well and already have
+    // six cards open.
+    const col = (v, lbl, bad) => `<div style="text-align:center;min-width:44px">
+        <div style="font-weight:800;font-size:14px;color:${bad ? 'var(--red)' : 'var(--text)'}">${v}</div>
+        <div class="tiny muted">${lbl}</div></div>`;
+    return `<div class="li" data-act="scorecard" data-user="${u.id}" style="cursor:pointer">
+      <div class="ava">${i === 0 ? '🏆' : '🔧'}</div>
+      <div class="main"><div class="t">${i + 1}. ${esc(u.name)}${u.id === S.user.id ? ' (you)' : ''}</div>
+        <div class="s">${m.jobs} ${t('mpJobs')} · ${m.att.lates} ${t('mpLate')}</div></div>
+      <div class="row" style="gap:10px;flex:none">
+        ${col(open, t('mpOpen'), open > 4)}
+        ${col(m.reworks, t('mpRework'), m.reworks > 0)}
+        ${col(m.avgBay ? m.avgBay + 'd' : '—', t('mpDays'), m.avgBay > 3)}
+        <span class="badge ${scoreClass(s)}" style="align-self:center">${s}</span>
+      </div></div>`;
+  }).join('') : `<div class="empty">No mechanics yet</div>`;
   body += `</div>`;
   shell('Mechanic leaderboard', body);
   attachSearch('sb-search', 'sb-list');
@@ -7720,7 +7778,12 @@ const ROLE_META = { owner: ['👑', 'Owner'], supervisor: ['🧑‍🔧', 'Super
 // first-class records: jobs are assigned to them, the scorecard ranks them and
 // the pilferage radar scores them. Only the sign-in went away. The supervisor
 // keeps the job card on their behalf.
-const NO_LOGIN_ROLES = new Set(['mechanic']);
+// Mechanics sign in again, but only to see what they have been given. The
+// supervisor still keeps the job card (that decision stands); what changed is
+// that a mechanic can open the app and find out what is waiting for them without
+// asking. Closing and verifying stay with the owner and supervisor — enforced in
+// actionsForJob and, because the client is not a boundary, in _guard_write.
+const NO_LOGIN_ROLES = new Set();
 const roleEmoji = (r) => (ROLE_META[r] || ['🔧'])[0];
 // Step 1 — pick your role. (Keeps the list manageable across a big fleet.)
 // Prominent bilingual switch shown on every login step (spec C5).

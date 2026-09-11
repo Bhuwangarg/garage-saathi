@@ -215,6 +215,18 @@ def main():
     attack("storekeeper can still add a ledger row",
            record("ledger", "l-2", owner) is not None)
 
+    print("\nAs a MECHANIC — who may look, not sign off:")
+    mech = login("u-m1", "0001")
+    push(owner, "jobcards", "j-8", dict(d, id="j-8", status="open"))
+    push(mech, "jobcards", "j-8", dict(d, id="j-8", status="done"))
+    j8 = record("jobcards", "j-8", owner) or {}
+    attack("close a job as the mechanic", j8.get("status") != "done",
+           "status=%r" % j8.get("status"))
+    push(mech, "jobcards", "j-8", dict(d, id="j-8", status="verified"))
+    j8 = record("jobcards", "j-8", owner) or {}
+    attack("verify a job as the mechanic", j8.get("status") != "verified",
+           "status=%r" % j8.get("status"))
+
     stolen = [n for n, ok, _ in RESULTS if not ok]
     print("\n%d of %d attacks BLOCKED." % (len(RESULTS) - len(stolen), len(RESULTS)))
     if stolen:

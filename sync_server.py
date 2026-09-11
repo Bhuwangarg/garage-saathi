@@ -825,6 +825,12 @@ def _guard_write(store, rid, data, actor, existing):
             if not _has_proof(data):
                 return "job needs before and after photos (or a vendor bill) to close"
 
+        # Closing is the supervisor's or the owner's. A mechanic can see the card
+        # and what state it is in; they do not sign work off. The UI hides the
+        # button, which stops an honest mistake — this stops the other thing.
+        if status == "done" and prev != "done" and actor["role"] not in ("owner", "supervisor"):
+            return "only an owner or supervisor may close a job"
+
         # Who closed it is server truth, so the two-person rule below cannot be
         # defeated by editing the field that it reads.
         if status == "done" and prev != "done":
