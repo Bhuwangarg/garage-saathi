@@ -114,8 +114,17 @@ html = html.replace(
 
 // Capacitor injects its own native-bridge before the page loads, so window.Capacitor
 // already exists here. The shim only has to land ahead of db.js/sync.js/app.js.
-html = html.replace('<script src="seed-data.js"></script>',
-  '<script src="native-bridge-shim.js"></script>\n  <script src="seed-data.js"></script>');
+// Anchored on db.js, which is the first of the app's own scripts. It used to be
+// anchored on seed-data.js — and when that tag was removed (the seed is fetched
+// on demand now) the anchor silently vanished and the shim stopped being
+// injected at all. Hence the throw: a native bundle with no bridge shim is
+// broken in a way that only shows up on a real device.
+const shimBefore = html;
+html = html.replace('<script src="db.js"></script>',
+  '<script src="native-bridge-shim.js"></script>\n  <script src="db.js"></script>');
+if (html === shimBefore) {
+  throw new Error('native bridge shim not injected — the <script src="db.js"> anchor is gone, check index.html');
+}
 
 await writeFile(join(www, 'index.html'), html);
 
