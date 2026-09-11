@@ -177,6 +177,26 @@ settle "S.route.name" "history" 20 >/dev/null
 ck "mechanic history is only their own work" \
   "$(j "completedJobs().filter(function(x){return x.assignedTo!==S.user.id}).length")" "0"
 
+# 2c) The topbar carries no permanent sync badge, and a batch of writes is ONE push.
+login supervisor u-sup 2 2 2 2
+ck "no sync chip in the topbar while healthy" \
+  "$(j "document.querySelectorAll('.topbar .syncchip').length")" "0"
+# The chip still has to appear for the one state that needs acting on. Forcing
+# the status directly is the only way to reach it without killing a session.
+ck "a dead session still shows a mark" \
+  "$(j "(function(){var was=SYNC_STATUS;SYNC_STATUS='signedout';updateSyncChip();var n=document.querySelectorAll('.topbar .syncchip').length;SYNC_STATUS=was;updateSyncChip();return n})()")" "1"
+ck "and it is gone again once healthy" \
+  "$(j "document.querySelectorAll('.topbar .syncchip').length")" "0"
+# push() used to send one HTTP request per record. Twelve writes must cost one.
+# The gate serves from a static server with no /push, so this counts what the
+# app ATTEMPTED, which is exactly the property under test.
+j "performance.clearResourceTimings()" >/dev/null
+j "(async function(){for(var i=0;i<12;i++){await DB.put('parts',{id:'gate-b'+i,name:'gate batch '+i,qty:1,unitCost:1,unit:'pc',reorderLevel:1,category:'T',updatedAt:Date.now()});}})()" >/dev/null
+settle "(Sync.info().pending>=12)?'yes':'no'" "yes" 20 >/dev/null
+sleep 3
+PUSHES="$(j "performance.getEntriesByType('resource').filter(function(r){return /\/push/.test(r.name)}).length")"
+ck "12 queued writes cost at most one push request" "$([ "${PUSHES:-9}" -le 1 ] && echo yes || echo no)" "yes"
+
 # 3) Invariant sweep: form controls never navigate (owner's main tabs).
 login owner u-owner 1 1 1 1
 for SCREEN in home jobs store me; do

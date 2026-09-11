@@ -388,19 +388,63 @@ const S = { user: null, route: { name: 'home' }, stack: [{ name: 'home' }], cach
 
 // Sync status shown in the top bar (updated by the Sync engine).
 let SYNC_STATUS = 'init';
-function syncChipHtml() {
-  const m = { synced: ['ok', '●', 'Synced'], syncing: ['warn', '◐', 'Sync…'],
-              offline: ['off', '○', 'Offline'], init: ['off', '○', '…'],
-              // An expired session is not a network fault — say so, or the
-              // device quietly stops receiving anything and nobody notices.
-              signedout: ['warn', '⚠', 'Sign in'] };
-  const [cls, ic, lbl] = m[SYNC_STATUS] || m.init;
-  // The label is wrapped so a phone can drop it and keep the dot: on a 375px
-  // header this chip was 76px of 375, and with the theme and language buttons
-  // beside it the screen title had no room left and truncated to 'Garage Saa…'.
-  return `<span class="syncchip ${cls}">${ic}<span class="sc-label"> ${lbl}</span></span>`;
+/* Nothing in the topbar while sync is healthy.
+ *
+ * The old chip was permanent: "Synced ●" on every screen, all day. A status
+ * that never changes is not information, and this one was costing a 375px
+ * header 76px that the screen title needed — titles were truncating to
+ * "Garage Saa…" to make room for a green dot saying everything was fine.
+ *
+ * Two states still earn a mark, because in both of them the device has quietly
+ * stopped receiving work and the person holding it cannot tell: a dead session,
+ * and being offline with edits still owed to the server. Being offline with
+ * nothing pending is not one of them — the app is local-first and works fine.
+ * Me → Sync remains the full account: last sync, pending count, last error. */
+function syncWarnHtml() {
+  if (SYNC_STATUS === 'signedout') {
+    return `<span class="syncchip warn" data-act="openSync" title="Signed out — tap to sign in again">⚠</span>`;
+  }
+  if (SYNC_STATUS === 'offline') {
+    let pending = 0;
+    try { pending = (window.Sync && Sync.info) ? (Sync.info().pending || 0) : 0; } catch (e) { pending = 0; }
+    if (pending) {
+      return `<span class="syncchip off" data-act="openSync" title="Offline — ${pending} change(s) not sent yet">○ ${pending}</span>`;
+    }
+  }
+  return '';
 }
-function updateSyncChip() { document.querySelectorAll('.syncchip').forEach((e) => { e.outerHTML = syncChipHtml(); }); }
+
+/* Repaint just the mark, without rebuilding the screen.
+ *
+ * This runs on every status change, several times a minute. Re-rendering the
+ * topbar here would blow away an open dropdown or a half-typed field for a
+ * status nobody asked about, so it only ever touches its own node. */
+function updateSyncChip() {
+  const bar = document.querySelector('.topbar .tb-right');
+  if (!bar) return;
+  const want = syncWarnHtml();
+  const has = bar.querySelector('.syncchip');
+  const nowHtml = has ? has.outerHTML : '';
+  if (nowHtml === want) return;                    // nothing changed — leave the DOM alone
+  if (has) has.remove();
+  if (want) bar.insertAdjacentHTML('afterbegin', want);
+}
+
+/* Say it once, when it happens.
+ *
+ * Removing the permanent chip removes the only place an expired session showed
+ * up outside Me → Sync. A session dying mid-shift is the one sync state that
+ * needs an interruption, because from then on the device silently receives
+ * nothing. Announced on the transition only — a banner that returns every four
+ * seconds is the nagging the chip was already guilty of. */
+let _lastSyncStatus = 'init';
+function announceSyncStatus(s) {
+  if (s === _lastSyncStatus) return;
+  const was = _lastSyncStatus;
+  _lastSyncStatus = s;
+  if (s === 'signedout') toast('⚠️ Signed out — open Me → Sync to log in again');
+  else if (s === 'synced' && was === 'signedout') toast('✅ Signed back in');
+}
 
 /* ------------------------------ Helpers ----------------------------------- */
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -1080,7 +1124,7 @@ function topbar(title) {
       ? `<button class="backbtn" data-act="back" aria-label="Back">‹</button>`
       : `<div class="brandlogo">GS</div>`}</div>
     <h1 class="tb-title">${esc(title)}</h1>
-    <div class="tb-right">${syncChipHtml()}<button class="themebtn" data-act="theme" aria-label="${esc(t('theme'))}">${_isDark() ? '☀️' : '🌙'}</button><button class="lang" data-act="lang">${t('lang')}</button></div>
+    <div class="tb-right">${syncWarnHtml()}<button class="themebtn" data-act="theme" aria-label="${esc(t('theme'))}">${_isDark() ? '☀️' : '🌙'}</button><button class="lang" data-act="lang">${t('lang')}</button></div>
   </div>`;
 }
 
@@ -8967,7 +9011,7 @@ function userPhoto(u) { const d = crewForUser(u.id); return (d && d.photo) || nu
   // Start live sync with the shared server. Local-first: the app is fully usable
   // even if the server is unreachable (status shows "Offline", changes queue).
   Sync.start({
-    onStatus: (s) => { SYNC_STATUS = s; updateSyncChip(); },
+    onStatus: (s) => { SYNC_STATUS = s; announceSyncStatus(s); updateSyncChip(); },
     onApplied: async (n) => {
       // Remote changes arrived — refresh the cache either way, but do not
       // re-render over somebody who is typing.

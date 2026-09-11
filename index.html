@@ -42,6 +42,52 @@
           setInterval(() => reg.update(), 3600000);  // and hourly while open
         }).catch(() => {});
       });
+
+      /* The worker now serves the cached shell first and refreshes it behind
+       * the page, so a load can be running the previous build while the new one
+       * sits in the cache. It says so when that happens, and we pick a moment.
+       *
+       * The moment matters more than the speed. A reload that lands mid job
+       * card is the data-loss bug this app already fixed once, so this waits
+       * for a screen nobody is working on: no sheet, no focused field, nothing
+       * typed, and fifteen seconds since the last touch. If that moment never
+       * comes, nothing is lost — the cache is already updated, so the next
+       * ordinary open runs the new code. Reloading is the bonus, not the
+       * mechanism. */
+      let _updatePending = false;
+      let _lastTouch = Date.now();
+      ['pointerdown', 'keydown', 'input', 'focusin'].forEach(function (ev) {
+        window.addEventListener(ev, function () { _lastTouch = Date.now(); }, true);
+      });
+      navigator.serviceWorker.addEventListener('message', function (e) {
+        if (!e.data || e.data.type !== 'shell-updated') return;
+        _updatePending = true;
+      });
+      /* Listening alone loses a race: the worker revalidates as soon as it has
+       * served app.js, which on a quick connection is before this page has
+       * finished parsing it. So we ask too, shortly after load and then
+       * occasionally, and take either answer. */
+      function askForUpdate() {
+        var sw = navigator.serviceWorker.controller;
+        if (!sw || _updatePending) return;
+        try {
+          var ch = new MessageChannel();
+          ch.port1.onmessage = function (ev) {
+            if (ev.data && ev.data.type === 'shell-updated') _updatePending = true;
+          };
+          sw.postMessage({ type: 'ask-update' }, [ch.port2]);
+        } catch (err) { /* no controller yet — the next ask covers it */ }
+      }
+      setTimeout(askForUpdate, 3000);
+      setInterval(askForUpdate, 60000);
+      setInterval(function () {
+        if (!_updatePending || _reloaded) return;
+        if (document.hidden) return;                       // not while they are away
+        if (Date.now() - _lastTouch < 15000) return;       // still using it
+        try { if (window.userIsEditing && userIsEditing()) return; } catch (err) { return; }
+        _reloaded = true;
+        location.reload();
+      }, 5000);
     }
   </script>
 </body>

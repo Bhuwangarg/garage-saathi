@@ -960,13 +960,17 @@ def push(records, actor=None):
     """Apply pushed records. When `actor` (the authenticated user) is given, enforce
     the write matrix and stamp immutable server-truth provenance (_by/_byRole/_org)
     that the client cannot set — so attribution and tenant scope come from the token,
-    not the request body. Returns applied + rejected counts so the caller can 403 a
-    fully-rejected (single-record) push and let the client quarantine it."""
+    not the request body. Returns applied + rejected counts, and `refused`: one {store,id,reason} per
+    record that was turned away. The counts alone were only ever enough because
+    the client pushed a single record per request and could infer which one it
+    was. Naming them lets it push the whole batch in one request and still
+    quarantine exactly the record the server objected to."""
     with _lock:
         c = db()
         rev = c.execute("SELECT COALESCE(MAX(rev),0) FROM records").fetchone()[0]
         applied = 0
         rejected = 0
+        refused = []
         for r in records:
             store, rid = r.get("store"), r.get("id")
             upd = int(r.get("updatedAt") or 0)
@@ -974,6 +978,7 @@ def push(records, actor=None):
                 continue
             if actor and not may_write(actor["role"], store):
                 rejected += 1
+                refused.append({"store": store, "id": rid, "reason": "role may not write this store"})
                 continue
             data = r.get("data")
             # Overwrite reserved provenance fields from the TOKEN (never trust the
@@ -999,6 +1004,7 @@ def push(records, actor=None):
                 reason = _guard_write(store, rid, data, actor, existing)
                 if reason:
                     rejected += 1
+                    refused.append({"store": store, "id": rid, "reason": reason})
                     print("push refused: %s/%s by %s — %s" % (store, rid, actor["id"], reason))
                     continue
             if row is None or upd > (row[0] or 0):
@@ -1015,7 +1021,8 @@ def push(records, actor=None):
                 applied += 1
         c.commit()
         c.close()
-        return {"ok": True, "applied": applied, "rejected": rejected, "maxRev": rev}
+        return {"ok": True, "applied": applied, "rejected": rejected,
+                "refused": refused, "maxRev": rev}
 
 
 def register_roster(crew=None, default_pin="0000"):
@@ -2277,10 +2284,14 @@ class Handler(BaseHTTPRequestHandler):
             me = self._auth_user()
             if not me:
                 return self._send(401, {"error": "unauthorized"})
-            res = push(self._body().get("records") or [], me)
-            # A push the actor's role may not make → 403 so the client quarantines it
-            # (single-record pushes, so applied==0 with rejects means this write was denied).
-            if res.get("applied", 0) == 0 and res.get("rejected", 0):
+            recs = self._body().get("records") or []
+            res = push(recs, me)
+            # A single-record push that was refused still answers 403, because
+            # that is the shape older clients read to decide to quarantine.
+            # A BATCH never 403s: some of it may have been applied and committed,
+            # and the `refused` list says precisely which records were not — so
+            # the client quarantines those and keeps the rest.
+            if len(recs) == 1 and res.get("applied", 0) == 0 and res.get("rejected", 0):
                 return self._send(403, dict(res, error="role not permitted to write this record"))
             return self._send(200, res)
 

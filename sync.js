@@ -63,7 +63,16 @@ const Sync = (function () {
   let deviceId = ls.getItem('deviceId');
   if (!deviceId) { deviceId = 'dev-' + Math.random().toString(36).slice(2, 9); ls.setItem('deviceId', deviceId); }
 
-  const PUSH_PER_TICK = 40;       // records per tick; see push()
+/* Records per tick, and the byte budget that really governs it.
+ *
+ * 40 was sized for a loop that sent one record per request; now that a tick is
+ * a single request, the count can be far higher and a backlog clears in a tick
+ * or two instead of dozens. Bytes are the real limit, not rows: a job card can
+ * carry before/after photos as inline data URLs, so a hundred of those would
+ * be tens of megabytes and the host rejects the body outright. Whichever cap is
+ * reached first ends the batch; the rest goes next tick, four seconds later. */
+const PUSH_PER_TICK = 250;
+const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
   let lastRev = parseInt(ls.getItem('lastRev') || '0', 10);
   let lastSyncAt = parseInt(ls.getItem('lastSyncAt') || '0', 10);
   let outbox = new Set(JSON.parse(ls.getItem('outbox') || '[]'));
@@ -371,31 +380,97 @@ const Sync = (function () {
     // out on following ticks; the poller runs every 4s.
     const keys = [...outbox].filter((k) => !quarantine[k]).slice(0, PUSH_PER_TICK);
     if (!keys.length) return;
-    // Push one record at a time so a single poison record can't 4xx the whole
-    // batch. A 4xx on a record means the SERVER refuses it → quarantine it and
-    // move on (it stops wedging the outbox). A 5xx/network error is transient →
-    // bubble up so we retry the rest next tick.
     setStatus('syncing');
+
+    // ONE request for the whole batch.
+    //
+    // This used to send one record per request, sequentially, to keep a single
+    // poison record from 4xx-ing the batch. It worked, and it made sync feel
+    // broken: forty pending records meant forty round trips in a row against a
+    // serverless function, so a storekeeper who counted a shelf offline watched
+    // a spinner for most of a minute once the signal came back.
+    //
+    // The isolation is kept without the round trips. The server applies each
+    // record independently and now names the ones it turned away, so a mixed
+    // batch commits what it can and reports the rest. Against a server too old
+    // to answer that way we fall back to the one-at-a-time walk below, which is
+    // the only way to learn which record it objected to.
+    const recs = [];
+    const byKey = new Map();
+    let bytes = 0;
     for (const key of keys) {
       const rec = await recordForKey(key);
+      if (!rec) { outbox.delete(key); saveOutbox(); continue; }   // row vanished
+      // Measure before adding. A single record over the budget still goes on
+      // its own, because dropping it would wedge the outbox forever — better
+      // one oversized request that may fail than a row that is never tried.
+      const size = JSON.stringify(rec).length;
+      if (recs.length && bytes + size > PUSH_MAX_BYTES) break;
+      recs.push(rec);
+      bytes += size;
+      byKey.set(rec.store + '|' + rec.id, key);
+    }
+    if (!recs.length) return;
+
+    let res;
+    try {
+      res = await fetch(baseUrl() + '/push', {
+        method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ deviceId, records: recs }),
+      });
+    } catch (e) { throw e; }                    // offline → retry later, keep keys
+
+    if (res.status === 401) throw sessionDead('push');
+    if (res.status === 429 || res.status >= 500) throw new Error('push ' + res.status);
+
+    let body = {};
+    try { body = await res.json(); } catch (e) { body = {}; }
+
+    if (res.ok && Array.isArray(body.refused)) {
+      // The server took what it could and named what it would not.
+      for (const r of body.refused) {
+        const key = byKey.get(r.store + '|' + r.id);
+        if (!key) continue;
+        quarantine[key] = { at: Date.now(), status: 403, reason: r.reason || '' };
+        byKey.delete(r.store + '|' + r.id);
+      }
+      saveQuarantine();
+      for (const key of byKey.values()) outbox.delete(key);   // everything else landed
+      saveOutbox();
+      return;
+    }
+
+    if (res.ok) {
+      // An older server: no `refused` list, but a 200 means it applied what it
+      // understood. Clearing the batch is right — a record it silently skipped
+      // would otherwise be resent forever.
+      for (const key of byKey.values()) outbox.delete(key);
+      saveOutbox();
+      return;
+    }
+
+    // A 4xx for the batch as a whole. Which record caused it is unknowable from
+    // here, so walk them once to find out — the slow path, taken only when
+    // something is actually wrong.
+    for (const key of byKey.values()) {
+      const rec = await recordForKey(key);
       if (!rec) { outbox.delete(key); saveOutbox(); continue; }
-      let res;
+      let one;
       try {
-        res = await fetch(baseUrl() + '/push', {
+        one = await fetch(baseUrl() + '/push', {
           method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
           body: JSON.stringify({ deviceId, records: [rec] }),
         });
-      } catch (e) { throw e; }                  // offline → retry later, keep key
-      if (res.ok) { outbox.delete(key); saveOutbox(); continue; }
-      if (res.status >= 400 && res.status < 500 && res.status !== 401 && res.status !== 429) {
-        // Server rejects this record — quarantine so it never blocks the rest.
-        quarantine[key] = { at: Date.now(), status: res.status };
+      } catch (e) { throw e; }
+      if (one.ok) { outbox.delete(key); saveOutbox(); continue; }
+      if (one.status === 401) throw sessionDead('push');
+      if (one.status >= 400 && one.status < 500 && one.status !== 429) {
+        quarantine[key] = { at: Date.now(), status: one.status };
         saveQuarantine();
         outbox.delete(key); saveOutbox();
         continue;
       }
-      if (res.status === 401) throw sessionDead('push');
-      throw new Error('push ' + res.status);    // lock/5xx → stop, retry later
+      throw new Error('push ' + one.status);    // lock/5xx → stop, retry later
     }
   }
 
