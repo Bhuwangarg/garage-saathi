@@ -148,7 +148,8 @@ def main():
     if staying:
         print("  %-34s %d  (untouched)" % ("crew records staying", len(staying)))
     if dupes:
-        print("\nDuplicate NON-crew logins (same name, more than one account):")
+        print("\nDuplicate NON-crew logins (same name, more than one account).")
+        print("You pick one to keep from each set; the rest go:")
         for n, us in dupes.items():
             print("  %s ×%d" % (us[0].get("name"), len(us)))
             for i, u in enumerate(us, 1):
@@ -184,11 +185,13 @@ def main():
     # --- keep one of each duplicate ------------------------------------------
     keep = {}
     for n, us in dupes.items():
-        print("\n%s has %d accounts. Which one stays?" % (us[0].get("name"), len(us)))
+        print("\n%s has %d accounts. ONE STAYS — the other %d are deleted."
+              % (us[0].get("name"), len(us), len(us) - 1))
         for i, u in enumerate(us, 1):
             print("   %d) %s" % (i, u.get("id")))
         while True:
-            raw = input("   keep which (1-%d, or s to skip): " % len(us)).strip().lower()
+            raw = input("   which one stays? (1-%d, or s to keep all %d): "
+                        % (len(us), len(us))).strip().lower()
             if raw == "s":
                 keep[n] = None
                 break
