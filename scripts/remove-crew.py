@@ -178,38 +178,52 @@ def main():
     print("\nThis is permanent. Licence numbers, Aadhaar, documents, photos and")
     print("employment history for these people are not recoverable except from the")
     print("backup above.")
-    if input('Type DELETE to go ahead: ').strip() != "DELETE":
-        print("Nothing was changed.")
+    typed = input('Type DELETE to go ahead: ').strip()
+    if typed.upper() != "DELETE":
+        # Case-insensitive on purpose. The guard is "type the whole word out",
+        # which a lowercase `delete` satisfies just as deliberately. Rejecting
+        # that silently taught nobody anything — it just looked like a run that
+        # had worked while the server stayed untouched.
+        if typed:
+            print("\nYou typed %r. The word is DELETE — nothing was changed." % typed)
+        else:
+            print("\nNothing was typed, so nothing was changed.")
+        print("Run it again to try once more. The backup above is still on disk.")
         return 1
+    print("")
 
-    # --- keep one of each duplicate ------------------------------------------
-    keep = {}
-    for n, us in dupes.items():
-        print("\n%s has %d accounts. ONE STAYS — the other %d are deleted."
-              % (us[0].get("name"), len(us), len(us) - 1))
-        for i, u in enumerate(us, 1):
-            print("   %d) %s" % (i, u.get("id")))
-        while True:
-            raw = input("   which one stays? (1-%d, or s to keep all %d): "
-                        % (len(us), len(us))).strip().lower()
-            if raw == "s":
-                keep[n] = None
-                break
-            if raw.isdigit() and 1 <= int(raw) <= len(us):
-                keep[n] = us[int(raw) - 1]["id"]
-                break
+    # The job that was asked for happens FIRST, and finishes, before anything
+    # optional is raised.
+    #
+    # It used to run the other way round: the duplicate-login question came
+    # first, and its prompt re-asked itself silently on anything it did not
+    # understand, so it read as a hang. Backing out there lost the deletion
+    # that had actually been asked for — after a backup had been written and
+    # DELETE typed, which made it look like the run had worked.
 
-    # --- tombstone the crew records ------------------------------------------
+    def delete_logins(ids, label):
+        gone = failed = 0
+        for uid in ids:
+            st, res = call(base, "/auth/users/delete", {"id": uid}, token=token)
+            if st == 200:
+                gone += 1
+            else:
+                failed += 1
+                print("  could not delete %s: %s" % (uid, res.get("error")))
+        print("  %d %s deleted%s." % (gone, label, (", %d failed" % failed) if failed else ""))
+        return gone
+
+    # --- remove the crew records, and unhook them from the buses -------------
     now = int(time.time() * 1000)
     batch = [{"store": "drivers", "id": r["id"], "data": {"id": r["id"], "_deleted": True},
               "updatedAt": now} for r in crew_recs]
-    # and unhook them from the buses, so the fleet is not pointing at ghosts
     for b in linked:
         d = dict(b.get("data") or {})
         for f in bus_fields:
             d.pop(f, None)
         batch.append({"store": "buses", "id": b["id"], "data": d, "updatedAt": now})
 
+    print("Removing the %s now." % what)
     applied = 0
     for i in range(0, len(batch), 100):
         st, res = call(base, "/push", {"records": batch[i:i + 100]}, token=token)
@@ -219,50 +233,63 @@ def main():
         applied += res.get("applied", 0)
         print("  records %d/%d" % (min(i + 100, len(batch)), len(batch)), flush=True)
     print("  %d record(s) removed." % applied)
+    delete_logins([u["id"] for u in crew_logins], "login(s)")
+    print("\nThe %s are gone. Everything below is optional — stopping here\nleaves that done." % what)
 
-    # --- delete the logins ---------------------------------------------------
-    to_delete = [u["id"] for u in crew_logins]
-    for n, us in dupes.items():
-        if keep.get(n):
-            to_delete += [u["id"] for u in us if u["id"] != keep[n]]
-    # Set a PIN on each survivor before removing its twins.
-    #
-    # Otherwise the obvious question has a bad answer: five accounts named Sumit
-    # existed, he knows the PIN of whichever one he has been using, and there is
-    # no way to tell from here which that is. Delete the other four and there is
-    # a four-in-five chance he can no longer sign in. Setting a PIN on the one
-    # that stays makes it certain — tell him what it is, and have him change it
-    # in Me → Change my PIN.
-    for n, us in dupes.items():
-        kid = keep.get(n)
-        if not kid:
-            continue
-        name = us[0].get("name")
-        print("\n%s keeps %s. Set the PIN he will use (blank = leave it alone)." % (name, kid))
-        p1 = getpass.getpass("   new 4-digit PIN: ")
-        if p1 == "":
-            print("   left unchanged — make sure he knows which PIN belongs to %s." % kid)
-            continue
-        if not (len(p1) == 4 and p1.isdigit()):
-            print("   not 4 digits — left unchanged.")
-            continue
-        p2 = getpass.getpass("   confirm: ")
-        if p1 != p2:
-            print("   did not match — left unchanged.")
-            continue
-        st, res = call(base, "/auth/setpin", {"userId": kid, "pin": p1}, token=token)
-        del p1, p2
-        print("   %s" % ("PIN set." if st == 200 else "could not set it (%s): %s" % (st, res.get("error"))))
+    # --- then, separately, collapse the duplicate logins ---------------------
+    try:
+        for n, us in dupes.items():
+            name = us[0].get("name")
+            print("\n%s has %d accounts. ONE STAYS — the other %d are deleted."
+                  % (name, len(us), len(us) - 1))
+            for i, u in enumerate(us, 1):
+                print("   %d) %s" % (i, u.get("id")))
+            keep_id = None
+            while True:
+                raw = input("   which one stays? (1-%d, or s to keep all %d): "
+                            % (len(us), len(us))).strip().lower()
+                if raw == "s":
+                    break
+                if raw.isdigit() and 1 <= int(raw) <= len(us):
+                    keep_id = us[int(raw) - 1]["id"]
+                    break
+                print("   Type a number from 1 to %d, or s to leave all %d alone."
+                      % (len(us), len(us)))
+            if not keep_id:
+                print("   left alone — all %d %s accounts stay." % (len(us), name))
+                continue
 
-    gone = failed = 0
-    for uid in to_delete:
-        st, res = call(base, "/auth/users/delete", {"id": uid}, token=token)
-        if st == 200:
-            gone += 1
-        else:
-            failed += 1
-            print("  could not delete %s: %s" % (uid, res.get("error")))
-    print("  %d login(s) deleted%s." % (gone, (", %d failed" % failed) if failed else ""))
+            # Set a PIN on the survivor before removing its twins.
+            #
+            # Otherwise the obvious question has a bad answer: five accounts
+            # named Sumit existed, he knows the PIN of whichever one he has
+            # been using, and there is no way to tell from here which that is.
+            # Delete the other four and there is a four-in-five chance he can
+            # no longer sign in. Setting a PIN on the one that stays makes it
+            # certain — tell him what it is, and have him change it in
+            # Me -> Change my PIN.
+            print("   %s keeps %s. Set the PIN he will use (blank = leave it alone)."
+                  % (name, keep_id))
+            p1 = getpass.getpass("   new 4-digit PIN: ")
+            if p1 == "":
+                print("   left unchanged — make sure he knows which PIN belongs to %s." % keep_id)
+            elif not (len(p1) == 4 and p1.isdigit()):
+                print("   not 4 digits — left unchanged.")
+            else:
+                p2 = getpass.getpass("   confirm: ")
+                if p1 != p2:
+                    print("   did not match — left unchanged.")
+                else:
+                    st, res = call(base, "/auth/setpin", {"userId": keep_id, "pin": p1}, token=token)
+                    print("   %s" % ("PIN set." if st == 200
+                                     else "could not set it (%s): %s" % (st, res.get("error"))))
+                del p2
+            del p1
+            delete_logins([u["id"] for u in us if u["id"] != keep_id],
+                          "duplicate %s login(s)" % name)
+    except (EOFError, KeyboardInterrupt):
+        # Ctrl-C here must not read as "the whole run failed".
+        print("\n\nStopped. The %s are still gone — only the duplicate logins\nwere left alone." % what)
 
     left = get(base, "/roster", None)
     left = left.get("users") if isinstance(left, dict) else left
