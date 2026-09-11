@@ -227,6 +227,45 @@ def main():
     attack("verify a job as the mechanic", j8.get("status") != "verified",
            "status=%r" % j8.get("status"))
 
+    print("\nRound 2 — the surfaces added on 2026-09-11:")
+
+    # A breakdown is evidence that a bus is failing. Whoever is responsible for
+    # maintaining it has the strongest motive to make one disappear.
+    push(owner, "breakdowns", "bd-1", {"id": "bd-1", "busId": "b1", "system": "gearbox",
+                                       "description": "clutch gave way", "odometer": 480000,
+                                       "downtimeHours": 6, "at": S.now_ms()})
+    push(store, "breakdowns", "bd-1", {"id": "bd-1", "_deleted": True})
+    attack("delete a breakdown as the storekeeper",
+           not ((record("breakdowns", "bd-1", owner) or {}).get("_deleted")))
+    push(driver, "breakdowns", "bd-2", {"id": "bd-2", "busId": "b1", "system": "engine",
+                                        "description": "invented", "at": S.now_ms()})
+    attack("write a breakdown as a driver", record("breakdowns", "bd-2", owner) is None)
+
+    # The stock-move log is the control that makes a quiet stock edit visible.
+    push(store, "stockmoves", "sm-forged", {"id": "sm-forged", "partId": "p-1",
+                                            "was": 10, "now": 10, "delta": 0, "justified": True})
+    attack("forge a stock-move row", record("stockmoves", "sm-forged", owner) is None)
+
+    # Provenance is what the pilferage radar reads. If the body can set it, the
+    # radar points at whoever the thief chooses.
+    push(store, "parts", "p-9", {"id": "p-9", "name": "Belt", "qty": 5,
+                                 "_by": "u-owner", "_byRole": "owner"})
+    p9 = record("parts", "p-9", owner) or {}
+    attack("forge who made the change", p9.get("_by") == "u-store",
+           "_by=%r _byRole=%r" % (p9.get("_by"), p9.get("_byRole")))
+
+    # The mechanic's own attendance is their wage record.
+    push(mech, "attendance", "a-9", {"id": "a-9", "userId": "u-sup", "type": "in", "at": S.now_ms()})
+    a9 = record("attendance", "a-9", owner) or {}
+    attack("log attendance as somebody else (mechanic)", a9.get("userId") == "u-m1",
+           "userId=%r" % a9.get("userId"))
+
+    # A job already signed off is the record a bill was paid against.
+    push(store, "jobcards", "j-5", dict(d, status="open"))
+    j5b = record("jobcards", "j-5", owner) or {}
+    attack("re-open a verified job to edit it", j5b.get("status") == "verified",
+           "status=%r" % j5b.get("status"))
+
     stolen = [n for n, ok, _ in RESULTS if not ok]
     print("\n%d of %d attacks BLOCKED." % (len(RESULTS) - len(stolen), len(RESULTS)))
     if stolen:

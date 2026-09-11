@@ -829,6 +829,16 @@ def _guard_write(store, rid, data, actor, existing):
             if not _has_proof(data):
                 return "job needs before and after photos (or a vendor bill) to close"
 
+        # A verified job is the record a bill was paid against. Re-opening it is
+        # how you edit a settled one: drop it back to open, add parts or hours,
+        # and the cost of work that has already been signed off and paid quietly
+        # changes. Sending a job back for rework is a real thing, so it is not
+        # forbidden — but it is the two-person control's to do, not anyone with a
+        # login who can write jobcards.
+        if prev == "verified" and status != "verified":
+            if actor["role"] not in ("owner", "supervisor"):
+                return "only an owner or supervisor may re-open a verified job"
+
         # Closing is the supervisor's or the owner's. A mechanic can see the card
         # and what state it is in; they do not sign work off. The UI hides the
         # button, which stops an honest mistake — this stops the other thing.
