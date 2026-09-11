@@ -21,6 +21,8 @@ const I18N = {
     tagline: 'Garage maintenance, Jaipur', enterPin: 'Enter PIN', wrongPin: 'Wrong PIN',
     recentHere: 'Recent on this phone', whoAreYou: 'Who are you?', selectName: 'Select your name', searchName: 'Search name…',
     cantReach: "Can't reach the server — check internet and try again",
+    odoBroken: 'Odometer not working on this bus',
+    odoBrokenHint: 'Tick this instead of guessing a number. Cost per km and mileage are left blank for this bus until it is repaired, rather than being worked out from a reading that never moves.',
     tooManyTries: 'Too many wrong PINs. Try again in a few minutes, or ask your supervisor.',
     // Menu (More)
     more: 'More', supplierBills: 'Supplier bills & payments', drivers: 'Drivers', staff: 'Staff', sync: 'Sync', changePin: 'Change my PIN',
@@ -150,6 +152,8 @@ const I18N = {
     tagline: 'गैराज मरम्मत, जयपुर', enterPin: 'पिन डालें', wrongPin: 'गलत पिन',
     recentHere: 'इस फ़ोन पर हाल के', whoAreYou: 'आप कौन हैं?', selectName: 'अपना नाम चुनें', searchName: 'नाम खोजें…',
     cantReach: 'सर्वर से संपर्क नहीं — इंटरनेट जाँचें और फिर कोशिश करें',
+    odoBroken: 'इस बस का ओडोमीटर काम नहीं कर रहा',
+    odoBrokenHint: 'अंदाज़े से नंबर डालने के बजाय यह लगाइए। ठीक होने तक इस बस का प्रति किमी खर्च और माइलेज खाली रहेगा — रुके हुए ओडोमीटर से निकाला गया गलत आँकड़ा नहीं दिखेगा।',
     tooManyTries: 'बहुत बार गलत पिन। कुछ मिनट बाद कोशिश कीजिए, या सुपरवाइज़र से कहिए।',
     // Menu (More)
     more: 'और', supplierBills: 'सप्लायर बिल और भुगतान', drivers: 'ड्राइवर', staff: 'स्टाफ', sync: 'सिंक', changePin: 'मेरा पिन बदलें',
@@ -642,8 +646,23 @@ const avatar = (img, fallbackEmoji) => img
 // and letting it through would corrupt every ₹/km and km/l figure derived from
 // the gap between readings. Silently ignoring the lower value is the safe
 // direction to fail: the worst case is one stale reading, not a negative one.
+/* Mark (or clear) "the odometer on this bus does not work". Kept on the bus,
+ * not on the job card, because it is a property of the vehicle and every screen
+ * that divides by kilometres has to know. */
+async function setOdoBroken(busId, broken) {
+  const bus = byId(S.cache.buses, busId);
+  if (!bus || !!bus.odoBroken === !!broken) return false;
+  bus.odoBroken = !!broken;
+  bus.odoBrokenAt = broken ? Date.now() : null;
+  await DB.put('buses', bus);
+  return true;
+}
+
 async function noteOdometer(busId, km) {
   const bus = byId(S.cache.buses, busId);
+  // A bus whose odometer is known broken must not take readings — that is how a
+  // stale number ends up treated as current and quietly skews every ₹/km.
+  if (bus && bus.odoBroken) return false;
   if (!bus || !km || km <= 0) return false;
   if (km <= (bus.odometer || 0)) return false;
   bus.odometer = km;
@@ -1814,6 +1833,8 @@ function viewBusDetail(id) {
         <span class="badge ${c}">${sv.status === 'overdue' ? 'OVERDUE ' + Math.abs(sv.dueIn).toLocaleString('en-IN') + ' km' : 'in ' + sv.dueIn.toLocaleString('en-IN') + ' km'}</span></div>`; })()}
     <div class="btnrow"><button class="btn sm" data-act="trackBus" data-bus="${b.id}">🛰️ Track live</button>
       <button class="btn sm" data-act="gps" data-bus="${b.id}">📍 GPS &amp; service</button></div>
+    ${can(S.user.role, 'logIncident') ? `<div class="btnrow" style="margin-top:8px">
+      <button class="btn sm" data-act="reportProblem" data-bus="${b.id}" data-driver="${(driverOfBus(b.id) || {}).id || ''}">🗣️ ${t('reportProblem')}</button></div>` : ''}
     ${can(S.user.role, 'addFuel') ? `<div class="btnrow" style="margin-top:8px"><button class="btn sm" data-act="addFuel" data-bus="${b.id}">⛽ Log fuel</button>${busUsesDef(b) ? `<button class="btn sm" data-act="addDef" data-bus="${b.id}">🧪 Log AdBlue/DEF</button>` : ''}</div>` : ''}
     ${busUsesDef(b) ? (() => { const ds = defStatus(b); return `<div class="row between small" style="margin-top:10px"><span class="muted">AdBlue / DEF</span><span data-act="openDef" style="cursor:pointer">${ds.perHundred != null ? ds.perHundred.toFixed(1) + ' L/100km · ' : ''}${money(ds.costTotal)} ›</span></div>${ds.flag ? `<div class="tiny" style="color:${ds.flag.sev === 'high' ? 'var(--red)' : 'var(--amber)'};margin-top:3px">⚠️ ${esc(ds.flag.msg)}</div>` : ''}`; })() : ''}
   </div>`;
@@ -3074,6 +3095,41 @@ function sheetAddJob(prefill = {}) { push({ name: 'newjob', prefill }); }
 
 // Full-screen, grouped, icon-led job-creation page (Apple-style). Keeps the same
 // field IDs so saveJob() is unchanged.
+/* A job card is ten fields typed on a phone in a workshop. A call comes in, the
+ * browser is backgrounded, and on a phone under memory pressure the page is
+ * discarded — every field gone, with no warning and nothing to recover. The form
+ * now keeps a draft as it is typed and offers it back.
+ *
+ * Kept in localStorage rather than IndexedDB deliberately: it must survive a
+ * process kill with no async write pending, and it is one small object. */
+const JOB_DRAFT_KEY = 'gs-jobdraft';
+const JOB_DRAFT_FIELDS = ['f-reportId', 'f-prio', 'f-bus', 'f-prob', 'f-mech', 'f-jdate',
+                          'f-enter', 'f-start', 'f-odo', 'f-vendor', 'f-extcost', 'f-hrs', 'f-notes'];
+function saveJobDraft() {
+  if (!document.getElementById('f-prob')) return;      // not on the form
+  const d = { at: Date.now(), user: S.user && S.user.id };
+  JOB_DRAFT_FIELDS.forEach((id) => { const el = document.getElementById(id); if (el) d[id] = el.value; });
+  const ob = document.getElementById('f-odobroken'); if (ob) d['f-odobroken'] = ob.checked ? '1' : '';
+  // Nothing typed yet is not worth offering back.
+  if (!(d['f-prob'] || '').trim() && !(d['f-notes'] || '').trim() && !(d['f-vendor'] || '').trim()) {
+    return clearJobDraft();
+  }
+  try { localStorage.setItem(JOB_DRAFT_KEY, JSON.stringify(d)); } catch (e) { /* full or private mode */ }
+}
+function readJobDraft() {
+  try {
+    const d = JSON.parse(localStorage.getItem(JOB_DRAFT_KEY) || 'null');
+    if (!d || !d.at) return null;
+    // Somebody else's half-finished card is not yours to resume, and a draft
+    // from last week is noise rather than a rescue.
+    if (d.user && S.user && d.user !== S.user.id) return null;
+    if (Date.now() - d.at > 24 * 3600 * 1000) return null;
+    return d;
+  } catch (e) { return null; }
+}
+function clearJobDraft() { try { localStorage.removeItem(JOB_DRAFT_KEY); } catch (e) { /* ignore */ } }
+function discardJobDraft() { clearJobDraft(); toast('Draft discarded'); push({ name: 'newjob' }); }
+
 function viewNewJob(prefill = {}) {
   const buses = S.cache.buses || [];
   if (!buses.length) {
@@ -3107,7 +3163,11 @@ function viewNewJob(prefill = {}) {
         <label class="field"><span class="lbl">▶️ Job start time</span><input id="f-start" type="time"></label></div>
       <div class="tiny muted" style="margin-top:6px">Enter time is when the bus reached the garage. Job start is when work actually began — leave it blank if it hasn't.</div>
       <label class="field" style="margin-top:8px"><span class="lbl">🛞 Odometer (km)</span>
-        <input id="f-odo" type="number" inputmode="numeric" placeholder="e.g. 487200" value="${(byId(buses, sel) || {}).odometer || ''}"></label></div>
+        <input id="f-odo" type="number" inputmode="numeric" placeholder="e.g. 487200" value="${(byId(buses, sel) || {}).odometer || ''}"></label>
+      <label class="row" style="gap:9px;margin-top:8px;cursor:pointer">
+        <input type="checkbox" id="f-odobroken" ${(byId(buses, sel) || {}).odoBroken ? 'checked' : ''} style="width:18px;height:18px;flex:none">
+        <span class="small">🚫 ${t('odoBroken')}</span></label>
+      <div class="tiny muted" style="margin-top:4px">${t('odoBrokenHint')}</div></div>
     <div class="card"><label class="field"><span class="lbl">🏪 Outside vendor / workshop (optional)</span>
       <input id="f-vendor" placeholder="e.g. Noida Eicher workshop — blank if done in-house"></label>
       <div class="grid2" style="margin-top:8px">
@@ -3128,6 +3188,41 @@ function viewNewJob(prefill = {}) {
   });
   const odoEl = document.getElementById('f-odo');
   if (odoEl) odoEl.addEventListener('input', () => { odoEl.dataset.touched = '1'; });
+  const obEl = document.getElementById('f-odobroken');
+  const syncOdo = () => { if (!odoEl || !obEl) return;
+    odoEl.disabled = obEl.checked; odoEl.style.opacity = obEl.checked ? '.45' : '';
+    if (obEl.checked) odoEl.value = ''; };
+  if (obEl) { obEl.addEventListener('change', syncOdo); syncOdo(); }
+
+  // Put an interrupted card back, unless the caller arrived with a prefill (a
+  // driver report being turned into a job) — that is a deliberate fresh start.
+  const draft = (prefill && (prefill.reportId || prefill.busId)) ? null : readJobDraft();
+  if (draft) {
+    JOB_DRAFT_FIELDS.forEach((id) => {
+      const el = document.getElementById(id);
+      if (el && draft[id] !== undefined && draft[id] !== '') el.value = draft[id];
+    });
+    const ob = document.getElementById('f-odobroken');
+    if (ob && draft['f-odobroken']) { ob.checked = true; ob.dispatchEvent(new Event('change', { bubbles: true })); }
+    if (draft['f-prio']) setPrio(draft['f-prio']);
+    const rp = document.getElementById('f-reports');
+    if (rp && draft['f-bus']) rp.innerHTML = reportPicklistRich(draft['f-bus']);
+    if (odoEl) odoEl.dataset.touched = '1';
+    const banner = document.createElement('div');
+    banner.className = 'banner warn';
+    banner.innerHTML = '↩️ Put back what you had typed · जो लिखा था वह वापस रख दिया' +
+      '<button class="btn sm" data-act="discardJobDraft" style="margin-left:auto">Start fresh</button>';
+    const c = root().querySelector('.content');
+    if (c) c.insertBefore(banner, c.firstChild);
+  }
+
+  // Save on every keystroke AND when the page is hidden — the second is the one
+  // that matters, because a call hides the page before it kills it.
+  const form = root().querySelector('.content');
+  if (form) {
+    form.addEventListener('input', saveJobDraft);
+    form.addEventListener('change', saveJobDraft);
+  }
 }
 function setPrio(v) {
   const h = document.getElementById('f-prio'); if (h) h.value = v;
@@ -3147,7 +3242,11 @@ async function saveJob() {
   const ymd = ($('#f-jdate') || {}).value || msToYMD();
   const enterAt = hhmmToMs(ymd, ($('#f-enter') || {}).value);
   const startAt = hhmmToMs(ymd, ($('#f-start') || {}).value, enterAt);
-  const odometer = Number(($('#f-odo') || {}).value) || 0;
+  const odoBroken = !!($('#f-odobroken') || {}).checked;
+  // A broken odometer is a fact about the bus, not a zero. Recording it stops
+  // cost-per-km and mileage quoting a stale reading as if it were current.
+  const odometer = odoBroken ? 0 : (Number(($('#f-odo') || {}).value) || 0);
+  await setOdoBroken(busId, odoBroken);
   await DB.put('jobcards', {
     id: jobId, busId, problem: prob, priority: $('#f-prio').value,
     // Work started already → the card opens in-progress rather than pretending
@@ -3161,7 +3260,7 @@ async function saveJob() {
   });
   // A service reading is the freshest odometer we have for this bus; the ₹/km
   // and mileage screens are blank without one, so let the job card feed them.
-  await noteOdometer(busId, odometer);
+  if (!odoBroken) await noteOdometer(busId, odometer);
   // Tie the driver reports to this job (resolved when the job is verified).
   for (const rid of linkedReports) { const r = byId(S.cache.driverreports, rid); if (r && r.status === 'open') { r.jobId = jobId; await DB.put('driverreports', r); } }
   await load(); closeSheet(); toast(`Job created${linkedReports.length ? ` · ${linkedReports.length} report(s) linked` : ''}`); navTab('jobs');
@@ -4592,6 +4691,9 @@ function sheetAddFuel(busId) {
       <label class="field"><span class="lbl">₹ Amount</span><input id="f-fcost" type="number" inputmode="numeric"></label>
     </div>
     <label class="field"><span class="lbl">🛣️ Odometer now (km)</span><input id="f-fodo" type="number" inputmode="numeric" value="${b ? (b.odometer || '') : ''}" placeholder="current reading"></label>
+    <label class="row" style="gap:9px;margin:6px 0 2px;cursor:pointer">
+      <input type="checkbox" id="f-fodobroken" ${b && b.odoBroken ? 'checked' : ''} style="width:18px;height:18px;flex:none">
+      <span class="small">🚫 ${t('odoBroken')}</span></label>
     <label class="repcheck"><input type="checkbox" id="f-ffull" checked> <span>Filled to full (needed for accurate km/l)</span></label>
     <button class="btn primary" data-act="saveFuel">${t('save')}</button>`);
 }
@@ -6261,10 +6363,27 @@ async function backfillConductorProfiles() {
 async function maybeBackfillConductors(user) {
   if (!can(user.role, 'manageDrivers')) return;
   try { if (localStorage.getItem('gsCrewBankV1')) return; } catch (e) { return; }
+
+  // Do not run before this device has pulled at least once.
+  //
+  // The backfill invents a conductor record per bus row, and bulkPut stamps it
+  // with the current time. On a device that has not synced yet there is no crew
+  // bank to compare against, so it would recreate all 57 as skeletons — no
+  // documents, no joining date — and push them with a NEWER timestamp than the
+  // real records on the server. Last-write-wins would then flatten the bank.
+  // If we have never pulled, we cannot know what already exists, so we wait.
+  try {
+    const si = (window.Sync && Sync.info) ? Sync.info() : null;
+    if (!si || !si.lastRev) return;          // never synced — try again next login
+  } catch (e) { return; }
+
   try {
     const n = await backfillConductorProfiles();
     localStorage.setItem('gsCrewBankV1', String(Date.now()));
-    if (n) { await load(); toast(`${n} conductors added to the crew bank ✓`); }
+    // Deliberately silent. This is a one-off internal migration; the number of
+    // rows it touched is meaningless to whoever happens to be logging in, and
+    // it was appearing on every fresh device as if something had gone wrong.
+    if (n) { await load(); console.info('crew bank: backfilled ' + n + ' conductor profile(s)'); }
   } catch (e) { console.error('Conductor backfill failed:', e); }
 }
 
@@ -7029,6 +7148,30 @@ function histPush() { try { history.pushState({ gs: S.stack.length }, ''); } cat
 function navTab(name) { S.stack = [{ name }]; render(current()); histPush(); }
 function push(r) { S.stack.push(r); render(r); histPush(); }
 function back() { try { history.back(); } catch (e) { if (S.stack.length > 1) { S.stack.pop(); render(current()); } } }
+/* Is the user in the middle of entering something?
+ * Anything that would lose typed work if the screen were rebuilt underneath it.
+ */
+let _renderPending = false;
+function userIsEditing() {
+  if (document.querySelector('.sheetwrap')) return true;          // a sheet is open
+  const a = document.activeElement;
+  if (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return true;  // cursor in a field
+  // Full-screen forms. These are not sheets, so the check above never saw them.
+  if (S.route && ['newjob', 'import', 'crewpins'].includes(S.route.name)) return true;
+  // Any visible field on this screen that already has something in it.
+  const filled = [...document.querySelectorAll('.content input, .content textarea')]
+    .some((el) => el.type !== 'checkbox' && el.type !== 'radio' && (el.value || '').trim() !== '');
+  return filled;
+}
+
+/* Apply a deferred refresh once the user is no longer typing, so the screen is
+ * not left stale forever after a sync arrived mid-edit. */
+function flushPendingRender() {
+  if (!_renderPending || userIsEditing()) return;
+  _renderPending = false;
+  rerender();
+}
+
 function rerender() { render(current()); }
 // Back-compat shim: existing callers that say route({name,...}) now reset to that
 // screen as a fresh root (used by login + a few in-view fallbacks).
@@ -7092,6 +7235,12 @@ async function flushUsage() {
 setInterval(flushUsage, 20000);
 window.addEventListener('visibilitychange', () => { if (document.hidden) flushUsage(); });
 window.addEventListener('pagehide', flushUsage);
+// The phone-call case: the page is hidden first, then may never come back.
+window.addEventListener('visibilitychange', () => { if (document.hidden) saveJobDraft(); });
+window.addEventListener('pagehide', saveJobDraft);
+// A refresh that was held back while somebody typed should land as soon as
+// they stop, rather than leaving the screen stale until the next sync.
+document.addEventListener('focusout', () => setTimeout(flushPendingRender, 400));
 
 /* One tap, one record.
  *
@@ -7842,10 +7991,17 @@ function userPhoto(u) { const d = crewForUser(u.id); return (d && d.photo) || nu
   Sync.start({
     onStatus: (s) => { SYNC_STATUS = s; updateSyncChip(); },
     onApplied: async (n) => {
-      // Remote changes arrived — refresh cache and re-render, unless the user is
-      // mid-edit in a sheet (don't yank a form out from under them).
+      // Remote changes arrived — refresh the cache either way, but do not
+      // re-render over somebody who is typing.
+      //
+      // This guard used to check only for an open sheet. The new job card is a
+      // full SCREEN, not a sheet, so every sync tick rebuilt it from scratch and
+      // wiped every field already filled in — which is exactly what it looked
+      // like: "the data I filled above disappeared". It is also why a phone call
+      // lost the card: the call backgrounds the app, the tick fires on return.
       await load();
-      if (S.user && !document.querySelector('.sheetwrap')) rerender();
+      if (S.user && !userIsEditing()) rerender();
+      else _renderPending = true;
     },
     onConflict: (n) => {
       // Another device changed the same record concurrently (last-write-wins
