@@ -93,7 +93,11 @@ const Sync = (function () {
     // the login for a minute — time out fast and let the caller fall back to the
     // device PIN. 12s is enough for a warm round-trip on a slow phone network.
     const ctl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
-    const to = ctl ? setTimeout(() => ctl.abort(), 12000) : null;
+    // 8s, not 12. The backend is warmed by warmUp() as soon as the PIN pad opens,
+    // so by the time four digits are typed the container is usually already up.
+    // A longer wait mostly means staring at a dead keypad before the offline
+    // fallback finally runs.
+    const to = ctl ? setTimeout(() => ctl.abort(), 8000) : null;
     try {
       const res = await fetch(baseUrl() + '/auth/login', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -124,6 +128,27 @@ const Sync = (function () {
     }
   }
   function logout() { token = ''; ls.removeItem('token'); }
+
+  /* Wake the backend before it is needed.
+   *
+   * This runs on serverless: an idle container is torn down, and the next
+   * request pays the cold start — measured at ~10s against production, with the
+   * Postgres connect on top. Calling this when the PIN pad opens buys the two to
+   * three seconds somebody spends typing four digits, which is usually the whole
+   * difference between "instant" and "is it broken?". Deliberately fire and
+   * forget: nothing waits on it and a failure changes nothing. */
+  let _warmedAt = 0;
+  function warmUp() {
+    const now = Date.now();
+    if (now - _warmedAt < 30000) return;          // already warm enough
+    _warmedAt = now;
+    try {
+      const c = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+      if (c) setTimeout(() => c.abort(), 9000);
+      fetch(baseUrl() + '/health', { signal: c ? c.signal : undefined, cache: 'no-store' })
+        .catch(() => {});
+    } catch (e) { /* offline — the login will fall back to the device PIN */ }
+  }
 
   /* The login roster, with no token. A device that has never synced cannot pull,
    * and cannot get a token without first picking a name off the login screen —
@@ -524,7 +549,7 @@ const Sync = (function () {
     } catch (e) { return null; }
   }
 
-  return { start, tick, kick, setUrl, reset, info, login, logout, roster, addStaff, deleteStaff, registerRoster, setPin, ai, aiVision, challans, fleet, latest, uploadPhoto,
+  return { start, tick, kick, setUrl, reset, info, login, logout, warmUp, roster, addStaff, deleteStaff, registerRoster, setPin, ai, aiVision, challans, fleet, latest, uploadPhoto,
            queuePhoto, remove, clearQuarantine, subscribePush, pushTest,
            get status() { return status; } };
 })();

@@ -222,7 +222,7 @@ LOCK_WINDOW = int(os.environ.get("LOGIN_LOCK_SEC", "300"))     # 5 min
 # Mirrors the client seed so the same demo PINs work against the server.
 SEED_USERS = [
     ("u-owner", "Bhuwan (Owner)", "owner", "1111"),
-    ("u-sup", "Ramesh (Supervisor)", "supervisor", "2222"),
+    ("u-sup", "Vajid (Supervisor)", "supervisor", "2222"),
     ("u-store", "Suresh (Store)", "store", "3333"),
     ("u-m1", "Mukesh", "mechanic", "0001"),
     ("u-m2", "Imran", "mechanic", "0002"),

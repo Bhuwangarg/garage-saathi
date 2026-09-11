@@ -195,7 +195,7 @@ async function seedIfEmpty(demo) {
   // per-device by app.js (seedCreds). The synced roster carries name/role only.
   const users = [
     { id: 'u-owner', name: 'Bhuwan (Owner)', role: 'owner' },
-    { id: 'u-sup',   name: 'Ramesh (Supervisor)', role: 'supervisor' },
+    { id: 'u-sup',   name: 'Vajid (Supervisor)', role: 'supervisor' },
     { id: 'u-store', name: 'Suresh (Store)', role: 'store' },
     { id: 'u-m1',    name: 'Mukesh', role: 'mechanic' },
     { id: 'u-m2',    name: 'Imran',  role: 'mechanic' },

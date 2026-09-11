@@ -9,18 +9,22 @@
   <title>Garage Saathi</title>
   <link rel="manifest" href="manifest.webmanifest" />
   <!-- Leaflet (live map). Cross-origin → loads when online; map degrades gracefully offline. -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <!-- Leaflet is fetched on demand by loadMapLib(), only when a map screen opens.
+       It was previously downloaded and parsed on every page load for the large
+       majority of sessions that never open a map. -->
   <!-- face-api.js — face detection for attendance check-in/out (fallback when the
        browser has no native FaceDetector). Online only; attendance degrades to a
        plain selfie offline. -->
-  <script defer src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
+  <!-- face-api is fetched on demand by loadFaceLib(), only when a face capture
+       actually starts, and only where the browser has no native FaceDetector. -->
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <div id="app"></div>
-  <script src="seed-data.js"></script>
-  <script src="seed-docs.js"></script>
+  <!-- seed-data.js is 541 KB of bundled fleet data used ONLY the first time a
+       device is seeded. It was being downloaded, parsed and held in memory on
+       every single load, for every device that had long since been seeded.
+       loadSeedData() now fetches it only when there is seeding left to do. -->
   <script src="db.js"></script>
   <script src="sync.js"></script>
   <script src="app.js"></script>

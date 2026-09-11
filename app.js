@@ -306,6 +306,44 @@ function updateSyncChip() { document.querySelectorAll('.syncchip').forEach((e) =
 const $ = (sel, root = document) => root.querySelector(sel);
 const money = (n) => '₹' + (Math.round(n || 0)).toLocaleString('en-IN');
 const day = 86400000;
+/* Fetch a script once, on demand.
+ *
+ * Three heavy things used to load on every page: the bundled seed (541 KB of
+ * fleet data needed only on a device's first run), Leaflet (only for map
+ * screens) and face-api (only for the attendance selfie, and only where the
+ * browser lacks a native FaceDetector). Each already had a `window.X` guard
+ * around its use, so deferring them changes no behaviour — it just stops a
+ * storekeeper opening the stock list from paying for a map library. */
+const _scriptCache = {};
+function loadScriptOnce(src, globalName) {
+  if (globalName && window[globalName]) return Promise.resolve(true);
+  if (_scriptCache[src]) return _scriptCache[src];
+  _scriptCache[src] = new Promise((resolve) => {
+    const el = document.createElement('script');
+    el.src = src; el.async = true;
+    el.onload = () => resolve(true);
+    el.onerror = () => { delete _scriptCache[src]; resolve(false); };   // allow a retry
+    document.head.appendChild(el);
+  });
+  return _scriptCache[src];
+}
+function loadCssOnce(href) {
+  if (document.querySelector('link[href="' + href + '"]')) return;
+  const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = href;
+  document.head.appendChild(l);
+}
+const loadSeedData = () => Promise.all([
+  loadScriptOnce('seed-data.js', 'GS_SEED'),
+  loadScriptOnce('seed-docs.js', 'GS_DOCS'),
+]).then(() => !!window.GS_SEED);
+const loadMapLib = () => {
+  loadCssOnce('https://unpkg.com/leaflet@1.9.4/dist/leaflet.css');
+  return loadScriptOnce('https://unpkg.com/leaflet@1.9.4/dist/leaflet.js', 'L');
+};
+const loadFaceLib = () => window.FaceDetector
+  ? Promise.resolve(false)                         // native detector — no download at all
+  : loadScriptOnce('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js', 'faceapi');
+
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => (
   { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -450,7 +488,8 @@ function capturePhoto() {
 let _faceModelsLoaded = false;
 async function ensureFaceModels() {
   if (window.FaceDetector) return true;                 // native — no model download
-  if (!window.faceapi) return false;                    // lib didn't load (offline)
+  if (!window.faceapi) await loadFaceLib();             // fetch it now, not on every page load
+  if (!window.faceapi) return false;                    // still absent → offline
   if (_faceModelsLoaded) return true;
   try { await faceapi.nets.tinyFaceDetector.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model'); _faceModelsLoaded = true; return true; }
   catch (e) { return false; }
@@ -1674,7 +1713,8 @@ async function autoReconcileFleet() {
 /* ----- Live map (Uber-style fleet tracking, Leaflet) ----- */
 let _mapTimer = null, _busMap = null, _busMarkers = {};
 function stopMap() { if (_mapTimer) { clearInterval(_mapTimer); _mapTimer = null; } _busMap = null; _busMarkers = {}; }
-function viewLiveMap() {
+async function viewLiveMap() {
+  if (!window.L) await loadMapLib();
   if (!window.L) { shell('Live map', `<div class="card"><div class="empty">📡 Live map needs an internet connection.<br>Reconnect and reopen.</div></div>`); return; }
   shell('Live map', `<div id="busmap" style="height:72vh;border-radius:16px;overflow:hidden;border:1px solid var(--line)"></div>
     <div id="map-meta" class="tiny muted" style="margin-top:8px;text-align:center">Loading live positions…</div>`);
@@ -1747,8 +1787,9 @@ function trackPanel(b, d) {
     <div class="row between tiny muted" style="margin-top:4px"><span>${(d.odometer || 0).toLocaleString('en-IN')} km</span><span>${d.lastPing ? 'updated ' + timeAgo(d.lastPing) : ''}</span></div></div>`;
 }
 let _trackBusy = false;
-function viewTrackBus(busId) {
+async function viewTrackBus(busId) {
   const b = byId(S.cache.buses, busId); if (!b) return viewBuses();
+  if (!window.L) await loadMapLib();
   if (!window.L) { shell('Live tracking', `<div class="card"><div class="empty">📡 Live tracking needs an internet connection.</div></div>`); return; }
   // Immersive full-screen map (no topbar) with its own floating Back button, so
   // there's always an obvious, reliable way out on every device.
@@ -6360,6 +6401,26 @@ async function backfillConductorProfiles() {
 }
 // Runs once per device, and only for the roles the server lets write `drivers` —
 // a driver's phone doing this would just collect 403s in its outbox.
+/* One-off rename of the seeded supervisor record.
+ *
+ * Changing the seed constants only affects a device that has never been seeded.
+ * The name shown on the login screen comes from the synced `users` record, which
+ * already exists everywhere, so the rename has to travel the same way any other
+ * edit does. Versioned and idempotent, like applyBundledSeed. */
+async function renameSeededStaffOnce() {
+  const V = 'gsRenameSup_v1';
+  try {
+    if (localStorage.getItem(V)) return;
+    const u = (await DB.all('users')).find((x) => x && x.id === 'u-sup');
+    if (!u) return;                                   // nothing here to rename
+    localStorage.setItem(V, String(Date.now()));      // set first: never loop on a failure
+    if (!/ramesh/i.test(u.name || '')) return;        // already renamed, or deliberately named
+    u.name = 'Vajid (Supervisor)';
+    await DB.put('users', u);
+    await load();
+  } catch (e) { console.error('Supervisor rename failed:', e); }
+}
+
 async function maybeBackfillConductors(user) {
   if (!can(user.role, 'manageDrivers')) return;
   try { if (localStorage.getItem('gsCrewBankV1')) return; } catch (e) { return; }
@@ -7645,8 +7706,10 @@ function renderLogin() {
       <div style="font-size:22px">${ROLE_META[r][0]}</div>
       <div style="font-weight:700;font-size:14px">${ROLE_META[r][1]}</div>
       <div class="tiny muted">${counts[r]} ${counts[r] > 1 ? 'people' : 'person'}</div></div>`).join('')}</div>
-    ${isDemoMode() && isLocalHost()
-      ? `<div class="tiny muted" style="margin-top:14px">Demo PINs — Owner 1111 · Store 3333 · Mechanic 0001</div>` : ''}
+    ${'' /* The demo-PIN hint used to print working credentials under the role
+            tiles. It was meant for a local demo, but it is a login screen: a
+            screen whose entire job is to keep people out should never display
+            a way in. Removed outright rather than re-gated. */}
   </div>`;
   root().onclick = (e) => {
     if (handleLoginLang(e, renderLogin)) return;
@@ -7693,6 +7756,10 @@ function renderRolePick(role) {
 }
 function renderPin(user) {
   _pinUser = user; _pin = '';
+  // Wake the backend now. Typing four digits takes two or three seconds; a cold
+  // serverless container takes about ten. Starting the two together is most of
+  // the difference between a login that feels instant and one that feels broken.
+  try { Sync.warmUp(); } catch (e) { /* offline; the device PIN still works */ }
   // A desktop has a keyboard. Making someone mouse-click four small buttons is
   // the phone interaction pretending to work everywhere — so accept typing too.
   // Self-removing: the first keystroke after the pad leaves the DOM detaches it,
@@ -7735,7 +7802,13 @@ function renderPin(user) {
       if (key === 'cancel') return _pinUser ? renderRolePick(_pinUser.role) : renderLogin();
       if (key === 'back') { _pin = _pin.slice(0, -1); return draw(); }
       if (key >= '0' && key <= '9' && _pin.length < 4) { _pin += key; draw(); }
-      if (_pin.length === 4 || key === 'ok') return attemptLogin(user, _pin, draw);
+      if (_pin.length === 4 || key === 'ok') {
+        // Four digits are in and the request is on its way. Without this the pad
+        // simply sits there for a second or three and looks like it missed the tap.
+        const dots = $('.pindots');
+        if (dots) { dots.textContent = '⋯'; dots.style.opacity = '.6'; }
+        return attemptLogin(user, _pin, draw);
+      }
     };
   };
   draw();
@@ -7804,6 +7877,13 @@ async function seedFill(store, rows) {
 }
 
 async function applyBundledSeed() {
+  // Cheap check first: if this device is already on the current seed version
+  // there is nothing to do, and the 541 KB never needs fetching at all.
+  if (localStorage.getItem('gsSeedVer') && !window.GS_SEED) {
+    const probe = localStorage.getItem('gsSeedVer') || '';
+    if (probe.startsWith('gsSeed:')) return;
+  }
+  await loadSeedData();
   const seed = window.GS_SEED; if (!seed) return;
   const ver = 'gsSeed:' + (seed.version || '1');
   if (localStorage.getItem('gsSeedVer') === ver) return;
@@ -7832,8 +7912,12 @@ async function healSeedClobberOnce() {
   const V = 'gsSeedClobberHeal_v1';
   try {
     if (localStorage.getItem(V)) return;
-    const seed = window.GS_SEED; if (!seed) return;
+    // Cheap conditions BEFORE fetching 541 KB: this only ever runs once, and
+    // only for a signed-in device, so there is no reason to pull the seed to
+    // discover we are going to return anyway.
     if (!Sync.info().authed) return;                 // retry once signed in
+    await loadSeedData();
+    const seed = window.GS_SEED; if (!seed) return;
     localStorage.setItem(V, String(Date.now()));     // set before the work: never loop on a failure
     try { await Sync.tick(); } catch (e) { /* offline — the lowering below still stands */ }
     let lowered = 0;
@@ -7852,6 +7936,8 @@ async function healSeedClobberOnce() {
 // Link each bus to its Google Drive document folder (RC/Permit/Fitness/Insurance),
 // and create buses that only exist in Drive. Versioned + idempotent like the seed.
 async function applyDriveDocs() {
+  if (localStorage.getItem('gsDocsVer') && !window.GS_DOCS) return;
+  await loadSeedData();
   const D = window.GS_DOCS; if (!D) return;
   const ver = 'gsDocs:' + (D.version || '1');
   if (localStorage.getItem('gsDocsVer') === ver) return;
@@ -7945,6 +8031,9 @@ function userPhoto(u) { const d = crewForUser(u.id); return (d && d.photo) || nu
   seedCreds();
   await applyBundledSeed();           // load the real fleet/parts/vendors/crew from the bundled data
   await applyDriveDocs();             // link buses to their Google Drive document folders
+  // Before the login screen is drawn, not after signing in — the name on the
+  // tile is the whole point of the rename.
+  await renameSeededStaffOnce();
   await load();
   // Business name now comes from garage config (set in db.js seed for the demo,
   // and via Garage setup for a real garage) — refreshBiz() in load() applies it.
