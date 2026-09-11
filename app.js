@@ -25,6 +25,11 @@ const I18N = {
     wizStep1: 'Bus & fault', wizStep2: 'Who & when', wizStep3: 'Cost & notes',
     wizNext: 'Next', wizBack: 'Back', wizCreate: 'Create job card',
     wizCheck: 'Check before you create', wizCheckHint: 'Go back to any step to change something.',
+    isPart: 'Part', isSearch: 'Type a part name, code or category…', isToJob: 'Issue to job card',
+    isInStock: 'in stock', isOutOfStock: 'none left', isNoMatch: 'No part matches that.',
+    isPickBoth: 'Pick a part and a job', isGate: 'Parts can only be issued against a job card. This stops untracked pilferage.',
+    isReused: 'Reused / second-hand part', isReusedShort: 'reused', isReusedCost: 'What it is worth',
+    isReusedHint: 'Charge what the used part is actually worth, not the price of a new one — otherwise every cost-per-km figure for this bus is wrong, and it flatters whoever fitted it. Zero is a fine answer for something off the scrap shelf.',
     hmNothing: 'nothing needs you right now', hmNotCheckedIn: 'You are not checked in today.',
     hmLast30: 'last 30 days', hmLast7: 'Repair cost', hmReports: 'reports',
     hmToVerify: 'Waiting for your sign-off', hmToVerifySub: 'closed by somebody else',
@@ -194,6 +199,11 @@ const I18N = {
     wizStep1: 'बस और खराबी', wizStep2: 'कौन और कब', wizStep3: 'खर्च और नोट',
     wizNext: 'आगे', wizBack: 'पीछे', wizCreate: 'जॉब कार्ड बनाएं',
     wizCheck: 'बनाने से पहले देख लीजिए', wizCheckHint: 'कुछ बदलना हो तो किसी भी कदम पर वापस जाइए।',
+    isPart: 'पुर्जा', isSearch: 'पुर्जे का नाम, कोड या श्रेणी लिखिए…', isToJob: 'किस जॉब कार्ड पर',
+    isInStock: 'स्टॉक में', isOutOfStock: 'स्टॉक खत्म', isNoMatch: 'कोई पुर्जा नहीं मिला।',
+    isPickBoth: 'पुर्जा और काम दोनों चुनिए', isGate: 'पुर्जा सिर्फ़ जॉब कार्ड पर ही जारी होगा। इसी से बिना हिसाब चोरी रुकती है।',
+    isReused: 'पुराना / सेकंड-हैंड पुर्जा', isReusedShort: 'पुराना', isReusedCost: 'इसकी असली कीमत',
+    isReusedHint: 'पुराने पुर्जे की जो असली कीमत है वही लिखिए, नए के दाम नहीं — वरना इस बस का प्रति किमी खर्च गलत निकलेगा, और लगाने वाले का हिसाब अच्छा दिखेगा। रद्दी से उठाए पुर्जे के लिए शून्य लिखना भी ठीक है।',
     hmNothing: 'अभी कुछ बाकी नहीं', hmNotCheckedIn: 'आज आपकी हाज़िरी नहीं लगी है।',
     hmLast30: 'पिछले 30 दिन', hmLast7: 'मरम्मत खर्च', hmReports: 'रिपोर्ट',
     hmToVerify: 'आपकी जाँच बाकी', hmToVerifySub: 'किसी और ने बंद किए',
@@ -787,27 +797,37 @@ async function noteOdometer(busId, km) {
 }
 
 // Anti-pilferage core: a part can ONLY leave stock against a job card.
-async function issuePart({ partId, qty, jobId }) {
+async function issuePart({ partId, qty, jobId, reused = false, reusedCost = null }) {
   const part = byId(S.cache.parts, partId);
   const job = byId(S.cache.jobs, jobId);
-  if (!part || !job) return toast('Pick a part and a job');
+  if (!part || !job) return toast(t('isPickBoth'));
   if (job.status === 'verified') return toast('Job already closed');
   if (qty <= 0) return toast('Enter quantity');
   if (qty > part.qty) return toast(`Only ${part.qty} ${part.unit} in stock`);
 
+  // Stock still comes down for a reused part. Whatever its history, a physical
+  // item left the store, and "every item out is on the ledger" is the invariant
+  // the whole anti-pilferage design rests on — a flag that skipped it would be
+  // the easiest way to walk a new part out of the door.
   part.qty -= qty;
   await DB.put('parts', part);
+  // What CHANGES for a reused part is the price. Charging a salvaged clutch at
+  // the price of a new one makes every cost-per-km and money-pit figure wrong,
+  // and flatters whoever fitted it.
+  const unit = reused ? Math.max(0, Number(reusedCost) || 0) : part.unitCost;
+  const cost = qty * unit;
   await DB.put('ledger', {
     id: uid('l-'), partId, type: 'out', qty, jobId,
-    reason: 'Issued to job', by: S.user.id, at: Date.now(),
+    reason: reused ? 'Issued to job (reused)' : 'Issued to job',
+    reused: !!reused, unitCost: unit,
+    by: S.user.id, at: Date.now(),
   });
-  const line = (job.partsUsed || []).find((l) => l.partId === partId);
-  const cost = qty * part.unitCost;
+  const line = (job.partsUsed || []).find((l) => l.partId === partId && !!l.reused === !!reused);
   if (line) { line.qty += qty; line.cost += cost; }
-  else { job.partsUsed = [...(job.partsUsed || []), { partId, qty, cost }]; }
+  else { job.partsUsed = [...(job.partsUsed || []), { partId, qty, cost, reused: !!reused }]; }
   await DB.put('jobcards', job);
   await load();
-  toast(`Issued ${qty} ${part.unit} → ${busName(job.busId)}`);
+  toast(`${reused ? '♻️ ' : ''}Issued ${qty} ${part.unit} → ${busName(job.busId)}`);
 }
 
 async function receiveStock({ partId, qty, cost = 0, reason = 'Stock received', silent = false }) {
@@ -2350,7 +2370,9 @@ function viewJobDetail(id) {
   body += `<div class="card"><div class="row between"><h3>${t('partsUsed')}</h3>${can(S.user.role,'issuePart') && j.status!=='verified' ? `<button class="btn sm" data-act="issueTo" data-job="${j.id}">+ ${t('issuePart')}</button>`:''}</div>`;
   body += (j.partsUsed || []).length ? (j.partsUsed.map((l) => {
     const p = byId(S.cache.parts, l.partId);
-    return `<div class="row between small" style="padding:5px 0"><span>${esc(p ? p.name : l.partId)} × ${l.qty}</span><b>${money(l.cost)}</b></div>`;
+    return `<div class="row between small" style="padding:5px 0">
+      <span>${esc(p ? p.name : l.partId)} × ${l.qty}${l.reused ? ` <span class="badge b-low">♻️ ${t('isReusedShort')}</span>` : ''}</span>
+      <b>${money(l.cost)}</b></div>`;
   }).join('')) : `<div class="muted small">No parts issued</div>`;
   // The mechanic-facing half of this card: request-a-part, the pending-request
   // list with the store's Fulfil action, the before/after photo gate, and
@@ -3667,26 +3689,84 @@ function sheetIssue(presetJob) {
   if (!openJobs.length) {
     return openSheet(t('issuePart'), `<div class="banner warn">No open job card to issue against. Parts can only be issued to a job (anti-pilferage). Create a job first.</div>`);
   }
+  // A dropdown of 2,391 parts is not a picker, it is a haystack. Type instead.
   openSheet(t('issuePart'), `
-    <label class="field"><span class="lbl">🔩 Part</span><select id="f-part">${parts.map((p) => `<option value="${p.id}">${esc(p.name)} (${p.qty} ${p.unit})</option>`).join('')}</select></label>
-    <label class="field"><span class="lbl">🧾 Issue to job card</span><select id="f-job">${openJobs.map((j) => `<option value="${j.id}" ${j.id===presetJob?'selected':''}>${esc(busName(j.busId))} — ${esc(j.problem.slice(0,28))}</option>`).join('')}</select></label>
-    <label class="field"><span class="lbl"># Quantity</span><input id="f-qty" type="number" inputmode="numeric" value="1"></label>
+    <input type="hidden" id="f-part" value="">
+    <label class="field"><span class="lbl">🔩 ${t('isPart')}</span>
+      <input id="f-psearch" placeholder="${t('isSearch')}" autocomplete="off"></label>
+    <div id="f-pchosen"></div>
+    <div id="f-plist" class="pick-list"></div>
+    <label class="field"><span class="lbl">🧾 ${t('isToJob')}</span><select id="f-job">${openJobs.map((j) => `<option value="${j.id}" ${j.id===presetJob?'selected':''}>${esc(busName(j.busId))} — ${esc(j.problem.slice(0,28))}</option>`).join('')}</select></label>
+    <label class="field"><span class="lbl"># ${t('reqPartQty')}</span><input id="f-qty" type="number" inputmode="numeric" value="1"></label>
+    <label class="row" style="gap:9px;margin:2px 0 6px;cursor:pointer">
+      <input type="checkbox" id="f-reused" style="width:18px;height:18px;flex:none">
+      <span class="small">♻️ ${t('isReused')}</span></label>
+    <div id="f-reusedbox" style="display:none">
+      <label class="field"><span class="lbl">₹ ${t('isReusedCost')}</span>
+        <input id="f-reusedcost" type="number" inputmode="numeric" value="0"></label>
+      <div class="tiny muted" style="margin:-4px 0 10px">${t('isReusedHint')}</div>
+    </div>
     <div id="f-warr"></div>
-    <div class="banner warn">🔒 Parts can only be issued against a job card. This stops untracked pilferage.</div>
+    <div class="banner warn">🔒 ${t('isGate')}</div>
     <button class="btn primary" data-act="confirmIssue">${t('issuePart')}</button>`,
     (wrap) => {
-      const pSel = wrap.querySelector('#f-part'), jSel = wrap.querySelector('#f-job');
-      const refresh = () => {
+      const hid = wrap.querySelector('#f-part'), search = wrap.querySelector('#f-psearch');
+      const list = wrap.querySelector('#f-plist'), chosen = wrap.querySelector('#f-pchosen');
+      const jSel = wrap.querySelector('#f-job');
+      const reused = wrap.querySelector('#f-reused'), rbox = wrap.querySelector('#f-reusedbox');
+      const rcost = wrap.querySelector('#f-reusedcost');
+
+      const warr = () => {
         const j = byId(S.cache.jobs, jSel.value); const box = wrap.querySelector('#f-warr');
-        const st = j ? warrantyStatus(j.busId, pSel.value) : null;
+        const st = (j && hid.value) ? warrantyStatus(j.busId, hid.value) : null;
         box.innerHTML = (st && st.underWarranty)
           ? `<div class="banner" style="background:#3a2412;color:#f59e0b">⚠️ This part is still under warranty${st.supplier ? ' (' + esc(st.supplier) + ')' : ''} — ${st.leftDays} days left. Claim a FREE replacement, don't buy a new one.</div>` : '';
       };
-      pSel.addEventListener('change', refresh); jSel.addEventListener('change', refresh); refresh();
+      const pick = (p) => {
+        hid.value = p.id;
+        chosen.innerHTML = `<div class="li" style="border:none"><div class="ava">🔩</div>
+          <div class="main"><div class="t">${esc(p.name)}</div>
+            <div class="s">${p.qty} ${esc(p.unit)} ${t('isInStock')} · ${money(p.unitCost)}/${esc(p.unit)}</div></div>
+          <button type="button" class="btn sm ghost" data-act="isClearPart">${t('cancel')}</button></div>`;
+        list.innerHTML = ''; search.value = '';
+        warr();
+      };
+      const draw = (q) => {
+        if (hid.value) { list.innerHTML = ''; return; }
+        const ql = (q || '').trim().toLowerCase();
+        // Nothing typed: show what is actually likely — the parts that move.
+        const pool = ql ? parts.filter((p) => (`${p.name} ${p.code || ''} ${p.category || ''}`).toLowerCase().includes(ql))
+                        : parts.filter((p) => p.qty > 0).slice(0, 12);
+        list.innerHTML = pool.slice(0, 40).map((p) => `<div class="li" data-pick="${esc(p.id)}">
+            <div class="ava">🔩</div><div class="main"><div class="t">${esc(p.name)}</div>
+              <div class="s">${p.qty} ${esc(p.unit)}${p.code ? ' · ' + esc(p.code) : ''}</div></div>
+            ${p.qty > 0 ? '' : `<span class="badge b-amber">${t('isOutOfStock')}</span>`}</div>`).join('')
+          || `<div class="muted small" style="padding:6px 2px">${t('isNoMatch')}</div>`;
+      };
+      list.addEventListener('click', (e) => {
+        const row = e.target.closest('[data-pick]'); if (!row) return;
+        const p = byId(S.cache.parts, row.getAttribute('data-pick')); if (p) pick(p);
+      });
+      chosen.addEventListener('click', (e) => {
+        if (!e.target.closest('[data-act="isClearPart"]')) return;
+        hid.value = ''; chosen.innerHTML = ''; draw(''); search.focus();
+      });
+      search.addEventListener('input', () => draw(search.value));
+      jSel.addEventListener('change', warr);
+      reused.addEventListener('change', () => {
+        rbox.style.display = reused.checked ? '' : 'none';
+        if (reused.checked && rcost) rcost.focus();
+      });
+      draw(''); warr();
     });
 }
 async function confirmIssue() {
-  await issuePart({ partId: $('#f-part').value, qty: Number($('#f-qty').value) || 0, jobId: $('#f-job').value });
+  const reused = !!($('#f-reused') || {}).checked;
+  await issuePart({
+    partId: ($('#f-part') || {}).value, qty: Number($('#f-qty').value) || 0,
+    jobId: $('#f-job').value, reused,
+    reusedCost: reused ? (Number(($('#f-reusedcost') || {}).value) || 0) : null,
+  });
   closeSheet(); rerender();
 }
 
@@ -7920,6 +8000,7 @@ const _dispatchClick = async (e) => {
       case 'cancelReport': return cancelReport(el.getAttribute('data-report'));
       case 'useReport': { const f = $('#f-prob'); if (f) { f.value = el.getAttribute('data-rprob'); const cb = el.closest('.repcheck') && el.closest('.repcheck').querySelector('.f-rep'); if (cb) cb.checked = true; } return; }
       case 'issueTo': return sheetIssue(el.getAttribute('data-job'));
+      case 'isClearPart': return;   // handled by the sheet's own listener
       case 'confirmIssue': return confirmIssue();
       case 'receive': return sheetReceive();
       case 'confirmReceive': return confirmReceive();

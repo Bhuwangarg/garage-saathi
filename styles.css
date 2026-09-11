@@ -839,3 +839,10 @@ img.ava{object-fit:cover}
   .wz-step.on{animation:none}
   .wz-track i{transition:none}
 }
+
+/* Searchable pickers inside a sheet (part issue). A scrollable result list so a
+   2,391-part catalogue is typed at, not scrolled through. */
+.pick-list{max-height:240px;overflow-y:auto;-webkit-overflow-scrolling:touch;margin:-4px 0 10px}
+.pick-list .li{cursor:pointer;padding:9px 6px;border-radius:8px}
+.pick-list .li:hover,.pick-list .li:active{background:var(--tile)}
+.pick-list:empty{margin:0}
