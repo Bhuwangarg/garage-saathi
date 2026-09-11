@@ -155,6 +155,7 @@ const I18N = {
     cbPhotoNeeded: 'photo needed', cbMandTag: 'MANDATORY',
     cbMandDocFor: 'Mandatory document — required for every', cbOptDoc: 'Optional document.',
     cbTakeDocPhoto: 'Take photo of document', cbReplacePhoto: 'Replace photo', cbNumberWord: 'number',
+    deviceServer: 'Device & server', deviceServerSub: 'Address, API key, and re-download', saveWord: 'Save',
     cbFrontSide: 'Front', cbBackSide: 'Back', cbDocumentWord: 'Document', cbTapToAdd: 'Tap to add',
     cbRetake: 'Retake', cbPhotoFailed: "That picture didn't come through — take it again",
     cbBackLicense: 'The back carries the vehicle classes he is endorsed for. Optional, but worth having.',
@@ -341,6 +342,7 @@ const I18N = {
     cbPhotoNeeded: 'फोटो चाहिए', cbMandTag: 'ज़रूरी',
     cbMandDocFor: 'ज़रूरी कागज़ — हर', cbOptDoc: 'यह कागज़ ज़रूरी नहीं है।',
     cbTakeDocPhoto: 'कागज़ की फोटो लें', cbReplacePhoto: 'फोटो बदलें', cbNumberWord: 'नंबर',
+    deviceServer: 'डिवाइस और सर्वर', deviceServerSub: 'पता, API key, और दोबारा डाउनलोड', saveWord: 'सेव करें',
     cbFrontSide: 'सामने', cbBackSide: 'पीछे', cbDocumentWord: 'कागज़', cbTapToAdd: 'फोटो लगाएँ',
     cbRetake: 'दोबारा', cbPhotoFailed: 'यह फोटो नहीं आई — दोबारा लें',
     cbBackLicense: 'पीछे की तरफ़ गाड़ी की कैटेगरी लिखी होती है। ज़रूरी नहीं, पर रखना अच्छा है।',
@@ -410,17 +412,31 @@ let SYNC_STATUS = 'init';
  * and being offline with edits still owed to the server. Being offline with
  * nothing pending is not one of them — the app is local-first and works fine.
  * Me → Sync remains the full account: last sync, pending count, last error. */
+/* Get a new token with the credential this device already has.
+ *
+ * Backed off, never concurrent, and silent on both outcomes: succeeding is
+ * invisible by design, and failing means offline or a PIN changed elsewhere —
+ * the first fixes itself, and the second shows up the next time he signs in,
+ * where it can actually be answered. */
+let _renewAt = 0, _renewing = false;
+async function renewSession() {
+  if (_renewing || !S.user || !navigator.onLine) return;
+  if (Date.now() < _renewAt) return;
+  const pin = credGet(S.user.id);
+  if (!pin) return;                       // crew signed in offline: nothing to renew with
+  _renewing = true;
+  try {
+    const r = await Sync.login(S.user.id, pin);
+    if (r && r.user) { _renewAt = 0; await Sync.tick(); }
+    else _renewAt = Date.now() + 5 * 60000;
+  } catch (e) { _renewAt = Date.now() + 5 * 60000; }
+  finally { _renewing = false; }
+}
+
 function syncWarnHtml() {
-  if (SYNC_STATUS === 'signedout') {
-    return `<span class="syncchip warn" data-act="openSync" title="Signed out — tap to sign in again">⚠</span>`;
-  }
-  if (SYNC_STATUS === 'offline') {
-    let pending = 0;
-    try { pending = (window.Sync && Sync.info) ? (Sync.info().pending || 0) : 0; } catch (e) { pending = 0; }
-    if (pending) {
-      return `<span class="syncchip off" data-act="openSync" title="Offline — ${pending} change(s) not sent yet">○ ${pending}</span>`;
-    }
-  }
+  // Nothing. A dead session now renews itself, and being offline with edits
+  // queued is what the app is built to do — neither is news, and neither is
+  // something to act on, so neither earns a mark in the header.
   return '';
 }
 
@@ -452,8 +468,12 @@ function announceSyncStatus(s) {
   if (s === _lastSyncStatus) return;
   const was = _lastSyncStatus;
   _lastSyncStatus = s;
-  if (s === 'signedout') toast('⚠️ Signed out — open Me → Sync to log in again');
-  else if (s === 'synced' && was === 'signedout') toast('✅ Signed back in');
+  // No popup. A 12-hour token expiring is the app's problem, not his — he is
+  // standing in a workshop, and "open Me -> Sync to log in again" is a chore
+  // invented by the token, repeated on every status change, in the middle of
+  // signing in. The device already holds the PIN it logged in with (that is how
+  // offline login works), so it can get a new token on its own.
+  if (s === 'signedout') renewSession();
 }
 
 /* ------------------------------ Helpers ----------------------------------- */
@@ -3349,7 +3369,7 @@ function viewMe() {
     <div class="li"><div class="ava">🪪</div><div class="main"><div class="t">${esc(S.user.name)}</div>
       <div class="s">${esc(S.user.role)} · <span class="tiny muted">${esc(S.user.id)}</span></div></div></div>
     ${can(S.user.role, 'dashboard') ? `<div class="li" data-act="openUsage"><div class="ava">📈</div><div class="main"><div class="t">Usage &amp; adoption</div><div class="s">Who is using the app, which features, and what is slow</div></div></div>` : ''}
-    <div class="li" data-act="openSync"><div class="ava">🔄</div><div class="main"><div class="t">${t('sync')}</div><div class="s">${SYNC_STATUS === 'synced' ? 'All devices up to date' : SYNC_STATUS === 'signedout' ? '⚠️ Signed out — log in again to sync' : SYNC_STATUS === 'offline' ? 'Offline — will sync when connected' : 'Syncing…'}${si.pending ? ` · ${si.pending} pending` : ''}</div></div></div>
+    <div class="li" data-act="openSync"><div class="ava">⚙️</div><div class="main"><div class="t">${t('deviceServer')}</div><div class="s">${t('deviceServerSub')}</div></div></div>
     <div class="li" data-act="logout"><div class="ava">🚪</div><div class="main"><div class="t">${t('logout')}</div></div></div>
   </div>`;
 
@@ -4458,15 +4478,19 @@ async function saveChangePin() {
     toast('Could not reach server — connect online to change your PIN');
   }
 }
+/* Settings and a repair tool — no longer a chore list.
+ *
+ * There is no "Sync now" here any more. It synced on its own before the button
+ * existed; the button only ever offered to do sooner what was already happening,
+ * and its presence implied the opposite — that syncing was something he had to
+ * remember. What is left is the two settings that genuinely live on this device
+ * and the one repair that genuinely needs asking for. */
 function sheetSync() {
   const i = Sync.info();
-  const lbl = { synced: '✅ All devices up to date', syncing: '🔄 Syncing…', offline: '⚠️ Offline — changes are queued',
-                signedout: '⚠️ Signed out — log in again to sync', init: '…' }[SYNC_STATUS] || '';
-  openSheet('Sync', `
-    <div class="card"><div class="row between"><span class="muted small">Status</span><b>${lbl}</b></div>
-      <div class="hr"></div>
+  openSheet(t('deviceServer'), `
+    <div class="card">
       <div class="row between small"><span class="muted">This device</span><b>${esc(i.deviceId)}</b></div>
-      <div class="row between small"><span class="muted">Pending to send</span><b>${i.pending}</b></div>
+      <div class="row between small"><span class="muted">Waiting to send</span><b>${i.pending}</b></div>
       <div class="row between small"><span class="muted">Last reached server</span><b>${i.lastSyncAt ? timeAgo(i.lastSyncAt) : 'never'}</b></div>
       <div class="row between small"><span class="muted">Sync cursor</span><b>rev ${i.lastRev}</b></div>
       ${i.lastError ? `<div class="row between small"><span class="muted">Last failure</span><b style="color:#ef4444">${esc(i.lastError)}</b></div>` : ''}
@@ -4475,9 +4499,7 @@ function sheetSync() {
     <div class="tiny muted" style="margin-bottom:10px">On a phone, set this to your computer's address, e.g. http://192.168.29.219:8766</div>
     <label class="field"><span class="lbl">Anthropic API key — for AI Insights (optional)</span><input id="f-aikey" type="password" value="${esc(localStorage.getItem('aiKey') || '')}" placeholder="sk-ant-..."></label>
     <div class="tiny muted" style="margin-bottom:10px">Stored only on this device. Enables the "Ask the advisor" box on AI Insights.</div>
-    <button class="btn primary" data-act="saveSyncUrl">Save & sync now</button>
-    <div class="spacer"></div>
-    <button class="btn" data-act="syncNow">Sync now</button>
+    <button class="btn primary" data-act="saveSyncUrl">${t('saveWord')}</button>
     <div class="spacer"></div>
     <button class="btn ghost" data-act="syncRedownload">⤓ Re-download everything</button>
     <div class="tiny muted" style="margin-top:6px">Use this if this device is missing people or records that other devices can see. It re-reads the whole server; nothing you have entered here is lost.</div>`);
@@ -8578,7 +8600,7 @@ const _dispatchClick = async (e) => {
       case 'changePin': return sheetChangePin();
       case 'saveChangePin': return saveChangePin();
       case 'saveSyncUrl': { Sync.setUrl($('#f-syncurl').value.trim()); const k = $('#f-aikey'); if (k) localStorage.setItem('aiKey', k.value.trim()); closeSheet(); toast('Saved'); return; }
-      case 'syncNow': { Sync.tick(); toast('Syncing…'); return; }
+
       case 'closeSheet': return closeSheet();
       case 'logout': {
         // Clear THIS user's cached PIN so a shared device doesn't let the next

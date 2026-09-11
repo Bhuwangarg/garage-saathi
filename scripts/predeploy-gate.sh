@@ -181,12 +181,17 @@ ck "mechanic history is only their own work" \
 login supervisor u-sup 2 2 2 2
 ck "no sync chip in the topbar while healthy" \
   "$(j "document.querySelectorAll('.topbar .syncchip').length")" "0"
-# The chip still has to appear for the one state that needs acting on. Forcing
-# the status directly is the only way to reach it without killing a session.
-ck "a dead session still shows a mark" \
-  "$(j "(function(){var was=SYNC_STATUS;SYNC_STATUS='signedout';updateSyncChip();var n=document.querySelectorAll('.topbar .syncchip').length;SYNC_STATUS=was;updateSyncChip();return n})()")" "1"
-ck "and it is gone again once healthy" \
+# A dead session used to raise a mark and a popup telling him to go and fix it
+# in Me -> Sync. It renews itself now, with the PIN this device already holds,
+# so there is nothing to act on and nothing to show. Forcing the status directly
+# is the only way to reach that state without killing a real session.
+ck "a dead session raises no mark — it renews itself" \
+  "$(j "(function(){var was=SYNC_STATUS;SYNC_STATUS='signedout';updateSyncChip();var n=document.querySelectorAll('.topbar .syncchip').length;SYNC_STATUS=was;updateSyncChip();return n})()")" "0"
+ck "no sync mark in any state" \
   "$(j "document.querySelectorAll('.topbar .syncchip').length")" "0"
+# ...and the chore is gone with it: nothing anywhere offers to sync by hand.
+ck "no manual sync control on Me" \
+  "$(j "(function(){route({name:'me'});return /syncNow|Sync now/.test(document.querySelector('#app .content').innerHTML)?'yes':'no'})()")" "no"
 # push() used to send one HTTP request per record. Twelve writes must cost one.
 # The gate serves from a static server with no /push, so this counts what the
 # app ATTEMPTED, which is exactly the property under test.
