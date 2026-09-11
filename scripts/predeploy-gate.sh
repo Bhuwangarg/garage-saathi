@@ -149,6 +149,34 @@ AFTER="$(j "(S.cache.audits||[]).length")"
 ck "stock count persists (audits grew)"      "$([ "${AFTER:-0}" -gt "${BEFORE:-0}" ] && echo yes || echo no)" "yes"
 ck "sheet closes after save"                 "$(j "!document.querySelector('.sheetwrap')")" "true"
 
+# 2b) Completed work & preventive tracking.
+login owner u-owner 1 1 1 1
+# The classifier decides which past jobs count as "the same thing again", so a
+# wrong answer here invents a repeat that never happened — or hides a real one.
+# These two were live bugs: "AC not cooling" fell through to 'other' because a
+# bare two-letter word never appears inside a longer phrase, and "track rod"
+# matched AC once that was loosened to a substring.
+ck "classifier: AC not cooling"   "$(j "jobSystem({problem:'AC not cooling again'})")" "ac"
+ck "classifier: brakes plural"    "$(j "jobSystem({problem:'Brakes feel weak'})")" "brakes"
+ck "classifier: Hindi brake"      "$(j "jobSystem({problem:'ब्रेक से आवाज'})")" "brakes"
+ck "classifier: gas charged"      "$(j "jobSystem({problem:'A/C gas charged'})")" "ac"
+ck "classifier: track rod is not AC" "$(j "jobSystem({problem:'Track rod end'})")" "other"
+ck "classifier: trim is not AC"   "$(j "jobSystem({problem:'Trim panel loose'})")" "other"
+# Unclassified jobs share a bucket, not a cause: two of them must never read as
+# the same fault coming back.
+ck "unclassified work is never flagged as a repeat" \
+  "$(j "(function(){var D=86400000,n=Date.now(),b=S.cache.buses[0].id,o=S.cache.jobs;S.cache.jobs=o.concat([{id:'gx1',busId:b,problem:'Seat cover stitching',status:'verified',completeAt:n-30*D,createdAt:n-30*D,partsUsed:[]},{id:'gx2',busId:b,problem:'Body denting',status:'verified',completeAt:n-3*D,createdAt:n-3*D,partsUsed:[]}]);var t=serviceTracking(b).filter(function(x){return x.sys==='other'})[0];S.cache.jobs=o;return t&&(t.quickRepeat||t.due)?'FLAGGED':'clean'})()")" "clean"
+j "route({name:'history'})" >/dev/null
+settle "S.route.name" "history" 20 >/dev/null
+ck "completed-work screen renders"  "$(j "document.querySelector('#hist-list')?'yes':'no'")" "yes"
+# A mechanic's finished cards are their own and nobody else's — the same scope
+# their live board has. Widening it here would be a back door onto the fleet.
+login mechanic u-m1 0 0 0 1
+j "route({name:'history'})" >/dev/null
+settle "S.route.name" "history" 20 >/dev/null
+ck "mechanic history is only their own work" \
+  "$(j "completedJobs().filter(function(x){return x.assignedTo!==S.user.id}).length")" "0"
+
 # 3) Invariant sweep: form controls never navigate (owner's main tabs).
 login owner u-owner 1 1 1 1
 for SCREEN in home jobs store me; do

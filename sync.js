@@ -205,6 +205,21 @@ const Sync = (function () {
     return j;
   }
 
+  /* Owner/supervisor: correct the name on an account.
+   *
+   * The login screen reads the synced `users` record, so renaming there is
+   * enough for a device that has synced — but a brand-new device falls back to
+   * the server roster, which is a different table. This moves both. */
+  async function renameStaff(id, name) {
+    const res = await fetch(baseUrl() + '/auth/users/rename', {
+      method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ id, name }),
+    });
+    let j = {}; try { j = await res.json(); } catch (e) { /* ignore */ }
+    if (!res.ok) throw new Error(j.error || ('renameStaff ' + res.status));
+    return j;
+  }
+
   // Owner/supervisor: create a staff account on the server.
   async function addStaff({ name, role, pin }) {
     const res = await fetch(baseUrl() + '/auth/users', {
@@ -549,7 +564,7 @@ const Sync = (function () {
     } catch (e) { return null; }
   }
 
-  return { start, tick, kick, setUrl, reset, info, login, logout, warmUp, roster, addStaff, deleteStaff, registerRoster, setPin, ai, aiVision, challans, fleet, latest, uploadPhoto,
+  return { start, tick, kick, setUrl, reset, info, login, logout, warmUp, roster, addStaff, deleteStaff, renameStaff, registerRoster, setPin, ai, aiVision, challans, fleet, latest, uploadPhoto,
            queuePhoto, remove, clearQuarantine, subscribePush, pushTest,
            get status() { return status; } };
 })();

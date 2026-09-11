@@ -266,6 +266,18 @@ def main():
     attack("re-open a verified job to edit it", j5b.get("status") == "verified",
            "status=%r" % j5b.get("status"))
 
+    # Renaming an account is not cosmetic. The name is what the login screen
+    # offers and what every record's provenance is read back as, so a thief who
+    # can relabel accounts can make their own look like somebody else's.
+    st, _ = call("/auth/users/rename", {"id": "u-sup", "name": "Thief"}, store)
+    attack("rename an account as the storekeeper", st == 403, "HTTP %s" % st)
+
+    st, _ = call("/auth/users/rename", {"id": "u-owner", "name": "Suresh (Store)"}, sup)
+    attack("relabel the owner's account as a supervisor", st == 403, "HTTP %s" % st)
+
+    st, _ = call("/auth/users/rename", {"id": "u-sup", "name": "Anybody"}, None)
+    attack("rename an account with no token", st == 401, "HTTP %s" % st)
+
     stolen = [n for n, ok, _ in RESULTS if not ok]
     print("\n%d of %d attacks BLOCKED." % (len(RESULTS) - len(stolen), len(RESULTS)))
     if stolen:

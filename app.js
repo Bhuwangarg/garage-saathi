@@ -97,6 +97,13 @@ const I18N = {
     // Report categories
     catBrakes: 'Brakes', catEngine: 'Engine', catAC: 'AC', catSuspension: 'Suspension', catElectrical: 'Electrical',
     catTyres: 'Tyres', catGearbox: 'Gearbox', catBody: 'Body', catOther: 'Other',
+    // ---- Completed work & preventive tracking ----
+    histTitle: 'Completed work', histSub: 'Every finished job, and what it says about the next one',
+    histDue: 'Due now', histDueSoon: 'Due soon', histRepeat: 'Came back',
+    histNoWork: 'No completed work yet.', histDone: 'done', histEvery: 'every',
+    histLastDone: 'last done', histDaysAgo: 'days ago', histNever: 'first time',
+    histWatch: 'Watch list', histWatchSub: 'Work that keeps coming back — fix the cause, not the symptom',
+    histSearch: 'Search bus, problem or mechanic…', histAll: 'All buses',
     // ---- Crew data bank (drivers & conductors) ----
     cbTitle: 'Crew bank', cbOnRoll: 'on the roll', cbDrivers: 'drivers', cbConductors: 'conductors', cbLeft: 'left',
     roleDriver: 'Driver', roleConductor: 'Conductor',
@@ -271,6 +278,13 @@ const I18N = {
     // Report categories
     catBrakes: 'ब्रेक', catEngine: 'इंजन', catAC: 'एसी', catSuspension: 'सस्पेंशन', catElectrical: 'बिजली',
     catTyres: 'टायर', catGearbox: 'गियरबॉक्स', catBody: 'बॉडी', catOther: 'अन्य',
+    // ---- Completed work & preventive tracking ----
+    histTitle: 'पूरा हुआ काम', histSub: 'हर पूरा हुआ काम, और अगली बार क्या होगा',
+    histDue: 'अभी करना है', histDueSoon: 'जल्दी करना है', histRepeat: 'फिर आया',
+    histNoWork: 'अभी कोई काम पूरा नहीं हुआ।', histDone: 'बार हुआ', histEvery: 'हर',
+    histLastDone: 'पिछली बार', histDaysAgo: 'दिन पहले', histNever: 'पहली बार',
+    histWatch: 'ध्यान देने वाले', histWatchSub: 'जो काम बार-बार आ रहा है — जड़ ठीक करें, लक्षण नहीं',
+    histSearch: 'बस, समस्या या मैकेनिक खोजें…', histAll: 'सभी बसें',
     // ---- Crew data bank (drivers & conductors) ----
     cbTitle: 'स्टाफ बैंक', cbOnRoll: 'लोग काम पर', cbDrivers: 'ड्राइवर', cbConductors: 'कंडक्टर', cbLeft: 'छोड़ चुके',
     roleDriver: 'ड्राइवर', roleConductor: 'कंडक्टर',
@@ -1389,6 +1403,9 @@ function viewFleet() {
       <div class="tm"><div class="tt">${t('bdTitle')}</div><div class="ts">${t('bdSub')}</div></div>
       <div class="tc">${bd90 || '›'}</div></div>`;
   }
+  body += `<div class="trow" data-act="openHistory"><div class="ti">✅</div>
+    <div class="tm"><div class="tt">${t('histTitle')}</div><div class="ts">${t('histSub')}</div></div>
+    <div class="tc">›</div></div>`;
 
   // Searchable bus list on number-plate chips.
   body += `<input id="fleet-search" class="searchbox" placeholder="Search plate, company, model…" style="margin-top:12px">`;
@@ -1627,6 +1644,7 @@ function viewOwnerHome() {
   body += `<div class="card"><h3>${t('hmFleetHealth')}</h3>
     ${triageRow(bd90.length ? 'warn' : 'ok', '🛠️', t('bdTitle'), t('hmBreakdownsSub'), 'data-act="openBreakdowns"', bd90.length)}
     ${triageRow(overdue.length ? 'warn' : 'ok', '🔧', t('hmServiceDue'), overdue.length ? esc(overdue.slice(0, 3).map((x) => x.b.regNo).join(', ')) : t('hmAllServiced'), 'data-nav="fleet"', overdue.length)}
+    ${triageRow('', '✅', t('histTitle'), t('histSub'), 'data-act="openHistory"', null)}
     ${triageRow('', '📊', t('mpTitle'), t('mpSub'), 'data-act="openScoreboard"', null)}</div>`;
 
   const series = costSeries(7);
@@ -2222,7 +2240,8 @@ function viewBusDetail(id) {
   body += `</div>`;
 
   // Service history
-  body += `<div class="card"><h3>${t('serviceHistory')}</h3>`;
+  body += `<div class="card"><div class="row between"><h3>${t('serviceHistory')}</h3>
+    <button class="btn sm ghost" data-act="openHistBusPage" data-bus="${esc(b.id)}">✅ ${t('histTitle')}</button></div>`;
   body += jobs.length ? jobs.map(jobLi).join('') : `<div class="muted small">No jobs</div>`;
   body += `</div>`;
 
@@ -2314,6 +2333,9 @@ function viewJobs() {
       <div class="tm"><div class="tt">${t('mpTitle')}</div>
         <div class="ts">${t('mpSub')}</div></div><div class="tc">›</div></div>`;
   }
+  body += `<div class="trow" data-act="openHistory" style="margin-bottom:10px"><div class="ti">✅</div>
+    <div class="tm"><div class="tt">${t('histTitle')}</div>
+      <div class="ts">${t('histSub')}</div></div><div class="tc">›</div></div>`;
   body += jobsFilterBar();
   body += `<input id="job-search" class="searchbox" placeholder="Search bus or problem…" autocomplete="off">`;
   body += jobs.length ? `<div id="job-list" class="listwrap">${jobs.map(jobLi).join('')}</div>` : `<div class="card listwrap" id="job-list"><div class="empty">${t('noJobsMatch')}</div></div>`;
@@ -5330,6 +5352,217 @@ function busMTBF(busId) {
   return span > 0 ? Math.round(span / (list.length - 1)) : null;
 }
 
+/* ---- Completed work & preventive tracking --------------------------------
+ *
+ * Every other screen in this app is about work that is happening. This one is
+ * about work that already happened, because that is the only place a pattern
+ * lives: the third time the same bus comes back for the same system, the fault
+ * is not the part, it is the interval. Preventive maintenance is just doing the
+ * fourth one before the bus decides when.
+ */
+
+/* The system a finished job touched.
+ *
+ * A job raised from a driver report carries the driver's category; everything
+ * else has to be read out of the problem text. That reading is deliberately
+ * conservative — anything unrecognised is 'other' rather than a near-guess,
+ * because one job filed under the wrong system quietly invents a repeat that
+ * never happened, and an invented repeat is worse than no signal at all. */
+/* A trailing * means "this is the start of a word" — brake* catches brakes and
+ * braking, gas charg* catches "gas charged". Without it a term is matched whole,
+ * so short ones like `ac` and `rim` cannot turn up inside track and trim. Both
+ * forms were needed: whole-word-only silently dropped "AC not cooling", and
+ * substring-only found systems in words that had nothing to do with them. */
+const SYS_WORDS = {
+  brakes:     ['brake*', 'ब्रेक', 'lining*', 'liner*', 'drum*', 'slack adjuster*'],
+  tyre:       ['tyre*', 'tire*', 'टायर', 'puncture*', 'remould*', 'retread*', 'rim*', 'wheel bearing*'],
+  gearbox:    ['gearbox*', 'gear box', 'गियर', 'clutch*', 'क्लच', 'differential*', 'propeller*', 'axle*'],
+  electrical: ['electric*', 'बिजली', 'wiring', 'batter*', 'बैटरी', 'alternator*', 'self start*', 'starter*', 'horn*', 'fuse*', 'headlight*'],
+  suspension: ['suspension*', 'सस्पेंशन', 'shocker*', 'shock absorber*', 'leaf spring*', 'patta*', 'air bag*', 'airbag*', 'bush*'],
+  ac:         ['ac', 'a/c', 'एसी', 'air con*', 'aircon*', 'compressor*', 'cooling coil*', 'gas charg*'],
+  fuel:       ['fuel*', 'diesel', 'डीजल', 'injector*', 'fip', 'adblue', 'def'],
+  engine:     ['engine*', 'इंजन', 'piston*', 'cylinder head*', 'overheat*', 'radiator*', 'turbo*', 'oil leak*', 'tappet*'],
+};
+const SYS_ORDER = ['brakes', 'tyre', 'gearbox', 'ac', 'fuel', 'suspension', 'electrical', 'engine'];
+const CAT_TO_SYS = { Brakes: 'brakes', Engine: 'engine', AC: 'ac', Suspension: 'suspension',
+                     Electrical: 'electrical', Tyres: 'tyre', Gearbox: 'gearbox' };
+
+function jobSystem(j) {
+  if (j.system) return j.system;                       // set explicitly, e.g. from a breakdown
+  if (j.category && CAT_TO_SYS[j.category]) return CAT_TO_SYS[j.category];
+  const hay = ' ' + String((j.problem || '') + ' ' + (j.notes || '')).toLowerCase() + ' ';
+  for (const sys of SYS_ORDER) {
+    if (SYS_WORDS[sys].some((w) => sysHas(hay, w))) return sys;
+  }
+  return 'other';
+}
+
+/* Match a keyword as a word, not as a run of letters.
+ *
+ * Substring matching read "AC not cooling" as no system at all — a bare two
+ * letter word never appears inside a longer phrase — while happily finding
+ * "ac" inside "track" the moment the list grew. Word boundaries fix both, but
+ * only for Latin text: \b is defined on ASCII word characters, so a Devanagari
+ * term like ब्रेक has no boundary to find and is matched by containment. */
+const _sysRx = {};
+function sysHas(hay, word) {
+  const prefix = word.endsWith('*');
+  const w = prefix ? word.slice(0, -1) : word;
+  if (!/^[a-z0-9 /.-]+$/.test(w)) return hay.includes(w);         // Devanagari & co.
+  const rx = _sysRx[word] || (_sysRx[word] = new RegExp(
+    '\\b' + w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + (prefix ? '' : '\\b')));
+  return rx.test(hay);
+}
+
+/* When the work actually finished. completeAt is the workshop clock and the
+ * honest answer; the rest are fallbacks so a card filled in loosely still
+ * lands somewhere sensible on the timeline instead of dropping out of it. */
+const jobDoneAt = (j) => j.completeAt || j.outAt || j.verifiedAt || j.updatedAt || j.createdAt || 0;
+
+function completedJobs(busId) {
+  let list = (S.cache.jobs || []).filter((j) => !j._deleted
+    && (j.status === 'done' || j.status === 'verified')
+    && (!busId || j.busId === busId));
+  // A mechanic sees their own finished work and nobody else's — the same scope
+  // their live job list already has. Widening it here would be a back door.
+  if (S.user.role === 'mechanic') list = list.filter((j) => j.assignedTo === S.user.id);
+  return list.sort((a, b) => jobDoneAt(b) - jobDoneAt(a));
+}
+
+/* Per bus and system: how often it has needed doing, and when it is next due.
+ *
+ * "Due" is worked out from this bus's own history rather than a manufacturer
+ * interval, because the interval that matters on the Jaipur–Delhi run is the
+ * one this bus has actually kept. Two data points are the minimum: with one
+ * completed job there is no interval, only a date, and we say so. */
+function serviceTracking(busId) {
+  const groups = {};
+  completedJobs(busId).forEach((j) => {
+    const k = j.busId + '|' + jobSystem(j);
+    (groups[k] = groups[k] || []).push(j);
+  });
+  return Object.keys(groups).map((k) => {
+    const list = groups[k];                                  // newest first
+    const busId2 = k.slice(0, k.lastIndexOf('|'));
+    const sys = k.slice(k.lastIndexOf('|') + 1);
+    const times = list.map(jobDoneAt).filter(Boolean).sort((a, b) => b - a);
+    const last = times[0] || 0;
+    const sinceDays = last ? Math.round((Date.now() - last) / day) : null;
+
+    let avgDays = null;
+    if (times.length >= 2) {
+      let sum = 0;
+      for (let i = 0; i < times.length - 1; i++) sum += times[i] - times[i + 1];
+      avgDays = Math.round(sum / (times.length - 1) / day) || null;
+    }
+    // Kilometres are the better clock when the odometer was written down, but
+    // only readings from this group count — a missing one must not turn into a
+    // zero and halve the average.
+    const odos = list.map((j) => Number(j.odometer) || 0).filter((n) => n > 0).sort((a, b) => b - a);
+    const avgKm = odos.length >= 2
+      ? Math.round((odos[0] - odos[odos.length - 1]) / (odos.length - 1)) || null : null;
+
+    // Due when it has gone past its own average, warming up at 80% of it.
+    let due = null;
+    if (avgDays && sinceDays != null) {
+      if (sinceDays >= avgDays) due = 'due';
+      else if (sinceDays >= avgDays * 0.8) due = 'soon';
+    }
+    // A repeat inside six weeks is not a service interval, it is the same fault
+    // walking back in. Worth flagging separately from anything being "due".
+    const quickRepeat = times.length >= 2 && (times[0] - times[1]) < 45 * day;
+    // Jobs we could not classify share a bucket, not a cause. Two of them are
+    // two unrelated repairs, so they must never read as the same thing coming
+    // back — which is exactly what an unguarded 'other' group did.
+    if (sys === 'other') { due = null; }
+    return { busId: busId2, sys, count: list.length, last, sinceDays, avgDays, avgKm,
+             lastOdo: odos[0] || null, due,
+             quickRepeat: sys !== 'other' && quickRepeat, jobs: list };
+  }).sort((a, b) => {
+    const rank = (x) => (x.quickRepeat ? 0 : x.due === 'due' ? 1 : x.due === 'soon' ? 2 : 3);
+    return (rank(a) - rank(b)) || (b.count - a.count) || (b.last - a.last);
+  });
+}
+
+const sysChip = (v) => { const m = bdSystem(v); return `<span class="badge b-low">${m.icon} ${t(m.k)}</span>`; };
+
+function trackRow(x) {
+  const tone = x.quickRepeat ? 'b-bad' : x.due === 'due' ? 'b-bad' : x.due === 'soon' ? 'b-amber' : 'b-low';
+  const tag = x.quickRepeat ? t('histRepeat') : x.due === 'due' ? t('histDue') : x.due === 'soon' ? t('histDueSoon') : '';
+  const m = bdSystem(x.sys);
+  // Say what the number is made of. "Due now" with no workings behind it is a
+  // guess wearing a badge, and nobody in a workshop acts on one of those.
+  const rhythm = x.avgDays
+    ? `${t('histEvery')} ~${x.avgDays}d${x.avgKm ? ` · ~${x.avgKm.toLocaleString('en-IN')} km` : ''}`
+    : t('histNever');
+  return `<div class="li" data-act="openHistBus" data-bus="${esc(x.busId)}" style="cursor:pointer">
+    <div class="ava">${m.icon}</div>
+    <div class="main">
+      <div class="t">${esc(busName(x.busId))} · ${t(m.k)}</div>
+      <div class="s">${x.count}× ${t('histDone')} · ${rhythm} · ${t('histLastDone')} ${x.sinceDays != null ? x.sinceDays + ' ' + t('histDaysAgo') : '—'}</div>
+    </div>
+    ${tag ? `<span class="badge ${tone}">${tag}</span>` : '<div class="tc">›</div>'}
+  </div>`;
+}
+
+function histLi(j) {
+  const c = jobCost(j);
+  const T = jobTimes(j);
+  return `<div class="li" data-act="openJob" data-id="${esc(j.id)}" style="cursor:pointer">
+    <div class="ava">${bdSystem(jobSystem(j)).icon}</div>
+    <div class="main">
+      <div class="t">${esc(busName(j.busId))} — ${esc(j.problem || '')}</div>
+      <div class="s">${fmtDate(jobDoneAt(j))} · ${esc(userName(j.assignedTo))}${j.odometer ? ' · ' + Number(j.odometer).toLocaleString('en-IN') + ' km' : ''}${T.working ? ' · ' + fmtDur(T.working) : ''}</div>
+    </div>
+    <div style="text-align:right"><b class="money">${money(c.total)}</b><div>${statusBadge(j.status)}</div></div>
+  </div>`;
+}
+
+let _histBus = 'all';
+
+function viewHistory(busId) {
+  if (busId) _histBus = busId;
+  const buses = (S.cache.buses || []).filter((b) => !b._deleted);
+  const scope = _histBus === 'all' ? null : _histBus;
+  const jobs = completedJobs(scope);
+  const track = serviceTracking(scope).filter((x) => x.quickRepeat || x.due);
+
+  let body = `<div class="card"><div class="tiny muted">${t('histSub')}</div></div>`;
+
+  if (jobs.length) {
+    const spend = jobs.reduce((s, j) => s + jobCost(j).total, 0);
+    const d90 = jobs.filter((j) => jobDoneAt(j) >= Date.now() - 90 * day);
+    body += `<div class="tiles">
+      <div class="card tile"><div class="muted small">${t('histTitle')} · 90d</div><div class="stat">${d90.length}</div></div>
+      <div class="card tile"><div class="muted small">Spend · 90d</div><div class="stat">${money(d90.reduce((s, j) => s + jobCost(j).total, 0))}</div></div>
+      <div class="card tile"><div class="muted small">All time</div><div class="stat">${jobs.length}</div></div>
+      <div class="card tile"><div class="muted small">All time spend</div><div class="stat">${money(spend)}</div></div></div>`;
+  }
+
+  if (track.length) {
+    body += `<div class="card" style="border:1.5px solid var(--amber)">
+      <div class="row between"><h3>⚠️ ${t('histWatch')}</h3><span class="badge b-amber">${track.length}</span></div>
+      <div class="tiny muted" style="margin-bottom:6px">${t('histWatchSub')}</div>
+      ${track.slice(0, 12).map(trackRow).join('')}</div>`;
+  }
+
+  if (buses.length > 1 && S.user.role !== 'mechanic') {
+    body += `<div class="chiprow"><button class="chip ${_histBus === 'all' ? 'active' : ''}" data-act="histBus" data-v="all">${t('histAll')}</button>`;
+    body += buses.map((b) => `<button class="chip ${_histBus === b.id ? 'active' : ''}" data-act="histBus" data-v="${esc(b.id)}">${esc(b.regNo)}</button>`).join('');
+    body += `</div>`;
+  }
+
+  body += `<input id="hist-search" class="searchbox" placeholder="${t('histSearch')}" autocomplete="off">`;
+  body += jobs.length
+    ? `<div id="hist-list" class="listwrap">${jobs.slice(0, 300).map(histLi).join('')}</div>`
+    : `<div class="card listwrap" id="hist-list"><div class="empty">${t('histNoWork')}</div></div>`;
+  if (jobs.length > 300) body += `<div class="tiny muted" style="text-align:center;margin-top:8px">Showing the 300 most recent of ${jobs.length}.</div>`;
+
+  shell(t('histTitle'), body);
+  attachSearch('hist-search', 'hist-list');
+  const hl = document.getElementById('hist-list'); if (hl) staggerRows(hl);
+}
+
 function viewBreakdowns() {
   const since = Date.now() - 180 * day;
   const all = breakdownsFor(null, since);
@@ -7022,6 +7255,40 @@ async function renameSeededStaffOnce() {
   } catch (e) { console.error('Supervisor rename failed:', e); }
 }
 
+/* Make the server's own users table agree with the names we display.
+ *
+ * renameSeededStaffOnce edits the synced `users` record, which is what every
+ * signed-in device shows. It cannot touch the server's users table, because it
+ * runs at boot with no token — so /roster kept answering with the old name, and
+ * a device that had never synced would show it for the seconds before its first
+ * pull. This closes that gap from the other side, once someone who is allowed
+ * to rename signs in.
+ *
+ * The record wins over the table deliberately: the record is where a rename is
+ * actually made, so it is the newer of the two by construction. */
+async function reconcileStaffNames(user) {
+  if (!user || (user.role !== 'owner' && user.role !== 'supervisor')) return;
+  if (navigator.onLine === false) return;
+  if (reconcileStaffNames._done) return;
+  reconcileStaffNames._done = true;               // once per session, not per render
+  try {
+    const server = await Sync.roster();
+    if (!server.length) return;
+    const mine = new Map((await DB.all('users')).map((u) => [u.id, u]));
+    for (const s of server) {
+      const u = mine.get(s.id);
+      if (!u || u._deleted) continue;             // deleted accounts are not renamed
+      const want = String(u.name || '').trim();
+      if (!want || want === s.name) continue;
+      await Sync.renameStaff(s.id, want);
+      console.info('name reconciled on server: ' + s.name + ' -> ' + want);
+    }
+  } catch (e) {
+    // Offline, or this account may not rename. Neither is worth a message:
+    // the name on screen is already right, and this only tidies the server.
+  }
+}
+
 async function maybeBackfillConductors(user) {
   if (!can(user.role, 'manageDrivers')) return;
   try { if (localStorage.getItem('gsCrewBankV1')) return; } catch (e) { return; }
@@ -7781,6 +8048,7 @@ function render(r) {
     case 'fuel': return viewFuel();
     case 'safety': return viewSafety();
     case 'breakdowns': return viewBreakdowns();
+    case 'history': return viewHistory(r.id);
     case 'warranty': return viewWarranty();
     case 'storehealth': return viewStoreHealth();
     case 'linkgps': return viewLinkGps();
@@ -8050,6 +8318,11 @@ const _dispatchClick = async (e) => {
       case 'openFuel': return push({ name: 'fuel' });
       case 'openSafety': return push({ name: 'safety' });
       case 'openBreakdowns': return push({ name: 'breakdowns' });
+      case 'openHistory': _histBus = 'all'; return push({ name: 'history' });
+      case 'openHistBusPage': return push({ name: 'history', id: el.getAttribute('data-bus') });
+      case 'openJob': return push({ name: 'jobs', id: el.getAttribute('data-id') });
+      case 'openHistBus': _histBus = el.getAttribute('data-bus'); return rerender();
+      case 'histBus': _histBus = el.getAttribute('data-v'); return rerender();
       case 'addBreakdown': return sheetBreakdown(null);
       case 'openBreakdown': return sheetBreakdown(el.getAttribute('data-id'));
       case 'saveBreakdown': return saveBreakdown(el.getAttribute('data-id') || null);
@@ -8627,7 +8900,7 @@ async function attemptLogin(user, pin, redraw) {
   offlineFail(user.id);
   toast(t('wrongPin')); _pin = ''; redraw();
 }
-function enterApp(user) { pushRecent(user.id); S.user = user; maybeAutoActivateCrew(user); maybeBackfillConductors(user); route({ name: 'home' }); }
+function enterApp(user) { pushRecent(user.id); S.user = user; maybeAutoActivateCrew(user); maybeBackfillConductors(user); reconcileStaffNames(user); route({ name: 'home' }); }
 
 /* "Recent on this phone" — remembers who has signed in on THIS device so a
  * personal phone can skip role→name and go straight to the PIN pad. Just ids in

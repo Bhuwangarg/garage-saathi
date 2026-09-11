@@ -707,6 +707,40 @@ def create_user(name, role, pin):
     return {"id": uid, "name": name, "role": role}
 
 
+def rename_user(user_id, name):
+    """Correct the name on an account itself, not just on the synced record.
+
+    Two places carry a person's name: the `users` table, which is what the
+    server hands out at /roster and stamps nowhere else, and the synced `users`
+    record, which is what every device actually displays. Renaming only the
+    record leaves a device that has never synced showing the old name from the
+    roster fallback, so both move together or neither does."""
+    with _lock:
+        c = db()
+        row = c.execute("SELECT id,name,role FROM users WHERE id=?", (user_id,)).fetchone()
+        if not row:
+            c.close()
+            return None
+        c.execute("UPDATE users SET name=? WHERE id=?", (name, user_id))
+        # Merge into whatever the record already holds rather than replacing it:
+        # a user record can carry more than the three roster columns, and a
+        # rename has no business dropping the rest of it.
+        old = c.execute("SELECT data FROM records WHERE store='users' AND id=?", (user_id,)).fetchone()
+        data = {}
+        if old:
+            try:
+                data = json.loads(old[0]) or {}
+            except Exception:
+                data = {}
+        data.update({"id": user_id, "name": name, "role": row[2]})
+        data.pop("_deleted", None)
+        rev = c.execute("SELECT COALESCE(MAX(rev),0) FROM records").fetchone()[0]
+        _upsert_record(c, "users", user_id, data, now_ms(), rev)
+        c.commit()
+        c.close()
+    return {"id": row[0], "was": row[1], "name": name, "role": row[2]}
+
+
 def set_pin(user_id, pin):
     """Rotate a user's PIN (new salt + hash). Returns False if no such user."""
     with _lock:
@@ -2129,6 +2163,34 @@ class Handler(BaseHTTPRequestHandler):
             if not name or not pin:
                 return self._send(400, {"error": "name and pin required"})
             return self._send(200, {"user": create_user(name, role, pin)})
+
+        if u.path == "/auth/users/rename":   # correct a name (owner/supervisor)
+            me = self._auth_user()
+            if not me:
+                return self._send(401, {"error": "unauthorized"})
+            if me["role"] not in ("owner", "supervisor"):
+                return self._send(403, {"error": "forbidden"})
+            b = self._body()
+            uid = (b.get("id") or "").strip()
+            # Collapse whitespace and cap the length: this string is rendered on
+            # every login screen, and a name is not a place to smuggle layout in.
+            name = " ".join((b.get("name") or "").split())[:60]
+            if not uid or not name:
+                return self._send(400, {"error": "id and name required"})
+            with _lock:
+                c = db()
+                row = c.execute("SELECT role FROM users WHERE id=?", (uid,)).fetchone()
+                c.close()
+            if not row:
+                return self._send(404, {"error": "no such account"})
+            # A supervisor may tidy up the yard's names, but relabelling the
+            # owner's account is the first move in making a fake one look real.
+            if row[0] == "owner" and me["role"] != "owner":
+                return self._send(403, {"error": "only the owner can rename an owner account"})
+            out = rename_user(uid, name)
+            if not out:
+                return self._send(404, {"error": "no such account"})
+            return self._send(200, {"ok": True, "user": out})
 
         if u.path == "/auth/users/delete":   # delete a login for good (owner only)
             me = self._auth_user()
