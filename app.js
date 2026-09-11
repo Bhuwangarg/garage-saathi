@@ -155,6 +155,11 @@ const I18N = {
     cbPhotoNeeded: 'photo needed', cbMandTag: 'MANDATORY',
     cbMandDocFor: 'Mandatory document — required for every', cbOptDoc: 'Optional document.',
     cbTakeDocPhoto: 'Take photo of document', cbReplacePhoto: 'Replace photo', cbNumberWord: 'number',
+    cbFrontSide: 'Front', cbBackSide: 'Back', cbDocumentWord: 'Document', cbTapToAdd: 'Tap to add',
+    cbRetake: 'Retake', cbPhotoFailed: "That picture didn't come through — take it again",
+    cbBackLicense: 'The back carries the vehicle classes he is endorsed for. Optional, but worth having.',
+    cbBackAadhaar: 'The back carries the address. Optional.',
+    cbBackGeneric: 'Add the back too if the document has one. Optional.',
     cbEnterOrScan: 'Enter or scan', cbExpiryDate: 'Expiry date', cbSaveDoc: 'Save document',
     cbShowFull: 'Show full number', cbChangeWord: 'Change', cbScanNumber: 'Scan number',
     cbDocSaved: 'Document saved ✓', cbDocNeedPhoto: 'Take a photo of the document',
@@ -336,6 +341,11 @@ const I18N = {
     cbPhotoNeeded: 'फोटो चाहिए', cbMandTag: 'ज़रूरी',
     cbMandDocFor: 'ज़रूरी कागज़ — हर', cbOptDoc: 'यह कागज़ ज़रूरी नहीं है।',
     cbTakeDocPhoto: 'कागज़ की फोटो लें', cbReplacePhoto: 'फोटो बदलें', cbNumberWord: 'नंबर',
+    cbFrontSide: 'सामने', cbBackSide: 'पीछे', cbDocumentWord: 'कागज़', cbTapToAdd: 'फोटो लगाएँ',
+    cbRetake: 'दोबारा', cbPhotoFailed: 'यह फोटो नहीं आई — दोबारा लें',
+    cbBackLicense: 'पीछे की तरफ़ गाड़ी की कैटेगरी लिखी होती है। ज़रूरी नहीं, पर रखना अच्छा है।',
+    cbBackAadhaar: 'पीछे की तरफ़ पता होता है। ज़रूरी नहीं।',
+    cbBackGeneric: 'अगर कागज़ के दो तरफ़ हैं तो पीछे की फोटो भी लगाएँ। ज़रूरी नहीं।',
     cbEnterOrScan: 'डालें या स्कैन करें', cbExpiryDate: 'खत्म होने की तारीख़', cbSaveDoc: 'कागज़ सेव करें',
     cbShowFull: 'पूरा नंबर दिखाएं', cbChangeWord: 'बदलें', cbScanNumber: 'नंबर स्कैन करें',
     cbDocSaved: 'कागज़ सेव हुआ ✓', cbDocNeedPhoto: 'कागज़ की फोटो लें',
@@ -591,35 +601,69 @@ function haversineM(a, b, c, d) {
 // Downscale a captured photo so IndexedDB stays small (~60KB JPEG).
 function fileToThumb(file, max = 900) {
   return new Promise((resolve) => {
+    // Every exit settles exactly once. This promise used to have only ONE way
+    // out — a successful decode — so a photo the browser could not read left it
+    // pending for ever: no thumbnail, no error, and the caller awaiting it
+    // never came back. That is most of "sometimes it doesn't save the picture".
+    let done = false;
+    const finish = (v) => { if (!done) { done = true; clearTimeout(bail); resolve(v); } };
+    const bail = setTimeout(() => finish(null), 20000);
     const img = new Image();
     const fr = new FileReader();
+    fr.onerror = () => finish(null);
+    fr.onabort = () => finish(null);
+    img.onerror = () => finish(null);
     fr.onload = () => { img.src = fr.result; };
     img.onload = () => {
-      let { width: w, height: h } = img;
-      if (w > h && w > max) { h = h * max / w; w = max; }
-      else if (h > max) { w = w * max / h; h = max; }
-      const cv = document.createElement('canvas');
-      cv.width = w; cv.height = h;
-      cv.getContext('2d').drawImage(img, 0, 0, w, h);
-      resolve(cv.toDataURL('image/jpeg', 0.72));
+      try {
+        let { width: w, height: h } = img;
+        if (!w || !h) return finish(null);
+        if (w > h && w > max) { h = h * max / w; w = max; }
+        else if (h > max) { w = w * max / h; h = max; }
+        const cv = document.createElement('canvas');
+        cv.width = Math.round(w); cv.height = Math.round(h);
+        cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+        finish(cv.toDataURL('image/jpeg', 0.72) || null);
+      } catch (e) { finish(null); }     // canvas can throw on a huge image
     };
-    fr.readAsDataURL(file);
+    try { fr.readAsDataURL(file); } catch (e) { finish(null); }
   });
 }
 
 // Open device camera and return a downscaled dataURL.
 function capturePhoto() {
   return new Promise((resolve) => {
+    // Cancelling the camera has to settle this too.
+    //
+    // A file input fires no `change` when the picker is dismissed, so backing
+    // out left the promise pending — and since the global click guard only
+    // clears aria-busy in a finally, the button that opened the camera stayed
+    // disabled until you left the screen. One cancelled photo, one dead button.
+    let done = false;
     const inp = document.createElement('input');
+    const finish = (v) => {
+      if (done) return;
+      done = true;
+      window.removeEventListener('focus', onFocus);
+      inp.remove();
+      resolve(v);
+    };
+    // Older WebKit has no `cancel` event: coming back to the window with no file
+    // chosen means dismissed. The delay lets a real `change` land first.
+    const onFocus = () => setTimeout(() => { if (!(inp.files && inp.files.length)) finish(null); }, 900);
     inp.type = 'file'; inp.accept = 'image/*'; inp.capture = 'environment';
     inp.style.display = 'none';
+    inp.oncancel = () => finish(null);
     inp.onchange = async () => {
       const f = inp.files && inp.files[0];
-      inp.remove();
-      if (!f) return resolve(null);
-      resolve(await fileToThumb(f));
+      if (!f) return finish(null);
+      const thumb = await fileToThumb(f);
+      // Say so. A silent null here is indistinguishable from "I did nothing".
+      if (!thumb) { toast(t('cbPhotoFailed')); return finish(null); }
+      finish(thumb);
     };
     document.body.appendChild(inp);
+    window.addEventListener('focus', onFocus);
     inp.click();
   });
 }
@@ -6636,13 +6680,18 @@ function viewCrewPins() {
  * teaches the office to ignore the nag list. Mandatory is therefore the short
  * list nobody can be employed without: identity, a face, and a licence for the
  * man who actually drives. */
+// `back: true` marks the documents that physically have two sides. The back of a
+// licence carries the vehicle classes he is actually endorsed for, and the back
+// of an Aadhaar carries the address — both were unrecordable until now. The back
+// is never mandatory: making it so would have marked every record already on
+// file as incomplete overnight.
 const DRIVER_DOCS = [
-  { key: 'license', labelKey: 'docLicense', icon: '🚗', num: true, expiry: true, mandatoryFor: ['driver'] },
-  { key: 'aadhaar', labelKey: 'docAadhaar', icon: '🆔', num: true, mask: true, mandatoryFor: ['driver', 'conductor'] },
+  { key: 'license', labelKey: 'docLicense', icon: '🚗', num: true, expiry: true, back: true, backHintKey: 'cbBackLicense', mandatoryFor: ['driver'] },
+  { key: 'aadhaar', labelKey: 'docAadhaar', icon: '🆔', num: true, mask: true, back: true, backHintKey: 'cbBackAadhaar', mandatoryFor: ['driver', 'conductor'] },
   { key: 'photo', labelKey: 'docPhoto', icon: '📷', mandatoryFor: ['driver', 'conductor'] },
-  { key: 'pan', labelKey: 'docPan', icon: '💳', num: true, mandatoryFor: [] },
-  { key: 'police', labelKey: 'docPolice', icon: '👮', expiry: true, mandatoryFor: [] },
-  { key: 'medical', labelKey: 'docMedical', icon: '🩺', expiry: true, mandatoryFor: [] },
+  { key: 'pan', labelKey: 'docPan', icon: '💳', num: true, back: true, mandatoryFor: [] },
+  { key: 'police', labelKey: 'docPolice', icon: '👮', expiry: true, back: true, mandatoryFor: [] },
+  { key: 'medical', labelKey: 'docMedical', icon: '🩺', expiry: true, back: true, mandatoryFor: [] },
 ];
 const docLabel = (doc) => t(doc.labelKey);
 const docIsMandatory = (doc, crewRole) => (doc.mandatoryFor || []).includes(crewRole || 'driver');
@@ -6706,30 +6755,56 @@ function viewDriverDocs(driverId) {
   const fg = document.querySelector('.ring-svg .fg');
   if (fg) requestAnimationFrame(() => requestAnimationFrame(() => { fg.style.strokeDashoffset = fg.getAttribute('data-off'); }));
 }
-let _docShot = null, _docNumCur = '';
+let _docShot = null, _docShotBack = null, _docNumCur = '';
+
+/* One slot of the document card.
+ *
+ * Empty, it reads as a slot waiting for a picture — not a button to hunt for.
+ * Filled, the photo IS the control: tapping it opens it full-size, which is what
+ * tapping a photo should do, and a small Retake pill handles the other case. */
+function docShotSlot(side, src, sideLabel, want) {
+  const act = src ? `data-act="viewPhoto" data-src="${esc(src)}"` : `data-act="captureDoc" data-side="${side}"`;
+  return `<div class="shot ${src ? 'filled' : (want ? 'want' : '')}" ${act}>
+    ${src ? `<img src="${esc(src)}" alt="${esc(sideLabel)}">
+        <div class="tick">✓</div>
+        <button class="redo" data-act="captureDoc" data-side="${side}">${esc(t('cbRetake'))}</button>`
+      : `<div class="ph"><div class="ic">📷</div><div class="tx">${esc(t('cbTapToAdd'))}</div></div>`}
+    <div class="side">${esc(sideLabel)}</div></div>`;
+}
+let _docKeyOpen = '';
 function sheetDriverDoc(driverId, key) {
   if (!canDriverDocs(driverId)) return toast(t('cbNotAllowed'));
   const doc = DRIVER_DOCS.find((x) => x.key === key); if (!doc) return;
+  _docKeyOpen = key;
   const d = driverById(driverId); const cur = (d.docs || {})[key] || {};
   const crole = crewRoleOf(d), mand = docIsMandatory(doc, crole);
   _docShot = cur.photo || null;
+  _docShotBack = cur.photoBack || null;
   // A stored Aadhaar opens masked. Revealing it is a deliberate, separate tap,
   // and only for the roles that manage crew.
   _docNumCur = cur.number || '';
   const masked = !!(doc.mask && _docNumCur);
   openSheet(docLabel(doc), `
     <div class="tiny muted" style="margin-bottom:12px">${doc.icon} ${mand ? `${t('cbMandDocFor')} ${esc(crewRoleLabel(crole).toLowerCase())}.` : t('cbOptDoc')}</div>
-    <button class="btn" data-act="captureDoc">📷 ${cur.photo ? t('cbReplacePhoto') : t('cbTakeDocPhoto')}</button>
-    <div id="doc-prev" class="thumbs" style="margin:10px 0">${cur.photo ? `<img class="thumb" src="${esc(cur.photo)}">` : ''}</div>
+    <div class="docshots ${doc.back ? '' : 'solo'}" id="doc-shots">${docShotsHtml(doc)}</div>
+    ${doc.back ? `<div class="doshint">${esc(t(doc.backHintKey || 'cbBackGeneric'))}</div>` : ''}
     ${doc.num ? `<label class="field"><span class="lbl">🔢 ${esc(docLabel(doc))} ${t('cbNumberWord')}</span><input id="doc-num" value="${esc(masked ? maskAadhaar(_docNumCur) : _docNumCur)}" ${masked ? 'readonly' : ''} placeholder="${esc(t('cbEnterOrScan'))}"></label>
       ${masked ? `<div class="btnrow" style="margin:-4px 0 10px"><button class="btn sm ghost" data-act="revealDocNum">👁 ${t('cbShowFull')}</button><button class="btn sm ghost" data-act="editDocNum">✏️ ${t('cbChangeWord')}</button></div>`
         : `<button class="btn sm ghost" data-act="scanDocNum" style="margin:-4px 0 10px">📷 ${t('cbScanNumber')}</button>`}` : ''}
     ${doc.expiry ? `<label class="field"><span class="lbl">📅 ${t('cbExpiryDate')}</span><input id="doc-exp" type="date" value="${cur.expiry ? new Date(cur.expiry).toISOString().slice(0, 10) : ''}"></label>` : ''}
     <button class="btn primary" data-act="saveDriverDoc" data-driver="${driverId}" data-key="${key}">${t('cbSaveDoc')}</button>`);
 }
-async function captureDoc() {
-  const s = await capturePhoto(); if (!s) return;
-  _docShot = s; const p = document.getElementById('doc-prev'); if (p) p.innerHTML = `<img class="thumb" src="${s}">`;
+function docShotsHtml(doc) {
+  return docShotSlot('front', _docShot, t(doc.back ? 'cbFrontSide' : 'cbDocumentWord'), !_docShot)
+    + (doc.back ? docShotSlot('back', _docShotBack, t('cbBackSide'), false) : '');
+}
+async function captureDoc(side) {
+  const shot = await capturePhoto();
+  if (!shot) return;                       // cancelled, or capturePhoto already said why
+  if (side === 'back') _docShotBack = shot; else _docShot = shot;
+  const box = document.getElementById('doc-shots');
+  const doc = DRIVER_DOCS.find((x) => x.key === _docKeyOpen);
+  if (box && doc) box.innerHTML = docShotsHtml(doc);
 }
 async function scanDocNum() {
   if (!_docShot) return toast('Take the document photo first');
@@ -6747,8 +6822,11 @@ async function saveDriverDoc(driverId, key) {
   if (!canDriverDocs(driverId)) return toast(t('cbNotAllowed'));
   const d = driverById(driverId); if (!d) return;
   if (!_docShot) return toast(t('cbDocNeedPhoto'));
+  // Offline, uploadPhoto returns null and the data URL is stored inline — the
+  // record still saves, and the photo still syncs, just heavier.
   const photo = await Sync.uploadPhoto(_docShot) || _docShot;
   const entry = { photo, at: Date.now(), by: S.user.id };
+  if (_docShotBack) entry.photoBack = await Sync.uploadPhoto(_docShotBack) || _docShotBack;
   const numEl = document.getElementById('doc-num');
   // A masked field the user never touched still reads "XXXX XXXX 1234" — saving
   // that would overwrite the real number with its own mask.
@@ -6756,7 +6834,8 @@ async function saveDriverDoc(driverId, key) {
   const expEl = document.getElementById('doc-exp'); if (expEl && expEl.value) entry.expiry = new Date(expEl.value).getTime();
   d.docs = Object.assign({}, d.docs, { [key]: entry });
   await DB.put('drivers', d);
-  _docShot = null; await load(); closeSheet(); toast(t('cbDocSaved')); viewDriverDocs(driverId);
+  _docShot = null; _docShotBack = null;
+  await load(); closeSheet(); toast(t('cbDocSaved')); viewDriverDocs(driverId);
 }
 
 /* ===== Crew Data Bank ======================================================
@@ -8430,7 +8509,7 @@ const _dispatchClick = async (e) => {
       }
       case 'openDriverDocs': return push({ name: 'driverdocs', id: el.getAttribute('data-driver') });
       case 'driverDoc': return sheetDriverDoc(el.getAttribute('data-driver'), el.getAttribute('data-key'));
-      case 'captureDoc': return captureDoc();
+      case 'captureDoc': return captureDoc(el.getAttribute('data-side'));
       case 'scanDocNum': return scanDocNum();
       case 'saveDriverDoc': return saveDriverDoc(el.getAttribute('data-driver'), el.getAttribute('data-key'));
       case 'returnCore': return sheetReturnCore(el.getAttribute('data-job'));
@@ -8604,12 +8683,29 @@ async function refreshRosterAtLogin() {
       // and the tile is what you need in order to sign in and sync. Ask the
       // server for the roster directly. It carries no credential.
       const users = await Sync.roster();
+      // An empty roster is a failure wearing a success suit. Never let one
+      // empty the login screen — offline, the cached tiles are all there is.
+      if (!Array.isArray(users) || !users.length) return;
       const known = new Map((await DB._rawAll('users')).map((u) => [u.id, u]));
+      const live = new Set(users.map((u) => u && u.id).filter(Boolean));
       // Written with a low updatedAt so a real sync always outranks this, and
       // never for somebody deleted here — a removed account must stay removed.
       const add = users.filter((u) => u && u.id && !known.has(u.id))
                        .map((u) => ({ id: u.id, name: u.name, role: u.role, updatedAt: 1 }));
       if (add.length) await DB.bulkPut('users', add, false, false);
+      // And take the vanished ones away, which this never did.
+      //
+      // Adding without removing is why a phone that has never signed in to sync
+      // still offers five Sumits and crew deleted weeks ago: the tiles are built
+      // from this cache, the roster could only ever grow it, and nothing else
+      // touches it until somebody manages to sign in — which is the very thing
+      // the wrong tiles prevent. Local-only and low-stamped, exactly like the
+      // add: a real sync overrules it, and it is never pushed anywhere.
+      const unpushed = new Set(Sync.pendingIds ? Sync.pendingIds('users') : []);
+      const gone = [...known.values()]
+        .filter((u) => u && u.id && !u._deleted && !live.has(u.id) && !unpushed.has(u.id))
+        .map((u) => ({ id: u.id, _deleted: true, updatedAt: 1 }));
+      if (gone.length) await DB.bulkPut('users', gone, false, false);
     }
     await load();
   } catch (e) { /* offline, expired token, or an older server with no /roster */ }

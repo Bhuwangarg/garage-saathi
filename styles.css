@@ -846,3 +846,42 @@ img.ava{object-fit:cover}
 .pick-list .li{cursor:pointer;padding:9px 6px;border-radius:8px}
 .pick-list .li:hover,.pick-list .li:active{background:var(--tile)}
 .pick-list:empty{margin:0}
+
+/* ===== Document capture — front & back ======================================
+ * An ID has two sides and the app only ever asked for one, so the vehicle
+ * classes on the back of a licence and the address on the back of an Aadhaar
+ * had nowhere to go.
+ *
+ * The two slots are shown as the card itself: ISO ID-1 proportions (85.6x54mm,
+ * the real ratio of a licence), the photo filling the frame, the side named in
+ * a scrim along the bottom. Empty reads as a slot waiting to be filled rather
+ * than a button to be found. */
+.docshots{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:2px 0 14px}
+.docshots.solo{grid-template-columns:1fr;max-width:260px}
+.shot{position:relative;aspect-ratio:1.586;border-radius:16px;overflow:hidden;
+  border:1.5px dashed var(--line);background:var(--tile);display:grid;place-items:center;
+  cursor:pointer;-webkit-tap-highlight-color:transparent;
+  transition:transform .18s cubic-bezier(.2,.8,.3,1),border-color .18s ease,background .18s ease}
+.shot:active{transform:scale(.97)}
+.shot.filled{border-style:solid;border-color:var(--line2);background:var(--ink)}
+/* The one still needed is tinted, not alarmed — nothing has gone wrong yet, it
+ * is just where to start. The sheet header already says it is mandatory. */
+.shot.want{border-color:var(--accent);background:var(--accent-wash)}
+.shot img{width:100%;height:100%;object-fit:cover;display:block}
+.shot .ph{display:grid;gap:6px;place-items:center;padding:10px 10px 24px;text-align:center;pointer-events:none}
+.shot .ph .ic{font-size:23px;opacity:.7;line-height:1}
+.shot .ph .tx{font-size:11px;font-weight:700;color:var(--muted);line-height:1.25}
+/* The scrim is there to hold white text over a photograph. An empty slot has no
+ * photograph, so it got a heavy dark band across the bottom for nothing. */
+.shot .side{position:absolute;left:0;right:0;bottom:0;padding:8px 10px 7px;pointer-events:none;
+  font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.shot.filled .side{padding:18px 10px 7px;color:#fff;
+  background:linear-gradient(to top,rgba(0,0,0,.66),rgba(0,0,0,.28) 55%,transparent)}
+.shot .tick{position:absolute;top:7px;right:7px;width:20px;height:20px;border-radius:50%;
+  background:var(--green);color:#fff;display:grid;place-items:center;font-size:11px;font-weight:700;
+  box-shadow:0 1px 5px rgba(0,0,0,.35);pointer-events:none}
+.shot .redo{position:absolute;bottom:6px;right:6px;padding:4px 9px;border-radius:999px;border:0;
+  font:inherit;font-size:10.5px;font-weight:700;color:var(--ink);background:rgba(255,255,255,.92);
+  backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);cursor:pointer}
+.shot .redo:active{transform:scale(.94)}
+.docshots + .doshint{margin:-8px 0 12px;font-size:11.5px;color:var(--muted);line-height:1.45}

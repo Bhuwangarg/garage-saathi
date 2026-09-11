@@ -619,6 +619,13 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
   // Sync-safe delete used by feature code: tombstone + dirty so the deletion
   // propagates to every device (see DB.softDel).
   function remove(store, id) { return DB.softDel(store, id).then(() => kick()); }
+  // Ids in one store that this device has changed but not yet pushed. The login
+  // screen needs them: it reconciles against the server roster, and an account
+  // created here while offline is not on that roster yet.
+  function pendingIds(store) {
+    const pre = store + '|';
+    return [...outbox].filter((k) => k.indexOf(pre) === 0).map((k) => k.slice(pre.length));
+  }
   // Drain the quarantine so retried/fixed records get another chance.
   function clearQuarantine() { quarantine = {}; saveQuarantine(); kick(); }
 
@@ -639,7 +646,7 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
     } catch (e) { return null; }
   }
 
-  return { start, tick, kick, setUrl, reset, info, login, logout, warmUp, roster, addStaff, deleteStaff, renameStaff, registerRoster, setPin, ai, aiVision, challans, fleet, latest, uploadPhoto,
+  return { start, tick, kick, setUrl, reset, info, login, logout, warmUp, roster, pendingIds, addStaff, deleteStaff, renameStaff, registerRoster, setPin, ai, aiVision, challans, fleet, latest, uploadPhoto,
            queuePhoto, remove, clearQuarantine, subscribePush, pushTest,
            get status() { return status; } };
 })();
