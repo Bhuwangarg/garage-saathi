@@ -614,22 +614,24 @@ body[data-role="conductor"]:not([data-role="all"]) .sec[data-roles~="conductor"]
       <div class="en">
         <p>Your <span class="ui">Today</span> screen is now built for the floor, not for the office — it is a different screen from the owner's, and it opens on <b>In the workshop now</b>: every bus currently in, how long it has been in, whether work has started, and how long it has stood idle. A bus sitting untouched for hours is the one thing on that screen you can fix this minute.</p>
     <p>Under it: driver complaints, <b>Waiting for your sign-off</b> (jobs somebody else closed), buses with no driver, services due, documents expiring, and parts running low. Last comes <b>Waiting on somebody else</b> — the jobs <i>you</i> closed. They are listed so you know where they stand, and marked as nothing for you to do, because you cannot sign off your own work.</p>
-    <p>You run the floor. Four things are yours:</p>
+    <p>You run the floor. Five things are yours:</p>
         <ol>
           <li><b>Open job cards.</b> A driver reports a problem, or you see one yourself — make a job card, pick the bus, describe the fault, set the priority and assign a mechanic.</li>
           <li><b>Assign the right mechanic.</b> A job with nobody on it does not get done. Use <span class="ui">Edit / reassign</span> to move work.</li>
           <li><b>Verify finished work.</b> A closed job becomes <span class="ui">To verify</span>. Look at the after photo, look at the old part that came back, then <span class="ui">Verify</span> — or <span class="ui">Send back for rework</span> if it is not right. You cannot verify one you closed yourself.</li>
+          <li><b>Send work outside on paper.</b> Nothing leaves the garage without a gate pass — <span class="ui">Jobs</span> → <span class="ui">Outside job</span>. Print it, send a copy with the unit, and check the unit back in against it.</li>
           <li><b>Keep the fleet legal and serviced.</b> Documents expiring, services due, driver↔bus assignments, routes and fuel entries.</li>
         </ol>
       </div>
       <div class="hi">
         <p>आपकी <span class="ui">आज</span> स्क्रीन अब दफ़्तर की नहीं, फ़्लोर की है — मालिक की स्क्रीन से अलग — और वह <b>अभी वर्कशॉप में</b> से शुरू होती है: कौन सी बसें अंदर हैं, कब से हैं, काम शुरू हुआ या नहीं, और कितनी देर से खाली खड़ी हैं। घंटों से बिना छुए खड़ी बस ही वह चीज़ है जो आप इसी वक़्त ठीक कर सकते हैं।</p>
     <p>नीचे: ड्राइवर शिकायतें, <b>आपकी जाँच बाकी</b> (जो काम किसी और ने बंद किए), बिना ड्राइवर वाली बसें, जिनकी सर्विस निकल रही है, कागज़ात जो ख़त्म हो रहे हैं, और कम पड़ते पुर्जे। सबसे आख़िर में <b>किसी और पर बाकी</b> — यानी वे काम जो <i>आपने</i> बंद किए। वे सिर्फ़ यह बताने को हैं कि कहाँ अटके हैं, और उन पर लिखा रहता है कि आपको कुछ नहीं करना — क्योंकि अपना बंद किया काम आप खुद नहीं जाँच सकते।</p>
-    <p>फ़्लोर आप चलाते हैं। चार काम आपके हैं:</p>
+    <p>फ़्लोर आप चलाते हैं। पाँच काम आपके हैं:</p>
         <ol>
           <li><b>जॉब कार्ड खोलना।</b> ड्राइवर समस्या बताए या आपको खुद दिखे — नया जॉब कार्ड बनाइए, बस चुनिए, खराबी लिखिए, प्राथमिकता तय कीजिए और मैकेनिक सौंपिए।</li>
           <li><b>सही मैकेनिक सौंपना।</b> जिस काम पर कोई नहीं है वह होता ही नहीं। काम बदलने के लिए <span class="ui">बदलें / दोबारा सौंपें</span> का इस्तेमाल कीजिए।</li>
           <li><b>पूरा हुआ काम जाँचना।</b> बंद हुआ काम <span class="ui">जाँचना है</span> में आ जाता है। बाद की फोटो देखिए, वापस आया पुराना पुर्जा देखिए, फिर <span class="ui">जाँचें</span> — या ठीक न हो तो <span class="ui">वापस भेजें</span>। जो काम आपने खुद बंद किया उसे आप नहीं जाँच सकते।</li>
+          <li><b>बाहर का काम कागज़ पर भेजना।</b> बिना गेट पास के गैराज से कुछ बाहर नहीं जाता — <span class="ui">काम</span> → <span class="ui">बाहर का काम</span>। छापिए, एक कॉपी सामान के साथ भेजिए, और वापसी पर उसी से मिलाकर लीजिए।</li>
           <li><b>बेड़ा कानूनी और सर्विस्ड रखना।</b> कागज़ात की तारीख़, सर्विस, ड्राइवर↔बस जोड़ना, रूट और ईंधन की एंट्री।</li>
         </ol>
       </div>
@@ -1198,6 +1200,49 @@ body[data-role="conductor"]:not([data-role="all"]) .sec[data-roles~="conductor"]
       <div class="bi">
         <div class="en"><p>Because three gearbox failures on one bus in six months is a decision — and nobody can see it from memory. The screen shows what fails most, which buses fail most, and how far each bus goes between failures. That is what turns repairing into preventing, which is the entire point.</p></div>
         <div class="hi"><p>क्योंकि छह महीने में एक ही बस पर तीन बार गियरबॉक्स फेल होना एक फ़ैसला है — और याददाश्त से यह किसी को नहीं दिखता। स्क्रीन बताती है कि सबसे ज़्यादा क्या फेल होता है, कौन सी बसें सबसे ज़्यादा बंद होती हैं, और हर बस दो खराबी के बीच कितना चलती है। यही मरम्मत को रोकथाम में बदलता है, और पूरा मक़सद यही है।</p></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sec" data-roles="owner supervisor">
+    <h3>Sending work outside — the gate pass <span class="devnag">बाहर काम भेजना — गेट पास</span></h3>
+    <p class="who">Owner &amp; supervisor · मालिक और सुपरवाइज़र</p>
+    <div class="bi">
+      <div class="en"><p>Anything that leaves the garage for a vendor — an alternator to be rewound, a tyre to be remoulded, a starter to be repaired — goes out on a printed slip. <span class="ui">Jobs</span> → <span class="ui">Outside job</span> → <span class="ui">+</span>. Choose the vendor and the bus and the registration, engine and chassis numbers fill themselves in; choose a tracked piece and its name and serial come with it. Print it, keep one copy, send one with the unit.</p></div>
+      <div class="hi"><p>जो भी चीज़ किसी वेंडर के पास गैराज से बाहर जाती है — अल्टरनेटर रिवाइंडिंग के लिए, टायर रिमोल्ड के लिए, सेल्फ़ ठीक कराने — वह एक छपी हुई पर्ची के साथ जाएगी। <span class="ui">काम</span> → <span class="ui">बाहर का काम</span> → <span class="ui">+</span>। वेंडर और बस चुनते ही रजिस्ट्रेशन, इंजन और चेसिस नंबर खुद भर जाते हैं; ट्रैक किया हुआ पुर्जा चुनिए तो उसका नाम और सीरियल भी आ जाता है। छापिए, एक कॉपी अपने पास रखिए, एक सामान के साथ भेजिए।</p></div>
+    </div>
+    <div class="note stop">
+      <span class="tag">The serial number is the whole point · असली बात सीरियल नंबर है</span>
+      <div class="bi">
+        <div class="en"><p>Every other line on the slip says <i>which</i> unit it was. <b>Only the serial number proves the one that comes back is the one that went.</b> A rewound alternator is a rewound alternator to look at — if the number was never written down before it left, nobody can ever say it was swapped for a worse one, and the argument is lost before it starts.</p><p>So write it off the unit, not off a bill or a memory. If there is genuinely no number stamped anywhere, say so in the remark — an honest blank is better than an invented number, because an invented one cannot be checked.</p></div>
+        <div class="hi"><p>पर्ची की बाकी हर लाइन बताती है कि यह <i>कौन सी</i> यूनिट थी। <b>सिर्फ़ सीरियल नंबर यह साबित करता है कि जो लौटा वही भेजा गया था।</b> रिवाइंड किया अल्टरनेटर देखने में तो अल्टरनेटर ही लगेगा — अगर निकलने से पहले नंबर लिखा ही नहीं गया, तो कोई कभी कह ही नहीं सकेगा कि उसकी जगह घटिया यूनिट आ गई, और बात शुरू होने से पहले ही हार जाएँगे।</p><p>इसलिए नंबर यूनिट पर से पढ़कर लिखिए — बिल से या याद से नहीं। अगर सचमुच कहीं नंबर ठुका ही नहीं है तो रिमार्क में लिख दीजिए — खाली छोड़ देना सही है, मनगढ़ंत नंबर लिखने से बेहतर, क्योंकि मनगढ़ंत नंबर जाँचा ही नहीं जा सकता।</p></div>
+      </div>
+    </div>
+    <div class="bi">
+      <div class="en">
+        <p><b>When it comes back</b>, open the pass and tap <span class="ui">Received back</span>. Read the number off the metal and type it in, add what the vendor charged and a photo of their bill.</p>
+        <ul>
+          <li>The app is not fussy about how it is written — <span class="ui">alt 77219 b</span> and <span class="ui">ALT-77219-B</span> are the same number, so the warning keeps its meaning instead of crying wolf over a dash.</li>
+          <li>If it is genuinely a <b>different number</b>, the app says so and asks you to confirm. Say yes and it is recorded — the pass, the list and the history all carry <span class="ui">Serial does not match</span> from then on. <b>Do not pay the bill until the vendor has explained it.</b></li>
+          <li>It never refuses the unit. It is back in your yard whatever the paper says; your job is to write down what actually happened.</li>
+        </ul>
+        <p>The <span class="ui">Outside job</span> screen shows everything still with a vendor, and how many days it has been gone — amber at a week, red at a fortnight. That list is the question "what of ours is sitting in somebody else's workshop", which nobody could answer before.</p>
+      </div>
+      <div class="hi">
+        <p><b>जब वापस आए</b>, पर्ची खोलकर <span class="ui">वापस लिया</span> दबाइए। नंबर यूनिट पर से पढ़कर डालिए, वेंडर ने कितना लिया वह और बिल की फोटो भी लगाइए।</p>
+        <ul>
+          <li>लिखने के तरीके पर ऐप अटकता नहीं — <span class="ui">alt 77219 b</span> और <span class="ui">ALT-77219-B</span> एक ही नंबर हैं, ताकि डैश की वजह से बेकार की चेतावनी न आए और चेतावनी का मतलब बना रहे।</li>
+          <li>अगर सचमुच <b>नंबर अलग</b> है तो ऐप बताएगा और पूछेगा। हाँ कहिए, दर्ज हो जाएगा — उसके बाद पर्ची, सूची और इतिहास तीनों पर <span class="ui">सीरियल नहीं मिला</span> लिखा रहेगा। <b>जब तक वेंडर सफ़ाई न दे, बिल मत चुकाइए।</b></li>
+          <li>ऐप यूनिट लेने से मना कभी नहीं करता। पर्ची जो भी कहे, सामान आपके यार्ड में वापस आ चुका है; आपका काम है जो हुआ वही लिख देना।</li>
+        </ul>
+        <p><span class="ui">बाहर का काम</span> स्क्रीन दिखाती है कि अभी क्या-क्या वेंडर के पास है और कितने दिन से — हफ़्ते पर पीला, पखवाड़े पर लाल। यही सूची उस सवाल का जवाब है कि "हमारा क्या-क्या किसी और की वर्कशॉप में पड़ा है", जो पहले कोई बता ही नहीं सकता था।</p>
+      </div>
+    </div>
+    <div class="note">
+      <span class="tag">Two small things worth knowing · दो छोटी बातें</span>
+      <div class="bi">
+        <div class="en"><p><b>The pass number</b> looks like <span class="ui">OJ-260912-PDL0</span> — the date it was issued, then a short tail. It is not a running 1, 2, 3 on purpose: passes get written on a phone that is often out of signal, and a running number would need agreeing with every other phone before it could be printed. Two vendors holding slip №14 for different units is worse than a number that looks odd.</p><p><b>What is printed cannot change afterwards.</b> The registration, engine and chassis numbers are copied onto the pass the moment it is issued. If somebody corrects the bus's record next month, the paper in the vendor's file does not change — and neither does what the app shows for that pass. The record and the paper always say the same thing.</p></div>
+        <div class="hi"><p><b>पास का नंबर</b> ऐसा दिखता है — <span class="ui">OJ-260912-PDL0</span> — पहले तारीख़, फिर छोटी पूँछ। यह जान-बूझकर 1, 2, 3 नहीं है: पर्ची अक्सर बिना नेटवर्क वाले फ़ोन पर बनती है, और चलता नंबर छापने से पहले हर दूसरे फ़ोन से तय करना पड़ता। दो वेंडरों के पास अलग-अलग सामान की पर्ची नं. 14 होना, अजीब दिखने वाले नंबर से कहीं बुरा है।</p><p><b>जो छप गया वह बाद में बदलता नहीं।</b> रजिस्ट्रेशन, इंजन और चेसिस नंबर पर्ची बनते ही उस पर उतार लिए जाते हैं। अगले महीने कोई बस का रिकॉर्ड सुधारे तो भी वेंडर की फ़ाइल का काग़ज़ नहीं बदलता — और उस पर्ची के लिए ऐप भी वही दिखाता रहेगा। रिकॉर्ड और काग़ज़ हमेशा एक ही बात कहते हैं।</p></div>
       </div>
     </div>
   </div>
