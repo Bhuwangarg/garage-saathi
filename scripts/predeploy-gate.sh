@@ -225,6 +225,35 @@ ck "serial compare still catches a swap" "$(j "gpNormSerial('ST-9999')===gpNormS
 ck "the slip stays ink-on-paper in dark mode" \
   "$(j "(function(){var d=document.documentElement.getAttribute('data-theme');document.documentElement.setAttribute('data-theme','dark');var el=document.createElement('div');el.className='gp-sheet';document.body.appendChild(el);var c=getComputedStyle(el).backgroundColor;el.remove();if(d)document.documentElement.setAttribute('data-theme',d);else document.documentElement.removeAttribute('data-theme');return c})()")" "rgb(255, 255, 255)"
 
+# 2e) Every parts chooser is a search box, not a 2,391-option dropdown.
+login store u-store 3 3 3 3
+j "sheetReceive()" >/dev/null
+settle "document.getElementById('pps-rcv')?'y':'n'" "y" 20 >/dev/null
+ck "receive stock has a part search"   "$(j "document.getElementById('pps-rcv')?'y':'n'")" "y"
+ck "receive stock has no part dropdown" "$(j "document.querySelectorAll('.sheetwrap select#f-part').length")" "0"
+j "closeSheet();sheetAddStock()" >/dev/null
+settle "document.getElementById('pps-stk')?'y':'n'" "y" 20 >/dev/null
+ck "add stock has a part search"       "$(j "document.getElementById('pps-stk')?'y':'n'")" "y"
+ck "add stock has no part dropdown"    "$(j "document.querySelectorAll('.sheetwrap select#f-spart').length")" "0"
+# A bill has repeating part lines. Each needs its OWN picker, or two lines share
+# a key and picking in one silently rewrites the other.
+j "closeSheet();sheetAddPurchase()" >/dev/null
+settle "document.querySelectorAll('.f-line').length>0?'y':'n'" "y" 20 >/dev/null
+j "document.getElementById('f-addline').click()" >/dev/null
+settle "String(document.querySelectorAll('.f-line').length)" "2" 20 >/dev/null
+ck "each bill line gets its own picker" \
+  "$(j "(function(){var k=[].slice.call(document.querySelectorAll('.f-line [data-pp]')).map(function(e){return e.getAttribute('data-pp')});return String(new Set(k).size===k.length&&k.length===2)})()")" "true"
+# savePurchase() reads row.querySelector('.f-lpart').value — the hidden input
+# must keep that class or every bill line silently saves an empty part.
+ck "bill line read-back still resolves" "$(j "document.querySelectorAll('.f-line .f-lpart').length")" "2"
+# Issuing defaults to what is actually on the shelf; restocking must not, because
+# the part being restocked is usually the one at zero.
+j "closeSheet();sheetIssue()" >/dev/null
+settle "document.getElementById('pps-iss')?'y':'n'" "y" 20 >/dev/null
+ck "issue defaults to in-stock parts only" \
+  "$(j "String([].slice.call(document.querySelectorAll('#ppl-iss .li')).every(function(n){return !/Out of stock/.test(n.textContent)}))")" "true"
+j "closeSheet()" >/dev/null
+
 # 3) Invariant sweep: form controls never navigate (owner's main tabs).
 login owner u-owner 1 1 1 1
 for SCREEN in home jobs store me; do

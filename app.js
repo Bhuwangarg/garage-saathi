@@ -26,6 +26,7 @@ const I18N = {
     wizNext: 'Next', wizBack: 'Back', wizCreate: 'Create job card',
     wizCheck: 'Check before you create', wizCheckHint: 'Go back to any step to change something.',
     isPart: 'Part', isSearch: 'Type a part name, code or category…', isToJob: 'Issue to job card',
+    isPickFirst: 'Search and pick a part first',
     isInStock: 'in stock', isOutOfStock: 'none left', isNoMatch: 'No part matches that.',
     isPickBoth: 'Pick a part and a job', isGate: 'Parts can only be issued against a job card. This stops untracked pilferage.',
     isReused: 'Reused / second-hand part', isReusedShort: 'reused', isReusedCost: 'What it is worth',
@@ -238,6 +239,7 @@ const I18N = {
     wizNext: 'आगे', wizBack: 'पीछे', wizCreate: 'जॉब कार्ड बनाएं',
     wizCheck: 'बनाने से पहले देख लीजिए', wizCheckHint: 'कुछ बदलना हो तो किसी भी कदम पर वापस जाइए।',
     isPart: 'पुर्जा', isSearch: 'पुर्जे का नाम, कोड या श्रेणी लिखिए…', isToJob: 'किस जॉब कार्ड पर',
+    isPickFirst: 'पहले पुर्जा खोजकर चुनिए',
     isInStock: 'स्टॉक में', isOutOfStock: 'स्टॉक खत्म', isNoMatch: 'कोई पुर्जा नहीं मिला।',
     isPickBoth: 'पुर्जा और काम दोनों चुनिए', isGate: 'पुर्जा सिर्फ़ जॉब कार्ड पर ही जारी होगा। इसी से बिना हिसाब चोरी रुकती है।',
     isReused: 'पुराना / सेकंड-हैंड पुर्जा', isReusedShort: 'पुराना', isReusedCost: 'इसकी असली कीमत',
@@ -4184,6 +4186,96 @@ async function saveJob(prefill = (S.route && S.route.prefill) || {}) {
   await load(); closeSheet(); toast(`Job created${linkedReports.length ? ` · ${linkedReports.length} report(s) linked` : ''}`); navTab('jobs');
 }
 
+/* ---- Searchable part picker (shared) --------------------------------------
+ *
+ * A <select> over 2,391 parts is not a picker, it is a haystack — and there
+ * were four of them: issue, receive, add stock and a bill line. This is the one
+ * implementation they all use, because four copies of a filter and a keyboard
+ * handler is three too many to keep in step.
+ *
+ * Renders a hidden input carrying the chosen id, so every existing read-back
+ * (`.value`, including `row.querySelector('.f-lpart').value` on a repeating
+ * bill line) keeps working exactly as it did against the <select>.
+ */
+let _ppSeq = 0;
+
+function partPickerHtml(opts) {
+  const o = opts || {};
+  const key = o.key || ('pp' + (++_ppSeq));
+  const cls = o.hiddenClass ? ` class="${o.hiddenClass}"` : '';
+  return `<input type="hidden" id="pp-${key}"${cls} value="${esc(o.value || '')}"
+      data-pp="${key}"${o.inStockOnly ? ' data-pp-instock="1"' : ''}>
+    <input id="pps-${key}" class="pp-search" placeholder="${esc(o.placeholder || t('isSearch'))}" autocomplete="off">
+    <div id="ppc-${key}"></div>
+    <div id="ppl-${key}" class="pick-list"></div>`;
+}
+
+/* Wire one picker inside `scope`. Safe to call again on an already-wired one:
+ * dynamic rows are mounted as they are added, and re-mounting must not stack a
+ * second set of listeners that each fire on one click. */
+function mountPartPicker(scope, key, opts) {
+  const o = opts || {};
+  const hid = scope.querySelector('#pp-' + key);
+  const search = scope.querySelector('#pps-' + key);
+  const chosen = scope.querySelector('#ppc-' + key);
+  const list = scope.querySelector('#ppl-' + key);
+  if (!hid || !search || !list || hid._ppWired) return null;
+  hid._ppWired = true;
+
+  const parts = () => S.cache.parts || [];
+  const inStockOnly = !!o.inStockOnly;
+
+  const pick = (p) => {
+    hid.value = p.id;
+    chosen.innerHTML = `<div class="li" style="border:none"><div class="ava">🔩</div>
+      <div class="main"><div class="t">${esc(p.name)}</div>
+        <div class="s">${p.qty} ${esc(p.unit)} ${t('isInStock')} · ${money(p.unitCost)}/${esc(p.unit)}</div></div>
+      <button type="button" class="btn sm ghost pp-clear">${t('cancel')}</button></div>`;
+    list.innerHTML = ''; search.value = '';
+    if (o.onPick) o.onPick(p);
+  };
+
+  const draw = (q) => {
+    if (hid.value) { list.innerHTML = ''; return; }
+    const ql = (q || '').trim().toLowerCase();
+    // With nothing typed, show what is actually likely. For issuing that means
+    // the parts that have stock; for receiving or billing it deliberately does
+    // NOT, because the part you are restocking is usually the one at zero.
+    const pool = ql
+      ? parts().filter((p) => (`${p.name} ${p.code || ''} ${p.category || ''}`).toLowerCase().includes(ql))
+      : (inStockOnly ? parts().filter((p) => p.qty > 0) : parts()).slice(0, 12);
+    list.innerHTML = pool.slice(0, 40).map((p) => `<div class="li" data-pick="${esc(p.id)}">
+        <div class="ava">🔩</div><div class="main"><div class="t">${esc(p.name)}</div>
+          <div class="s">${p.qty} ${esc(p.unit)}${p.code ? ' · ' + esc(p.code) : ''}</div></div>
+        ${p.qty > 0 ? '' : `<span class="badge b-amber">${t('isOutOfStock')}</span>`}</div>`).join('')
+      || `<div class="muted small" style="padding:6px 2px">${t('isNoMatch')}</div>`;
+  };
+
+  list.addEventListener('click', (e) => {
+    const row = e.target.closest('[data-pick]'); if (!row) return;
+    const p = byId(parts(), row.getAttribute('data-pick')); if (p) pick(p);
+  });
+  chosen.addEventListener('click', (e) => {
+    if (!e.target.closest('.pp-clear')) return;
+    hid.value = ''; chosen.innerHTML = ''; draw(''); search.focus();
+    if (o.onPick) o.onPick(null);
+  });
+  search.addEventListener('input', () => draw(search.value));
+
+  // Preselected (a bill line rebuilt, or a part opened from its own screen).
+  const pre = hid.value ? byId(parts(), hid.value) : null;
+  if (pre) pick(pre); else draw('');
+  return { get: () => hid.value, draw };
+}
+
+/* Mount every picker inside `scope` that has not been wired yet. */
+function mountPartPickers(scope, opts) {
+  scope.querySelectorAll('[data-pp]').forEach((el) => {
+    mountPartPicker(scope, el.getAttribute('data-pp'),
+      Object.assign({ inStockOnly: el.hasAttribute('data-pp-instock') }, opts || {}));
+  });
+}
+
 function sheetIssue(presetJob) {
   const openJobs = S.cache.jobs.filter((j) => j.status !== 'verified');
   const parts = S.cache.parts;
@@ -4196,11 +4288,8 @@ function sheetIssue(presetJob) {
   }
   // A dropdown of 2,391 parts is not a picker, it is a haystack. Type instead.
   openSheet(t('issuePart'), `
-    <input type="hidden" id="f-part" value="">
     <label class="field"><span class="lbl">🔩 ${t('isPart')}</span>
-      <input id="f-psearch" placeholder="${t('isSearch')}" autocomplete="off"></label>
-    <div id="f-pchosen"></div>
-    <div id="f-plist" class="pick-list"></div>
+      ${partPickerHtml({ key: 'iss', inStockOnly: true })}</label>
     <label class="field"><span class="lbl">🧾 ${t('isToJob')}</span><select id="f-job">${openJobs.map((j) => `<option value="${j.id}" ${j.id===presetJob?'selected':''}>${esc(busName(j.busId))} — ${esc(j.problem.slice(0,28))}</option>`).join('')}</select></label>
     <label class="field"><span class="lbl"># ${t('reqPartQty')}</span><input id="f-qty" type="number" inputmode="numeric" value="1"></label>
     <label class="row" style="gap:9px;margin:2px 0 6px;cursor:pointer">
@@ -4215,8 +4304,7 @@ function sheetIssue(presetJob) {
     <div class="banner warn">🔒 ${t('isGate')}</div>
     <button class="btn primary" data-act="confirmIssue">${t('issuePart')}</button>`,
     (wrap) => {
-      const hid = wrap.querySelector('#f-part'), search = wrap.querySelector('#f-psearch');
-      const list = wrap.querySelector('#f-plist'), chosen = wrap.querySelector('#f-pchosen');
+      const hid = wrap.querySelector('#pp-iss');
       const jSel = wrap.querySelector('#f-job');
       const reused = wrap.querySelector('#f-reused'), rbox = wrap.querySelector('#f-reusedbox');
       const rcost = wrap.querySelector('#f-reusedcost');
@@ -4227,48 +4315,20 @@ function sheetIssue(presetJob) {
         box.innerHTML = (st && st.underWarranty)
           ? `<div class="banner" style="background:#3a2412;color:#f59e0b">⚠️ This part is still under warranty${st.supplier ? ' (' + esc(st.supplier) + ')' : ''} — ${st.leftDays} days left. Claim a FREE replacement, don't buy a new one.</div>` : '';
       };
-      const pick = (p) => {
-        hid.value = p.id;
-        chosen.innerHTML = `<div class="li" style="border:none"><div class="ava">🔩</div>
-          <div class="main"><div class="t">${esc(p.name)}</div>
-            <div class="s">${p.qty} ${esc(p.unit)} ${t('isInStock')} · ${money(p.unitCost)}/${esc(p.unit)}</div></div>
-          <button type="button" class="btn sm ghost" data-act="isClearPart">${t('cancel')}</button></div>`;
-        list.innerHTML = ''; search.value = '';
-        warr();
-      };
-      const draw = (q) => {
-        if (hid.value) { list.innerHTML = ''; return; }
-        const ql = (q || '').trim().toLowerCase();
-        // Nothing typed: show what is actually likely — the parts that move.
-        const pool = ql ? parts.filter((p) => (`${p.name} ${p.code || ''} ${p.category || ''}`).toLowerCase().includes(ql))
-                        : parts.filter((p) => p.qty > 0).slice(0, 12);
-        list.innerHTML = pool.slice(0, 40).map((p) => `<div class="li" data-pick="${esc(p.id)}">
-            <div class="ava">🔩</div><div class="main"><div class="t">${esc(p.name)}</div>
-              <div class="s">${p.qty} ${esc(p.unit)}${p.code ? ' · ' + esc(p.code) : ''}</div></div>
-            ${p.qty > 0 ? '' : `<span class="badge b-amber">${t('isOutOfStock')}</span>`}</div>`).join('')
-          || `<div class="muted small" style="padding:6px 2px">${t('isNoMatch')}</div>`;
-      };
-      list.addEventListener('click', (e) => {
-        const row = e.target.closest('[data-pick]'); if (!row) return;
-        const p = byId(S.cache.parts, row.getAttribute('data-pick')); if (p) pick(p);
-      });
-      chosen.addEventListener('click', (e) => {
-        if (!e.target.closest('[data-act="isClearPart"]')) return;
-        hid.value = ''; chosen.innerHTML = ''; draw(''); search.focus();
-      });
-      search.addEventListener('input', () => draw(search.value));
+      mountPartPickers(wrap, { onPick: warr });
       jSel.addEventListener('change', warr);
       reused.addEventListener('change', () => {
         rbox.style.display = reused.checked ? '' : 'none';
         if (reused.checked && rcost) rcost.focus();
       });
-      draw(''); warr();
+      warr();
     });
 }
 async function confirmIssue() {
+  if (!($('#pp-iss') || {}).value) return toast(t('isPickFirst'));
   const reused = !!($('#f-reused') || {}).checked;
   await issuePart({
-    partId: ($('#f-part') || {}).value, qty: Number($('#f-qty').value) || 0,
+    partId: ($('#pp-iss') || {}).value, qty: Number($('#f-qty').value) || 0,
     jobId: $('#f-job').value, reused,
     reusedCost: reused ? (Number(($('#f-reusedcost') || {}).value) || 0) : null,
   });
@@ -4282,15 +4342,19 @@ function sheetReceive() {
       <button class="btn primary" data-act="addPart">+ Add part type</button>`);
   }
   openSheet(t('receiveStock'), `
-    <label class="field"><span class="lbl">Part</span><select id="f-part">${parts.map((p) => `<option value="${p.id}">${esc(p.name)} (${p.qty} ${p.unit})</option>`).join('')}</select></label>
+    <label class="field"><span class="lbl">🔩 Part</span>
+      ${partPickerHtml({ key: 'rcv' })}</label>
     <div class="grid2">
       <label class="field"><span class="lbl">Quantity received</span><input id="f-qty" type="number" inputmode="numeric" value="1"></label>
       <label class="field"><span class="lbl">Unit cost (₹, optional)</span><input id="f-cost" type="number" inputmode="numeric" placeholder="updates valuation"></label>
     </div>
-    <button class="btn primary" data-act="confirmReceive">${t('receiveStock')}</button>`);
+    <button class="btn primary" data-act="confirmReceive">${t('receiveStock')}</button>`,
+    (wrap) => mountPartPickers(wrap));
 }
 async function confirmReceive() {
-  await receiveStock({ partId: $('#f-part').value, qty: Number($('#f-qty').value) || 0, cost: Number($('#f-cost') ? $('#f-cost').value : 0) || 0 });
+  const partId = ($('#pp-rcv') || {}).value || '';
+  if (!partId) return toast(t('isPickFirst'));
+  await receiveStock({ partId, qty: Number($('#f-qty').value) || 0, cost: Number($('#f-cost') ? $('#f-cost').value : 0) || 0 });
   closeSheet(); rerender();
 }
 
@@ -4343,11 +4407,11 @@ async function saveAddPart() {
 function sheetAddStock() {
   const parts = S.cache.parts;
   openSheet('Add stock', `
-    <label class="field"><span class="lbl">Part</span>
-      <select id="f-spart">
-        ${parts.map((p) => `<option value="${p.id}">${esc(p.name)} — ${p.qty} ${p.unit} in stock</option>`).join('')}
-        <option value="__new">➕ New part type…</option>
-      </select></label>
+    <label class="field"><span class="lbl">🔩 Part</span>
+      ${partPickerHtml({ key: 'stk' })}</label>
+    <label class="row" style="gap:9px;margin:2px 0 10px;cursor:pointer">
+      <input type="checkbox" id="f-newtoggle" style="width:18px;height:18px;flex:none">
+      <span class="small">➕ New part type — not in the list yet</span></label>
     <div id="f-newpart" style="display:none">
       <div class="grid2">
         <label class="field"><span class="lbl">New part name</span><input id="f-npname" placeholder="e.g. Clutch plate"></label>
@@ -4365,14 +4429,30 @@ function sheetAddStock() {
     <div class="banner warn">📥 This adds stock INTO the system and logs it in the ledger. To take parts OUT, use “Issue part” (only against a job card).</div>
     <button class="btn primary" data-act="confirmAddStock">Add to stock</button>`,
     (wrap) => {
-      const sel = wrap.querySelector('#f-spart');
       const np = wrap.querySelector('#f-newpart');
-      const sync = () => { np.style.display = sel.value === '__new' ? 'block' : 'none'; };
-      sel.addEventListener('change', sync); sync();
+      const tog = wrap.querySelector('#f-newtoggle');
+      const hid = wrap.querySelector('#pp-stk');
+      const search = wrap.querySelector('#pps-stk');
+      const list = wrap.querySelector('#ppl-stk');
+      mountPartPickers(wrap);
+      // `confirmAddStock` still reads the sentinel it always read; what changed
+      // is how you say it — a checkbox rather than an option buried at the
+      // bottom of two thousand others, where nobody found it.
+      const sync = () => {
+        const isNew = tog.checked;
+        np.style.display = isNew ? 'block' : 'none';
+        search.style.display = isNew ? 'none' : '';
+        list.style.display = isNew ? 'none' : '';
+        hid.value = isNew ? '__new' : '';
+        if (!isNew) { wrap.querySelector('#ppc-stk').innerHTML = ''; }
+        else { wrap.querySelector('#ppc-stk').innerHTML = ''; }
+      };
+      tog.addEventListener('change', sync); sync();
     });
 }
 async function confirmAddStock() {
-  const sel = $('#f-spart').value;
+  const sel = ($('#pp-stk') || {}).value || '';
+  if (!sel) return toast(t('isPickFirst'));
   const qty = Number($('#f-sqty').value) || 0;
   const cost = Number($('#f-scost').value) || 0;
   if (qty <= 0) return toast('Enter a quantity to add');
@@ -4392,10 +4472,11 @@ async function confirmAddStock() {
 }
 
 function purchaseLineRow() {
-  const parts = S.cache.parts;
-  return `<div class="row f-line" style="gap:6px;align-items:flex-end;margin-bottom:6px">
-    <label class="field" style="flex:2;margin:0"><span class="lbl tiny">Part</span>
-      <select class="f-lpart">${parts.map((p) => `<option value="${p.id}">${esc(p.name)}</option>`).join('')}</select></label>
+  // A bill line is repeated, so each one gets its own picker key; the hidden
+  // input keeps the .f-lpart class that savePurchase() reads off the row.
+  return `<div class="row f-line" style="gap:6px;align-items:flex-end;margin-bottom:6px;flex-wrap:wrap">
+    <label class="field" style="flex:2 1 100%;margin:0"><span class="lbl tiny">Part</span>
+      ${partPickerHtml({ hiddenClass: 'f-lpart' })}</label>
     <label class="field" style="flex:1;margin:0"><span class="lbl tiny">Qty</span><input class="f-lqty" type="number" inputmode="numeric"></label>
     <label class="field" style="flex:1;margin:0"><span class="lbl tiny">₹/unit</span><input class="f-lcost" type="number" inputmode="numeric"></label>
     <button type="button" class="btn sm f-lrm" style="width:auto" title="Remove line">✕</button>
@@ -4422,7 +4503,10 @@ function sheetAddPurchase() {
     (wrap) => {
       const lines = wrap.querySelector('#f-lines');
       if (!lines) return;
-      const addLine = () => lines.insertAdjacentHTML('beforeend', purchaseLineRow());
+      const addLine = () => {
+        lines.insertAdjacentHTML('beforeend', purchaseLineRow());
+        mountPartPickers(lines);              // wire the row that was just added
+      };
       addLine();
       wrap.querySelector('#f-addline').addEventListener('click', addLine);
       lines.addEventListener('click', (e) => { const rm = e.target.closest('.f-lrm'); if (rm) rm.closest('.f-line').remove(); });
