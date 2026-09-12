@@ -5,7 +5,7 @@
  */
 
 const DB_NAME = 'garage-saathi';
-const DB_VERSION = 14;  // v12 adds the usage store (daily per-person feature counters) — onupgradeneeded creates any missing
+const DB_VERSION = 15;  // v12 adds the usage store (daily per-person feature counters) — onupgradeneeded creates any missing
 
 const STORES = {
   users: 'id',
@@ -34,11 +34,25 @@ const STORES = {
                         // to be recorded in a shape that can be counted and compared.
   stockmoves: 'id',     // server-written, append-only: every change to a part's qty, who made it,
                         // and whether a ledger row justified it. Clients pull it and never push it.
+  gatepasses: 'id',     // outside-job gate pass: the printed slip a unit leaves the garage on,
+                        // and the record the returning unit's serial is checked against.
   meta: 'key',
 };
 
 let _db = null;
 
+/* Open the database, and survive a version bump with the app open twice.
+ *
+ * A new store means a higher DB_VERSION, and an upgrade cannot run while an
+ * older connection is still open. Without the two handlers below that is not a
+ * slow path, it is a hang: `open()` fires `blocked` and then nothing — no
+ * success, no error — so every await behind it waits for ever and the app comes
+ * up blank with nothing in the console to explain it. A phone with the PWA open
+ * in two tabs is entirely ordinary, and this is the shape it fails in.
+ *
+ * `onversionchange` is the other half and the one that actually fixes it: the
+ * OLD tab is told another connection wants to upgrade, and closes so it can.
+ * That tab's next write reopens at the new version on its own. */
 function openDB() {
   if (_db) return Promise.resolve(_db);
   return new Promise((resolve, reject) => {
@@ -51,7 +65,24 @@ function openDB() {
         }
       }
     };
-    req.onsuccess = () => { _db = req.result; resolve(_db); };
+    // Another connection is holding the old version open. Say so and fail the
+    // promise rather than hanging: a caller that sees an error can retry or
+    // degrade, but one that is never called back can do nothing at all.
+    req.onblocked = () => {
+      console.warn('IndexedDB upgrade blocked — another tab has Garage Saathi open. Close it.');
+      setTimeout(() => {
+        if (!_db) reject(new Error('database upgrade blocked by another tab'));
+      }, 3000);
+    };
+    req.onsuccess = () => {
+      _db = req.result;
+      // Let a future upgrade through instead of blocking it from this tab.
+      _db.onversionchange = () => {
+        try { _db.close(); } catch (e) { /* already closing */ }
+        _db = null;                       // next call reopens at the new version
+      };
+      resolve(_db);
+    };
     req.onerror = () => reject(req.error);
   });
 }

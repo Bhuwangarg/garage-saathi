@@ -24,6 +24,11 @@ const Sync = (function () {
                   // session lived on exactly one phone with no backup. Now synced;
                   // backfillOnce() below pushes any records that predate this change.
                   'components', 'def', 'vendors', 'trips', 'breakdowns',
+                  // The outside-job gate pass: the printed slip that leaves the
+                  // garage with a unit, and the record it is verified against on
+                  // the way back. Synced because the pass is issued on the
+                  // supervisor's phone and often closed on somebody else's.
+                  'gatepasses',
                   // Server-ingest only, like gpsevents: written by the /challans
                   // proxy, pulled by every device, never pushed. Without it here the
                   // same mistake as the four above repeats — one phone sweeps the

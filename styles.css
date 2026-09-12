@@ -425,6 +425,47 @@ img.ava{object-fit:cover}
 }
 
 /* ==========================================================================
+   Outside-job gate pass
+   --------------------------------------------------------------------------
+   This is a DOCUMENT, not a screen: it goes out of the gate with a unit and
+   comes back as the thing a return is checked against. So it is laid out in
+   print terms — fixed labels down the left, a ruled line to write on, black on
+   white — and the screen simply shows the same document.
+
+   Black ink and a white ground are hard-coded rather than themed. A gate pass
+   printed from a phone in dark mode would come out as a black rectangle, and
+   the person at the gate needs to read it, not admire it.
+   ====================================================================== */
+.gp-sheet{background:#fff;color:#111;border:1px solid #111;padding:18px 20px;max-width:640px;margin:0 auto}
+.gp-head{text-align:center;border-bottom:1.5px solid #111;padding-bottom:8px;margin-bottom:12px}
+.gp-title{font-size:20px;font-weight:800;letter-spacing:.5px}
+.gp-biz{font-size:14px;margin-top:2px}
+.gp-no{font-family:var(--mono);font-size:12px;text-align:right;margin-bottom:10px}
+.gp-grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 18px}
+.gp-row{display:flex;align-items:flex-end;gap:8px;padding:9px 0;min-height:30px}
+.gp-lbl{flex:none;width:150px;font-size:13px;font-weight:700}
+.gp-val{flex:1;font-size:14px;border-bottom:1px dotted #999;min-height:19px;padding-bottom:2px;word-break:break-word}
+.gp-grid2 .gp-lbl{width:auto;min-width:90px}
+.gp-sig{margin-top:34px;text-align:right}
+.gp-sigline{display:inline-block;width:190px;border-bottom:1px solid #111}
+.gp-sigcap{font-size:12px;font-weight:700;margin-top:4px}
+@media (max-width:520px){
+  .gp-grid2{grid-template-columns:1fr}
+  .gp-lbl{width:120px;font-size:12px}
+}
+
+/* Printing the pass: the slip alone, nothing else on the sheet. Walking up the
+   ancestors keeps every wrapper (#app, .content) visible while hiding their
+   OTHER children, so the document is not orphaned by a display:none parent. */
+body.printing-gp .gp-screen{display:none !important}
+@media print{
+  body.printing-gp{background:#fff}
+  body.printing-gp .gp-sheet{border:none;padding:0;max-width:none}
+  body.printing-gp .gp-val{border-bottom:1px dotted #666}
+  @page{margin:14mm}
+}
+
+/* ==========================================================================
    Tablet (700–1023px) — touch, but not a phone
    --------------------------------------------------------------------------
    A tablet was getting the 520px phone column stranded in whitespace. It is

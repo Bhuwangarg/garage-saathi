@@ -278,6 +278,31 @@ def main():
     st, _ = call("/auth/users/rename", {"id": "u-sup", "name": "Anybody"}, None)
     attack("rename an account with no token", st == 401, "HTTP %s" % st)
 
+    # A gate pass is the garage's word that a unit left the premises, and the
+    # serial on it is what the returning unit is checked against. A storekeeper
+    # who could write one could authorise a part out of the gate and then write
+    # the slip that says it was expected; a mechanic likewise.
+    push(store, "gatepasses", "gp-x", {"id": "gp-x", "no": "OJ-FAKE", "status": "out",
+                                       "vendorName": "Ghost", "unitName": "Alternator",
+                                       "unitSerial": "FAKE-1"})
+    attack("write a gate pass as the storekeeper", record("gatepasses", "gp-x", owner) is None)
+
+    push(mech, "gatepasses", "gp-y", {"id": "gp-y", "no": "OJ-FAKE2", "status": "out",
+                                      "vendorName": "Ghost", "unitName": "Starter"})
+    attack("write a gate pass as the mechanic", record("gatepasses", "gp-y", owner) is None)
+
+    # Closing one out is the same authority as opening it: a pass quietly marked
+    # returned is a unit nobody is looking for any more.
+    push(sup, "gatepasses", "gp-z", {"id": "gp-z", "no": "OJ-REAL", "status": "out",
+                                     "vendorName": "Real", "unitName": "Alternator",
+                                     "unitSerial": "ALT-1"})
+    push(store, "gatepasses", "gp-z", {"id": "gp-z", "no": "OJ-REAL", "status": "returned",
+                                       "vendorName": "Real", "unitName": "Alternator",
+                                       "unitSerial": "ALT-1", "returnSerial": "ALT-1"})
+    gz = record("gatepasses", "gp-z", owner) or {}
+    attack("close a gate pass as the storekeeper", gz.get("status") == "out",
+           "status=%r" % gz.get("status"))
+
     stolen = [n for n, ok, _ in RESULTS if not ok]
     print("\n%d of %d attacks BLOCKED." % (len(RESULTS) - len(stolen), len(RESULTS)))
     if stolen:

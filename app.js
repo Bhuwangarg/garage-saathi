@@ -97,6 +97,31 @@ const I18N = {
     // Report categories
     catBrakes: 'Brakes', catEngine: 'Engine', catAC: 'AC', catSuspension: 'Suspension', catElectrical: 'Electrical',
     catTyres: 'Tyres', catGearbox: 'Gearbox', catBody: 'Body', catOther: 'Other',
+    // ---- Outside job / gate pass ----
+    ojTitle: 'Outside job', ojSub: 'The slip that goes out with a unit, and what it is checked against coming back',
+    ojNew: 'New outside job', ojNewHint: 'Fill this in before the unit leaves. Print it and send a copy with the vendor.',
+    ojVendor: 'Vendor name', ojVendorPh: 'who is doing the work', ojDate: 'Date',
+    ojBus: 'Bus', ojReg: 'Registration no.', ojEngine: 'Engine no.', ojChassis: 'Chassis no.',
+    ojSerial: 'Unit serial no.', ojSerialPh: 'the number stamped on the unit',
+    ojSerialWhy: 'This is the one that matters — it is how you prove the unit that comes back is the one that went.',
+    ojUnitName: 'Unit name', ojUnitPh: 'e.g. Alternator, Front tyre, Starter',
+    ojPiece: 'Tracked piece (optional)', ojPieceNone: 'Not a tracked piece',
+    ojRemark: 'Remark', ojRemarkPh: 'what is to be done', ojAuthSig: 'Auth. Sig',
+    ojIssue: 'Issue gate pass', ojIssued: 'Gate pass issued', ojPrint: 'Print',
+    ojWillPrint: 'Will print', ojNeedVendor: 'Enter the vendor', ojNeedUnit: 'Enter the unit name',
+    ojAtVendor: 'Out at a vendor', ojOverdue: 'Out 14+ days', ojBack: 'Back', ojOutFor: 'out',
+    ojSearch: 'Search vendor, unit, serial or bus…', ojNone: 'Nothing has been sent out yet.',
+    ojNoneBack: 'Nothing has come back yet.', ojIssuedBy: 'Issued by',
+    ojReceive: 'Received back', ojReceiveHint: 'Check the number on the unit against the one on the pass before you accept it.',
+    ojSerialBack: 'Serial on the unit that came back', ojSerialBackPh: 'read it off the unit',
+    ojSerialBackWhy: 'Read it off the metal, not off their bill.',
+    ojBill: 'Vendor bill', ojBillPhoto: 'Photo of the bill', ojMarkBack: 'Mark received',
+    ojReturnRemarkPh: 'condition, what they did', ojReceivedBy: 'Received by',
+    ojMismatch: 'Serial does not match', ojWentOut: 'Went out as', ojCameBack: 'came back as',
+    ojWentOutAs: 'Went out as',
+    ojMismatchWhy: 'Recorded so it can be taken up with the vendor. Do not pay until it is explained.',
+    ojBackOk: 'Received — serial matches', ojBackMismatch: 'Received — serial does NOT match',
+    ojConfirmMismatch: 'The pass says #{a} but you have entered #{b}.\n\nThis is not the unit that was sent out. Record it anyway and flag it?',
     // ---- Completed work & preventive tracking ----
     histTitle: 'Completed work', histSub: 'Every finished job, and what it says about the next one',
     histDue: 'Due now', histDueSoon: 'Due soon', histRepeat: 'Came back',
@@ -284,6 +309,31 @@ const I18N = {
     // Report categories
     catBrakes: 'ब्रेक', catEngine: 'इंजन', catAC: 'एसी', catSuspension: 'सस्पेंशन', catElectrical: 'बिजली',
     catTyres: 'टायर', catGearbox: 'गियरबॉक्स', catBody: 'बॉडी', catOther: 'अन्य',
+    // ---- Outside job / gate pass ----
+    ojTitle: 'बाहर का काम', ojSub: 'जो पर्ची सामान के साथ बाहर जाती है, और वापसी पर उसी से मिलान होता है',
+    ojNew: 'नया बाहर का काम', ojNewHint: 'सामान निकलने से पहले भरिए। छापकर एक कॉपी वेंडर के साथ भेजिए।',
+    ojVendor: 'वेंडर का नाम', ojVendorPh: 'काम कौन कर रहा है', ojDate: 'तारीख़',
+    ojBus: 'बस', ojReg: 'रजिस्ट्रेशन नं.', ojEngine: 'इंजन नं.', ojChassis: 'चेसिस नं.',
+    ojSerial: 'यूनिट सीरियल नं.', ojSerialPh: 'यूनिट पर ठुका हुआ नंबर',
+    ojSerialWhy: 'यही सबसे ज़रूरी है — इसी से साबित होता है कि जो लौटा वही भेजा गया था।',
+    ojUnitName: 'यूनिट का नाम', ojUnitPh: 'जैसे अल्टरनेटर, अगला टायर, सेल्फ़',
+    ojPiece: 'ट्रैक किया हुआ पुर्जा (वैकल्पिक)', ojPieceNone: 'ट्रैक किया हुआ नहीं है',
+    ojRemark: 'रिमार्क', ojRemarkPh: 'क्या काम होना है', ojAuthSig: 'अधि. हस्ताक्षर',
+    ojIssue: 'गेट पास बनाइए', ojIssued: 'गेट पास बन गया', ojPrint: 'छापें',
+    ojWillPrint: 'यह छपेगा', ojNeedVendor: 'वेंडर का नाम डालिए', ojNeedUnit: 'यूनिट का नाम डालिए',
+    ojAtVendor: 'वेंडर के पास', ojOverdue: '14+ दिन से बाहर', ojBack: 'वापस आया', ojOutFor: 'से बाहर',
+    ojSearch: 'वेंडर, यूनिट, सीरियल या बस खोजें…', ojNone: 'अभी कुछ बाहर नहीं भेजा गया।',
+    ojNoneBack: 'अभी कुछ वापस नहीं आया।', ojIssuedBy: 'बनाया',
+    ojReceive: 'वापस लिया', ojReceiveHint: 'लेने से पहले यूनिट पर लिखा नंबर पर्ची के नंबर से मिलाइए।',
+    ojSerialBack: 'लौटी यूनिट का सीरियल', ojSerialBackPh: 'यूनिट से पढ़कर लिखिए',
+    ojSerialBackWhy: 'उनके बिल से नहीं, यूनिट पर से पढ़िए।',
+    ojBill: 'वेंडर का बिल', ojBillPhoto: 'बिल की फोटो', ojMarkBack: 'वापस आया — दर्ज करें',
+    ojReturnRemarkPh: 'हालत, क्या किया', ojReceivedBy: 'लिया',
+    ojMismatch: 'सीरियल नहीं मिला', ojWentOut: 'गया था', ojCameBack: 'लौटा',
+    ojWentOutAs: 'गया था',
+    ojMismatchWhy: 'दर्ज कर लिया गया है ताकि वेंडर से बात हो सके। सफ़ाई मिलने तक भुगतान मत कीजिए।',
+    ojBackOk: 'वापस लिया — सीरियल मिल गया', ojBackMismatch: 'वापस लिया — सीरियल नहीं मिला',
+    ojConfirmMismatch: 'पर्ची पर #{a} है, पर आपने #{b} लिखा है।\n\nयह वह यूनिट नहीं है जो भेजी गई थी। फिर भी दर्ज करके निशान लगाएँ?',
     // ---- Completed work & preventive tracking ----
     histTitle: 'पूरा हुआ काम', histSub: 'हर पूरा हुआ काम, और अगली बार क्या होगा',
     histDue: 'अभी करना है', histDueSoon: 'जल्दी करना है', histRepeat: 'फिर आया',
@@ -801,6 +851,9 @@ const PERMS = {
   // Scoring somebody's driving is a supervisor's judgement, not record-keeping —
   // and the server refuses `incidents` writes from anyone else anyway.
   logIncident: ['owner', 'supervisor'],
+  // Issuing the slip that lets a unit out of the gate, and signing off what
+  // comes back against it. The supervisor sends the work out, so it is theirs.
+  outsideJob: ['owner', 'supervisor'],
   logService: ['owner', 'supervisor'],       // resets service + writes a verified job
   manageRoutes: ['owner', 'supervisor'],     // routes, stops, go-times, punctuality
   addFuel: ['owner', 'supervisor', 'store'], // log fuel fills; view mileage
@@ -858,7 +911,8 @@ async function load() {
   const usage = await DB.all('usage').catch(() => []);
   const stockmoves = await DB.all('stockmoves').catch(() => []);
   const breakdowns = await DB.all('breakdowns').catch(() => []);
-  S.cache = { users, buses, parts, jobs, ledger, att, purchases, drivers, incidents, driverreports, routes, triplog, fuel, gpsevents, audits, components, def, vendors, trips, challans, usage, stockmoves, breakdowns, garage };
+  const gatepasses = await DB.all('gatepasses').catch(() => []);
+  S.cache = { users, buses, parts, jobs, ledger, att, purchases, drivers, incidents, driverreports, routes, triplog, fuel, gpsevents, audits, components, def, vendors, trips, challans, usage, stockmoves, breakdowns, gatepasses, garage };
   refreshBiz();   // keep the displayed business name in sync with garage config
 }
 const byId = (arr, id) => arr.find((x) => x.id === id);
@@ -1206,6 +1260,7 @@ const TAB_OF = {
   livemap: 'fleet', track: 'fleet', routes: 'fleet', forecast: 'fleet', busreport: 'fleet',
   // people
   drivers: 'people', assignments: 'people', safety: 'people', scoreboard: 'people', breakdowns: 'fleet',
+  outsidejobs: 'jobs', gatepass: 'jobs',
   scorecard: 'people', crewpins: 'people', crewbank: 'people', usage: 'me',
   // home triage entries
   insights: 'home', pilferage: 'home',
@@ -2444,6 +2499,12 @@ function viewJobs() {
   body += `<div class="trow" data-act="openHistory" style="margin-bottom:10px"><div class="ti">✅</div>
     <div class="tm"><div class="tt">${t('histTitle')}</div>
       <div class="ts">${t('histSub')}</div></div><div class="tc">›</div></div>`;
+  if (can(S.user.role, 'outsideJob')) {
+    const _oj = gpOutstanding().length;
+    body += `<div class="trow ${_oj ? 'warn' : ''}" data-act="openOutsideJobs" style="margin-bottom:10px"><div class="ti">📄</div>
+      <div class="tm"><div class="tt">${t('ojTitle')}</div>
+        <div class="ts">${t('ojSub')}</div></div><div class="tc">${_oj || '›'}</div></div>`;
+  }
   body += jobsFilterBar();
   body += `<input id="job-search" class="searchbox" placeholder="Search bus or problem…" autocomplete="off">`;
   body += jobs.length ? `<div id="job-list" class="listwrap">${jobs.map(jobLi).join('')}</div>` : `<div class="card listwrap" id="job-list"><div class="empty">${t('noJobsMatch')}</div></div>`;
@@ -3037,6 +3098,320 @@ function viewPartDetail(id) {
   }).join('') : `<div class="muted small">No movement</div>`;
   body += `</div>`;
   shell(esc(p.name), body, null, NARROW);
+}
+
+/* ===== Outside job — the gate pass =======================================
+ *
+ * Work sent out of the garage had no paperwork at all. A unit went to a vendor
+ * on somebody's word, and what came back was checked against memory. This is
+ * the slip that goes out with it and the record it is checked against on the
+ * way in.
+ *
+ * The serial number is the whole point of the document. Everything else on it
+ * is identification; `unitSerial` is the control. A rewound alternator that
+ * comes back with a different serial is not your alternator, and without a
+ * number written down before it left, nobody can say so afterwards.
+ */
+
+const GP_OUT = 'out', GP_BACK = 'returned';
+
+/* Pass number: date first, then a short tail from the record's own id.
+ *
+ * A plain running counter is the obvious choice and it is wrong here. Passes
+ * are written on a supervisor's phone, often with no signal, and a counter
+ * would have to be agreed with every other device before it could be printed —
+ * so two vendors would eventually hold slip №14 for different units. The date
+ * is what anybody actually looks for in a register, and the tail makes it
+ * unique without anyone having to coordinate. */
+function gpNumber(id, at) {
+  const d = new Date(at || Date.now());
+  const p = (n) => String(n).padStart(2, '0');
+  const tail = String(id || '').replace(/[^a-z0-9]/gi, '').slice(-4).toUpperCase() || '0000';
+  return 'OJ-' + String(d.getFullYear()).slice(2) + p(d.getMonth() + 1) + p(d.getDate()) + '-' + tail;
+}
+
+const gatePasses = () => (S.cache.gatepasses || []).filter((g) => !g._deleted)
+  .sort((a, b) => (b.issuedAt || 0) - (a.issuedAt || 0));
+const gpOutstanding = () => gatePasses().filter((g) => g.status !== GP_BACK);
+const gpDaysOut = (g) => Math.floor((Date.now() - (g.issuedAt || Date.now())) / day);
+
+function viewGatePasses() {
+  const all = gatePasses();
+  const out = all.filter((g) => g.status !== GP_BACK);
+  const back = all.filter((g) => g.status === GP_BACK);
+  const late = out.filter((g) => gpDaysOut(g) >= 14);
+
+  let body = `<div class="card"><div class="tiny muted">${t('ojSub')}</div></div>`;
+
+  body += `<div class="tiles">
+    <div class="card tile"><div class="muted small">${t('ojAtVendor')}</div><div class="stat">${out.length}</div></div>
+    <div class="card tile"><div class="muted small">${t('ojOverdue')}</div><div class="stat" style="color:${late.length ? 'var(--bad)' : 'inherit'}">${late.length}</div></div>
+    <div class="card tile"><div class="muted small">${t('ojBack')}</div><div class="stat">${back.length}</div></div></div>`;
+
+  if (out.length) {
+    body += `<div class="card"><div class="row between"><h3>🚚 ${t('ojAtVendor')}</h3><span class="badge ${late.length ? 'b-bad' : 'b-amber'}">${out.length}</span></div>`;
+    body += out.map(gpLi).join('');
+    body += `</div>`;
+  }
+
+  body += `<input id="gp-search" class="searchbox" placeholder="${t('ojSearch')}" autocomplete="off">`;
+  body += back.length
+    ? `<div id="gp-list" class="listwrap">${back.slice(0, 200).map(gpLi).join('')}</div>`
+    : `<div class="card listwrap" id="gp-list"><div class="empty">${out.length ? t('ojNoneBack') : t('ojNone')}</div></div>`;
+
+  shell(t('ojTitle'), body, can(S.user.role, 'outsideJob') ? { act: 'newGatePass', icon: '+' } : null);
+  attachSearch('gp-search', 'gp-list');
+}
+
+function gpLi(g) {
+  const d = gpDaysOut(g);
+  const tone = g.status === GP_BACK ? 'b-green' : d >= 14 ? 'b-bad' : d >= 7 ? 'b-amber' : 'b-low';
+  const lbl = g.status === GP_BACK
+    ? (g.serialMismatch ? '⚠ ' + t('ojMismatch') : t('ojBack'))
+    : d + 'd ' + t('ojOutFor');
+  return `<div class="li" data-act="openGatePass" data-id="${esc(g.id)}" style="cursor:pointer">
+    <div class="ava">📄</div>
+    <div class="main">
+      <div class="t">${esc(g.unitName || 'Unit')} — ${esc(g.vendorName || '')}</div>
+      <div class="s">${esc(g.no || '')} · ${esc(g.regNo || '')}${g.unitSerial ? ' · #' + esc(g.unitSerial) : ''} · ${fmtDate(g.issuedAt)}</div>
+    </div>
+    <span class="badge ${g.serialMismatch ? 'b-bad' : tone}">${lbl}</span>
+  </div>`;
+}
+
+/* ---- Issue ------------------------------------------------------------- */
+
+let _gpComp = '';
+
+function sheetGatePass(prefill) {
+  const pre = prefill || {};
+  const buses = (S.cache.buses || []).filter((b) => !b._deleted);
+  const vendors = (S.cache.vendors || []).filter((v) => !v._deleted);
+  const comps = (S.cache.components || []).filter((c) => !c._deleted && c.state !== 'scrapped');
+  _gpComp = pre.componentId || '';
+
+  openSheet(t('ojNew'), `
+    <div class="tiny muted" style="margin-bottom:10px">${t('ojNewHint')}</div>
+    <label class="field"><span class="lbl">${t('ojVendor')}</span>
+      <input id="gp-vendor" list="gp-vendors" value="${esc(pre.vendorName || '')}" placeholder="${t('ojVendorPh')}">
+      <datalist id="gp-vendors">${vendors.map((v) => `<option value="${esc(v.name)}">`).join('')}</datalist></label>
+    <label class="field"><span class="lbl">${t('ojBus')}</span>
+      <select id="gp-bus"><option value="">—</option>
+      ${buses.map((b) => `<option value="${esc(b.id)}" ${pre.busId === b.id ? 'selected' : ''}>${esc(b.regNo)}</option>`).join('')}</select></label>
+    ${comps.length ? `<label class="field"><span class="lbl">${t('ojPiece')}</span>
+      <select id="gp-comp"><option value="">${t('ojPieceNone')}</option>
+      ${comps.map((c) => `<option value="${esc(c.id)}" ${_gpComp === c.id ? 'selected' : ''}>${esc(c.label || compKind(c)[1])}${c.serial ? ' · ' + esc(c.serial) : ''}</option>`).join('')}</select></label>` : ''}
+    <label class="field"><span class="lbl">${t('ojUnitName')}</span><input id="gp-unit" value="${esc(pre.unitName || '')}" placeholder="${t('ojUnitPh')}"></label>
+    <label class="field"><span class="lbl">${t('ojSerial')}</span><input id="gp-serial" value="${esc(pre.unitSerial || '')}" placeholder="${t('ojSerialPh')}"></label>
+    <div class="tiny muted" style="margin:-4px 0 10px">${t('ojSerialWhy')}</div>
+    <label class="field"><span class="lbl">${t('ojRemark')}</span><input id="gp-remark" placeholder="${t('ojRemarkPh')}"></label>
+    <button class="btn primary" data-act="saveGatePass">${t('ojIssue')}</button>`);
+
+  // Picking the bus or the piece fills the identifiers in, so the supervisor
+  // copies nothing off a chassis plate that the app already knows.
+  const fill = () => {
+    const b = byId(S.cache.buses, ($('#gp-bus') || {}).value || '');
+    const c = byId(S.cache.components, ($('#gp-comp') || {}).value || '');
+    if (c) {
+      if ($('#gp-unit') && !$('#gp-unit').value.trim()) $('#gp-unit').value = c.label || compKind(c)[1];
+      if ($('#gp-serial') && !$('#gp-serial').value.trim() && c.serial) $('#gp-serial').value = c.serial;
+    }
+    const note = $('#gp-idpreview');
+    if (note) note.innerHTML = b
+      ? `<div class="tiny muted">${t('ojWillPrint')}: ${esc(b.regNo)} · ${t('ojEngine')} ${esc(b.engine || '—')} · ${t('ojChassis')} ${esc(b.chassis || '—')}</div>`
+      : '';
+  };
+  const bs = $('#gp-bus'); if (bs) bs.addEventListener('change', fill);
+  const cs = $('#gp-comp'); if (cs) cs.addEventListener('change', fill);
+  const rem = $('#gp-remark');
+  if (rem) rem.insertAdjacentHTML('afterend', '<div id="gp-idpreview" style="margin:-4px 0 10px"></div>');
+  fill();
+}
+
+async function saveGatePass() {
+  const vendorName = (($('#gp-vendor') || {}).value || '').trim();
+  if (!vendorName) return toast(t('ojNeedVendor'));
+  const unitName = (($('#gp-unit') || {}).value || '').trim();
+  if (!unitName) return toast(t('ojNeedUnit'));
+
+  const busId = (($('#gp-bus') || {}).value || '');
+  const b = byId(S.cache.buses, busId);
+  const componentId = (($('#gp-comp') || {}).value || '');
+  const c = byId(S.cache.components, componentId);
+  const now = Date.now();
+  const id = uid('gp-');
+
+  // The identifiers are COPIED onto the pass, not looked up when it is opened.
+  // A printed slip is a statement about what left the gate that day; if the bus
+  // record is corrected next month the paper in the vendor's file does not
+  // change, and the record here must still match the paper.
+  const g = {
+    id,
+    no: gpNumber(id, now),
+    status: GP_OUT,
+    vendorName,
+    busId: busId || '',
+    regNo: b ? (b.regNo || '') : '',
+    engineNo: b ? (b.engine || '') : '',
+    chassisNo: b ? (b.chassis || '') : '',
+    componentId: componentId || '',
+    unitName,
+    unitSerial: (($('#gp-serial') || {}).value || '').trim(),
+    remark: (($('#gp-remark') || {}).value || '').trim(),
+    issuedBy: S.user.id,
+    issuedAt: now,
+    updatedAt: now,
+  };
+  await DB.put('gatepasses', g);
+
+  // Keep the piece's own state honest: if this pass sends a tracked component
+  // out, the components screen must not still show it in service.
+  if (c && c.state !== 'sent-out') {
+    c.history = [...(c.history || []), { type: 'send-out', at: now, odo: b ? (b.odometer || 0) : 0,
+                                         vendor: vendorName, note: 'Gate pass ' + g.no }];
+    c.state = 'sent-out'; c.updatedAt = now;
+    await DB.put('components', c);
+  }
+  await load(); closeSheet();
+  toast(t('ojIssued') + ' ' + g.no);
+  push({ name: 'gatepass', id });          // straight to the printable slip
+}
+
+/* ---- The slip ---------------------------------------------------------- */
+
+function viewGatePass(id) {
+  const g = byId(S.cache.gatepasses, id);
+  if (!g) return viewGatePasses();
+  const back = g.status === GP_BACK;
+  const row = (label, value) => `<div class="gp-row"><span class="gp-lbl">${label}</span><span class="gp-val">${esc(value || '')}</span></div>`;
+
+  let body = `<div class="gp-sheet card">
+    <div class="gp-head">
+      <div class="gp-title">${t('ojTitle')}</div>
+      <div class="gp-biz">${esc(BIZ)}</div>
+    </div>
+    <div class="gp-no">${esc(g.no || '')}</div>
+    <div class="gp-grid2">
+      ${row(t('ojVendor'), g.vendorName)}
+      ${row(t('ojDate'), fmtDate(g.issuedAt))}
+    </div>
+    ${row(t('ojReg'), g.regNo)}
+    ${row(t('ojEngine'), g.engineNo)}
+    ${row(t('ojChassis'), g.chassisNo)}
+    ${row(t('ojSerial'), g.unitSerial)}
+    ${row(t('ojUnitName'), g.unitName)}
+    ${row(t('ojRemark'), g.remark)}
+    <div class="gp-sig"><div class="gp-sigline"></div><div class="gp-sigcap">${t('ojAuthSig')}</div></div>
+  </div>`;
+
+  // Everything below is for the screen only and never reaches the paper.
+  body += `<div class="gp-screen">`;
+  body += `<div class="btnrow" style="margin:12px 0">
+    <button class="btn primary" data-act="printGatePass">🖨️ ${t('ojPrint')}</button>
+    ${!back && can(S.user.role, 'outsideJob') ? `<button class="btn" data-act="returnGatePass" data-id="${esc(g.id)}">📥 ${t('ojReceive')}</button>` : ''}
+  </div>`;
+
+  if (back) {
+    body += `<div class="card" style="border-left:4px solid var(--${g.serialMismatch ? 'bad' : 'green'})">
+      <div class="row between"><h3>${g.serialMismatch ? '⚠️ ' + t('ojMismatch') : '✅ ' + t('ojBack')}</h3>
+        <span class="small muted">${fmtDate(g.returnedAt)}</span></div>
+      ${g.serialMismatch ? `<div class="small" style="color:var(--bad);margin-bottom:6px">
+        ${t('ojWentOut')} <b>#${esc(g.unitSerial)}</b> · ${t('ojCameBack')} <b>#${esc(g.returnSerial)}</b>.
+        ${t('ojMismatchWhy')}</div>` : ''}
+      <div class="row between small"><span>${t('ojBill')}</span><b>${money(g.cost || 0)}</b></div>
+      <div class="row between small"><span>${t('ojReceivedBy')}</span><b>${esc(userName(g.returnedBy))}</b></div>
+      <div class="row between small"><span>${t('ojOutFor')}</span><b>${Math.max(0, Math.floor(((g.returnedAt || 0) - (g.issuedAt || 0)) / day))}d</b></div>
+      ${g.returnRemark ? `<div class="small muted" style="margin-top:6px">🗒️ ${esc(g.returnRemark)}</div>` : ''}
+      ${g.billPhoto ? `<div class="thumbs" style="margin-top:8px"><img class="thumb" src="${esc(g.billPhoto)}" data-act="viewPhoto" data-src="${esc(g.billPhoto)}"></div>` : ''}
+    </div>`;
+  } else {
+    const d = gpDaysOut(g);
+    body += `<div class="card"><div class="row between"><h3>🚚 ${t('ojAtVendor')}</h3>
+      <span class="badge ${d >= 14 ? 'b-bad' : d >= 7 ? 'b-amber' : 'b-low'}">${d}d</span></div>
+      <div class="tiny muted">${t('ojIssuedBy')} ${esc(userName(g.issuedBy))} · ${fmtDate(g.issuedAt)}</div></div>`;
+  }
+  body += `</div>`;
+
+  shell(g.no || t('ojTitle'), body);
+}
+
+function printGatePass() {
+  // The print stylesheet hides everything but .gp-sheet, so this needs no
+  // pop-up window and no second copy of the markup to drift out of step.
+  document.body.classList.add('printing-gp');
+  const done = () => { document.body.classList.remove('printing-gp'); window.removeEventListener('afterprint', done); };
+  window.addEventListener('afterprint', done);
+  setTimeout(() => { try { window.print(); } catch (e) { toast('Printing is not available here'); done(); } }, 30);
+}
+
+/* ---- Receive back + verify --------------------------------------------- */
+
+let _gpBill = null;
+
+function sheetReturnGatePass(id) {
+  const g = byId(S.cache.gatepasses, id); if (!g) return;
+  _gpBill = null;
+  openSheet(t('ojReceive'), `
+    <div class="tiny muted" style="margin-bottom:10px">${t('ojReceiveHint')}</div>
+    <div class="card" style="padding:10px;margin-bottom:10px">
+      <div class="row between small"><span>${t('ojUnitName')}</span><b>${esc(g.unitName || '')}</b></div>
+      <div class="row between small"><span>${t('ojWentOutAs')}</span><b>#${esc(g.unitSerial || '—')}</b></div>
+    </div>
+    <label class="field"><span class="lbl">${t('ojSerialBack')}</span>
+      <input id="gr-serial" value="" placeholder="${t('ojSerialBackPh')}"></label>
+    <div class="tiny muted" style="margin:-4px 0 10px">${t('ojSerialBackWhy')}</div>
+    <label class="field"><span class="lbl">${t('ojBill')} (₹)</span><input id="gr-cost" type="number" inputmode="numeric" placeholder="0"></label>
+    <button class="btn" data-act="captureGpBill">📷 ${t('ojBillPhoto')}</button>
+    <div id="gr-billprev" class="thumbs" style="margin:8px 0"></div>
+    <label class="field"><span class="lbl">${t('ojRemark')}</span><input id="gr-remark" placeholder="${t('ojReturnRemarkPh')}"></label>
+    <button class="btn primary" data-act="saveReturnGatePass" data-id="${esc(id)}">${t('ojMarkBack')}</button>`);
+}
+
+async function captureGpBill() {
+  const d = await capturePhoto();
+  if (!d) return;
+  _gpBill = d;
+  const p = $('#gr-billprev');
+  if (p) p.innerHTML = `<img class="thumb" src="${esc(d)}">`;
+}
+
+/* Compare loosely, flag exactly.
+ *
+ * Serials get written down with spaces, dashes and the odd lowercase letter, so
+ * a strict string compare would cry mismatch over punctuation and the warning
+ * would stop meaning anything within a week. Normalise for the comparison;
+ * store both raw values, because what was actually written on each occasion is
+ * the evidence. */
+const gpNormSerial = (s) => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+async function saveReturnGatePass(id) {
+  const g = byId(S.cache.gatepasses, id); if (!g) return;
+  const got = (($('#gr-serial') || {}).value || '').trim();
+  const had = g.unitSerial || '';
+  const mismatch = !!(had && got && gpNormSerial(got) !== gpNormSerial(had));
+
+  // A mismatch is recorded, never used to refuse the return. The unit is
+  // physically back in the yard whatever the paperwork says, and a flow that
+  // would not let the supervisor write that down would simply be worked around.
+  if (mismatch && !confirm(t('ojConfirmMismatch').replace('{a}', had).replace('{b}', got))) return;
+
+  const now = Date.now();
+  Object.assign(g, {
+    status: GP_BACK,
+    returnedAt: now,
+    returnedBy: S.user.id,
+    returnSerial: got,
+    serialMismatch: mismatch,
+    cost: Number((($('#gr-cost') || {}).value || 0)) || 0,
+    returnRemark: (($('#gr-remark') || {}).value || '').trim(),
+    billPhoto: _gpBill || g.billPhoto || '',
+    updatedAt: now,
+  });
+  await DB.put('gatepasses', g);
+  _gpBill = null;
+  await load(); closeSheet();
+  toast(mismatch ? '⚠️ ' + t('ojBackMismatch') : '✅ ' + t('ojBackOk'));
+  viewGatePass(id);
 }
 
 /* ===== Rotable components — tyres, alternators & other refurbishable units ====
@@ -8194,6 +8569,8 @@ function render(r) {
     case 'safety': return viewSafety();
     case 'breakdowns': return viewBreakdowns();
     case 'history': return viewHistory(r.id);
+    case 'outsidejobs': return viewGatePasses();
+    case 'gatepass': return viewGatePass(r.id);
     case 'warranty': return viewWarranty();
     case 'storehealth': return viewStoreHealth();
     case 'linkgps': return viewLinkGps();
@@ -8464,6 +8841,14 @@ const _dispatchClick = async (e) => {
       case 'openSafety': return push({ name: 'safety' });
       case 'openBreakdowns': return push({ name: 'breakdowns' });
       case 'openHistory': _histBus = 'all'; return push({ name: 'history' });
+      case 'openOutsideJobs': return push({ name: 'outsidejobs' });
+      case 'newGatePass': return sheetGatePass({});
+      case 'saveGatePass': return saveGatePass();
+      case 'openGatePass': return push({ name: 'gatepass', id: el.getAttribute('data-id') });
+      case 'printGatePass': return printGatePass();
+      case 'returnGatePass': return sheetReturnGatePass(el.getAttribute('data-id'));
+      case 'captureGpBill': return captureGpBill();
+      case 'saveReturnGatePass': return saveReturnGatePass(el.getAttribute('data-id'));
       case 'openHistBusPage': return push({ name: 'history', id: el.getAttribute('data-bus') });
       case 'openJob': return push({ name: 'jobs', id: el.getAttribute('data-id') });
       case 'openHistBus': _histBus = el.getAttribute('data-bus'); return rerender();

@@ -782,6 +782,11 @@ WRITE_ROLES = {
     # in practice is the supervisor or the owner. The driver reports the symptom
     # through driverreports; this is the record of the failure itself.
     "breakdowns":    {"owner", "supervisor"},
+    # The gate pass is the garage's word that a unit left the premises, and the
+    # serial on it is what the returning unit is checked against. Whoever can
+    # write one can authorise a component out of the gate, so it sits with the
+    # people who already sign work out: owner and supervisor.
+    "gatepasses":    {"owner", "supervisor"},
     "users":         {"owner", "supervisor"},
     "jobcards":      {"owner", "supervisor", "store", "mechanic"},
     "trips":         {"owner", "supervisor", "driver"},

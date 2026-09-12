@@ -202,6 +202,29 @@ sleep 3
 PUSHES="$(j "performance.getEntriesByType('resource').filter(function(r){return /\/push/.test(r.name)}).length")"
 ck "12 queued writes cost at most one push request" "$([ "${PUSHES:-9}" -le 1 ] && echo yes || echo no)" "yes"
 
+# 2d) Outside-job gate pass: the identifiers are a SNAPSHOT, and the serial is checked.
+login supervisor u-sup 2 2 2 2
+j "route({name:'outsidejobs'})" >/dev/null
+settle "S.route.name" "outsidejobs" 20 >/dev/null
+ck "outside-job screen renders" "$(j "document.querySelector('#gp-list')?'yes':'no'")" "yes"
+# The pass is a DOCUMENT: what it prints comes off the record, not off a live
+# lookup of the bus. Correcting a bus record next month must not silently
+# rewrite the slip sitting in the vendor's file. Rendered here with an engineNo
+# that deliberately disagrees with the bus, so a live lookup would show through.
+j "(async function(){var b=S.cache.buses[0];await DB.put('gatepasses',{id:'gt-snap',no:'OJ-SNAP',status:'out',vendorName:'V',busId:b.id,regNo:b.regNo,engineNo:'FROM-PASS',chassisNo:b.chassis,unitName:'Alt',unitSerial:'S-1',issuedBy:'u-sup',issuedAt:Date.now(),updatedAt:Date.now()});await load();route({name:'gatepass',id:'gt-snap'})})()" >/dev/null
+settle "S.route.name" "gatepass" 25 >/dev/null
+ck "the slip prints what was recorded, not a live lookup" \
+  "$(j "/FROM-PASS/.test(document.querySelector('.gp-sheet').innerText)")" "true"
+ck "and the bus's own engine no. does not show through" \
+  "$(j "document.querySelector('.gp-sheet').innerText.indexOf(S.cache.buses[0].engine)")" "-1"
+
+# Punctuation must not cry wolf, and a real swap must not slip through.
+ck "serial compare ignores punctuation"  "$(j "gpNormSerial(' alt 77219 b ')===gpNormSerial('ALT-77219-B')")" "true"
+ck "serial compare still catches a swap" "$(j "gpNormSerial('ST-9999')===gpNormSerial('ST-4410')")" "false"
+# A gate pass printed from a phone in dark mode has to come out readable.
+ck "the slip stays ink-on-paper in dark mode" \
+  "$(j "(function(){var d=document.documentElement.getAttribute('data-theme');document.documentElement.setAttribute('data-theme','dark');var el=document.createElement('div');el.className='gp-sheet';document.body.appendChild(el);var c=getComputedStyle(el).backgroundColor;el.remove();if(d)document.documentElement.setAttribute('data-theme',d);else document.documentElement.removeAttribute('data-theme');return c})()")" "rgb(255, 255, 255)"
+
 # 3) Invariant sweep: form controls never navigate (owner's main tabs).
 login owner u-owner 1 1 1 1
 for SCREEN in home jobs store me; do
