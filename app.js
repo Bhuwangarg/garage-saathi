@@ -102,6 +102,7 @@ const I18N = {
     crewWho: 'Mechanic', crewTask: 'Doing', crewTaskPh: 'e.g. Electrical', crewAdd: 'Add mechanic',
     crewRemove: 'Remove', crewTwice: 'The same mechanic is on the job twice', crewEveryone: 'Every mechanic is already on this job',
     // ---- Outside job / gate pass ----
+    closedAndSigned: 'Closed and signed off ✓',
     ojTitle: 'Outside job', ojSub: 'The slip that goes out with a unit, and what it is checked against coming back',
     ojNew: 'New outside job', ojNewHint: 'Fill this in before the unit leaves. Print it and send a copy with the vendor.',
     ojVendor: 'Vendor name', ojVendorPh: 'who is doing the work', ojDate: 'Date',
@@ -318,6 +319,7 @@ const I18N = {
     crewWho: 'मैकेनिक', crewTask: 'क्या कर रहा है', crewTaskPh: 'जैसे बिजली का काम', crewAdd: 'मैकेनिक जोड़ें',
     crewRemove: 'हटाएँ', crewTwice: 'एक ही मैकेनिक दो बार जुड़ गया है', crewEveryone: 'सारे मैकेनिक पहले से इस काम पर हैं',
     // ---- Outside job / gate pass ----
+    closedAndSigned: 'बंद हुआ और जाँच भी हो गई ✓',
     ojTitle: 'बाहर का काम', ojSub: 'जो पर्ची सामान के साथ बाहर जाती है, और वापसी पर उसी से मिलान होता है',
     ojNew: 'नया बाहर का काम', ojNewHint: 'सामान निकलने से पहले भरिए। छापकर एक कॉपी वेंडर के साथ भेजिए।',
     ojVendor: 'वेंडर का नाम', ojVendorPh: 'काम कौन कर रहा है', ojDate: 'तारीख़',
@@ -1837,8 +1839,9 @@ function viewSupervisorHome() {
   const inShop = S.cache.jobs
     .filter((j) => j.status === 'open' || j.status === 'in-progress')
     .sort((a, b) => (a.enterAt || a.createdAt) - (b.enterAt || b.createdAt));
-  const mineToVerify = S.cache.jobs.filter((j) => j.status === 'done' && j.closedBy === S.user.id);
-  const othersToVerify = S.cache.jobs.filter((j) => j.status === 'done' && j.closedBy !== S.user.id);
+  const selfOk = selfSignsOff(S.user.role);
+  const mineToVerify = selfOk ? [] : S.cache.jobs.filter((j) => j.status === 'done' && j.closedBy === S.user.id);
+  const othersToVerify = S.cache.jobs.filter((j) => j.status === 'done' && (selfOk || j.closedBy !== S.user.id));
   const openReports = (S.cache.driverreports || []).filter((r) => r.status === 'open').sort((a, b) => b.at - a.at);
   const noDriver = (S.cache.buses || []).filter((b) => !driverOfBus(b.id));
   const overdue = busesDueService().filter((x) => x.sv.status === 'overdue');
@@ -2169,6 +2172,17 @@ function attachSearch(inputId, listId) {
  * Pads the trailing number to 4 and the district to 2 (MP44ZD471 → MP44ZD0471),
  * because the trackers send the official form and part of the fleet list does
  * not. Only when a series letter makes the boundary unambiguous; see norm_reg. */
+/* The spelling a registration is STORED under — for building record ids and
+ * reading data keyed by the office's own spelling. Deliberately NOT padded.
+ *
+ * _normReg below answers "are these the same bus?", and pads to do it. That is
+ * the wrong question for an id. When _normReg started padding, the two places
+ * that built ids from it — conductor logins and conductor profiles — began
+ * producing con-MP44ZD0471 for a bus whose profile already existed as
+ * con-MP44ZD471, and would have created a second one. An id is a name that
+ * already exists; it must never be recomputed by a rule that later improves. */
+const _regIdKey = (s) => (s || '').toUpperCase().replace(/[\s-]/g, '');
+
 const _normReg = (s) => {
   const n = (s || '').toUpperCase().replace(/[\s-]/g, '');
   const m = /^([A-Z]{2})(\d{1,2})([A-Z]{1,3})(\d{1,4})$/.exec(n);
@@ -2500,6 +2514,28 @@ const jobFilterState = { status: 'all', mech: 'all' };
 // Is the current role a verifier? Verifiers see 'done' (awaiting verify) pinned
 // to the top so the work waiting on their sign-off is impossible to miss.
 function isVerifierRole() { return can(S.user.role, 'verifyJob'); }
+
+/* Whose work needs a SECOND person to sign it off.
+ *
+ * The two-person rule — nobody verifies a job they closed — is kept for the
+ * owner, and was dropped for the supervisor on the owner's instruction
+ * (15 Sep 2026): Vajid's closed work needs no separate verification. When a
+ * supervisor closes a job it is signed off in the same step, and a supervisor
+ * may verify a job they closed earlier.
+ *
+ * This is by ROLE, not by name, so it covers Latif too if he is added as a
+ * supervisor. The proof rule is untouched: before and after photos (or a
+ * vendor bill) are still required to close — what went is only the second
+ * signature, not the evidence. */
+const selfSignsOff = (role) => role === 'supervisor';
+
+// Driver reports a job addressed are resolved when it is signed off, however
+// it got there — a separate verify, or a supervisor's close.
+async function resolveReportsFor(jobId) {
+  for (const r of (S.cache.driverreports || [])) {
+    if (r.jobId === jobId && r.status === 'open') { r.status = 'addressed'; r.resolvedAt = Date.now(); await DB.put('driverreports', r); }
+  }
+}
 
 // Renders the animated status + mechanic filter chips above the jobs board.
 function jobsFilterBar() {
@@ -5325,15 +5361,49 @@ function viewAlerts() {
  *            their service charge + GST), and it is only populated on a
  *            minority of rows, so it is never summed into a headline.
  */
-const challanFor = (regNo) => (S.cache.challans || []).find((c) => c.rc === normReg(regNo));
-const normReg = (s) => String(s || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+/* Challan key: every non-alphanumeric stripped, then the official padded form,
+ * matching echallan_lookup() on the server. */
+const normReg = (s) => _normReg(String(s || '').replace(/[^A-Za-z0-9]/g, ''));
+
+/* One trustworthy snapshot per bus, however its key was spelled.
+ *
+ * Until the lookup started asking for the official padded plate, 15 buses were
+ * queried with the zero dropped. If the registry only knows MP44ZD0471, that
+ * query does not error — it returns nothing, and the app showed a green tick.
+ *
+ * So an old snapshot is trusted ONLY if it found something. Any challan at all,
+ * pending or settled, proves that lookup matched a real vehicle. One that found
+ * nothing proves nothing, and is ignored — which puts that bus back under
+ * "Check unchecked buses". Re-checking costs nothing if the bus really is
+ * clean (a zero result is not billed) and ₹1 only where there is money owed,
+ * which is exactly the case worth paying to find.
+ *
+ * Where both exist, the correctly-keyed snapshot wins; otherwise the newest. */
+let _chSnapFrom = null, _chSnap = {};
+function challanSnapshots() {
+  const src = S.cache.challans || [];
+  if (src === _chSnapFrom) return _chSnap;
+  const best = {};
+  for (const c of src) {
+    if (!c || !c.rc) continue;
+    const key = normReg(c.rc);
+    const exact = c.rc === key;
+    if (!exact && !((c.total || 0) > 0)) continue;          // an old empty result proves nothing
+    const cur = best[key];
+    const curExact = cur && cur.rc === key;
+    if (!cur || (exact && !curExact) || (exact === curExact && (c.fetchedAt || 0) > (cur.fetchedAt || 0))) best[key] = c;
+  }
+  _chSnapFrom = src; _chSnap = best;
+  return best;
+}
+const challanFor = (regNo) => challanSnapshots()[normReg(regNo)] || null;
 // A plate we can actually look up. Route-imported rows carry fragments like
 // "5920" that would burn a credit for a guaranteed miss.
 const lookupable = (regNo) => /^[A-Z]{2}\d{1,2}[A-Z]{0,3}\d{1,4}$/.test(normReg(regNo));
 
 function fleetChallanTotals() {
   let pending = 0, fine = 0, court = 0, checked = 0, buses = 0;
-  for (const c of S.cache.challans || []) {
+  for (const c of Object.values(challanSnapshots())) {
     checked++;
     if (c.pendingCount) { buses++; pending += c.pendingCount; fine += c.pendingFine || 0; }
     court += c.courtCount || 0;
@@ -6736,9 +6806,12 @@ async function confirmCloseJob(jobId) {
   if (odo > 0) j.odometer = odo;
   j.status = 'done'; j.closedAt = j.completeAt || Date.now();
   j.closedBy = S.user.id;      // who signed it off — verify checks this
+  const signed = selfSignsOff(S.user.role);
+  if (signed) { j.status = 'verified'; j.verifiedBy = S.user.id; j.verifiedAt = Date.now(); }
   await DB.put('jobcards', j);
+  if (signed) await resolveReportsFor(jobId);
   await noteOdometer(j.busId, odo);
-  await load(); closeSheet(); toast(t('closeJobDone')); viewJobDetail(jobId);
+  await load(); closeSheet(); toast(signed ? t('closedAndSigned') : t('closeJobDone')); viewJobDetail(jobId);
 }
 
 async function markDone(jobId) {
@@ -6754,8 +6827,11 @@ async function markDone(jobId) {
   }
   j.status = 'done'; j.closedAt = Date.now();
   j.closedBy = S.user.id;
+  const signed = selfSignsOff(S.user.role);
+  if (signed) { j.status = 'verified'; j.verifiedBy = S.user.id; j.verifiedAt = j.closedAt; }
   await DB.put('jobcards', j);
-  await load(); toast('Marked done — waiting for verify'); viewJobDetail(jobId);
+  if (signed) await resolveReportsFor(jobId);
+  await load(); toast(signed ? t('closedAndSigned') : 'Marked done — waiting for verify'); viewJobDetail(jobId);
 }
 async function verifyJob(jobId) {
   if (!can(S.user.role, 'verifyJob')) return toast(t('cbNotAllowed'));
@@ -6764,7 +6840,7 @@ async function verifyJob(jobId) {
   // job and a supervisor verified it. With mechanics off the app the supervisor
   // does both, and a sign-off on your own work checks nothing. So whoever closed
   // it cannot be the one to verify it; the owner (or another supervisor) does.
-  if (j.closedBy && j.closedBy === S.user.id) {
+  if (j.closedBy && j.closedBy === S.user.id && !selfSignsOff(S.user.role)) {
     return toast('You closed this job — someone else must verify it');
   }
   // Verification = signing off that the work is real. Enforce the same proof
@@ -6780,9 +6856,7 @@ async function verifyJob(jobId) {
   if (!j.closedAt) j.closedAt = Date.now();
   await DB.put('jobcards', j);
   // Resolve any driver reports this job addressed — closes the loop for the driver.
-  for (const r of (S.cache.driverreports || [])) {
-    if (r.jobId === jobId && r.status === 'open') { r.status = 'addressed'; r.resolvedAt = Date.now(); await DB.put('driverreports', r); }
-  }
+  await resolveReportsFor(jobId);
   await load(); toast('Verified ✓'); viewJobDetail(jobId);
 }
 // Send a "done" job back to the mechanic for rework instead of verifying.
@@ -7258,7 +7332,7 @@ async function createCrewLogins() {
   (S.cache.buses || []).forEach((b) => {
     const nm = (b.conductor || '').trim(); if (!nm || /^[-–—\s.]*$/.test(nm)) return;
     if (b.conductorUserId && haveUser.has(b.conductorUserId)) return;
-    const uid2 = 'u-cond-' + _normReg(b.regNo);
+    const uid2 = 'u-cond-' + _regIdKey(b.regNo);   // an id: the stored spelling, never the match key
     if (!haveUser.has(uid2)) { newUsers.push({ id: uid2, name: _titleCase(nm), role: 'conductor' }); haveUser.add(uid2); }
     if (!credGet(uid2)) credSet(uid2, _pin4(b.crewPhone));
     b.conductorUserId = uid2; updBuses.push(b); conductorLogins++;
@@ -8000,7 +8074,7 @@ async function backfillConductorProfiles() {
     if (!nm || /^[-–—\s.]*$/.test(nm)) return;
     const uid = b.conductorUserId || null;
     if (uid && haveUser.has(uid)) return;
-    const id = 'con-' + _normReg(b.regNo);
+    const id = 'con-' + _regIdKey(b.regNo);        // an id: the stored spelling, never the match key
     if (haveId.has(id)) return;
     haveId.add(id); if (uid) haveUser.add(uid);
     add.push({ id, name: _titleCase(nm), crewRole: 'conductor', status: 'active',
@@ -9641,10 +9715,11 @@ async function applyDriveDocs() {
     if (D.cleanupDriveBuses) { for (const b of buses.filter((b) => b.source === 'drive-doc')) await DB.softDel('buses', b.id); }
     const folders = D.docFolders || {}, docs = D.busDocs || {}, upd = [];
     buses.filter((b) => b.source !== 'drive-doc').forEach((b) => {
-      const nr = _normReg(b.regNo); let ch = false;
-      const fid = folders[nr] || null;
+      const nr = _normReg(b.regNo), legacy = _regIdKey(b.regNo); let ch = false;
+      const fid = folders[nr] || folders[legacy] || null;
       if (b.docsFolderId !== fid) { b.docsFolderId = fid; ch = true; }
-      if (docs[nr]) { b.docs = docs[nr].map((x) => ({ type: x.type, number: x.number || '', expiry: x.expiry ? new Date(x.expiry + 'T00:00:00').getTime() : null })); ch = true; }
+      const dk = docs[nr] ? nr : (docs[legacy] ? legacy : null);
+      if (dk) { b.docs = docs[dk].map((x) => ({ type: x.type, number: x.number || '', expiry: x.expiry ? new Date(x.expiry + 'T00:00:00').getTime() : null })); ch = true; }
       if (ch) upd.push(b);
     });
     if (upd.length) await DB.bulkPut('buses', upd, false);

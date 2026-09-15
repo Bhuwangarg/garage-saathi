@@ -296,6 +296,27 @@ j "route({name:'jobs',id:'g-crew'})" >/dev/null
 sleep 1
 ck "and a deep link does not open it" "$(j "String(/Gate crew job/.test(document.querySelector('.content').innerText))")" "false"
 
+# 2h) Challans: an old lookup made with the zero dropped is not trusted if it found nothing.
+login owner u-owner 1 1 1 1
+ck "challan lookup asks for the official plate" "$(j "normReg('MP44ZD471')")" "MP44ZD0471"
+ck "an empty old snapshot is treated as unchecked" \
+  "$(j "(function(){var s=S.cache.challans;S.cache.challans=[{rc:'MP44ZD471',total:0,pendingCount:0,pendingFine:0}];_chSnapFrom=null;var r=challanFor('MP44ZD471')?'TRUSTED':'unchecked';S.cache.challans=s;_chSnapFrom=null;return r})()")" "unchecked"
+ck "an old snapshot that FOUND challans is kept" \
+  "$(j "(function(){var s=S.cache.challans;S.cache.challans=[{rc:'NL07B585',total:3,pendingCount:2,pendingFine:1000}];_chSnapFrom=null;var c=challanFor('NL07B585');S.cache.challans=s;_chSnapFrom=null;return c?String(c.pendingFine):'LOST'})()")" "1000"
+# Old and fresh snapshot for one bus must not add that bus's fines twice.
+ck "fines are counted once per bus" \
+  "$(j "(function(){var s=S.cache.challans;S.cache.challans=[{rc:'RJ14PF207',total:2,pendingCount:2,pendingFine:500,fetchedAt:1},{rc:'RJ14PF0207',total:2,pendingCount:1,pendingFine:200,fetchedAt:2}];_chSnapFrom=null;var f=fleetChallanTotals().fine;S.cache.challans=s;_chSnapFrom=null;return String(f)})()")" "200"
+# Ids are names that already exist: they keep the stored spelling.
+ck "record ids keep the stored spelling"   "$(j "_regIdKey('MP44 ZD 471')")" "MP44ZD471"
+
+# 2i) The supervisor's own work signs itself off; the owner's does not.
+ck "supervisor closes = signed off"        "$(j "String(selfSignsOff('supervisor'))")" "true"
+ck "owner still needs a second person"     "$(j "String(selfSignsOff('owner'))")" "false"
+login supervisor u-sup 2 2 2 2
+j "window.__sv='';(async function(){var b=S.cache.buses[0],n=Date.now();await DB.put('jobcards',{id:'g-sv',busId:b.id,problem:'Gate supervisor close',status:'open',priority:'low',createdAt:n,updatedAt:n,assignedTo:'u-m1',beforePhotos:['b'],afterPhotos:['a'],partsUsed:[]});await load();await markDone('g-sv');var j=byId(S.cache.jobs,'g-sv');window.__sv=j.status+'/'+j.verifiedBy+'/'+j.closedBy})().catch(function(e){window.__sv='ERR '+e.message})" >/dev/null
+settle "window.__sv||''" "verified/u-sup/u-sup" 30 >/dev/null
+ck "a supervisor's close is verified in the same step" "$(j "window.__sv")" "verified/u-sup/u-sup"
+
 # 3) Invariant sweep: form controls never navigate (owner's main tabs).
 login owner u-owner 1 1 1 1
 for SCREEN in home jobs store me; do

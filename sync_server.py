@@ -829,6 +829,22 @@ def _has_proof(d):
     return bool(before and after)
 
 
+def _job_crew(rec):
+    """User ids on a job card: `assignees` if present, else the one `assignedTo`.
+
+    Mirrors jobCrew() in app.js. Cards written before multi-mechanic jobs have
+    only `assignedTo`, and must still have a crew of one."""
+    rec = rec or {}
+    ids = []
+    for a in rec.get("assignees") or []:
+        uid = a.get("userId") if isinstance(a, dict) else None
+        if uid and str(uid) not in ids:
+            ids.append(str(uid))
+    if not ids and rec.get("assignedTo"):
+        ids.append(str(rec["assignedTo"]))
+    return ids
+
+
 def _guard_write(store, rid, data, actor, existing):
     """Enforce, server-side, the rules the app promises.
 
@@ -861,6 +877,34 @@ def _guard_write(store, rid, data, actor, existing):
     if store == "jobcards":
         status = data.get("status")
         prev = old.get("status")
+
+        # A mechanic works on the cards they are on, and only those.
+        #
+        # The app has always shown a mechanic just their own jobs, but the server
+        # granted `jobcards` by role alone — so one crafted request could edit
+        # any card in the garage: another mechanic's hours, a colleague's parts,
+        # a job on a bus they have never touched. The rule is now held here.
+        if actor["role"] == "mechanic":
+            # Creating a card is how a job gets something to hang parts on. The
+            # app gives a mechanic no way to do it; neither does the server.
+            if not old:
+                return "a mechanic cannot open a job card"
+            if data.get("_deleted") and not old.get("_deleted"):
+                return "a mechanic cannot delete a job card"
+            # Membership is read from the card as it STANDS, never from the
+            # body — otherwise "add myself to the crew" would be the way in.
+            if actor["id"] not in _job_crew(old):
+                return "you are not on this job"
+            # Who is on the job is the supervisor's to set. Carry the stored
+            # crew over whatever the body says, rather than refusing: a device
+            # on an older build may send the card without `assignees`, and that
+            # is a stale client, not an attack, so it must not cost the
+            # mechanic the photos or hours in the same write.
+            if "assignees" in old:
+                data["assignees"] = old["assignees"]
+            else:
+                data.pop("assignees", None)
+            data["assignedTo"] = old.get("assignedTo")
 
         # Reaching done/verified without photographs is the whole proof-of-work
         # rule. It has to hold here, not just in the browser.
@@ -900,8 +944,17 @@ def _guard_write(store, rid, data, actor, existing):
             if actor["role"] not in ("owner", "supervisor"):
                 return "only an owner or supervisor may verify"
             closer = old.get("closedBy") or data.get("closedBy")
-            if closer and closer == actor["id"]:
+            # The supervisor's own work needs no second signature — the owner's
+            # decision, 15 Sep 2026. The OWNER still may not sign off what the
+            # owner closed. Photos are still required above; only the second
+            # person is gone.
+            if closer and closer == actor["id"] and actor["role"] != "supervisor":
                 return "you closed this job — someone else must verify it"
+            if actor["role"] == "supervisor" and prev not in ("done", "verified"):
+                # Closed and signed off in one write: record who closed it from
+                # the token, not the body, so the record still says who did it.
+                data["closedBy"] = actor["id"]
+                data["closedAt"] = old.get("closedAt") or data.get("closedAt") or now_ms()
             # Signing off is an identity claim; take it from the token.
             data["verifiedBy"] = actor["id"]
             data["verifiedAt"] = now_ms()
@@ -1830,8 +1883,19 @@ def store_challan_snapshot(payload):
 
 
 def echallan_lookup(rc_no):
-    """One upstream challan lookup. Returns (payload, error_tuple_or_None)."""
-    rc = re.sub(r"[^A-Za-z0-9]", "", (rc_no or "")).upper()
+    """One upstream challan lookup. Returns (payload, error_tuple_or_None).
+
+    Asks for the OFFICIAL form of the plate — district to two digits, number to
+    four — because that is how the registry holds it. The fleet list dropped the
+    zero on 15 buses, and a lookup for MP44ZD471 against a registry that knows
+    MP44ZD0471 does not fail: it comes back empty, which the app shows as a green
+    "no pending challans". A miss that looks like a clean bill is the one outcome
+    this feature exists to prevent.
+
+    The snapshot is stored under that same padded key. Snapshots written before
+    this change sit under the old spelling; the app reconciles the two and does
+    not trust an old one that found nothing (see challanSnapshots() in app.js)."""
+    rc = norm_reg(re.sub(r"[^A-Za-z0-9]", "", (rc_no or "")))
     if not rc:
         return None, (400, {"error": "rc_no required"})
     url = f"{ECHALLAN_BASE}/vahanfin/echallan?rc_no={urllib.parse.quote(rc)}"

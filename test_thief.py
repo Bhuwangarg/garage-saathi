@@ -217,12 +217,12 @@ def main():
 
     print("\nAs a MECHANIC — who may look, not sign off:")
     mech = login("u-m1", "0001")
-    push(owner, "jobcards", "j-8", dict(d, id="j-8", status="open"))
-    push(mech, "jobcards", "j-8", dict(d, id="j-8", status="done"))
+    push(owner, "jobcards", "j-8", dict(d, id="j-8", status="open", assignedTo="u-m1"))
+    push(mech, "jobcards", "j-8", dict(d, id="j-8", status="done", assignedTo="u-m1"))
     j8 = record("jobcards", "j-8", owner) or {}
     attack("close a job as the mechanic", j8.get("status") != "done",
            "status=%r" % j8.get("status"))
-    push(mech, "jobcards", "j-8", dict(d, id="j-8", status="verified"))
+    push(mech, "jobcards", "j-8", dict(d, id="j-8", status="verified", assignedTo="u-m1"))
     j8 = record("jobcards", "j-8", owner) or {}
     attack("verify a job as the mechanic", j8.get("status") != "verified",
            "status=%r" % j8.get("status"))
@@ -302,6 +302,117 @@ def main():
     gz = record("gatepasses", "gp-z", owner) or {}
     attack("close a gate pass as the storekeeper", gz.get("status") == "out",
            "status=%r" % gz.get("status"))
+
+    print("\nRound 3 — a mechanic's reach is the cards they are on:")
+    mech2 = login("u-m2", "0002")
+    # A card that is Vijay's alone.
+    push(owner, "jobcards", "j-v", dict(d, id="j-v", status="open", assignedTo="u-m3",
+                                        labourHours=2, notes="Vijay's job"))
+    push(mech, "jobcards", "j-v", dict(d, id="j-v", status="open", assignedTo="u-m3",
+                                       labourHours=40, notes="padded by Mukesh"))
+    jv = record("jobcards", "j-v", owner) or {}
+    attack("edit another mechanic's job card", jv.get("labourHours") == 2,
+           "labourHours=%r" % jv.get("labourHours"))
+
+    # The obvious way round: put yourself on it in the same write.
+    push(mech, "jobcards", "j-v", dict(d, id="j-v", status="open", assignedTo="u-m1",
+                                       assignees=[{"userId": "u-m1", "task": "x"}],
+                                       labourHours=40))
+    jv = record("jobcards", "j-v", owner) or {}
+    attack("add yourself to a job in order to edit it",
+           jv.get("labourHours") == 2 and jv.get("assignedTo") == "u-m3",
+           "hours=%r assignedTo=%r" % (jv.get("labourHours"), jv.get("assignedTo")))
+
+    push(mech, "jobcards", "j-new", dict(d, id="j-new", status="open", assignedTo="u-m1"))
+    attack("open a job card as a mechanic (something to hang parts on)",
+           record("jobcards", "j-new", owner) is None)
+
+    # A shared job: Mukesh on the wiring, Imran on the brakes.
+    crew = [{"userId": "u-m1", "task": "Electrical"}, {"userId": "u-m2", "task": "Brakes"}]
+    push(owner, "jobcards", "j-c", dict(d, id="j-c", status="open", assignedTo="u-m1",
+                                        assignees=crew, labourHours=0))
+    # Removing a colleague from the crew is a supervisor's decision.
+    push(mech, "jobcards", "j-c", dict(d, id="j-c", status="open", assignedTo="u-m1",
+                                       assignees=[{"userId": "u-m1", "task": "Electrical"}]))
+    jc = record("jobcards", "j-c", owner) or {}
+    attack("drop a colleague from a shared job",
+           [a.get("userId") for a in (jc.get("assignees") or [])] == ["u-m1", "u-m2"],
+           "crew=%r" % [a.get("userId") for a in (jc.get("assignees") or [])])
+
+    push(mech, "jobcards", "j-c", dict(d, id="j-c", status="open", assignedTo="u-m1",
+                                       assignees=crew, _deleted=True))
+    jc = record("jobcards", "j-c", owner) or {}
+    attack("delete a job card as a mechanic", not jc.get("_deleted"),
+           "_deleted=%r" % jc.get("_deleted"))
+
+    # ---- and the honest work, which the guard must not get in the way of ----
+    # Imran is on the crew but is NOT assignedTo. If membership were still read
+    # from assignedTo, this is the write that would be wrongly refused.
+    push(mech2, "jobcards", "j-c", dict(d, id="j-c", status="in-progress", assignedTo="u-m1",
+                                        assignees=crew, labourHours=3))
+    jc = record("jobcards", "j-c", owner) or {}
+    attack("the SECOND mechanic on a shared job can record their work",
+           jc.get("labourHours") == 3 and jc.get("status") == "in-progress",
+           "hours=%r status=%r" % (jc.get("labourHours"), jc.get("status")))
+
+    # A device on the previous build sends the card without `assignees`. That is
+    # a stale client, not an attack: the work is kept and the crew is not lost.
+    push(mech2, "jobcards", "j-c", dict(d, id="j-c", status="in-progress", assignedTo="u-m1",
+                                        labourHours=4))
+    jc = record("jobcards", "j-c", owner) or {}
+    attack("an older build's write keeps its work and the crew survives",
+           jc.get("labourHours") == 4 and len(jc.get("assignees") or []) == 2,
+           "hours=%r crew=%d" % (jc.get("labourHours"), len(jc.get("assignees") or [])))
+
+    # A card from before multi-mechanic jobs has only assignedTo.
+    push(owner, "jobcards", "j-old", dict(d, id="j-old", status="open", assignedTo="u-m1",
+                                          labourHours=0))
+    push(mech, "jobcards", "j-old", dict(d, id="j-old", status="in-progress", assignedTo="u-m1",
+                                         labourHours=1))
+    jo = record("jobcards", "j-old", owner) or {}
+    attack("a mechanic works a pre-crew card that names them",
+           jo.get("labourHours") == 1, "hours=%r" % jo.get("labourHours"))
+
+    print("\nRound 4 — a supervisor's own work signs itself off (owner's call, 15 Sep):")
+    # Vajid closes and signs off in one write — the app now sends it that way.
+    push(sup, "jobcards", "j-s1", dict(d, id="j-s1", status="open"))
+    push(sup, "jobcards", "j-s1", dict(d, id="j-s1", status="verified", closedBy="u-sup"))
+    js1 = record("jobcards", "j-s1", owner) or {}
+    attack("a supervisor closes and signs off their own job in one step",
+           js1.get("status") == "verified" and js1.get("verifiedBy") == "u-sup",
+           "status=%r verifiedBy=%r" % (js1.get("status"), js1.get("verifiedBy")))
+    attack("  ...and the record still says who closed it", js1.get("closedBy") == "u-sup",
+           "closedBy=%r" % js1.get("closedBy"))
+
+    # His backlog: jobs he closed before this change, still sitting in done.
+    push(sup, "jobcards", "j-s2", dict(d, id="j-s2", status="open"))
+    push(sup, "jobcards", "j-s2", dict(d, id="j-s2", status="done"))
+    push(sup, "jobcards", "j-s2", dict(d, id="j-s2", status="verified"))
+    js2 = record("jobcards", "j-s2", owner) or {}
+    attack("a supervisor verifies a job they closed earlier",
+           js2.get("status") == "verified", "status=%r" % js2.get("status"))
+
+    # What did NOT go: the evidence. No photos, no sign-off, supervisor or not.
+    push(sup, "jobcards", "j-s3", {"id": "j-s3", "busId": "b1", "problem": "x", "status": "open"})
+    push(sup, "jobcards", "j-s3", {"id": "j-s3", "busId": "b1", "problem": "x", "status": "verified"})
+    js3 = record("jobcards", "j-s3", owner) or {}
+    attack("a supervisor signs off a job with no photos", js3.get("status") != "verified",
+           "status=%r" % js3.get("status"))
+
+    # The body cannot name somebody else as the closer.
+    push(sup, "jobcards", "j-s4", dict(d, id="j-s4", status="open"))
+    push(sup, "jobcards", "j-s4", dict(d, id="j-s4", status="verified", closedBy="u-owner"))
+    js4 = record("jobcards", "j-s4", owner) or {}
+    attack("a supervisor records someone else as having closed it",
+           js4.get("closedBy") == "u-sup", "closedBy=%r" % js4.get("closedBy"))
+
+    # The exemption is the supervisor's alone. The owner keeps the two-person rule.
+    push(owner, "jobcards", "j-s5", dict(d, id="j-s5", status="open"))
+    push(owner, "jobcards", "j-s5", dict(d, id="j-s5", status="done"))
+    push(owner, "jobcards", "j-s5", dict(d, id="j-s5", status="verified"))
+    js5 = record("jobcards", "j-s5", owner) or {}
+    attack("the owner still cannot sign off what the owner closed",
+           js5.get("status") != "verified", "status=%r" % js5.get("status"))
 
     stolen = [n for n, ok, _ in RESULTS if not ok]
     print("\n%d of %d attacks BLOCKED." % (len(RESULTS) - len(stolen), len(RESULTS)))
