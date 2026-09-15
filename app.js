@@ -2068,15 +2068,48 @@ function viewBuses() {
   loadBusStatuses();         // then refresh live running/idle/parked
 }
 // Remove demo/test buses and de-duplicate by registration (keeps the richest record).
+/* How much of the garage's record hangs off each bus id. */
+function busRefCounts() {
+  const n = {};
+  const add = (arr) => (arr || []).forEach((r) => { if (r && !r._deleted && r.busId) n[r.busId] = (n[r.busId] || 0) + 1; });
+  add(S.cache.jobs); add(S.cache.fuel); add(S.cache.trips); add(S.cache.driverreports);
+  add(S.cache.drivers); add(S.cache.def); add(S.cache.components); add(S.cache.breakdowns);
+  add(S.cache.gatepasses); add(S.cache.routes);
+  return n;
+}
 async function cleanupFleet(silent) {
   if (!silent && !confirm('Remove demo/test buses and any duplicate registrations?')) return 0;
   const buses = S.cache.buses || [];
   const demoIds = new Set(['b1', 'b2', 'b3']);
-  const score = (b) => (b.source === 'klm-linked' ? 100 : 0) + (b.source === 'klm-excel' ? 50 : 0) + (b.model ? 5 : 0) + ((b.docs || []).length ? 2 : 0);
+  /* Which copy of a duplicated registration survives.
+   *
+   * This used to score only on import source, model and documents — and every
+   * real bus in the fleet came in as 'route-import' with none of those, scoring
+   * 0, exactly the same as a blank bus auto-created from an AirFi ping. On a tie
+   * the sort kept whichever happened to be first, so a matching fix that made
+   * MP44ZD471 and MP44ZD0471 the same bus could have soft-deleted the real one,
+   * with its job cards, fuel and driver, and kept the empty copy.
+   *
+   * History now decides, and an automatic import can never outrank a bus
+   * somebody entered. */
+  const refs = busRefCounts();
+  const score = (b) => (b.source === 'airfi' ? -1000 : 0)
+    + Math.min(refs[b.id] || 0, 500) * 10
+    + (b.source === 'klm-linked' ? 100 : 0) + (b.source === 'klm-excel' ? 50 : 0)
+    + (b.model ? 5 : 0) + ((b.docs || []).length ? 2 : 0);
   const groups = {};
   buses.forEach((b) => { const k = _normReg(b.regNo); (groups[k] = groups[k] || []).push(b); });
   const toDel = new Set();
-  for (const k in groups) { const g = groups[k].slice().sort((a, b) => score(b) - score(a)); for (let i = 1; i < g.length; i++) toDel.add(g[i].id); }  // dupes
+  for (const k in groups) {
+    const g = groups[k].slice().sort((a, b) => (score(b) - score(a)) || ((a.createdAt || 0) - (b.createdAt || 0)));
+    for (let i = 1; i < g.length; i++) {
+      // Running unattended in the background, only a copy with NO history of its
+      // own may go. Two copies that both carry records are two people's work,
+      // and merging them is a decision for a person, not a two-minute timer.
+      if (silent && (refs[g[i].id] || 0) > 0) continue;
+      toDel.add(g[i].id);
+    }
+  }
   // Strip demo/test buses ONLY once a real fleet exists to replace them — otherwise
   // the background auto-reconcile would wipe the seeded demo fleet to nothing
   // (offline/local installs have no AirFi import to bring buses back).
@@ -2126,7 +2159,15 @@ function attachSearch(inputId, listId) {
 }
 // Pull the fleet AirFi is tracking and create a bus for any registration we
 // don't have yet. New buses then track live automatically via GpsProvider.
-const _normReg = (s) => (s || '').toUpperCase().replace(/[\s-]/g, '');
+/* Match key for a registration — mirrors norm_reg() on the server exactly.
+ * Pads the trailing number to 4 and the district to 2 (MP44ZD471 → MP44ZD0471),
+ * because the trackers send the official form and part of the fleet list does
+ * not. Only when a series letter makes the boundary unambiguous; see norm_reg. */
+const _normReg = (s) => {
+  const n = (s || '').toUpperCase().replace(/[\s-]/g, '');
+  const m = /^([A-Z]{2})(\d{1,2})([A-Z]{1,3})(\d{1,4})$/.exec(n);
+  return m ? m[1] + m[2].padStart(2, '0') + m[3] + m[4].padStart(4, '0') : n;
+};
 async function importFleet(silent) {
   if (!can(S.user.role, 'addBus')) { if (!silent) toast(t('cbNotAllowed')); return 0; }
   if (!silent) toast('Pulling fleet from AirFi…');

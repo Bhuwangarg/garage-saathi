@@ -1168,8 +1168,28 @@ GPS_INGEST_TOKEN = _read_gps_token()
 _GPS_TOKEN_OK = bool(GPS_INGEST_TOKEN) and "demo" not in GPS_INGEST_TOKEN.lower() and "change-me" not in GPS_INGEST_TOKEN.lower()
 
 
+_REG_RX = re.compile(r"^([A-Z]{2})(\d{1,2})([A-Z]{1,3})(\d{1,4})$")
+
+
 def norm_reg(s):
-    return (s or "").upper().replace(" ", "").replace("-", "")
+    """The one key a registration is matched on, however it was written.
+
+    Stripping spaces and dashes was not enough. The official plate pads the
+    trailing number to four digits and the district to two — MP44ZD0471 — and
+    that is exactly what AirFi's trackers send, while the office's fleet list
+    dropped the zero on 15 buses (MP44ZD471). The two never matched: the ping
+    was stored, and the bus it belonged to showed nothing.
+
+    Padding is applied only when a series letter separates district from
+    number. Without one (RJ14123) the boundary is genuinely ambiguous, and
+    guessing wrong would merge two real vehicles — so those are left as written.
+    Bare fleet numbers like "1217" do not match at all and pass through."""
+    n = (s or "").upper().replace(" ", "").replace("-", "")
+    m = _REG_RX.match(n)
+    if not m:
+        return n
+    state, district, series, number = m.groups()
+    return state + district.zfill(2) + series + number.zfill(4)
 
 
 def iso_ms(s):
@@ -1182,6 +1202,22 @@ def iso_ms(s):
 def _ist_hour(ms):
     return int(((ms / 1000 + 5.5 * 3600) % 86400) // 3600)
 
+def _gps_load_row(reg, data):
+    """Load one persisted position into LIVE_GPS under today's match key.
+
+    Rows written before norm_reg() padded registrations are keyed the old way.
+    Re-keying on load means nothing already stored is stranded under a key
+    nobody looks up any more; where both spellings exist, the newer ping wins."""
+    try:
+        rec = json.loads(data)
+    except Exception:
+        return
+    key = norm_reg(reg)
+    have = LIVE_GPS.get(key)
+    if have is None or (rec.get("lastPing") or 0) >= (have.get("lastPing") or 0):
+        LIVE_GPS[key] = rec
+
+
 def _gps_hydrate():
     """Serverless-safe refresh: reload the latest positions from the persisted
     `gpslive` store into LIVE_GPS. On a single long-lived process this is a no-op
@@ -1193,10 +1229,7 @@ def _gps_hydrate():
         rows = c.execute("SELECT reg,data FROM gpslive").fetchall()
         c.close()
         for reg, data in rows:
-            try:
-                LIVE_GPS[reg] = json.loads(data)
-            except Exception:
-                pass
+            _gps_load_row(reg, data)
     except Exception:
         pass
 
@@ -1284,10 +1317,7 @@ def _load_live_gps():
         rows = c.execute("SELECT reg,data FROM gpslive").fetchall()
         c.close()
         for reg, data in rows:
-            try:
-                LIVE_GPS[reg] = json.loads(data)
-            except Exception:
-                pass
+            _gps_load_row(reg, data)
         if LIVE_GPS:
             print(f"Loaded {len(LIVE_GPS)} live GPS position(s) from store")
     except Exception as e:

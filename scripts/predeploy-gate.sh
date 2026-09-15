@@ -254,6 +254,20 @@ ck "issue defaults to in-stock parts only" \
   "$(j "String([].slice.call(document.querySelectorAll('#ppl-iss .li')).every(function(n){return !/Out of stock/.test(n.textContent)}))")" "true"
 j "closeSheet()" >/dev/null
 
+# 2f) Registrations match however they are written, and the de-dupe keeps the real bus.
+login owner u-owner 1 1 1 1
+# AirFi sends the official zero-padded plate; 15 buses in the fleet list are not.
+ck "MP44ZD471 matches the tracker's MP44ZD0471" "$(j "_normReg('MP44ZD471')===_normReg('MP44ZD0471')")" "true"
+ck "spacing and case still ignored"           "$(j "_normReg('mp44 zd 471')")" "MP44ZD0471"
+# No series letter means the district/number boundary is ambiguous: never guess.
+ck "an ambiguous plate is left as written"    "$(j "_normReg('RJ14123')")" "RJ14123"
+# The padding makes a real bus and an AirFi-imported copy of it the same group,
+# which turns the background de-dupe on for them. Every real bus scored 0 there,
+# the same as the copy, so a tie could have deleted the real one.
+j "window.__g='';(async function(){var n=Date.now();await DB.put('buses',{id:'g-ph',regNo:'QQ44ZD0471',source:'airfi',docs:[],createdAt:n});await DB.put('buses',{id:'g-real',regNo:'QQ44ZD471',source:'route-import',docs:[],createdAt:n-9e8});await DB.put('jobcards',{id:'g-job',busId:'g-real',problem:'x',status:'open',createdAt:n,updatedAt:n});await load();await cleanupFleet(true);window.__g=(byId(S.cache.buses,'g-real')?'kept':'LOST')+'/'+(byId(S.cache.buses,'g-ph')?'phantom-stays':'phantom-gone');})().catch(function(e){window.__g='ERR'})" >/dev/null
+settle "window.__g||''" "kept/phantom-gone" 30 >/dev/null
+ck "de-dupe keeps the real bus, drops the import" "$(j "window.__g")" "kept/phantom-gone"
+
 # 3) Invariant sweep: form controls never navigate (owner's main tabs).
 login owner u-owner 1 1 1 1
 for SCREEN in home jobs store me; do
