@@ -114,7 +114,7 @@ login mechanic u-m1 0 0 0 1; ck "mechanic login" "$(j "S.user?S.user.role:'none'
 # A mechanic sees only their own work. Anything else here is a leak of another
 # mechanic's jobs, and of the whole board to somebody with no business on it.
 ck "mechanic sees only their own jobs" \
-  "$(j "(function(){var n=(S.cache.jobs||[]).filter(function(x){return x.assignedTo!==S.user.id});var shown=[].slice.call(document.querySelectorAll('[data-job]')).map(function(e){return e.getAttribute('data-job')});return n.filter(function(x){return shown.indexOf(x.id)>=0}).length})()")" "0"
+  "$(j "(function(){var n=(S.cache.jobs||[]).filter(function(x){return !isOnJob(x,S.user.id)});var shown=[].slice.call(document.querySelectorAll('[data-job]')).map(function(e){return e.getAttribute('data-job')});return n.filter(function(x){return shown.indexOf(x.id)>=0}).length})()")" "0"
 # Closing is the supervisor's and the owner's. The button must not be there...
 ck "mechanic has no close button" \
   "$(j "(function(){var j=(S.cache.jobs||[]).filter(function(x){return x.assignedTo===S.user.id&&(x.status==='open'||x.status==='in-progress')})[0];if(!j)return 'nojob';route({name:'jobs',id:j.id});return document.querySelector('[data-act=markDone]')?'yes':'no'})()")" "no"
@@ -267,6 +267,34 @@ ck "an ambiguous plate is left as written"    "$(j "_normReg('RJ14123')")" "RJ14
 j "window.__g='';(async function(){var n=Date.now();await DB.put('buses',{id:'g-ph',regNo:'QQ44ZD0471',source:'airfi',docs:[],createdAt:n});await DB.put('buses',{id:'g-real',regNo:'QQ44ZD471',source:'route-import',docs:[],createdAt:n-9e8});await DB.put('jobcards',{id:'g-job',busId:'g-real',problem:'x',status:'open',createdAt:n,updatedAt:n});await load();await cleanupFleet(true);window.__g=(byId(S.cache.buses,'g-real')?'kept':'LOST')+'/'+(byId(S.cache.buses,'g-ph')?'phantom-stays':'phantom-gone');})().catch(function(e){window.__g='ERR'})" >/dev/null
 settle "window.__g||''" "kept/phantom-gone" 30 >/dev/null
 ck "de-dupe keeps the real bus, drops the import" "$(j "window.__g")" "kept/phantom-gone"
+
+# 2g) Several mechanics on one job: each sees it, nobody else does.
+login supervisor u-sup 2 2 2 2
+j "window.__cs='';(async function(){var b=S.cache.buses[0],n=Date.now();await DB.put('jobcards',{id:'g-crew',busId:b.id,problem:'Gate crew job',status:'open',priority:'medium',createdAt:n,updatedAt:n,assignedTo:'u-m1',assignees:[{userId:'u-m1',task:'Electrical'},{userId:'u-m2',task:'Brakes'}],partsUsed:[],beforePhotos:[],afterPhotos:[]});await load();window.__cs='ok'})()" >/dev/null
+settle "window.__cs||''" "ok" 25 >/dev/null
+# assignedTo stays the first mechanic, so every older reader still sees a name.
+ck "shared job keeps assignedTo as the lead"  "$(j "byId(S.cache.jobs,'g-crew').assignedTo")" "u-m1"
+ck "both mechanics are on the crew"           "$(j "jobCrew(byId(S.cache.jobs,'g-crew')).map(function(a){return a.userId}).join(',')")" "u-m1,u-m2"
+# A job saved by the previous build has no assignees array at all.
+ck "an old single-mechanic job still reads"   "$(j "jobCrew({assignedTo:'u-m3'}).length")" "1"
+ck "a draft saved as a bare id still restores" "$(j "parseCrew('u-m3')[0].userId")" "u-m3"
+# The second mechanic — not assignedTo — must still get the job.
+login mechanic u-m2 0 0 0 2
+ck "second mechanic login" "$(j "S.user?S.user.id:'none'")" "u-m2"
+j "route({name:'jobs'})" >/dev/null
+settle "S.route.name" "jobs" 20 >/dev/null
+ck "the second mechanic sees the shared job" "$(j "document.querySelector('[data-job=\"g-crew\"]')?'yes':'no'")" "yes"
+j "route({name:'jobs',id:'g-crew'})" >/dev/null
+settle "S.route.id||''" "g-crew" 20 >/dev/null
+ck "and can open it" "$(j "String(/Gate crew job/.test(document.querySelector('.content').innerText))")" "true"
+# A mechanic on neither side of it must not reach it, by list or by link.
+login mechanic u-m3 0 0 0 3
+j "route({name:'jobs'})" >/dev/null
+settle "S.route.name" "jobs" 20 >/dev/null
+ck "a mechanic not on it does not see it" "$(j "document.querySelector('[data-job=\"g-crew\"]')?'LEAK':'hidden'")" "hidden"
+j "route({name:'jobs',id:'g-crew'})" >/dev/null
+sleep 1
+ck "and a deep link does not open it" "$(j "String(/Gate crew job/.test(document.querySelector('.content').innerText))")" "false"
 
 # 3) Invariant sweep: form controls never navigate (owner's main tabs).
 login owner u-owner 1 1 1 1

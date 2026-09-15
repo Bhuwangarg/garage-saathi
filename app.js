@@ -98,6 +98,9 @@ const I18N = {
     // Report categories
     catBrakes: 'Brakes', catEngine: 'Engine', catAC: 'AC', catSuspension: 'Suspension', catElectrical: 'Electrical',
     catTyres: 'Tyres', catGearbox: 'Gearbox', catBody: 'Body', catOther: 'Other',
+    crewTitle: 'Mechanics on this job', crewHint: 'Add everyone working on it, and what each is doing — one on the wiring, another on the brakes.',
+    crewWho: 'Mechanic', crewTask: 'Doing', crewTaskPh: 'e.g. Electrical', crewAdd: 'Add mechanic',
+    crewRemove: 'Remove', crewTwice: 'The same mechanic is on the job twice', crewEveryone: 'Every mechanic is already on this job',
     // ---- Outside job / gate pass ----
     ojTitle: 'Outside job', ojSub: 'The slip that goes out with a unit, and what it is checked against coming back',
     ojNew: 'New outside job', ojNewHint: 'Fill this in before the unit leaves. Print it and send a copy with the vendor.',
@@ -311,6 +314,9 @@ const I18N = {
     // Report categories
     catBrakes: 'ब्रेक', catEngine: 'इंजन', catAC: 'एसी', catSuspension: 'सस्पेंशन', catElectrical: 'बिजली',
     catTyres: 'टायर', catGearbox: 'गियरबॉक्स', catBody: 'बॉडी', catOther: 'अन्य',
+    crewTitle: 'इस काम पर मैकेनिक', crewHint: 'जो-जो इस पर काम कर रहा है सबको जोड़िए, और कौन क्या कर रहा है — एक वायरिंग पर, दूसरा ब्रेक पर।',
+    crewWho: 'मैकेनिक', crewTask: 'क्या कर रहा है', crewTaskPh: 'जैसे बिजली का काम', crewAdd: 'मैकेनिक जोड़ें',
+    crewRemove: 'हटाएँ', crewTwice: 'एक ही मैकेनिक दो बार जुड़ गया है', crewEveryone: 'सारे मैकेनिक पहले से इस काम पर हैं',
     // ---- Outside job / gate pass ----
     ojTitle: 'बाहर का काम', ojSub: 'जो पर्ची सामान के साथ बाहर जाती है, और वापसी पर उसी से मिलान होता है',
     ojNew: 'नया बाहर का काम', ojNewHint: 'सामान निकलने से पहले भरिए। छापकर एक कॉपी वेंडर के साथ भेजिए।',
@@ -1366,7 +1372,7 @@ function viewStoreHome() {
 // Mechanic home — my work first.
 function viewMechanicHome() {
   const me = S.user.id;
-  const myJobs = S.cache.jobs.filter((j) => j.assignedTo === me);
+  const myJobs = S.cache.jobs.filter((j) => isOnJob(j, me));
   const open = myJobs.filter((j) => j.status === 'open' || j.status === 'in-progress');
   const myAtt = S.cache.att.filter((a) => a.userId === me);
   const checkedIn = myAtt.length && myAtt[myAtt.length - 1].type === 'in' && isToday(myAtt[myAtt.length - 1].at);
@@ -1875,7 +1881,7 @@ function viewSupervisorHome() {
   // Who is carrying what, so the next card goes to somebody who can take it.
   const mechs = (S.cache.users || []).filter((u) => u.role === 'mechanic');
   if (mechs.length) {
-    const load = mechs.map((u) => ({ u, n: inShop.filter((j) => j.assignedTo === u.id).length }))
+    const load = mechs.map((u) => ({ u, n: inShop.filter((j) => isOnJob(j, u.id)).length }))
       .sort((a, b) => b.n - a.n);
     body += `<div class="card" data-act="openScoreboard" style="cursor:pointer">
       <div class="row between"><h3>👷 ${t('hmLoad')}</h3><span class="tiny muted">${t('mpTitle')} ›</span></div>`;
@@ -2476,7 +2482,7 @@ function jobLi(j) {
     ${rep ? `<div class="jc-complaint">🗣️ ${esc(driverName(rep.driverId))}: “${esc((rep.problem || '').slice(0, 90))}”</div>` : ''}
     <div class="jc-meta">
       <span class="pp">${PRIO_PILL[j.priority] || ''}</span>
-      <span>· 👷 ${esc(userName(j.assignedTo))}</span>
+      <span>· 👷 ${esc(crewLabel(j, false))}</span>
       <span>· ${fmtDate(j.createdAt)}</span>
       ${j.externalVendor ? '<span>· 🏪 outside</span>' : ''}
     </div>
@@ -2498,8 +2504,8 @@ function isVerifierRole() { return can(S.user.role, 'verifyJob'); }
 // Renders the animated status + mechanic filter chips above the jobs board.
 function jobsFilterBar() {
   let scoped = [...S.cache.jobs];
-  if (S.user.role === 'mechanic') scoped = scoped.filter((j) => j.assignedTo === S.user.id);
-  if (jobFilterState.mech !== 'all') scoped = scoped.filter((j) => j.assignedTo === jobFilterState.mech);
+  if (S.user.role === 'mechanic') scoped = scoped.filter((j) => isOnJob(j, S.user.id));
+  if (jobFilterState.mech !== 'all') scoped = scoped.filter((j) => isOnJob(j, jobFilterState.mech));
   const cnt = (s) => s === 'all' ? scoped.length : scoped.filter((j) => j.status === s).length;
   const statuses = [['all', t('filterAll')], ['open', t('open')], ['in-progress', t('statusInProgress')], ['done', t('toVerify')], ['verified', t('statusVerified')]];
   let bar = `<div class="chiprow">` + statuses.map(([v, l]) =>
@@ -2517,13 +2523,13 @@ function jobsFilterBar() {
 function applyJobFilter(jobs) {
   let out = jobs;
   if (jobFilterState.status !== 'all') out = out.filter((j) => j.status === jobFilterState.status);
-  if (jobFilterState.mech !== 'all') out = out.filter((j) => j.assignedTo === jobFilterState.mech);
+  if (jobFilterState.mech !== 'all') out = out.filter((j) => isOnJob(j, jobFilterState.mech));
   return out;
 }
 
 function viewJobs() {
   let jobs = [...S.cache.jobs];
-  if (S.user.role === 'mechanic') jobs = jobs.filter((j) => j.assignedTo === S.user.id);
+  if (S.user.role === 'mechanic') jobs = jobs.filter((j) => isOnJob(j, S.user.id));
   jobs = applyJobFilter(jobs);
   // Verifiers get 'done' (awaiting verify) pinned to the very top; everyone
   // else keeps the original open→in-progress→done→verified ordering.
@@ -2569,7 +2575,7 @@ function viewJobDetail(id) {
   const j = byId(S.cache.jobs, id);
   if (!j) return viewJobs();
   const cost = jobCost(j);
-  const mine = j.assignedTo === S.user.id;
+  const mine = isOnJob(j, S.user.id);
   // The mechanic job LIST is filtered to their own work; the detail route has to
   // enforce the same scope or any id-bearing entry point (alert nav, a restored
   // history entry) opens another mechanic's card — and its write actions with it.
@@ -2589,7 +2595,7 @@ function viewJobDetail(id) {
     <div class="row between"><h3>${esc(busName(j.busId))}</h3>${statusBadge(j.status)}</div>
     <div class="small">${esc(j.problem)}</div>
     <div class="row" style="gap:8px;margin-top:8px">${prioBadge(j.priority)}
-      <span class="small muted">${esc(userName(j.assignedTo))}</span>
+      <span class="small muted">👷 ${esc(crewLabel(j, true))}</span>
       <span class="small muted">· ${fmtDate(j.createdAt)}</span></div>
     ${j.notes ? `<div class="small muted" style="margin-top:8px">📝 ${esc(j.notes)}</div>` : ''}
   </div>`;
@@ -2689,9 +2695,11 @@ function sheetEditJob(jobId) {
   const buses = S.cache.buses;
   const mechs = S.cache.users.filter((u) => u.role === 'mechanic');
   const assignees = mechs.length ? mechs : [{ id: S.user.id, name: S.user.name + ' (you)' }];
-  if (assignees.every((m) => m.id !== j.assignedTo)) {
-    assignees.unshift({ id: j.assignedTo, name: userName(j.assignedTo) });
-  }
+  // Anyone already on the job stays pickable even if they are no longer a
+  // mechanic — otherwise opening the sheet would silently drop them from it.
+  jobCrew(j).forEach((a) => {
+    if (assignees.every((m) => m.id !== a.userId)) assignees.unshift({ id: a.userId, name: userName(a.userId) });
+  });
   const prioOpt = (v, label) => `<option value="${v}" ${j.priority === v ? 'selected' : ''}>${label}</option>`;
   openSheet(t('editReassign'), `
     <label class="field"><span class="lbl">Bus</span><select id="fe-bus">${
@@ -2704,30 +2712,32 @@ function sheetEditJob(jobId) {
       byId(buses, j.busId) ? '' : `<option value="__keep__" selected>⚠️ Unknown bus (${esc(j.busId || 'not set')}) — pick one to fix</option>`
     }${buses.map((b) => `<option value="${b.id}" ${b.id === j.busId ? 'selected' : ''}>${esc(b.regNo)} — ${esc(b.company)}</option>`).join('')}</select></label>
     <label class="field"><span class="lbl">Problem reported</span><textarea id="fe-prob">${esc(j.problem || '')}</textarea></label>
-    <div class="grid2">
-      <label class="field"><span class="lbl">Assign to</span><select id="fe-mech">${assignees.map((m) => `<option value="${m.id}" ${m.id === j.assignedTo ? 'selected' : ''}>${esc(m.name)}</option>`).join('')}</select></label>
-      <label class="field"><span class="lbl">Priority</span><select id="fe-prio">${prioOpt('high', 'High')}${prioOpt('medium', 'Medium')}${prioOpt('low', 'Low')}</select></label>
-    </div>
+    <div class="lbl" style="margin:4px 0 6px">👷 ${t('crewTitle')}</div>
+    ${crewEditorHtml('fe-mech', jobCrew(j))}
+    <label class="field" style="margin-top:10px"><span class="lbl">Priority</span><select id="fe-prio">${prioOpt('high', 'High')}${prioOpt('medium', 'Medium')}${prioOpt('low', 'Low')}</select></label>
     <label class="field"><span class="lbl">Outside vendor (optional)</span><input id="fe-vendor" value="${esc(j.externalVendor || '')}" placeholder="Leave blank if in-house"></label>
     <div class="grid2">
       <label class="field"><span class="lbl">Outside cost (₹)</span><input id="fe-extcost" type="number" inputmode="numeric" value="${j.externalCost || ''}"></label>
       <label class="field"><span class="lbl">Labour hours</span><input id="fe-hrs" type="number" inputmode="decimal" value="${j.labourHours || ''}"></label>
     </div>
     <label class="field"><span class="lbl">Notes (optional)</span><textarea id="fe-notes" placeholder="Any extra detail for the mechanic">${esc(j.notes || '')}</textarea></label>
-    <button class="btn primary" data-act="saveEditJob" data-job="${j.id}">${t('save')}</button>`);
+    <button class="btn primary" data-act="saveEditJob" data-job="${j.id}">${t('save')}</button>`,
+    (wrap) => mountCrewEditor(wrap, 'fe-mech', assignees));
 }
 async function saveEditJob(jobId) {
   const j = byId(S.cache.jobs, jobId);
   if (!j) return;
   const prob = $('#fe-prob').value.trim();
   if (!prob) return toast(t('describeProblem'));
-  const assignedTo = $('#fe-mech').value;
-  if (!assignedTo) return toast(t('pickAssignee'));
+  const crew = readCrewField('fe-mech');
+  if (!crew) return;
+  const assignedTo = crew[0].userId;
   // Mutate the SAME record (same id) — reassign/edit, never create a new job.
   const busPick = $('#fe-bus').value;
   if (busPick !== '__keep__') j.busId = busPick;   // '__keep__' = unresolved id, leave it be
   j.problem = prob;
   j.assignedTo = assignedTo;
+  j.assignees = crew;
   j.priority = $('#fe-prio').value;
   j.externalVendor = $('#fe-vendor').value.trim();
   j.externalCost = Number($('#fe-extcost').value) || 0;
@@ -3976,6 +3986,110 @@ function sheetAddJob(prefill = {}) { push({ name: 'newjob', prefill }); }
  * Kept in localStorage rather than IndexedDB deliberately: it must survive a
  * process kill with no async write pending, and it is one small object. */
 const JOB_DRAFT_KEY = 'gs-jobdraft';
+/* ---- A job's crew: one or more mechanics, each with their share of it -----
+ *
+ * A job used to hold one `assignedTo`. A real repair is often two trades: an
+ * electrician on the wiring while someone else does the brakes. So a job now
+ * carries `assignees: [{ userId, task }]`.
+ *
+ * `assignedTo` is kept, always equal to the first assignee. Thirty places read
+ * it, older devices still running the previous build read it, and the server's
+ * reports read it — so it stays true for all of them, and the places where
+ * "is this person on the job" actually matters ask jobCrew() instead.
+ */
+const CREW_TRADES = ['Electrical', 'Engine', 'Brakes', 'Suspension', 'Gearbox', 'Tyres', 'AC', 'Body / denting', 'Paint', 'General'];
+
+function jobCrew(j) {
+  if (!j) return [];
+  const raw = (Array.isArray(j.assignees) && j.assignees.length)
+    ? j.assignees
+    : (j.assignedTo ? [{ userId: j.assignedTo, task: '' }] : []);
+  const seen = new Set();
+  return raw.filter((a) => {
+    if (!a || !a.userId || seen.has(a.userId)) return false;
+    seen.add(a.userId); return true;
+  });
+}
+const isOnJob = (j, uid) => !!uid && jobCrew(j).some((a) => a.userId === uid);
+const crewLabel = (j, withTasks) => jobCrew(j)
+  .map((a) => userName(a.userId) + (withTasks && a.task ? ' · ' + a.task : '')).join(', ') || '—';
+
+/* Parse whatever the hidden field holds. A draft saved by the previous build
+ * holds a bare user id rather than JSON, and must still restore. */
+function parseCrew(v) {
+  if (!v) return [];
+  try {
+    const a = JSON.parse(v);
+    if (Array.isArray(a)) return a.filter((x) => x && x.userId).map((x) => ({ userId: String(x.userId), task: String(x.task || '').trim() }));
+  } catch (e) { /* not JSON — an old single-id value */ }
+  return [{ userId: String(v), task: '' }];
+}
+
+function crewEditorHtml(fieldId, crew) {
+  return `<input type="hidden" id="${fieldId}" value="${esc(JSON.stringify(crew || []))}">
+    <div id="${fieldId}-rows" class="crew-rows"></div>
+    <button type="button" class="btn sm" id="${fieldId}-add" style="width:auto;margin-top:6px">+ ${t('crewAdd')}</button>
+    <datalist id="crew-trades">${CREW_TRADES.map((x) => `<option value="${esc(x)}">`).join('')}</datalist>`;
+}
+
+function mountCrewEditor(scope, fieldId, people) {
+  const hid = scope.querySelector('#' + fieldId);
+  const rows = scope.querySelector('#' + fieldId + '-rows');
+  const add = scope.querySelector('#' + fieldId + '-add');
+  if (!hid || !rows || hid._crewWired) return;
+  hid._crewWired = true;
+
+  const opts = (sel) => people.map((m) => `<option value="${esc(m.id)}" ${m.id === sel ? 'selected' : ''}>${esc(m.name)}</option>`).join('');
+  const write = () => {
+    const crew = [...rows.querySelectorAll('.crew-row')].map((r) => ({
+      userId: r.querySelector('.crew-who').value,
+      task: (r.querySelector('.crew-task').value || '').trim(),
+    })).filter((x) => x.userId);
+    hid.value = JSON.stringify(crew);
+    // Bubbles to the form, which is what saves the job-card draft — the crew
+    // must survive a phone call as reliably as every typed field does.
+    hid.dispatchEvent(new Event('change', { bubbles: true }));
+  };
+  const draw = () => {
+    let crew = parseCrew(hid.value);
+    if (!crew.length) crew = [{ userId: (people[0] || {}).id || '', task: '' }];
+    rows.innerHTML = crew.map((a, i) => `<div class="crew-row row" style="gap:6px;align-items:flex-end;margin-bottom:6px;flex-wrap:wrap">
+        <label class="field" style="flex:2 1 150px;margin:0">${i === 0 ? `<span class="lbl tiny">${t('crewWho')}</span>` : ''}
+          <select class="crew-who">${opts(a.userId)}</select></label>
+        <label class="field" style="flex:2 1 130px;margin:0">${i === 0 ? `<span class="lbl tiny">${t('crewTask')}</span>` : ''}
+          <input class="crew-task" list="crew-trades" value="${esc(a.task || '')}" placeholder="${t('crewTaskPh')}"></label>
+        ${crew.length > 1 ? `<button type="button" class="btn sm crew-rm" style="width:auto" title="${t('crewRemove')}">✕</button>` : ''}
+      </div>`).join('');
+  };
+  rows.addEventListener('change', (e) => { if (e.target.closest('.crew-row')) write(); });
+  rows.addEventListener('input', (e) => { if (e.target.classList.contains('crew-task')) write(); });
+  rows.addEventListener('click', (e) => {
+    const rm = e.target.closest('.crew-rm'); if (!rm) return;
+    rm.closest('.crew-row').remove(); write(); draw();
+  });
+  add.addEventListener('click', () => {
+    const crew = parseCrew(hid.value);
+    // Offer somebody not already on it, so "+ Add" never starts as a duplicate.
+    const free = people.find((m) => !crew.some((a) => a.userId === m.id));
+    if (!free) return toast(t('crewEveryone'));
+    crew.push({ userId: free.id, task: '' });
+    hid.value = JSON.stringify(crew); draw(); write();
+  });
+  // Lets a restored draft repaint the rows from the value it just put back.
+  hid._crewRedraw = draw;
+  draw(); write();
+}
+
+/* Read and validate a crew field on save. Returns null after telling the user
+ * what is wrong, so callers can simply `if (!crew) return;`. */
+function readCrewField(fieldId) {
+  const crew = parseCrew(($('#' + fieldId) || {}).value || '');
+  if (!crew.length) { toast(t('pickAssignee')); return null; }
+  const ids = crew.map((a) => a.userId);
+  if (new Set(ids).size !== ids.length) { toast(t('crewTwice')); return null; }
+  return crew;
+}
+
 const JOB_DRAFT_FIELDS = ['f-reportId', 'f-prio', 'f-bus', 'f-prob', 'f-mech', 'f-jdate',
                           'f-enter', 'f-start', 'f-odo', 'f-vendor', 'f-extcost', 'f-hrs', 'f-notes'];
 function saveJobDraft() {
@@ -4037,9 +4151,9 @@ function viewNewJob(prefill = {}) {
     </section>
 
     <section class="wz-step" data-step="2">
-      <div class="card"><label class="field"><span class="lbl">👷 Work done by</span>
-        <select id="f-mech">${assignees.map((m) => `<option value="${m.id}">${esc(m.name)}</option>`).join('')}</select></label>
-        <div class="tiny muted">Who is on the job. They do not log in — you keep the card for them.</div></div>
+      <div class="card"><div class="lbl" style="margin-bottom:8px">👷 ${t('crewTitle')}</div>
+        ${crewEditorHtml('f-mech', [])}
+        <div class="tiny muted" style="margin-top:6px">${t('crewHint')}</div></div>
     <div class="card"><div class="lbl" style="margin-bottom:8px">🕒 Workshop clock</div>
       <label class="field"><span class="lbl">📅 Date</span><input id="f-jdate" type="date" value="${msToYMD()}"></label>
       <div class="grid2" style="margin-top:8px">
@@ -4089,6 +4203,8 @@ function viewNewJob(prefill = {}) {
     if (obEl.checked) odoEl.value = ''; };
   if (obEl) { obEl.addEventListener('change', syncOdo); syncOdo(); }
 
+  mountCrewEditor(root(), 'f-mech', assignees);
+
   // Put an interrupted card back, unless the caller arrived with a prefill (a
   // driver report being turned into a job) — that is a deliberate fresh start.
   const draft = (prefill && (prefill.reportId || prefill.busId)) ? null : readJobDraft();
@@ -4100,6 +4216,8 @@ function viewNewJob(prefill = {}) {
     const ob = document.getElementById('f-odobroken');
     if (ob && draft['f-odobroken']) { ob.checked = true; ob.dispatchEvent(new Event('change', { bubbles: true })); }
     if (draft['f-prio']) setPrio(draft['f-prio']);
+    const crewEl = document.getElementById('f-mech');
+    if (crewEl && crewEl._crewRedraw) crewEl._crewRedraw();   // rows follow the restored value
     const rp = document.getElementById('f-reports');
     if (rp && draft['f-bus']) rp.innerHTML = reportPicklistRich(draft['f-bus']);
     if (odoEl) odoEl.dataset.touched = '1';
@@ -4151,8 +4269,8 @@ function wizSummary() {
   const busSel = document.getElementById('f-bus');
   const bus = busSel ? byId(S.cache.buses, busSel.value) : null;
   const prob = (($('#f-prob') || {}).value || '').trim();
-  const who = document.getElementById('f-mech');
-  const whoName = who && who.selectedOptions[0] ? who.selectedOptions[0].textContent : '';
+  const whoName = parseCrew(($('#f-mech') || {}).value || '')
+    .map((a) => userName(a.userId) + (a.task ? ' · ' + a.task : '')).join(', ');
   const odoBroken = !!($('#f-odobroken') || {}).checked;
   const odo = (($('#f-odo') || {}).value || '').trim();
   const row = (k, v) => v ? `<div class="row between small" style="padding:3px 0"><span class="muted">${k}</span><b>${esc(v)}</b></div>` : '';
@@ -4186,8 +4304,9 @@ function setPrio(v) {
 async function saveJob(prefill = (S.route && S.route.prefill) || {}) {
   const busId = $('#f-bus').value, prob = $('#f-prob').value.trim();
   if (!prob) return toast('Describe the problem');
-  const assignedTo = $('#f-mech').value;
-  if (!assignedTo) return toast('Pick who to assign this to');
+  const crew = readCrewField('f-mech');
+  if (!crew) return;
+  const assignedTo = crew[0].userId;
   const linkedReports = [...document.querySelectorAll('.f-rep:checked')].map((c) => c.value);
   const presetId = ($('#f-reportId') || {}).value;
   if (presetId && !linkedReports.includes(presetId)) linkedReports.push(presetId);
@@ -4204,7 +4323,7 @@ async function saveJob(prefill = (S.route && S.route.prefill) || {}) {
     id: jobId, busId, problem: prob, priority: $('#f-prio').value,
     // Work started already → the card opens in-progress rather than pretending
     // nobody has touched it.
-    status: startAt ? 'in-progress' : 'open', reportedBy: S.user.id, assignedTo,
+    status: startAt ? 'in-progress' : 'open', reportedBy: S.user.id, assignedTo, assignees: crew,
     beforePhotos: [], afterPhotos: [], partsUsed: [],
     labourHours: Number($('#f-hrs').value) || 0,
     jobDate: ymd, enterAt, startAt, completeAt: null, outAt: null, odometer, remark: '',
@@ -5129,7 +5248,7 @@ async function removeStaff(id) {
   const u = (S.cache.users || []).find((x) => x.id === id);
   if (!u) return;
   if (!canRemoveStaff(u)) return toast('Not allowed');
-  const openJobs = (S.cache.jobs || []).filter((j) => j.assignedTo === u.id && (j.status === 'open' || j.status === 'in-progress'));
+  const openJobs = (S.cache.jobs || []).filter((j) => isOnJob(j, u.id) && (j.status === 'open' || j.status === 'in-progress'));
   if (openJobs.length && !confirm(`⚠️ ${u.name} still has ${openJobs.length} job card${openJobs.length > 1 ? 's' : ''} assigned.\n\nRemoving the account leaves them assigned to a name that no longer exists — reassign them first.\n\nRemove anyway?`)) return;
   if (!confirm(`Remove ${u.name} (${u.role})?\n\nAccount: ${u.id}\n\nThe login is deleted on the server and the name goes from every device. It cannot be undone — you would have to create a new account. If this is the one they actually use, check with them first.`)) return;
   try {
@@ -5625,7 +5744,10 @@ function latePenaltyFor(userId) {
 // 0–100 work-quality score (last 90 days) with a transparent penalty breakdown.
 function mechanicScore(userId) {
   const since = Date.now() - 90 * day;
-  const jobs = S.cache.jobs.filter((j) => j.assignedTo === userId && (j.closedAt || j.createdAt) >= since);
+  // A shared job counts in full for everyone on it. Splitting it would halve a
+  // mechanic's figures the moment a helper was added — which rewards adding
+  // names to a job rather than doing it.
+  const jobs = S.cache.jobs.filter((j) => isOnJob(j, userId) && (j.closedAt || j.createdAt) >= since);
   const closed = jobs.filter((j) => j.status === 'done' || j.status === 'verified');
   const reworks = jobs.reduce((s, j) => s + (j.reworkCount || 0), 0);
   const proofGaps = closed.filter((j) => !(j.afterPhotos || []).length && jobCost(j).parts > 0).length;
@@ -5652,7 +5774,7 @@ function viewScoreboard() {
   body += `<div class="card listwrap" id="sb-list"><h3>Mechanic leaderboard</h3>`;
   body += mechs.length ? mechs.map(({ u, s }, i) => {
     const m = mechanicScore(u.id);
-    const open = S.cache.jobs.filter((j) => j.assignedTo === u.id && (j.status === 'open' || j.status === 'in-progress')).length;
+    const open = S.cache.jobs.filter((j) => isOnJob(j, u.id) && (j.status === 'open' || j.status === 'in-progress')).length;
     // The figures behind the score, because "who should take this job" is not a
     // question a single number answers: someone can score well and already have
     // six cards open.
@@ -5704,7 +5826,7 @@ function viewScorecard(userId) {
  * signals up per mechanic, adds a peer-outlier check (parts ₹/job far above
  * the team median), and ranks who to watch. Each signal is weighted + capped
  * so one noisy mechanic with many jobs can't max out a single flag. Everything
- * is attributed via j.assignedTo; no API key, all on-device. */
+ * is attributed to everyone on the job (jobCrew); no API key, all on-device. */
 const PILFER_FLAGS = {
   suspect:   { label: 'Returned "old" part looked new', weight: 18, cap: 54 },
   core:      { label: 'Old part not returned',          weight: 10, cap: 40 },
@@ -5718,18 +5840,28 @@ const riskSev = (r) => (r >= 60 ? 'high' : r >= 30 ? 'med' : 'low');
 function pilferageRadar() {
   const since = Date.now() - 180 * day;
   const mechs = S.cache.users.filter((u) => u.role === 'mechanic');
-  const jobsOf = (id) => S.cache.jobs.filter((j) => j.assignedTo === id && ['done', 'verified'].includes(j.status) && (j.closedAt || j.createdAt) >= since);
+  /* Every mechanic on a job carries that job's signals in full.
+   *
+   * Nobody records which of two mechanics fitted a given part, so the honest
+   * options were "all of them" or "split it". Splitting is gameable: adding a
+   * second name to a padded job would halve the first mechanic's parts-per-job
+   * figure and walk them back under the peer median. Carrying it in full
+   * over-counts for a helper instead — which is the safer error here, because a
+   * red score needs corroboration (a missing old part, a missing proof photo)
+   * that a helper on the wiring will not have. */
+  const jobsOf = (id) => S.cache.jobs.filter((j) => isOnJob(j, id) && ['done', 'verified'].includes(j.status) && (j.closedAt || j.createdAt) >= since);
   // Peer baseline: median parts ₹/job across mechanics who bill parts.
   const avgCost = {};
   mechs.forEach((u) => { const js = jobsOf(u.id).filter((j) => jobCost(j).parts > 0); avgCost[u.id] = js.length ? js.reduce((s, j) => s + jobCost(j).parts, 0) / js.length : 0; });
   const costs = Object.values(avgCost).filter((x) => x > 0).sort((a, b) => a - b);
   const medCost = costs.length ? costs[Math.floor(costs.length / 2)] : 0;
   // Premature re-replacement: same part re-fitted on the same bus <60d later —
-  // attribute the flag to the mechanic of the LATER job.
+  // attribute the flag to everyone on the LATER job, the same whole-crew rule
+  // as the rest of this radar (see jobsOf above).
   const fit = {};
-  S.cache.jobs.forEach((j) => (j.partsUsed || []).forEach((l) => { const k = j.busId + '|' + l.partId; (fit[k] = fit[k] || []).push({ t: j.closedAt || j.createdAt, jobId: j.id, mech: j.assignedTo }); }));
+  S.cache.jobs.forEach((j) => (j.partsUsed || []).forEach((l) => { const k = j.busId + '|' + l.partId; (fit[k] = fit[k] || []).push({ t: j.closedAt || j.createdAt, jobId: j.id, crew: jobCrew(j).map((a) => a.userId) }); }));
   const prematureJobs = {};
-  Object.values(fit).forEach((arr) => { arr.sort((a, b) => a.t - b.t); for (let i = 1; i < arr.length; i++) { if (arr[i].mech && (arr[i].t - arr[i - 1].t) / day < 60) (prematureJobs[arr[i].mech] = prematureJobs[arr[i].mech] || []).push(arr[i].jobId); } });
+  Object.values(fit).forEach((arr) => { arr.sort((a, b) => a.t - b.t); for (let i = 1; i < arr.length; i++) { if ((arr[i].t - arr[i - 1].t) / day < 60) arr[i].crew.forEach((m) => (prematureJobs[m] = prematureJobs[m] || []).push(arr[i].jobId)); } });
 
   const rows = mechs.map((u) => {
     const js = jobsOf(u.id);
@@ -6035,7 +6167,7 @@ function completedJobs(busId) {
     && (!busId || j.busId === busId));
   // A mechanic sees their own finished work and nobody else's — the same scope
   // their live job list already has. Widening it here would be a back door.
-  if (S.user.role === 'mechanic') list = list.filter((j) => j.assignedTo === S.user.id);
+  if (S.user.role === 'mechanic') list = list.filter((j) => isOnJob(j, S.user.id));
   return list.sort((a, b) => jobDoneAt(b) - jobDoneAt(a));
 }
 
@@ -6122,7 +6254,7 @@ function histLi(j) {
     <div class="ava">${bdSystem(jobSystem(j)).icon}</div>
     <div class="main">
       <div class="t">${esc(busName(j.busId))} — ${esc(j.problem || '')}</div>
-      <div class="s">${fmtDate(jobDoneAt(j))} · ${esc(userName(j.assignedTo))}${j.odometer ? ' · ' + Number(j.odometer).toLocaleString('en-IN') + ' km' : ''}${T.working ? ' · ' + fmtDur(T.working) : ''}</div>
+      <div class="s">${fmtDate(jobDoneAt(j))} · ${esc(crewLabel(j, false))}${j.odometer ? ' · ' + Number(j.odometer).toLocaleString('en-IN') + ' km' : ''}${T.working ? ' · ' + fmtDur(T.working) : ''}</div>
     </div>
     <div style="text-align:right"><b class="money">${money(c.total)}</b><div>${statusBadge(j.status)}</div></div>
   </div>`;
@@ -6473,7 +6605,7 @@ async function saveService(jobId) {
 
 function partsCardExtras(job) {
   let h = '';
-  const mine = job.assignedTo === S.user.id;
+  const mine = isOnJob(job, S.user.id);
   const reqs = job.partRequests || [];
   // Request-part button: only the mechanic who can request, on a live job.
   if (can(S.user.role, 'requestPart') && (S.user.role !== 'mechanic' || mine)
@@ -6524,7 +6656,7 @@ function sheetRequestPart(jobId) {
 async function saveRequestPart(jobId) {
   const j = byId(S.cache.jobs, jobId);
   if (!j) return;
-  if (S.user.role === 'mechanic' && j.assignedTo !== S.user.id) return toast(t('cbNotAllowed'));
+  if (S.user.role === 'mechanic' && !isOnJob(j, S.user.id)) return toast(t('cbNotAllowed'));
   const partId = $('#f-reqpart').value;
   const qty = Number($('#f-reqqty').value) || 1;
   const p = byId(S.cache.parts, partId);
@@ -7773,7 +7905,7 @@ function crewOpenWork(d) {
     out.push(`an open trip${trip.fromTo ? ' (' + trip.fromTo + ')' : ''} — ${money(trip.allowance || 0)} allowance, ${money(spent)} spent, not closed`);
   }
   if (d.userId) {
-    const jobs = (S.cache.jobs || []).filter((j) => j.assignedTo === d.userId && (j.status === 'open' || j.status === 'in-progress'));
+    const jobs = (S.cache.jobs || []).filter((j) => isOnJob(j, d.userId) && (j.status === 'open' || j.status === 'in-progress'));
     if (jobs.length) out.push(`${jobs.length} job card${jobs.length > 1 ? 's' : ''} still assigned`);
   }
   return out;
