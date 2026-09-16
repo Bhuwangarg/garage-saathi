@@ -1067,6 +1067,10 @@ body[data-role="conductor"]:not([data-role="all"]) .sec[data-roles~="conductor"]
       <div class="en"><p>Both are reversible. An archived man comes back with <span class="ui">Bring back</span> and gets his bus back with him; somebody marked as left comes back with <span class="ui">Rejoin</span>.</p></div>
       <div class="hi"><p>दोनों वापस हो सकते हैं। पुराना किया आदमी <span class="ui">वापस लाएं</span> से लौट आता है और उसकी बस भी उसके साथ लौटती है; नौकरी छोड़ चुका आदमी <span class="ui">वापस लें</span> से।</p></div>
     </div>
+    <div class="bi">
+      <div class="en"><p><b>Marking someone left or archived also switches off their app login</b>, on every phone, at once — and their phone number stops counting for WhatsApp odometer readings. <span class="ui">Rejoin</span> or <span class="ui">Bring back</span> switches the login on again. If their document photos are replaced or they are removed from the register for good, the old photo files are deleted as well.</p></div>
+      <div class="hi"><p><b>नौकरी छोड़ी या पुराना रिकॉर्ड लगाते ही उस आदमी का ऐप लॉगिन भी बंद हो जाता है</b> — हर फ़ोन पर, उसी वक्त — और WhatsApp से मीटर रीडिंग के लिए उसका नंबर नहीं गिना जाता। <span class="ui">वापस लें</span> या <span class="ui">वापस लाएं</span> से लॉगिन फिर चालू हो जाता है। कागज़ों की फ़ोटो बदली जाए या आदमी को रजिस्टर से हमेशा के लिए हटाया जाए, तो पुरानी फ़ोटो फ़ाइलें भी मिट जाती हैं।</p></div>
+    </div>
     <div class="note warn">
       <span class="tag">Never use “left” for tidying up · सफ़ाई के लिए “छोड़ी” मत लगाइए</span>
       <div class="bi">
@@ -1398,9 +1402,17 @@ body[data-role="conductor"]:not([data-role="all"]) .sec[data-roles~="conductor"]
           <tr><th scope="row">Challans · चालान</th><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td></tr>
           <tr><th scope="row">Report a bus problem · समस्या बताना</th><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td class="y">✓</td></tr>
           <tr><th scope="row">Attendance · हाज़िरी</th><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td></tr>
+          <tr><th scope="row">Change a verified job's hours or cost · जाँचे गए काम के घंटे/खर्च बदलना</th><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td></tr>
+          <tr><th scope="row">Add a part to a verified job · जाँचे गए काम में पुर्जा जोड़ना</th><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="n">—</td></tr>
+          <tr><th scope="row">Delete a job card · जॉब कार्ड मिटाना</th><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td></tr>
+          <tr><th scope="row">Correct a check-in · हाज़िरी ठीक करना</th><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td></tr>
+          <tr><th scope="row">Change a stock count, fuel entry or bill amount · स्टॉक गिनती, डीज़ल या बिल की रकम बदलना</th><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td></tr>
+          <tr><th scope="row">Give a driver/conductor a new PIN · ड्राइवर/कंडक्टर को नया पिन देना</th><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td></tr>
+          <tr><th scope="row">Change the server address · सर्वर का पता बदलना</th><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td></tr>
         </tbody>
       </table>
     </div>
+    <p class="legend">A supervisor can never change the owner's or another supervisor's PIN, or create an owner login. A driver ends their own trip and adds expenses to it, but cannot change the allowance, an expense already added, or a trip once ended.</p>
     <p class="legend"><b>✓*</b> — the owner never signs off a job the owner closed. A supervisor's own closed work is signed off as they close it. <b>A mechanic</b> signs in only to see the work assigned to them: no closing, no verifying, no money. The supervisor keeps their job cards, and the work is recorded in their name. · <b>✓*</b> — मालिक अपना बंद किया काम खुद नहीं जाँचते। सुपरवाइज़र का अपना बंद किया काम बंद करते ही जाँचा हुआ माना जाता है। <b>मैकेनिक</b> लॉगिन सिर्फ़ अपना दिया हुआ काम देखने के लिए करते हैं: न बंद करना, न जाँचना, न पैसा। कार्ड सुपरवाइज़र भरता है, और काम उन्हीं के नाम दर्ज होता है।</p>
     <div class="note">
       <span class="tag">Why there are two supervisors · दो सुपरवाइज़र क्यों हैं</span>
@@ -1426,6 +1438,36 @@ body[data-role="conductor"]:not([data-role="all"]) .sec[data-roles~="conductor"]
           <div class="bi">
             <div class="en"><p>Check that you picked the right name — several people share a first name, and where they do a short code appears under each. After five wrong tries the account locks for about five minutes and says <span class="ui">Too many wrong PINs</span>. <b>While it is locked even the correct PIN is refused</b>, so retrying tells you nothing — wait, then try once. If you have forgotten it, your supervisor or the owner can set you a new one; nobody has to look up your old PIN, because nobody can.</p></div>
             <div class="hi"><p>पहले देखिए कि नाम सही चुना है या नहीं — कई लोगों का पहला नाम एक जैसा होता है, और ऐसे में हर नाम के नीचे एक छोटा कोड दिखता है। पाँच बार गलत पिन के बाद खाता करीब पाँच मिनट के लिए बंद हो जाता है और <span class="ui">बहुत बार गलत पिन</span> लिखा आता है। <b>बंद रहते हुए सही पिन भी नहीं चलेगा</b>, इसलिए बार-बार कोशिश करने से कुछ पता नहीं चलता — रुकिए, फिर एक बार कोशिश कीजिए। पिन भूल गए हों तो सुपरवाइज़र या मालिक नया सेट कर देंगे; पुराना पिन किसी को ढूँढना नहीं पड़ता, क्योंकि कोई ढूँढ ही नहीं सकता।</p></div>
+          </div>
+        </div>
+      </details>
+
+      <details>
+        <summary><span class="en">Owner or supervisor: "Wrong PIN", but you never used to type it</span><span class="hi">मालिक या सुपरवाइज़र: "गलत पिन", जबकि पहले पिन डालना ही नहीं पड़ता था</span></summary>
+        <div class="body">
+          <div class="bi">
+            <div class="en"><p>Since 16 September 2026 the phone no longer keeps the PIN of an owner, supervisor or crew manager, so they sign in online and type it every time. If your phone used to sign you in by itself, the PIN you remember may not be the one the server holds.</p><p>A supervisor, crew manager or storekeeper: tell the owner. The app has no reset button for these PINs yet, so the owner asks whoever maintains the app to set a new one on the server. <b>The owner cannot be reset by anyone in the app</b> — not even a supervisor — so an owner who is locked out follows <b>If the owner cannot sign in</b> in Part 7.</p></div>
+            <div class="hi"><p>16 सितंबर 2026 से फ़ोन मालिक, सुपरवाइज़र या क्रू मैनेजर का पिन अपने पास नहीं रखता — इन्हें हर बार ऑनलाइन पिन डालकर लॉगिन करना होता है। अगर पहले फ़ोन खुद ही लॉगिन कर देता था, तो हो सकता है जो पिन आपको याद है वह सर्वर वाला न हो।</p><p>सुपरवाइज़र, क्रू मैनेजर या स्टोरकीपर: मालिक को बताइए। ऐप में इन पिनों को बदलने का बटन अभी नहीं है, इसलिए मालिक ऐप संभालने वाले से सर्वर पर नया पिन लगवाते हैं। <b>मालिक का पिन ऐप में कोई नहीं बदल सकता</b> — सुपरवाइज़र भी नहीं — इसलिए लॉक हुआ मालिक भाग 7 का <b>अगर मालिक लॉगिन न कर पाए</b> देखें।</p></div>
+          </div>
+        </div>
+      </details>
+
+      <details>
+        <summary><span class="en">It says "That PIN no longer works — ask the office"</span><span class="hi">"यह पिन अब नहीं चलेगा — ऑफिस से अपना नया पिन लें" लिखा है</span></summary>
+        <div class="body">
+          <div class="bi">
+            <div class="en"><p>You typed a PIN that is retired: the old shared crew PIN <span class="pin">0000</span>, or a demo PIN from the app's setup. It is not counted as a wrong try. Every driver and conductor now has their own PIN — the office reads it from <span class="ui">People</span> → <span class="ui">Crew logins &amp; PINs</span> on the phone that activated the logins, or taps <span class="ui">New PIN</span> next to your name.</p></div>
+            <div class="hi"><p>आपने ऐसा पिन डाला जो बंद हो चुका है: पुराना साझा क्रू पिन <span class="pin">0000</span>, या ऐप के सेटअप वाला डेमो पिन। इसे गलत कोशिश में नहीं गिना जाता। अब हर ड्राइवर और कंडक्टर का अपना पिन है — दफ़्तर उसे उस फ़ोन पर <span class="ui">लोग</span> → <span class="ui">Crew logins &amp; PINs</span> में देखता है जिससे लॉगिन चालू किए गए थे, या आपके नाम के आगे <span class="ui">New PIN</span> दबाता है।</p></div>
+          </div>
+        </div>
+      </details>
+
+      <details>
+        <summary><span class="en">It says "This login has been switched off"</span><span class="hi">"यह लॉगिन बंद कर दिया गया है" लिखा है</span></summary>
+        <div class="body">
+          <div class="bi">
+            <div class="en"><p>The crew bank has this person marked as <b>left</b> or <b>archived</b>, so the login stops working — on every phone, straight away. If that is a mistake, the owner, supervisor or crew manager opens the record and taps <span class="ui">Rejoin</span> or <span class="ui">Bring back</span>; the same PIN works again.</p></div>
+            <div class="hi"><p>स्टाफ़ बैंक में यह आदमी <b>नौकरी छोड़ी</b> या <b>पुराना रिकॉर्ड</b> दर्ज है, इसलिए लॉगिन हर फ़ोन पर तुरंत बंद हो जाता है। अगर यह ग़लती से हुआ है तो मालिक, सुपरवाइज़र या क्रू मैनेजर रिकॉर्ड खोलकर <span class="ui">वापस लें</span> या <span class="ui">वापस लाएं</span> दबाएँ — वही पिन फिर चलने लगेगा।</p></div>
           </div>
         </div>
       </details>
@@ -1560,6 +1602,20 @@ body[data-role="conductor"]:not([data-role="all"]) .sec[data-roles~="conductor"]
         </div>
       </li>
     </ol>
+    <div class="note warn">
+      <span class="tag">Write the owner PIN down somewhere safe · मालिक का पिन सुरक्षित जगह लिखकर रखिए</span>
+      <div class="bi">
+        <div class="en"><p>The phone no longer remembers the owner's PIN, and no one can reset it from inside the app — a supervisor who could would effectively be the owner. Keep it written down off the phone.</p><p><b>If the owner cannot sign in:</b> on the office Mac, in the <span class="ui">garage-saathi</span> folder, run <span class="ui">python3 scripts/reset-owner-pin.py --sql</span>. Type the new PIN twice (nothing shows while you type). It prints three lines. Open supabase.com → the Garage Saathi project → <span class="ui">SQL Editor</span> → new query, paste all three, press <span class="ui">Run</span>. The last result should show the owner's name. Sign in with the new PIN. <b>Never send those three lines to anyone</b> — they are as good as the PIN.</p></div>
+        <div class="hi"><p>फ़ोन अब मालिक का पिन याद नहीं रखता, और ऐप के अंदर कोई उसे बदल नहीं सकता — जो सुपरवाइज़र ऐसा कर पाता, वह असल में मालिक बन जाता। पिन फ़ोन से बाहर कहीं लिखकर रखिए।</p><p><b>अगर मालिक लॉगिन न कर पाए:</b> दफ़्तर के Mac पर <span class="ui">garage-saathi</span> फ़ोल्डर में <span class="ui">python3 scripts/reset-owner-pin.py --sql</span> चलाइए। नया पिन दो बार डालिए (लिखते वक्त कुछ नहीं दिखेगा)। तीन लाइनें छपेंगी। supabase.com → Garage Saathi प्रोजेक्ट → <span class="ui">SQL Editor</span> → नई query खोलिए, तीनों लाइनें चिपकाइए, <span class="ui">Run</span> दबाइए। आख़िरी नतीजे में मालिक का नाम दिखना चाहिए। अब नए पिन से लॉगिन कीजिए। <b>ये तीन लाइनें कभी किसी को मत भेजिए</b> — ये पिन जितनी ही कीमती हैं।</p></div>
+      </div>
+    </div>
+    <div class="note">
+      <span class="tag">Server settings on Vercel · Vercel की सर्वर सेटिंग</span>
+      <div class="bi">
+        <div class="en"><p>For whoever runs the deployment. Leave <span class="ui">ENABLE_DEMO_SEED</span> unset (or <span class="ui">0</span>) on the real server: the demo logins and their published PINs only work when it is <span class="ui">1</span>, which is for local testing. <span class="ui">WA_APP_SECRET</span> must be set for WhatsApp odometer photos to be accepted; without it the server turns every WhatsApp message away. Optional: <span class="ui">AI_DAILY_LIMIT</span> (AI advisor questions per owner/supervisor per day, default 60). A variable change takes effect only after a redeploy.</p></div>
+        <div class="hi"><p>जो डिप्लॉयमेंट संभालता है उसके लिए। असली सर्वर पर <span class="ui">ENABLE_DEMO_SEED</span> खाली (या <span class="ui">0</span>) रखिए: डेमो लॉगिन और उनके छपे हुए पिन सिर्फ़ तब चलते हैं जब यह <span class="ui">1</span> हो, जो केवल लोकल टेस्टिंग के लिए है। WhatsApp से मीटर की फ़ोटो लेने के लिए <span class="ui">WA_APP_SECRET</span> डालना ज़रूरी है; इसके बिना सर्वर हर WhatsApp संदेश लौटा देता है। वैकल्पिक: <span class="ui">AI_DAILY_LIMIT</span> (हर मालिक/सुपरवाइज़र के रोज़ के AI सवाल, पहले से 60)। कोई भी बदलाव redeploy के बाद ही लागू होता है।</p></div>
+      </div>
+    </div>
     <div class="note warn">
       <span class="tag">Challan checks cost money · चालान जाँच पर पैसा लगता है</span>
       <div class="bi">
