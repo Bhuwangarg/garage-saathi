@@ -118,7 +118,7 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
 
   // Authenticate against the server. Returns {user} on success, {offline:true}
   // if the server is unreachable, or null on wrong PIN.
-  async function login(userId, pin) {
+  async function login(userId, pin, opts) {
     // Bound the request: a spun-down/cold server (Render free tier) must not hang
     // the login for a minute — time out fast and let the caller fall back to the
     // device PIN. 12s is enough for a warm round-trip on a slow phone network.
@@ -127,7 +127,10 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
     // so by the time four digits are typed the container is usually already up.
     // A longer wait mostly means staring at a dead keypad before the offline
     // fallback finally runs.
-    const to = ctl ? setTimeout(() => ctl.abort(), 8000) : null;
+    // Longer when the caller has no offline fallback (owner, supervisor and crew
+    // manager PINs are not kept on the phone): giving up at 8s on a server that
+    // is still starting told them "can't reach the server" when it was only slow.
+    const to = ctl ? setTimeout(() => ctl.abort(), (opts && opts.timeoutMs) || 8000) : null;
     try {
       const res = await fetch(baseUrl() + '/auth/login', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },

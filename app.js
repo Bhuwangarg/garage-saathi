@@ -18,7 +18,7 @@ const I18N = {
     purchases: 'Purchases / Bills', serviceHistory: 'Service history', documents: 'Documents',
     addPhotoNote: 'Before AND after photos required to close a job (outside repairs: a bill photo)', noJobs: 'No jobs yet', expired: 'EXPIRED',
     // Login
-    tagline: 'Garage maintenance, Jaipur', enterPin: 'Enter PIN', wrongPin: 'Wrong PIN', loginOff: 'This login has been switched off — speak to the office', pinRetired: 'That PIN no longer works — ask the office for your new PIN',
+    tagline: 'Garage maintenance, Jaipur', enterPin: 'Enter PIN', wrongPin: 'Wrong PIN', serverWaking: 'Signing in… the server is starting up, this can take a few seconds', loginOff: 'This login has been switched off — speak to the office', pinRetired: 'That PIN no longer works — ask the office for your new PIN',
     recentHere: 'Recent on this phone', whoAreYou: 'Who are you?', selectName: 'Select your name', searchName: 'Search name…',
     cantReach: "Can't reach the server — check internet and try again",
     odoBroken: 'Odometer not working on this bus',
@@ -235,7 +235,7 @@ const I18N = {
     purchases: 'खरीद / बिल', serviceHistory: 'सेवा इतिहास', documents: 'कागज़ात',
     addPhotoNote: 'काम बंद करने के लिए पहले और बाद दोनों की फोटो ज़रूरी हैं (बाहर मरम्मत: बिल की फोटो)', noJobs: 'अभी कोई काम नहीं', expired: 'समाप्त',
     // Login
-    tagline: 'गैराज मरम्मत, जयपुर', enterPin: 'पिन डालें', wrongPin: 'गलत पिन', loginOff: 'यह लॉगिन बंद कर दिया गया है — दफ़्तर से बात करें', pinRetired: 'यह पिन अब नहीं चलेगा — ऑफिस से अपना नया पिन लें',
+    tagline: 'गैराज मरम्मत, जयपुर', enterPin: 'पिन डालें', wrongPin: 'गलत पिन', serverWaking: 'लॉगिन हो रहा है… सर्वर चालू हो रहा है, कुछ सेकंड लग सकते हैं', loginOff: 'यह लॉगिन बंद कर दिया गया है — दफ़्तर से बात करें', pinRetired: 'यह पिन अब नहीं चलेगा — ऑफिस से अपना नया पिन लें',
     recentHere: 'इस फ़ोन पर हाल के', whoAreYou: 'आप कौन हैं?', selectName: 'अपना नाम चुनें', searchName: 'नाम खोजें…',
     cantReach: 'सर्वर से संपर्क नहीं — इंटरनेट जाँचें और फिर कोशिश करें',
     odoBroken: 'इस बस का ओडोमीटर काम नहीं कर रहा',
@@ -9884,7 +9884,14 @@ function offlineClear(id) {
 // Server-authoritative login: the server verifies the PIN (and enforces lockout).
 // Offline, we fall back to this device's cached credential only.
 async function attemptLogin(user, pin, redraw) {
-  const r = await Sync.login(user.id, pin);
+  // With a PIN saved on this phone a slow server can fall back to it after 8s.
+  // Without one there is nothing to fall back to, so wait for the server.
+  const canOffline = mayCachePin(user.role) && !!credGet(user.id);
+  // Say so when it is slow, rather than leaving a frozen pad for half a minute.
+  const slow = setTimeout(() => { const m = $('.login .muted.small'); if (m) m.textContent = t('serverWaking'); }, 5000);
+  let r;
+  try { r = await Sync.login(user.id, pin, { timeoutMs: canOffline ? 8000 : 30000 }); }
+  finally { clearTimeout(slow); }
   if (r && r.user) { cachePin(r.user, pin); offlineClear(user.id); return enterApp(user); }  // verified online
   if (r && r.locked) { toast(t('tooManyTries')); _pin = ''; return redraw(); }
   // Fall back to this device's PIN when the server is unreachable OR when it

@@ -1363,16 +1363,34 @@ def _sync_disabled_login(c, crew):
 
 def rebuild_disabled_logins():
     """Derive the disabled list from every crew record, once per process, so crew
-    who left before this rule existed are covered too."""
+    who left before this rule existed are covered too.
+
+    Written as a diff against the table, not one statement per crew member: the
+    database is a network hop away, and a statement per driver on every cold start
+    added tens of seconds before the first login could be answered. Normally this
+    is two reads and no writes."""
     with _lock:
         c = db()
+        want, keep = set(), set()
         for raw, in c.execute("SELECT data FROM records WHERE store='drivers'").fetchall():
             try:
                 d = json.loads(raw)
             except Exception:
                 continue
-            if isinstance(d, dict):
-                _sync_disabled_login(c, d)
+            if not isinstance(d, dict) or not d.get("userId"):
+                continue
+            if d.get("_deleted") or d.get("status") in ("left", "archived"):
+                want.add(d["userId"])
+            else:
+                keep.add(d["userId"])
+        # A login linked to any live crew record stays on (a rehire's new record).
+        want -= keep
+        have = {r[0] for r in c.execute("SELECT id FROM disabledlogins").fetchall()}
+        now = now_ms()
+        for uid in want - have:
+            c.execute("INSERT INTO disabledlogins(id,at) VALUES(?,?) ON CONFLICT(id) DO NOTHING", (uid, now))
+        for uid in (have - want) & keep:
+            c.execute("DELETE FROM disabledlogins WHERE id=?", (uid,))
         c.commit()
         c.close()
 
