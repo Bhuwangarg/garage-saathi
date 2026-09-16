@@ -1407,12 +1407,12 @@ body[data-role="conductor"]:not([data-role="all"]) .sec[data-roles~="conductor"]
           <tr><th scope="row">Delete a job card · जॉब कार्ड मिटाना</th><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td></tr>
           <tr><th scope="row">Correct a check-in · हाज़िरी ठीक करना</th><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td></tr>
           <tr><th scope="row">Change a stock count, fuel entry or bill amount · स्टॉक गिनती, डीज़ल या बिल की रकम बदलना</th><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td></tr>
-          <tr><th scope="row">Give a driver/conductor a new PIN · ड्राइवर/कंडक्टर को नया पिन देना</th><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td></tr>
+          <tr><th scope="row">Give staff a new PIN · स्टाफ़ को नया पिन देना</th><td class="y">✓</td><td class="y">✓†</td><td class="n">—</td><td class="n">—</td></tr>
           <tr><th scope="row">Change the server address · सर्वर का पता बदलना</th><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td></tr>
         </tbody>
       </table>
     </div>
-    <p class="legend">A supervisor can never change the owner's or another supervisor's PIN, or create an owner login. A driver ends their own trip and adds expenses to it, but cannot change the allowance, an expense already added, or a trip once ended.</p>
+    <p class="legend"><b>✓†</b> — a supervisor gives new PINs to store, mechanic, driver and conductor logins only; never the owner, another supervisor or a crew manager, and cannot create an owner login. A driver ends their own trip and adds expenses to it, but cannot change the allowance, an expense already added, or a trip once ended.</p>
     <p class="legend"><b>✓*</b> — the owner never signs off a job the owner closed. A supervisor's own closed work is signed off as they close it. <b>A mechanic</b> signs in only to see the work assigned to them: no closing, no verifying, no money. The supervisor keeps their job cards, and the work is recorded in their name. · <b>✓*</b> — मालिक अपना बंद किया काम खुद नहीं जाँचते। सुपरवाइज़र का अपना बंद किया काम बंद करते ही जाँचा हुआ माना जाता है। <b>मैकेनिक</b> लॉगिन सिर्फ़ अपना दिया हुआ काम देखने के लिए करते हैं: न बंद करना, न जाँचना, न पैसा। कार्ड सुपरवाइज़र भरता है, और काम उन्हीं के नाम दर्ज होता है।</p>
     <div class="note">
       <span class="tag">Why there are two supervisors · दो सुपरवाइज़र क्यों हैं</span>
@@ -1446,8 +1446,8 @@ body[data-role="conductor"]:not([data-role="all"]) .sec[data-roles~="conductor"]
         <summary><span class="en">Owner or supervisor: "Wrong PIN", but you never used to type it</span><span class="hi">मालिक या सुपरवाइज़र: "गलत पिन", जबकि पहले पिन डालना ही नहीं पड़ता था</span></summary>
         <div class="body">
           <div class="bi">
-            <div class="en"><p>Since 16 September 2026 the phone no longer keeps the PIN of an owner, supervisor or crew manager, so they sign in online and type it every time. If your phone used to sign you in by itself, the PIN you remember may not be the one the server holds.</p><p>A supervisor, crew manager or storekeeper: tell the owner. The app has no reset button for these PINs yet, so the owner asks whoever maintains the app to set a new one on the server. <b>The owner cannot be reset by anyone in the app</b> — not even a supervisor — so an owner who is locked out follows <b>If the owner cannot sign in</b> in Part 7.</p></div>
-            <div class="hi"><p>16 सितंबर 2026 से फ़ोन मालिक, सुपरवाइज़र या क्रू मैनेजर का पिन अपने पास नहीं रखता — इन्हें हर बार ऑनलाइन पिन डालकर लॉगिन करना होता है। अगर पहले फ़ोन खुद ही लॉगिन कर देता था, तो हो सकता है जो पिन आपको याद है वह सर्वर वाला न हो।</p><p>सुपरवाइज़र, क्रू मैनेजर या स्टोरकीपर: मालिक को बताइए। ऐप में इन पिनों को बदलने का बटन अभी नहीं है, इसलिए मालिक ऐप संभालने वाले से सर्वर पर नया पिन लगवाते हैं। <b>मालिक का पिन ऐप में कोई नहीं बदल सकता</b> — सुपरवाइज़र भी नहीं — इसलिए लॉक हुआ मालिक भाग 7 का <b>अगर मालिक लॉगिन न कर पाए</b> देखें।</p></div>
+            <div class="en"><p>Since 16 September 2026 the phone no longer keeps the PIN of an owner, supervisor or crew manager, so they sign in online and type it every time. If your phone used to sign you in by itself, the PIN you remember may not be the one the server holds.</p><p>A supervisor, crew manager or storekeeper: ask the owner for a new PIN — <span class="ui">Me</span> → <span class="ui">Staff accounts</span> → <span class="ui">New PIN</span> next to your name. A storekeeper or mechanic can also ask a supervisor. <b>The owner cannot be reset by anyone in the app</b> — not even a supervisor — so an owner who is locked out follows <b>If the owner cannot sign in</b> in Part 7.</p></div>
+            <div class="hi"><p>16 सितंबर 2026 से फ़ोन मालिक, सुपरवाइज़र या क्रू मैनेजर का पिन अपने पास नहीं रखता — इन्हें हर बार ऑनलाइन पिन डालकर लॉगिन करना होता है। अगर पहले फ़ोन खुद ही लॉगिन कर देता था, तो हो सकता है जो पिन आपको याद है वह सर्वर वाला न हो।</p><p>सुपरवाइज़र, क्रू मैनेजर या स्टोरकीपर: मालिक से नया पिन लीजिए — <span class="ui">मैं</span> → <span class="ui">Staff accounts</span> → आपके नाम के आगे <span class="ui">New PIN</span>। स्टोरकीपर या मैकेनिक सुपरवाइज़र से भी ले सकते हैं। <b>मालिक का पिन ऐप में कोई नहीं बदल सकता</b> — सुपरवाइज़र भी नहीं — इसलिए लॉक हुआ मालिक भाग 7 का <b>अगर मालिक लॉगिन न कर पाए</b> देखें।</p></div>
           </div>
         </div>
       </details>
@@ -1602,6 +1602,13 @@ body[data-role="conductor"]:not([data-role="all"]) .sec[data-roles~="conductor"]
         </div>
       </li>
     </ol>
+    <div class="note">
+      <span class="tag">Someone forgot their PIN · किसी का पिन भूल गया</span>
+      <div class="bi">
+        <div class="en"><p><span class="ui">Me</span> → <span class="ui">Staff accounts</span> → <span class="ui">New PIN</span> next to their name. The app picks a random PIN and shows it <b>once</b> — give it to them straight away, it is not kept on your phone. Their old PIN stops working and they are signed out on every phone. The owner can do this for anyone except themselves; a supervisor for store, mechanic, driver and conductor logins. Drivers' and conductors' new PINs also appear on <span class="ui">Crew logins &amp; PINs</span>. Your own PIN: <span class="ui">Me</span> → <span class="ui">Change my PIN</span>.</p></div>
+        <div class="hi"><p><span class="ui">मैं</span> → <span class="ui">Staff accounts</span> → उसके नाम के आगे <span class="ui">New PIN</span>। ऐप एक नया पिन खुद चुनता है और <b>एक ही बार</b> दिखाता है — उसी वक्त उस आदमी को दे दीजिए, यह आपके फ़ोन में नहीं रहता। पुराना पिन बंद हो जाता है और उसका हर फ़ोन से लॉगआउट हो जाता है। मालिक अपने सिवा किसी का भी पिन बदल सकते हैं; सुपरवाइज़र स्टोर, मैकेनिक, ड्राइवर और कंडक्टर का। ड्राइवर-कंडक्टर का नया पिन <span class="ui">Crew logins &amp; PINs</span> में भी दिखता है। अपना पिन: <span class="ui">मैं</span> → <span class="ui">मेरा पिन बदलें</span>।</p></div>
+      </div>
+    </div>
     <div class="note warn">
       <span class="tag">Write the owner PIN down somewhere safe · मालिक का पिन सुरक्षित जगह लिखकर रखिए</span>
       <div class="bi">

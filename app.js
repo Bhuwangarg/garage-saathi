@@ -5204,7 +5204,9 @@ function sheetStaff() {
         <div class="main"><div class="t">${esc(u.name)}${dupe ? ' <span class="badge b-amber">duplicate</span>' : ''}${newest ? ' <span class="badge b-green">in use</span>' : ''}</div>
           <div class="s">${esc(u.role)} · <span class="tiny muted">${esc(u.id)}</span>${self ? ' · you' : ''}</div>
           <div class="tiny muted">${seen ? 'last signed in ' + timeAgo(seen) : 'never signed in'}</div></div>
-        ${canRemoveStaff(u) ? `<button class="btn sm ghost" data-act="removeStaff" data-id="${esc(u.id)}" style="width:auto">Remove</button>` : ''}</div>`;
+        ${canResetStaffPin(u) || canRemoveStaff(u) ? `<div style="display:flex;flex-direction:column;gap:4px;flex:none;align-items:stretch">
+          ${canResetStaffPin(u) ? `<button class="btn sm ghost" data-act="resetStaffPin" data-id="${esc(u.id)}" style="width:auto;padding:6px 10px">New PIN</button>` : ''}
+          ${canRemoveStaff(u) ? `<button class="btn sm ghost" data-act="removeStaff" data-id="${esc(u.id)}" style="width:auto;padding:6px 10px">Remove</button>` : ''}</div>` : ''}</div>`;
       }).join('')}
     </div>
     ${users.filter((u) => users.filter((o) => _nameKey(o.name) === _nameKey(u.name)).length > 1).length
@@ -5298,6 +5300,36 @@ function confirmNotDuplicate(kind, label, existing) {
  * only reachable by picking a name from the roster, so a removed account cannot
  * be signed into. Guard rails: never yourself (you would lock yourself out mid
  * change), and never the last owner. */
+/* Who may give whom a new PIN. Mirrors may_manage() on the server, which is the
+ * real rule: the owner resets anyone else; a supervisor only store, mechanic,
+ * driver and conductor logins — never the owner or another supervisor, since
+ * resetting the owner's PIN would be a way to become the owner. Your own PIN is
+ * changed in Me → Change my PIN, where you choose it yourself. */
+const SUPERVISOR_RESETS = ['store', 'mechanic', 'driver', 'conductor'];
+function canResetStaffPin(u) {
+  if (!S.user || !u || u.id === S.user.id) return false;
+  if (S.user.role === 'owner') return true;
+  return S.user.role === 'supervisor' && SUPERVISOR_RESETS.includes(u.role);
+}
+async function resetStaffPin(id) {
+  const u = (S.cache.users || []).find((x) => x.id === id);
+  if (!u || !canResetStaffPin(u)) return toast('Not allowed');
+  if (!Sync.info().authed) return toast('Sign in online first (needs a live connection)');
+  if (!confirm(`Give ${u.name} (${u.role}) a new PIN?\n\nTheir current PIN stops working at once, and they are signed out on every phone.`)) return;
+  const pin = freshPin();
+  try {
+    await Sync.setPin(id, pin);
+  } catch (e) {
+    const code = String((e && e.message) || '');
+    return toast(code.includes('403') ? 'Not allowed to reset this account' : 'Could not reset — check you are online');
+  }
+  // Crew PINs stay on the list the office reads out (People → Crew logins & PINs).
+  // Anyone else's PIN is shown once and not kept on this phone.
+  if (u.role === 'driver' || u.role === 'conductor') credSet(id, pin); else credClear(id);
+  alert(`New PIN for ${u.name}: ${pin}\n\nGive it to ${u.name} now — it is not saved on this phone. Their old PIN no longer works.`);
+  sheetStaff();
+}
+
 function canRemoveStaff(u) {
   if (!can(S.user.role, 'manageStaff') || S.user.role !== 'owner') return false;
   if (u.id === S.user.id) return false;
@@ -7465,9 +7497,18 @@ async function resetCrewPin(userId) {
   const u = byId(S.cache.users, userId); if (!u) return;
   if (!Sync.info().authed) return toast('Sign in online first (needs a live connection)');
   if (!confirm(`Give ${u.name} a new PIN? Their old PIN stops working.`)) return;
-  let pin; do { pin = String(Math.floor(Math.random() * 10000)).padStart(4, '0'); } while (pin === '0000');
+  const pin = freshPin();
   try { await Sync.setPin(userId, pin); } catch (e) { return toast('Could not reset — check you are online'); }
   credSet(userId, pin); toast(`${u.name}: new PIN ${pin}`); rerender();
+}
+// A random 4-digit PIN that is not trivially guessable: no repeated digit
+// (0000, 1111…), no run like 1234, and none of the published demo PINs.
+function freshPin() {
+  const weak = new Set(['0001', '0002', '0003', '0010', '0123', '1234', '2345', '3456', '4567', '5678', '6789', '9876', '4321']);
+  for (;;) {
+    const p = String(Math.floor(Math.random() * 10000)).padStart(4, '0');
+    if (!weak.has(p) && new Set(p).size > 1) return p;
+  }
 }
 function viewCrewPins() {
   const users = [...(S.cache.users || [])].filter((u) => u.role === 'driver' || u.role === 'conductor')
@@ -9373,6 +9414,7 @@ const _dispatchClick = async (e) => {
       case 'openStaff': return sheetStaff();
       case 'saveStaff': return saveStaff();
       case 'removeStaff': return removeStaff(el.getAttribute('data-id'));
+      case 'resetStaffPin': return resetStaffPin(el.getAttribute('data-id'));
       case 'openDrivers': return push({ name: 'drivers' });
       case 'addDriver': return sheetAddDriver();
       case 'saveDriver': return saveDriver();
