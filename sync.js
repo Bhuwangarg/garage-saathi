@@ -60,6 +60,7 @@ const Sync = (function () {
   // every phone at port 8766 on itself. On native, always default to the real backend.
   const _isNative = () => !!(window.Capacitor && window.Capacitor.isNativePlatform &&
     window.Capacitor.isNativePlatform());
+  const PII_ROLES = ['owner', 'supervisor', 'crewmanager'];
   const baseUrl = () => ls.getItem('syncUrl') ||
     (_isNative() ? PROD_SYNC
       : _isLocalHost() ? (location.protocol + '//' + location.hostname + ':8766')
@@ -118,6 +119,13 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
         body: JSON.stringify({ userId, pin }),
         signal: ctl ? ctl.signal : undefined,
       });
+      if (res.status === 403) {
+        // The PIN is right but it is one printed in the public source: the old
+        // shared crew PIN, or a demo PIN. The answer is final (`known`), so the
+        // device must not let it in offline either.
+        let j = {}; try { j = await res.json(); } catch (e) { /* ignore */ }
+        return { rejected: true, known: true, reason: j.error || 'refused' };
+      }
       if (res.status === 401) {
         // The server rejected it. `known` says whether it actually holds this
         // account: known → the PIN is wrong and its answer is final; not known →
@@ -132,7 +140,16 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
       }
       if (!res.ok) throw new Error('login ' + res.status);
       const j = await res.json();
+      // Whatever answered must vouch for the account that was asked for. A
+      // server that returns some other user (or none) is not signing us in.
+      if (!j || !j.token || !j.user || j.user.id !== userId) return { rejected: true, known: true, reason: 'mismatch' };
       token = j.token; ls.setItem('token', token);
+      // Staff below manager receive other crew's records with their private
+      // fields removed. If a manager now signs in on a device that synced as
+      // one of them, re-read the table so those copies are replaced in full.
+      const scope = PII_ROLES.includes(j.user.role) ? 'full' : 'redacted';
+      if (ls.getItem('pullScope') === 'redacted' && scope === 'full') { lastRev = 0; ls.removeItem('lastRev'); }
+      ls.setItem('pullScope', scope);
       tick();
       return { user: j.user };
     } catch (e) {
@@ -191,9 +208,10 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
   }
 
   // Owner/supervisor: materialize server login accounts for the whole synced crew
-  // roster (drivers/conductors) so they can authenticate online (PIN 0000) and
-  // their writes carry a real, server-verified identity. Idempotent server-side.
-  // Returns { created } or throws (offline / not authed).
+  // roster (drivers/conductors) so they can authenticate online, each with their
+  // own PIN, and their writes carry a real, server-verified identity.
+  // Returns { created, reset, pins: {userId: pin} } or throws (offline / not authed).
+  // `pins` holds every PIN the server just set — it keeps only their hashes.
   async function registerRoster(crew) {
     // The bundled seed loads crew with notify=false (never pushed), so the server
     // has no crew records to scan — we SEND the roster the owner device holds.
@@ -309,6 +327,26 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
     } catch (e) { return null; }
   }
 
+  // One-time: hand the server crew phones and Drive folder links that used to ship
+  // in the public bundle. Server merges only fields it is missing.
+  async function backfillContacts(records) {
+    const res = await fetch(baseUrl() + '/admin/backfill-contacts', {
+      method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ records }),
+    });
+    if (!res.ok) throw new Error('backfillContacts ' + res.status);
+    return await res.json();
+  }
+
+  // Telemetry for one bus (live from the tracker, or the demo simulator). Needs a
+  // session: a bus's live position is not public.
+  async function gps(bus) {
+    const res = await fetch(baseUrl() + '/gps?busId=' + encodeURIComponent(bus.id) +
+      '&odo=' + (bus.odometer || 0) + '&reg=' + encodeURIComponent(bus.regNo || ''), { headers: authHeaders() });
+    if (!res.ok) throw new Error('gps ' + res.status);
+    return await res.json();
+  }
+
   // Change a user's PIN on the server (self, or owner resetting staff).
   async function setPin(userId, pin) {
     const res = await fetch(baseUrl() + '/auth/setpin', {
@@ -406,6 +444,9 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
     for (const key of keys) {
       const rec = await recordForKey(key);
       if (!rec) { outbox.delete(key); saveOutbox(); continue; }   // row vanished
+      // A copy with private fields removed must never be written back: the
+      // server would store the gaps as the record.
+      if (rec.data && rec.data._redacted) { outbox.delete(key); saveOutbox(); continue; }
       // Measure before adding. A single record over the budget still goes on
       // its own, because dropping it would wedge the outbox forever — better
       // one oversized request that may fail than a row that is never tried.
@@ -542,9 +583,16 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
     let applied = 0; let conflicts = 0;
     for (const r of (j.records || [])) {
       if (!STORES.includes(r.store) || !r.data) continue;
+      // A record is stored under its own key, so that key must be the one the
+      // server authorised. A mismatch would overwrite some OTHER record; a
+      // non-object cannot be stored at all and would stall the cursor forever.
+      if (typeof r.data !== 'object' || Array.isArray(r.data)) continue;
+      const kp = r.store === 'challans' ? 'rc' : 'id';
+      if (String(r.data[kp]) !== String(r.id)) continue;
       const key = r.store + '|' + r.id;
       const local = (DB._rawGet ? await DB._rawGet(r.store, r.id) : await DB.get(r.store, r.id));
-      if (!local || (r.data.updatedAt || 0) > (local.updatedAt || 0)) {
+      const unredact = local && local._redacted && !r.data._redacted;
+      if (!local || unredact || (r.data.updatedAt || 0) > (local.updatedAt || 0)) {
         // Concurrent-overwrite signal: a server copy newer than a LOCAL edit we
         // still owe the server (in the outbox). Last-write-wins still applies
         // (server is newer), but the local editor must be told their change was
@@ -553,8 +601,10 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
           conflicts++;
           outbox.delete(key); saveOutbox();   // server already has a newer copy
         }
-        await DB.putRaw(r.store, r.data);   // keep server timestamp, no echo
-        applied++;
+        try {
+          await DB.putRaw(r.store, r.data);   // keep server timestamp, no echo
+          applied++;
+        } catch (e) { console.warn('pull: could not store', key, e); }
       }
     }
     const before = lastRev;
@@ -596,7 +646,24 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
     healOnce();                              // once per device: re-read the table
   }
 
-  function setUrl(u) { ls.setItem('syncUrl', u); tick(); }
+  /* The sync destination decides where every later PIN and session goes, so only
+   * a real server address is accepted: https anywhere, http only on this machine
+   * or the local network. Empty clears it back to the default. */
+  function validSyncUrl(u) {
+    if (!u) return true;
+    let x; try { x = new URL(u); } catch (e) { return false; }
+    if (x.username || x.password) return false;
+    if (x.protocol === 'https:') return true;
+    return x.protocol === 'http:' &&
+      /^(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(x.hostname);
+  }
+  function setUrl(u) {
+    u = (u || '').trim().replace(/\/+$/, '');
+    if (!validSyncUrl(u)) return false;
+    if (u) ls.setItem('syncUrl', u); else ls.removeItem('syncUrl');
+    tick();
+    return true;
+  }
   // Re-download everything: rewind the cursor and pull the table again. Safe to
   // run at any time — pull only overwrites a local record when the server copy
   // is NEWER by updatedAt, and anything this device still owes the server is
@@ -651,7 +718,7 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
     } catch (e) { return null; }
   }
 
-  return { start, tick, kick, setUrl, reset, info, login, logout, warmUp, roster, pendingIds, addStaff, deleteStaff, renameStaff, registerRoster, setPin, ai, aiVision, challans, fleet, latest, uploadPhoto,
+  return { start, tick, kick, setUrl, reset, info, login, logout, warmUp, roster, pendingIds, addStaff, deleteStaff, renameStaff, registerRoster, setPin, gps, validSyncUrl, backfillContacts, ai, aiVision, challans, fleet, latest, uploadPhoto,
            queuePhoto, remove, clearQuarantine, subscribePush, pushTest,
            get status() { return status; } };
 })();

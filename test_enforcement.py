@@ -3,7 +3,7 @@
 /g-saathi runs the app OFFLINE (no sync_server), so it cannot exercise server-side
 write enforcement. This drives push()/register_roster()/may_write() against an
 isolated SQLite DB and asserts the security properties hold:
-  - roster materialization creates crew accounts (0000), idempotently, skipping
+  - roster materialization creates crew accounts, each with its own PIN, idempotently, skipping
     tombstones and non-crew roles;
   - the role->store matrix blocks cross-role forgery (driver can't write ledger)
     while allowing every legitimate flow;
@@ -68,12 +68,16 @@ SENT = [
     {"id": "u-ownerX", "name": "Owner X", "role": "owner"},   # non-crew: skipped
     {"id": "", "name": "No id", "role": "driver"},            # blank id: skipped
 ]
-created = S.register_roster(SENT)
+PINS = {}
+created = S.register_roster(SENT, pins_out=PINS)
 check("materializes exactly the 2 sent crew", created == 2)
+check("each new crew login is handed its own PIN", set(PINS) == {"u-drvA", "u-conB"}
+      and all(len(p) == 4 and p.isdigit() and p != "0000" for p in PINS.values()))
 check("driver account created", account_exists("u-drvA"))
 check("conductor account created", account_exists("u-conB"))
 check("non-crew (owner) in payload skipped", not account_exists("u-ownerX"))
-check("crew can log in with 0000", S.do_login("u-drvA", "0000") is not None)
+check("crew can log in with the PIN they were given", S.do_login("u-drvA", PINS["u-drvA"]) is not None)
+check("the old shared PIN does not work", S.do_login("u-drvA", "0000") is None)
 check("crew rejects a wrong PIN", S.do_login("u-drvA", "1234") is None)
 check("re-run is idempotent (0 new)", S.register_roster(SENT) == 0)
 
@@ -141,7 +145,10 @@ check("driver CANNOT write an unknown store", push_one(DRIVER, "totallynew", "x"
 # Every legitimate flow still lands.
 check("store CAN write ledger (issue part)", push_one(STORE, "ledger", "l-ok")["applied"] == 1)
 check("store CAN write jobcards (fulfil)", push_one(STORE, "jobcards", "j-store")["applied"] == 1)
-check("mechanic CAN write jobcards (work)", push_one(MECH, "jobcards", "j-mech")["applied"] == 1)
+# A mechanic works on a card a supervisor opened with them on it.
+push_one(SUPER, "jobcards", "j-mech", {"id": "j-mech", "status": "open", "assignees": [{"userId": "u-m1"}]})
+check("mechanic CAN write jobcards (work)",
+      push_one(MECH, "jobcards", "j-mech", {"id": "j-mech", "status": "open", "labourHours": 2})["applied"] == 1)
 check("driver CAN write trips (cash session)", push_one(DRIVER, "trips", "t-ok")["applied"] == 1)
 check("driver CAN write attendance", push_one(DRIVER, "attendance", "a-drv")["applied"] == 1)
 check("conductor CAN write attendance", push_one(COND, "attendance", "a-con")["applied"] == 1)

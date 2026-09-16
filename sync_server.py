@@ -165,10 +165,19 @@ def cors_origin_for(origin):
             return origin
     return ALLOWED_ORIGINS[0]
 # Launch hardening knobs (safe defaults preserve dev behaviour):
-#   ENABLE_DEMO_SEED=0  → do NOT seed the demo staff accounts (real deployment)
+#   ENABLE_DEMO_SEED=1  → seed the demo staff accounts (local testing only)
+#   ENABLE_DEMO_SEED=0  → also DELETE demo accounts still on their published PINs
 #   MAX_UPLOAD_MB       → reject oversized photo uploads (DoS guard)
 #   ANTHROPIC_API_KEY   → enables the server-side /ai proxy (keeps the key off devices)
-ENABLE_DEMO_SEED = os.environ.get("ENABLE_DEMO_SEED", "1") != "0"
+#
+# The demo seed used to be ON unless the variable said "0". Its PINs are written
+# in this file, the repo is public, and one of the accounts is an owner — so a
+# deployment that simply never set the variable handed owner authority to anyone
+# who read the source. Off unless asked for, and a published demo PIN is refused
+# at login whenever the seed is not explicitly on (see _published_demo_pin).
+_DEMO_SEED_ENV = os.environ.get("ENABLE_DEMO_SEED", "").strip()
+ENABLE_DEMO_SEED = _DEMO_SEED_ENV == "1"
+PURGE_DEMO_USERS = _DEMO_SEED_ENV == "0"
 # GPS safety/misuse detection thresholds (configurable).
 OVERSPEED_KPH = float(os.environ.get("OVERSPEED_KPH", "80"))
 HARSH_DROP_KPH = float(os.environ.get("HARSH_DROP_KPH", "30"))   # speed drop in one push interval
@@ -504,6 +513,10 @@ def seed_users():
     with _lock:
         c = db()
         for uid, name, role, pin in SEED_USERS:
+            # A seeded account the owner deleted stays deleted. Without this the
+            # next cold start put it straight back, with its published PIN.
+            if _user_tombstoned(c, uid):
+                continue
             if not c.execute("SELECT 1 FROM users WHERE id=?", (uid,)).fetchone():
                 salt = uuid.uuid4().hex
                 c.execute("INSERT INTO users(id,name,role,salt,pin_hash) VALUES(?,?,?,?,?)",
@@ -543,7 +556,7 @@ def bootstrap():
             _load_live_gps()
             if ENABLE_DEMO_SEED:
                 seed_users()
-            else:
+            elif PURGE_DEMO_USERS:
                 purge_demo_users()
             _BOOTSTRAPPED = True
             _BOOT_ERROR = None
@@ -624,6 +637,78 @@ def clear_fails(uid, ip):
         c.execute("DELETE FROM loginfails WHERE k=? OR k=?", (uid, "ip:" + ip))
         c.commit()
         c.close()
+
+
+def _user_tombstoned(c, user_id):
+    """Was this account deliberately deleted? /auth/users/delete leaves a
+    tombstone on the synced roster row; that is the record of the decision."""
+    row = c.execute("SELECT data FROM records WHERE store='users' AND id=?", (user_id,)).fetchone()
+    if not row:
+        return False
+    try:
+        return bool(json.loads(row[0]).get("_deleted"))
+    except Exception:
+        return False
+
+
+# Every crew login used to be created with this one PIN, and the ids it protects
+# are listed by the public /roster. It now only exists on accounts made before
+# per-person PINs; register_roster replaces it, and login refuses it.
+CREW_DEFAULT_PIN = "0000"
+CREW_ROLES = ("driver", "conductor")
+_SEED_PIN = {uid: pin for uid, _n, _r, pin in SEED_USERS}
+
+
+ALL_ROLES = ("owner", "supervisor", "crewmanager", "store", "mechanic", "driver", "conductor")
+# The accounts a supervisor may create or reset. Mirrors the app's rule that only
+# the owner creates supervisors, crew managers and owners (saveStaff in app.js).
+SUPERVISOR_MANAGES = ("store", "mechanic", "driver", "conductor")
+
+
+def may_manage(actor_role, target_role):
+    """Can someone with actor_role create, or reset the PIN of, target_role?"""
+    if actor_role == "owner":
+        return target_role in ALL_ROLES
+    if actor_role == "supervisor":
+        return target_role in SUPERVISOR_MANAGES
+    return False
+
+
+def user_role(user_id):
+    c = db()
+    row = c.execute("SELECT role FROM users WHERE id=?", (user_id,)).fetchone()
+    c.close()
+    return row[0] if row else None
+
+
+def random_pin():
+    """A 4-digit PIN that is not the old shared crew default."""
+    while True:
+        p = "%04d" % _secrets.randbelow(10000)
+        if p != CREW_DEFAULT_PIN:
+            return p
+
+
+def pin_refusal(user_id, role, pin):
+    """A PIN anyone can read off the public source is not a credential.
+
+    Returns why this PIN may not be used for this account (at login, or as a new
+    PIN), or None. The published demo PINs stay usable only while the demo seed
+    is explicitly switched on for local testing."""
+    pin = str(pin or "")
+    if not ENABLE_DEMO_SEED and _SEED_PIN.get(user_id) == pin:
+        return "demo_pin"
+    if role in CREW_ROLES and pin == CREW_DEFAULT_PIN:
+        return "default_pin"
+    return None
+
+
+def login_refusal(user_id, pin):
+    """pin_refusal() for an existing account, looked up by id. None if unknown."""
+    c = db()
+    row = c.execute("SELECT role FROM users WHERE id=?", (user_id,)).fetchone()
+    c.close()
+    return pin_refusal(user_id, row[0], pin) if row else None
 
 
 def do_login(user_id, pin):
@@ -1014,6 +1099,9 @@ def _log_stock_move(c, part_id, was, now_q, actor, batch, rev):
     }, now_ms(), rev)
 
 
+_UNSAFE_ID = re.compile(r"[<>\"'`&\x00-\x1f]")
+
+
 def push(records, actor=None):
     """Apply pushed records. When `actor` (the authenticated user) is given, enforce
     the write matrix and stamp immutable server-truth provenance (_by/_byRole/_org)
@@ -1039,6 +1127,33 @@ def push(records, actor=None):
                 refused.append({"store": store, "id": rid, "reason": "role may not write this store"})
                 continue
             data = r.get("data")
+            # The record must be an object whose own key is the id that was just
+            # authorised. Every device stores a pulled record under its data.id,
+            # so an envelope for a fresh id carrying data.id of an existing row
+            # let a store or driver login overwrite that row everywhere — past
+            # the append-only ledger rule, which only saw the fresh id. And
+            # non-object data skipped every rule in _guard_write, then stalled
+            # the pull cursor on each device that could not store it.
+            if actor:
+                why = None
+                # Ids end up inside HTML attributes on every device; a quote or
+                # angle bracket in one is markup, not a name.
+                if not isinstance(rid, str) or len(rid) > 200 or _UNSAFE_ID.search(rid):
+                    why = "record id has characters that are not allowed"
+                elif not isinstance(data, dict):
+                    why = "record data must be an object"
+                else:
+                    kp = "rc" if store == "challans" else "id"
+                    if kp not in data:
+                        data[kp] = rid
+                    elif str(data[kp]) != str(rid):
+                        why = "record id does not match its data"
+                    elif data.get("_redacted"):
+                        why = "record is a redacted copy"
+                if why:
+                    rejected += 1
+                    refused.append({"store": store, "id": rid, "reason": why})
+                    continue
             # Overwrite reserved provenance fields from the TOKEN (never trust the
             # body). _by is the trust anchor the Pilferage Radar / audits read.
             if actor and isinstance(data, dict):
@@ -1083,10 +1198,66 @@ def push(records, actor=None):
                 "refused": refused, "maxRev": rev}
 
 
-def register_roster(crew=None, default_pin="0000"):
-    """Materialize server login accounts (PIN 0000) for every crew (driver/conductor)
-    who has none yet, so they can server-authenticate and their writes carry a real,
+# Contact and document fields that used to ship in the public seed bundle and now
+# reach devices only through a signed-in sync.
+BACKFILL_FIELDS = {"drivers": ("phone", "altPhone"), "buses": ("crewPhone", "docsFolderId")}
+
+
+def backfill_contacts(records, actor):
+    """Give the server the crew phones and Drive folder links that used to live
+    only in the public seed bundle.
+
+    Bundle rows were loaded on each device without ever being pushed, so the
+    server may hold no copy of a bus or driver, or a copy without these fields.
+    A manager's device sends what it has. Nothing is overwritten: a record the
+    server lacks is added with a low timestamp, so any real edit elsewhere still
+    wins, and a record it has only gains fields that are empty on the server."""
+    added = merged = 0
+    with _lock:
+        c = db()
+        rev = c.execute("SELECT COALESCE(MAX(rev),0) FROM records").fetchone()[0]
+        for r in records or []:
+            store, rid, data = r.get("store"), r.get("id"), r.get("data")
+            fields = BACKFILL_FIELDS.get(store)
+            if (not fields or not isinstance(rid, str) or _UNSAFE_ID.search(rid)
+                    or not isinstance(data, dict) or str(data.get("id")) != rid
+                    or data.get("_deleted") or data.get("_redacted")):
+                continue
+            row = c.execute("SELECT updatedAt,data FROM records WHERE store=? AND id=?",
+                            (store, rid)).fetchone()
+            if row is None:
+                d = dict(data, _by=actor["id"], _byRole=actor["role"], _org="mahalaxmi")
+                rev = _upsert_record(c, store, rid, d, int(data.get("updatedAt") or 1), rev)
+                added += 1
+                continue
+            try:
+                cur = json.loads(row[1])
+            except Exception:
+                continue
+            if not isinstance(cur, dict) or cur.get("_deleted"):
+                continue
+            gain = {k: data[k] for k in fields if data.get(k) and not cur.get(k)}
+            if gain:
+                cur.update(gain)
+                upd = int(row[0] or 0) + 1
+                cur["updatedAt"] = max(int(cur.get("updatedAt") or 0), upd)
+                rev = _upsert_record(c, store, rid, cur, upd, rev)
+                merged += 1
+        c.commit()
+        c.close()
+    return {"ok": True, "added": added, "merged": merged}
+
+
+def register_roster(crew=None, pins_out=None):
+    """Materialize server login accounts for every crew (driver/conductor) who has
+    none yet, so they can server-authenticate and their writes carry a real,
     attributable identity.
+
+    Each new account gets its OWN random PIN. They used to share one, and the ids
+    are public at /roster, so anyone could sign in as any crew member who had not
+    changed it. Accounts still on that old shared PIN are given a fresh one here
+    too. Every PIN set is written into `pins_out` ({id: pin}) — the only time it
+    exists in the clear — so the manager who pressed the button can hand them out.
 
     The roster is normally SENT by the owner device (`crew` = list of {id,name,role}),
     because the bundled seed loads crew with notify=false and never pushes them — so
@@ -1135,10 +1306,24 @@ def register_roster(crew=None, default_pin="0000"):
                 continue
             if c.execute("SELECT 1 FROM users WHERE id=?", (rid,)).fetchone():
                 continue
+            pin = random_pin()
             salt = uuid.uuid4().hex
             c.execute("INSERT INTO users(id,name,role,salt,pin_hash) VALUES(?,?,?,?,?)",
-                      (rid, name or rid, role, salt, hash_pin(salt, default_pin)))
+                      (rid, name or rid, role, salt, hash_pin(salt, pin)))
+            if pins_out is not None:
+                pins_out[rid] = pin
             created += 1
+        # Existing crew still on the old shared PIN. Login refuses it, so until
+        # this runs they cannot sign in; after it, each has a PIN of their own.
+        for rid, role, salt, ph in c.execute(
+                "SELECT id,role,salt,pin_hash FROM users WHERE role IN ('driver','conductor')").fetchall():
+            if hash_pin(salt, CREW_DEFAULT_PIN) != ph:
+                continue
+            pin = random_pin()
+            nsalt = uuid.uuid4().hex
+            c.execute("UPDATE users SET salt=?, pin_hash=? WHERE id=?", (nsalt, hash_pin(nsalt, pin), rid))
+            if pins_out is not None:
+                pins_out[rid] = pin
         c.commit()
         c.close()
     if skipped:
@@ -1149,7 +1334,44 @@ def register_roster(crew=None, default_pin="0000"):
 PULL_LIMIT = int(os.environ.get("PULL_LIMIT", "600"))
 
 
-def pull(since, limit=None):
+# Who may see crew contact details, identity documents and pay. Everyone else still
+# syncs every store — the screens depend on it — but gets those fields removed
+# from other people's records before they leave the server.
+PII_ROLES = ("owner", "supervisor", "crewmanager")
+_DRIVER_PRIVATE = ("phone", "altPhone", "address", "dob", "bloodGroup", "license",
+                   "docs", "salaryMonthly")
+
+
+def redact_for(actor, rec):
+    """The copy of a record this actor is allowed to receive, or None to omit it.
+
+    /pull used to hand every authenticated role the whole table, so a conductor's
+    login could download every colleague's Aadhaar and licence numbers, document
+    photos, phone numbers and salary. The client hid them; the server did not."""
+    if not actor or actor.get("role") in PII_ROLES:
+        return rec
+    st, d = rec["store"], rec["data"]
+    if not isinstance(d, dict):
+        return rec
+    if st == "waconv":                    # keyed by a crew member's phone number
+        return None
+    if st == "drivers" and d.get("userId") != actor.get("id"):
+        drop = _DRIVER_PRIVATE
+    elif st == "buses":
+        drop = ("crewPhone",)
+    elif st == "odometerlogs":
+        drop = ("phone",)
+    else:
+        return rec
+    if not any(k in d for k in drop):
+        return rec
+    # Marked, so the device knows this copy is partial: it is never pushed back,
+    # and a full copy replaces it if a manager later signs in on that device.
+    d = dict({k: v for k, v in d.items() if k not in drop}, _redacted=True)
+    return dict(rec, data=d)
+
+
+def pull(since, limit=None, actor=None):
     """One page of records newer than `since`, oldest rev first.
 
     This used to return the whole table. On a serverless host that meant a first
@@ -1188,6 +1410,9 @@ def pull(since, limit=None):
     # maxRev is the cursor the client stores: the last rev actually SENT, not the
     # table maximum, or it would skip everything this page left behind.
     cursor = recs[-1]["rev"] if recs else maxrev
+    # Redact AFTER the cursor is taken: an omitted record must still count as
+    # sent, or the client would ask for the same page forever.
+    recs = [x for x in (redact_for(actor, r) for r in recs) if x is not None]
     return {"records": recs, "maxRev": cursor, "more": cursor < maxrev, "tableMax": maxrev}
 
 
@@ -1573,6 +1798,7 @@ WA_TOKEN = os.environ.get("WA_TOKEN", "")               # permanent system-user 
 WA_PHONE_ID = os.environ.get("WA_PHONE_ID", "")         # sender phone-number id
 WA_VERIFY_TOKEN = os.environ.get("WA_VERIFY_TOKEN", "") # echoed back on webhook setup
 WA_APP_SECRET = os.environ.get("WA_APP_SECRET", "")     # validates X-Hub-Signature-256
+WA_ALLOW_UNSIGNED = os.environ.get("WA_ALLOW_UNSIGNED", "") == "1"   # local testing only
 WA_PROMPT_TEMPLATE = os.environ.get("WA_PROMPT_TEMPLATE", "")   # approved template for out-of-window sends
 WA_TEMPLATE_LANG = os.environ.get("WA_TEMPLATE_LANG", "en")
 
@@ -2112,11 +2338,16 @@ class Handler(BaseHTTPRequestHandler):
                 c.close()
             return self._send(200, {"users": [{"id": r[0], "name": r[1], "role": r[2]} for r in rows]})
         if u.path == "/pull":
-            if not self._auth_user():
+            me = self._auth_user()
+            if not me:
                 return self._send(401, {"error": "unauthorized"})
             since = int((parse_qs(u.query).get("since") or ["0"])[0])
-            return self._send(200, pull(since))
+            return self._send(200, pull(since, actor=me), cache="no-store")
         if u.path == "/gps":
+            # Live position, speed and ignition of a named bus. Registration
+            # numbers are painted on the buses, so this must not be anonymous.
+            if not self._auth_user():
+                return self._send(401, {"error": "unauthorized"})
             q = parse_qs(u.query)
             bus_id = (q.get("busId") or [""])[0]
             if not bus_id:
@@ -2131,6 +2362,12 @@ class Handler(BaseHTTPRequestHandler):
                                     "keyEnv": bool(os.environ.get("VAPID_PRIVATE_KEY")),   # is the env var visible to the process?
                                     "secretFile": os.path.exists("/etc/secrets/vapid_private.pem")})
         if u.path == "/gps/latest":                  # provider self-check
+            # The provider checks a push landed with its own ingest token; the
+            # app uses a session. Anyone else gets nothing.
+            prov = _GPS_TOKEN_OK and hmac.compare_digest(
+                self.headers.get("Authorization", ""), "Bearer " + GPS_INGEST_TOKEN)
+            if not prov and not self._auth_user():
+                return self._send(401, {"error": "unauthorized"})
             reg = (parse_qs(u.query).get("reg") or [""])[0]
             _gps_hydrate()
             data = LIVE_GPS.get(norm_reg(reg))
@@ -2234,6 +2471,12 @@ class Handler(BaseHTTPRequestHandler):
             wait = locked_for(uid, ip)
             if wait:
                 return self._send(429, {"error": "too many attempts", "retryAfterSec": wait})
+            refusal = login_refusal(uid, b.get("pin"))
+            if refusal:
+                # The right PIN for the account, but one printed in the public
+                # source. Not a failed guess, so no lockout strike; `known` makes
+                # the app drop any copy it cached instead of signing in offline.
+                return self._send(403, {"error": refusal, "known": True})
             r = do_login(uid, b.get("pin"))
             if not r:
                 record_fail(uid, ip)
@@ -2267,6 +2510,13 @@ class Handler(BaseHTTPRequestHandler):
             # non-200, so this always answers 200 once the payload is understood —
             # a failed OCR is a conversation to have with the driver, not a delivery
             # failure to make Meta repeat.
+            # Without the app secret nothing proves a delivery came from Meta, and
+            # this used to process it anyway: anyone could post a fake message
+            # and get odometer writes and replies from the business number. Refuse
+            # instead. WA_ALLOW_UNSIGNED=1 is for local testing only.
+            if not WA_APP_SECRET and not WA_ALLOW_UNSIGNED:
+                print("wa/webhook refused: WA_APP_SECRET is not set")
+                return self._send(503, {"error": "webhook disabled — set WA_APP_SECRET"})
             if WA_APP_SECRET:
                 raw = self._raw_body()
                 if not wa_client.verify_signature(raw, self.headers.get("X-Hub-Signature-256"), WA_APP_SECRET):
@@ -2287,9 +2537,20 @@ class Handler(BaseHTTPRequestHandler):
             if me["role"] not in ("owner", "supervisor"):
                 return self._send(403, {"error": "forbidden"})
             b = self._body()
-            name, role, pin = (b.get("name") or "").strip(), b.get("role") or "mechanic", b.get("pin") or ""
+            name, role, pin = (b.get("name") or "").strip(), b.get("role") or "mechanic", str(b.get("pin") or "")
             if not name or not pin:
                 return self._send(400, {"error": "name and pin required"})
+            if role not in ALL_ROLES:
+                return self._send(400, {"error": "unknown role"})
+            # The role in the body used to be taken as given, so a supervisor
+            # could mint a login with role owner. The app's form refused that;
+            # the server did not.
+            if not may_manage(me["role"], role):
+                return self._send(403, {"error": "only the owner can create that role"})
+            if not (len(pin) == 4 and pin.isdigit()):
+                return self._send(400, {"error": "pin must be 4 digits"})
+            if pin_refusal("", role, pin):
+                return self._send(400, {"error": "choose a different PIN"})
             return self._send(200, {"user": create_user(name, role, pin)})
 
         if u.path == "/auth/users/rename":   # correct a name (owner/supervisor)
@@ -2364,12 +2625,27 @@ class Handler(BaseHTTPRequestHandler):
             pin = str(b.get("pin") or "")
             if not (len(pin) == 4 and pin.isdigit()):
                 return self._send(400, {"error": "pin must be 4 digits"})
-            # Only self, or a manager changing someone else's.
-            if target != me["id"] and me["role"] not in ("owner", "supervisor"):
+            trole = user_role(target)
+            if not trole:
+                return self._send(404, {"error": "no such user"})
+            # Only self, or a manager changing the PIN of someone they manage.
+            # The target's role used to go unread, so a supervisor could reset
+            # the owner's PIN and then sign in as the owner.
+            if target != me["id"] and not may_manage(me["role"], trole):
                 return self._send(403, {"error": "forbidden"})
+            if pin_refusal(target, trole, pin):
+                return self._send(400, {"error": "choose a different PIN"})
             if not set_pin(target, pin):
                 return self._send(404, {"error": "no such user"})
             return self._send(200, {"ok": True})
+
+        if u.path == "/admin/backfill-contacts":   # one-time: bundle contacts → server (owner/supervisor)
+            me = self._auth_user()
+            if not me:
+                return self._send(401, {"error": "unauthorized"})
+            if me["role"] not in ("owner", "supervisor"):
+                return self._send(403, {"error": "forbidden"})
+            return self._send(200, backfill_contacts(self._body().get("records"), me))
 
         if u.path == "/auth/register-roster":   # materialize crew server accounts (owner/supervisor)
             me = self._auth_user()
@@ -2377,7 +2653,12 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(401, {"error": "unauthorized"})
             if me["role"] not in ("owner", "supervisor"):
                 return self._send(403, {"error": "forbidden"})
-            return self._send(200, {"ok": True, "created": register_roster(self._body().get("crew"))})
+            pins = {}
+            created = register_roster(self._body().get("crew"), pins_out=pins)
+            # The PINs go back to this manager's device and nowhere else; the
+            # server keeps only their hashes. The response must not be cached.
+            return self._send(200, {"ok": True, "created": created, "pins": pins,
+                                    "reset": len(pins) - created}, cache="no-store")
 
         if u.path == "/push":
             me = self._auth_user()
@@ -2555,7 +2836,7 @@ if __name__ == "__main__":
         raise SystemExit(1)
     _record_boot()                   # evidence for /health: did storage survive a restart?
     if not ENABLE_DEMO_SEED:
-        print("ENABLE_DEMO_SEED=0 → skipping demo staff accounts (real deployment)")
+        print("ENABLE_DEMO_SEED is not 1 → no demo staff accounts; published demo PINs are refused")
     bootstrap()                      # same path serverless takes
     os.makedirs(UPLOADS, exist_ok=True)
     if ALLOWED_ORIGINS == "*":

@@ -10,10 +10,13 @@ Why this exists at all: SEED_USERS in sync_server.py hard-codes a PIN for seven
 accounts, and that file is in a PUBLIC repo. Until each of those PINs is changed,
 anyone who can read the repo can sign in as the owner.
 
-Order matters. Run this BEFORE setting ENABLE_DEMO_SEED=0. That flag makes
-purge_demo_users() delete every seeded account whose hash still matches its
-published PIN — so flipping it first deletes the accounts instead of securing
-them, and flipping it after this script has run deletes nothing.
+Since Sep 2026 the server refuses a published PIN at login unless
+ENABLE_DEMO_SEED=1, so an account still on one cannot sign in at all. If the
+account you sign in with below is one of those, set ENABLE_DEMO_SEED=1 on the
+server, redeploy, run this, then remove the variable and redeploy again.
+
+ENABLE_DEMO_SEED=0 goes further: it deletes every seeded account still on its
+published PIN. Run this first, or those accounts are deleted instead of secured.
 
 Changing a PIN here is durable: seed_users() only inserts when the row is absent,
 so a later cold boot will not put the published PIN back.
@@ -101,6 +104,10 @@ def main():
     del pin
     if st == 429:
         sys.exit("Locked out: %s. Wait and retry." % res.get("retryAfterSec", "?"))
+    if st == 403 and res.get("error") == "demo_pin":
+        sys.exit("That account still uses its published PIN, which the server now refuses.\n"
+                 "Set ENABLE_DEMO_SEED=1 on the server, redeploy, run this again, then\n"
+                 "remove the variable and redeploy. Nothing was changed.")
     if st != 200 or "token" not in res:
         sys.exit("Login failed (%s). Nothing was changed." % st)
     token = res["token"]
@@ -138,8 +145,8 @@ def main():
     bad = []
     for uid, published in changed:
         st, _ = call(base, "/auth/login", {"userId": uid, "pin": published})
-        mark = "rejected" if st == 401 else ("STILL ACCEPTED" if st == 200 else "http %s" % st)
-        if st != 401:
+        mark = "rejected" if st in (401, 403) else ("STILL ACCEPTED" if st == 200 else "http %s" % st)
+        if st not in (401, 403):
             bad.append(uid)
         print("  %-10s %s" % (uid, mark))
 

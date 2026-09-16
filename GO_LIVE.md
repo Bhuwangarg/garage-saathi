@@ -91,8 +91,10 @@ first boot.
 Both are already gone on the live deployment — `/health` reports
 `tursoConfigured: false`. Turso support still exists in `sync_server.py` but is dormant.
 
-Leave `ENABLE_DEMO_SEED` unset for now — the seeded owner account is how you get
-into a fresh database. Step 7 removes it.
+Set `ENABLE_DEMO_SEED=1` for now — the seeded owner account is how you get into a
+fresh database. Since Sep 2026 the demo accounts are **not** created when the
+variable is unset, and their published PINs are refused at login unless it is `1`.
+Step 7 turns it off again.
 
 Vercel deploys on push to `main`, but **an env-var change alone does not redeploy** —
 it only takes effect on the next deployment, so redeploy from the dashboard (or push)
@@ -142,7 +144,10 @@ A fresh database has only the seeded accounts. Two groups need attention.
 
 **Crew (165 drivers + conductors).** On the owner device open **Crew PINs** and
 register the roster. This calls `/auth/register-roster`, which creates a login for
-every driver and conductor with PIN `0000`.
+every driver and conductor with **their own random PIN**, and gives a new one to any
+account still on the old shared `0000` (which login now refuses). The PINs come back
+to that device only and show on the Crew PINs screen — read each one to its owner.
+A lost PIN: **New PIN** on the same screen.
 
 **Management.** `u-sup` Ramesh, `u-store` Suresh and `u-m1/2/3` Mukesh, Imran and
 Vijay *are* the seeded identities — the same ones whose PINs are published in this
@@ -200,11 +205,11 @@ bash scripts/predeploy-gate.sh     # 14 checks, ~60s
 ## Still open after this
 
 - **`VAPID_PRIVATE_KEY` unset** → `vapidReady: false`, no push notifications.
-- **Crew PIN is uniform `0000`** for all 165 drivers and conductors. Anyone who
-  knows a name can sign in as them. Lowest-privilege roles, and route scoping was
-  tightened on 2026-08-18, but it deserves a policy decision.
-- **`S.cache` is unscoped on crew devices** — the full fleet, roster and ledger sit
-  in every driver's IndexedDB regardless of what the UI shows.
+- **`S.cache` is still broad on crew devices** — the fleet, roster and ledger sit in
+  every driver's IndexedDB. Since Sep 2026 other crew's phones, documents, licence,
+  address and pay are removed server-side before they reach a non-manager.
+- **`WA_APP_SECRET` must be set** for WhatsApp odometer capture: without it the
+  webhook now answers 503 instead of trusting unsigned deliveries.
 - **Trip-cash flow is English-only in Hindi mode** — the driver's money screen.
 - **Check-in fails silently without a camera** — no sheet, no toast, no error.
 - **Supabase free tier**: 500 MB (the garage is ~3 MB) and projects pause after

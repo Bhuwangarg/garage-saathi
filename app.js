@@ -18,7 +18,7 @@ const I18N = {
     purchases: 'Purchases / Bills', serviceHistory: 'Service history', documents: 'Documents',
     addPhotoNote: 'Before AND after photos required to close a job (outside repairs: a bill photo)', noJobs: 'No jobs yet', expired: 'EXPIRED',
     // Login
-    tagline: 'Garage maintenance, Jaipur', enterPin: 'Enter PIN', wrongPin: 'Wrong PIN',
+    tagline: 'Garage maintenance, Jaipur', enterPin: 'Enter PIN', wrongPin: 'Wrong PIN', pinRetired: 'That PIN no longer works — ask the office for your new PIN',
     recentHere: 'Recent on this phone', whoAreYou: 'Who are you?', selectName: 'Select your name', searchName: 'Search name…',
     cantReach: "Can't reach the server — check internet and try again",
     odoBroken: 'Odometer not working on this bus',
@@ -235,7 +235,7 @@ const I18N = {
     purchases: 'खरीद / बिल', serviceHistory: 'सेवा इतिहास', documents: 'कागज़ात',
     addPhotoNote: 'काम बंद करने के लिए पहले और बाद दोनों की फोटो ज़रूरी हैं (बाहर मरम्मत: बिल की फोटो)', noJobs: 'अभी कोई काम नहीं', expired: 'समाप्त',
     // Login
-    tagline: 'गैराज मरम्मत, जयपुर', enterPin: 'पिन डालें', wrongPin: 'गलत पिन',
+    tagline: 'गैराज मरम्मत, जयपुर', enterPin: 'पिन डालें', wrongPin: 'गलत पिन', pinRetired: 'यह पिन अब नहीं चलेगा — ऑफिस से अपना नया पिन लें',
     recentHere: 'इस फ़ोन पर हाल के', whoAreYou: 'आप कौन हैं?', selectName: 'अपना नाम चुनें', searchName: 'नाम खोजें…',
     cantReach: 'सर्वर से संपर्क नहीं — इंटरनेट जाँचें और फिर कोशिश करें',
     odoBroken: 'इस बस का ओडोमीटर काम नहीं कर रहा',
@@ -1094,12 +1094,7 @@ function busCostPerKm(b) {
 const GpsProvider = {
   name: 'AirFi',
   async live(bus) {
-    // Reuse Sync's resolved backend URL (Render in production, local in dev).
-    const base = (Sync.info && Sync.info().url) || (location.protocol + '//' + location.hostname + ':8766');
-    const res = await fetch(base + '/gps?busId=' + encodeURIComponent(bus.id) +
-      '&odo=' + (bus.odometer || 0) + '&reg=' + encodeURIComponent(bus.regNo || ''));
-    if (!res.ok) throw new Error('gps ' + res.status);
-    const d = await res.json();
+    const d = await Sync.gps(bus);         // signed-in request; position is not public
     // The server returns real AirFi telemetry when the tracker is pushing for
     // this registration, else a simulated fallback — `source` says which.
     return { lat: d.lat, lng: d.lng, speedKph: d.speedKph, ignition: d.ignition,
@@ -1295,7 +1290,7 @@ function bottomnav() {
     [['home', '🏠', t('today')], ['fleet', '🚌', t('fleet')], ['jobs', '🛠️', t('jobs')],
      ['store', '📦', t('store')], ['me', '👤', t('me')]];
   return `<div class="bottomnav">${items.map(([n, ic, lbl]) =>
-    `<button data-nav="${n}" class="${active === n ? 'active' : ''}"><span class="ic">${ic}</span>${esc(lbl)}</button>`).join('')}</div>`;
+    `<button data-nav="${esc(n)}" class="${active === n ? 'active' : ''}"><span class="ic">${ic}</span>${esc(lbl)}</button>`).join('')}</div>`;
 }
 
 // `opts.narrow` keeps a screen in one readable column on desktop. Dashboards and
@@ -1305,7 +1300,7 @@ function bottomnav() {
 function shell(title, body, fab, opts) {
   const cls = (opts && opts.narrow) ? 'content narrow' : 'content';
   root().innerHTML = topbar(title) + `<div class="${cls}">${body}</div>` +
-    (fab ? `<button class="fab" data-act="${fab.act}">${fab.icon}</button>` : '') + bottomnav();
+    (fab ? `<button class="fab" data-act="${esc(fab.act)}">${fab.icon}</button>` : '') + bottomnav();
   bind();
 }
 const NARROW = { narrow: true };
@@ -1326,7 +1321,7 @@ function costSeries(n) {
   return out;
 }
 function qtile(icon, value, label, nav) {
-  return `<div class="card tile qstat"${nav ? ` data-nav="${nav}"` : ''}>
+  return `<div class="card tile qstat"${nav ? ` data-nav="${esc(nav)}"` : ''}>
     <div class="qicon">${icon}</div><div class="stat">${value}</div>
     <div class="muted small">${esc(label)}</div></div>`;
 }
@@ -1349,7 +1344,7 @@ function viewStoreHome() {
   // Quick lookup across the whole catalogue, right on the home page.
   body += `<input id="store-home-search" class="searchbox" placeholder="${t('searchParts')}" autocomplete="off"><div id="store-home-results"></div>`;
   body += `<div id="store-home-reorder"><div class="card"><div class="row between"><h3>${t('reorderSoon')}</h3><span class="badge ${low.length ? 'b-amber' : 'b-green'}">${low.length}</span></div>`;
-  body += low.length ? low.slice(0, 12).map((p) => `<div class="li" data-part="${p.id}">${avatar(partImg(p), '🔩')}<div class="main"><div class="t">${esc(p.name)}</div><div class="s">${p.qty} ${esc(p.unit)} left · reorder at ${p.reorderLevel}</div></div><span class="badge b-amber">LOW</span></div>`).join('') + (low.length > 12 ? `<div class="tiny muted" style="margin-top:6px">+${low.length - 12} more · open Store ›</div>` : '') : `<div class="muted small">Stock healthy 👍</div>`;
+  body += low.length ? low.slice(0, 12).map((p) => `<div class="li" data-part="${esc(p.id)}">${avatar(partImg(p), '🔩')}<div class="main"><div class="t">${esc(p.name)}</div><div class="s">${p.qty} ${esc(p.unit)} left · reorder at ${p.reorderLevel}</div></div><span class="badge b-amber">LOW</span></div>`).join('') + (low.length > 12 ? `<div class="tiny muted" style="margin-top:6px">+${low.length - 12} more · open Store ›</div>` : '') : `<div class="muted small">Stock healthy 👍</div>`;
   body += `</div></div>`;
   body += `<div class="card" data-act="openPurchases" style="cursor:pointer"><div class="row between"><h3>${t('pendingSuppliers')}</h3><b style="color:var(--amber)">${money(pending)}</b></div><div class="tiny muted">Tap to view bills</div></div>`;
   body += `<div class="card"><h3>${t('openJobsParts')}</h3>`;
@@ -1365,7 +1360,7 @@ function viewStoreHome() {
       reorder.style.display = 'none';
       const hits = parts.filter((p) => (`${p.name} ${p.partNo || ''}`).toLowerCase().includes(ql)).slice(0, 25);
       res.innerHTML = `<div class="card"><div class="row between"><h3>${esc(si.value)}</h3><span class="tiny muted">${hits.length} found</span></div>`
-        + (hits.length ? hits.map((p) => `<div class="li" data-part="${p.id}">${avatar(partImg(p), '🔩')}<div class="main"><div class="t">${esc(p.name)}</div><div class="s">${p.qty} ${esc(p.unit)} in stock${p.partNo ? ' · ' + esc(p.partNo) : ''}</div></div>${isLow(p) ? '<span class="badge b-amber">LOW</span>' : ''}</div>`).join('') : `<div class="muted small">No part matches “${esc(si.value)}”.</div>`)
+        + (hits.length ? hits.map((p) => `<div class="li" data-part="${esc(p.id)}">${avatar(partImg(p), '🔩')}<div class="main"><div class="t">${esc(p.name)}</div><div class="s">${p.qty} ${esc(p.unit)} in stock${p.partNo ? ' · ' + esc(p.partNo) : ''}</div></div>${isLow(p) ? '<span class="badge b-amber">LOW</span>' : ''}</div>`).join('') : `<div class="muted small">No part matches “${esc(si.value)}”.</div>`)
         + `</div>`;
     };
   }
@@ -1407,7 +1402,7 @@ function viewMechanicHome() {
     .map((j) => {
       const inAt = j.enterAt || j.createdAt;
       const started = j.startAt;
-      return `<div class="li" data-job="${j.id}"><div class="ava">${started ? '🔧' : '⏳'}</div>
+      return `<div class="li" data-job="${esc(j.id)}"><div class="ava">${started ? '🔧' : '⏳'}</div>
         <div class="main"><div class="t">${esc(busName(j.busId))} · ${esc(j.problem)}</div>
           <div class="s">${PRIO_PILL[j.priority] || ''} · ${t('mchSince')} ${fmtDateTime(inAt)}${started ? ` · ${t('mchStarted')} ${msToHHMM(started)}` : (j.status === 'open' ? ` · ${t('mchNotStarted')}` : '')}</div></div>
         ${statusBadge(j.status)}</div>`;
@@ -1420,7 +1415,7 @@ function viewMechanicHome() {
   if (reports.length) {
     body += `<div class="card"><div class="row between"><h3>Driver said…</h3><span class="badge b-amber">${reports.length}</span></div>
       <div class="tiny muted" style="margin-bottom:6px">What drivers reported on the buses you're working — check these too.</div>`;
-    body += reports.map((r) => `<div class="li" data-bus="${r.busId}"><div class="ava">🗣️</div><div class="main"><div class="t">${esc(r.problem)}</div><div class="s">${esc(busName(r.busId))} · ${esc(r.category || '')}</div></div></div>`).join('');
+    body += reports.map((r) => `<div class="li" data-bus="${esc(r.busId)}"><div class="ava">🗣️</div><div class="main"><div class="t">${esc(r.problem)}</div><div class="s">${esc(busName(r.busId))} · ${esc(r.category || '')}</div></div></div>`).join('');
     body += `</div>`;
   }
   shell(t('appName'), body);
@@ -1471,7 +1466,7 @@ function viewMoney() {
 
   // Window selector.
   body += `<div class="chiprow">${[['month', t('thisMonth')], ['lastmonth', t('lastMonth')], ['year', t('thisYear')]]
-    .map(([k, l]) => `<button class="chip ${_moneyWin === k ? 'active' : ''}" data-act="moneyWin" data-win="${k}">${l}</button>`).join('')}</div>`;
+    .map(([k, l]) => `<button class="chip ${_moneyWin === k ? 'active' : ''}" data-act="moneyWin" data-win="${esc(k)}">${l}</button>`).join('')}</div>`;
 
   // ZONE 1 — hero: one honest total, trend vs previous window (down = good = green), 6-month bars.
   // Bars share the hero's basis: TOTAL running cost/month (repairs + fuel + misc), not repairs alone.
@@ -1506,7 +1501,7 @@ function viewMoney() {
     const ranked = withOdo.map((b) => ({ b, v: busCostPerKm(b) })).sort((a, b) => b.v - a.v);
     const sorted = ranked.map((x) => x.v).sort((a, b) => a - b);
     const median = sorted[Math.floor(sorted.length / 2)] || 0;
-    body += ranked.slice(0, 5).map(({ b, v }) => `<div class="li" data-bus="${b.id}"><div style="flex:none">${plateChip(b)}</div>
+    body += ranked.slice(0, 5).map(({ b, v }) => `<div class="li" data-bus="${esc(b.id)}"><div style="flex:none">${plateChip(b)}</div>
       <div class="main"><div class="s">${esc(b.company || 'Unassigned')}</div></div>
       <span class="schip ${v > median * 1.3 ? 'crit' : 'ok'}"><i></i>₹${v.toFixed(1)}/km</span></div>`).join('');
     body += `<div class="tiny muted" style="margin-top:6px">Fleet median ₹${median.toFixed(1)}/km.</div>`;
@@ -1565,7 +1560,7 @@ function viewFleet() {
     <div><div class="greet-hi">${t('fleet')}</div><div class="muted small">${buses.length} buses · ${esc(BIZ)}</div></div></div>`;
 
   // Triage rows first.
-  if (overdue.length) body += `<div class="trow crit" data-bus="${overdue[0].b.id}"><div class="ti">🔧</div>
+  if (overdue.length) body += `<div class="trow crit" data-bus="${esc(overdue[0].b.id)}"><div class="ti">🔧</div>
     <div class="tm"><div class="tt">Service overdue</div><div class="ts">${overdue.slice(0, 3).map((x) => esc(x.b.regNo)).join(', ')}${overdue.length > 3 ? ' +' + (overdue.length - 3) : ''}</div></div><div class="tc">${overdue.length}</div></div>`;
   if (docAlerts.length) body += `<div class="trow ${docCrit.length ? 'crit' : 'warn'}" data-act="openAlerts"><div class="ti">📄</div>
     <div class="tm"><div class="tt">Documents expiring</div><div class="ts">${docCrit.length ? docCrit.length + ' expired' : docAlerts.length + ' within 15 days'}</div></div><div class="tc">${docAlerts.length}</div></div>`;
@@ -1586,7 +1581,7 @@ function viewFleet() {
     const sv = serviceInfo(b);
     const cls = sv.status === 'overdue' ? 'crit' : sv.status === 'soon' ? 'warn' : 'ok';
     const word = sv.status === 'overdue' ? 'Service due' : sv.status === 'soon' ? 'Service soon' : 'OK';
-    return `<div class="li" data-bus="${b.id}"><div style="flex:none">${plateChip(b)}</div>
+    return `<div class="li" data-bus="${esc(b.id)}"><div style="flex:none">${plateChip(b)}</div>
       <div class="main"><div class="t">${esc(b.company || 'Unassigned')} · ${esc(b.model || '')}</div>
       <div class="s">${(b.odometer || 0).toLocaleString('en-IN')} km</div></div>
       <span class="schip ${cls}"><i></i>${word}</span></div>`;
@@ -1661,11 +1656,11 @@ function viewUsage() {
   const people = (n) => new Set(inWindow(n).map((r) => r.userId)).size;
   const screens = {}, acts = {}, slow = {};
   inWindow(30).forEach((r) => {
-    Object.entries(r.screens || {}).forEach(([k, v]) => { screens[k] = (screens[k] || 0) + v; });
-    Object.entries(r.acts || {}).forEach(([k, v]) => { acts[k] = (acts[k] || 0) + v; });
+    Object.entries(r.screens || {}).forEach(([k, v]) => { screens[k] = (screens[k] || 0) + (Number(v) || 0); });
+    Object.entries(r.acts || {}).forEach(([k, v]) => { acts[k] = (acts[k] || 0) + (Number(v) || 0); });
     Object.entries(r.slow || {}).forEach(([k, v]) => {
       const c = slow[k] || { n: 0, worstMs: 0 };
-      slow[k] = { n: c.n + (v.n || 0), worstMs: Math.max(c.worstMs, v.worstMs || 0) };
+      slow[k] = { n: c.n + (Number(v && v.n) || 0), worstMs: Math.max(c.worstMs, Number(v && v.worstMs) || 0) };
     });
   });
 
@@ -1705,7 +1700,7 @@ function viewUsage() {
   const byPerson = {};
   inWindow(30).forEach((r) => {
     const p = byPerson[r.userId] || (byPerson[r.userId] = { name: r.name, role: r.role, days: 0, taps: 0, lastAt: 0 });
-    p.days++; p.taps += r.taps || 0; p.lastAt = Math.max(p.lastAt, r.lastAt || 0);
+    p.days++; p.taps += Number(r.taps) || 0; p.lastAt = Math.max(p.lastAt, Number(r.lastAt) || 0);
     p.name = r.name || p.name; p.role = r.role || p.role;
   });
   const persons = Object.values(byPerson).sort((a, b) => b.lastAt - a.lastAt);
@@ -1729,7 +1724,7 @@ function viewPeople() {
 
   // Drivers ranked worst-first (the ones who need attention).
   body += `<div class="card"><div class="row between"><h3>Drivers · needs attention first</h3><span class="tiny muted" data-act="openScoreboard" style="cursor:pointer">scoreboard ›</span></div>`;
-  body += drivers.length ? drivers.slice(0, 8).map(({ d, score }) => `<div class="li" data-driver="${d.id}">
+  body += drivers.length ? drivers.slice(0, 8).map(({ d, score }) => `<div class="li" data-driver="${esc(d.id)}">
       <div class="ava">${score < 70 ? '🔴' : score < 85 ? '🟡' : '🟢'}</div>
       <div class="main"><div class="t">${esc(d.name)}</div><div class="s">${esc(busName(d.busId) || 'No bus')} · ${starStr(scoreStars(score))}</div></div>
       <span class="badge ${scoreClass(score)}">${score}</span></div>`).join('')
@@ -1856,7 +1851,7 @@ function viewSupervisorHome() {
   body += inShop.length ? inShop.slice(0, 8).map((j) => {
     const since = j.enterAt || j.createdAt;
     const idle = jobIdleMs(j);
-    return `<div class="li" data-job="${j.id}"><div class="ava">${j.startAt ? '🔧' : '⏳'}</div>
+    return `<div class="li" data-job="${esc(j.id)}"><div class="ava">${j.startAt ? '🔧' : '⏳'}</div>
       <div class="main"><div class="t">${esc(busName(j.busId))} · ${esc(j.problem)}</div>
         <div class="s">${t('mchSince')} ${timeAgo(since)}${(!j.startAt && j.status === 'open') ? ' · ' + t('mchNotStarted') : ''}${idle ? ' · ' + t('hmIdle') + ' ' + Math.round(idle / 3600000) + t('bdHrs') : ''}</div></div>
       ${statusBadge(j.status)}</div>`;
@@ -1953,7 +1948,7 @@ function viewHome() {
     if (openReports.length) {
       body += `<div class="card" style="border:1.5px solid var(--red)">
         <div class="row between"><h3>🗣️ Driver complaints</h3><span class="badge b-red">${openReports.length} new</span></div>
-        ${openReports.slice(0, 4).map((r) => `<div class="li" data-bus="${r.busId}" style="border:none;padding:7px 0;cursor:pointer">
+        ${openReports.slice(0, 4).map((r) => `<div class="li" data-bus="${esc(r.busId)}" style="border:none;padding:7px 0;cursor:pointer">
           <div class="ava">🚨</div><div class="main"><div class="t">${esc(busName(r.busId))} · ${esc(r.category || 'Issue')}</div>
           <div class="s">“${esc((r.problem || '').slice(0, 64))}” — ${esc(driverName(r.driverId))} · ${timeAgo(r.at)}</div></div>
           <span class="tiny" style="color:var(--brand2)">open ›</span></div>`).join('')}
@@ -2026,7 +2021,7 @@ function viewHome() {
   body += `<div class="card" data-act="openAlerts" style="cursor:pointer"><div class="row between"><h3>${t('docAlerts')}</h3><span class="badge ${alerts.length ? 'b-red' : 'b-green'}">${alerts.length}</span></div>`;
   if (!alerts.length) body += `<div class="muted small">All documents valid 👍</div>`;
   else body += alerts.slice(0, 5).map((a) =>
-    `<div class="li" data-bus="${a.bus.id}"><div class="ava">📄</div><div class="main"><div class="t">${esc(a.bus.regNo)} · ${esc(a.doc.type)}</div><div class="s">Expires ${fmtDate(a.doc.expiry)}</div></div><span class="badge ${a.st.cls}">${a.st.txt}</span></div>`).join('');
+    `<div class="li" data-bus="${esc(a.bus.id)}"><div class="ava">📄</div><div class="main"><div class="t">${esc(a.bus.regNo)} · ${esc(a.doc.type)}</div><div class="s">Expires ${fmtDate(a.doc.expiry)}</div></div><span class="badge ${a.st.cls}">${a.st.txt}</span></div>`).join('');
   body += `</div>`;
 
   // Open jobs
@@ -2041,7 +2036,7 @@ function viewHome() {
   if (!low.length) body += `<div class="muted small">Stock healthy 👍</div>`;
   else {
     body += lowTop.map((p) =>
-      `<div class="li" data-part="${p.id}">${avatar(partImg(p), '🔩')}<div class="main"><div class="t">${esc(p.name)}</div><div class="s">${p.qty} ${esc(p.unit)} left · reorder at ${p.reorderLevel}</div></div><span class="badge b-amber">LOW</span></div>`).join('');
+      `<div class="li" data-part="${esc(p.id)}">${avatar(partImg(p), '🔩')}<div class="main"><div class="t">${esc(p.name)}</div><div class="s">${p.qty} ${esc(p.unit)} left · reorder at ${p.reorderLevel}</div></div><span class="badge b-amber">LOW</span></div>`).join('');
     if (low.length > lowTop.length) body += `<div class="tiny muted" style="margin-top:6px">+${low.length - lowTop.length} more · open Store ›</div>`;
   }
   body += `</div>`;
@@ -2058,12 +2053,12 @@ function busLi(b) {
   const sd = BUS_STAT[busStatusOf(b)] || BUS_STAT.parked;
   // The row taps into bus detail; the Track button (its own data-act) taps into
   // the live tracking page — closest() matches the button first, so they don't clash.
-  return `<div class="li" data-bus="${b.id}">
+  return `<div class="li" data-bus="${esc(b.id)}">
     ${avatar(busImg(b), '🚌')}
     <div class="main"><div class="t">${sd[0]} ${esc(b.regNo)}</div>
       <div class="s">${esc(b.company)} · ${esc(b.model)} · ${(b.odometer||0).toLocaleString('en-IN')} km</div></div>
     ${alerts ? `<span class="badge b-red">${alerts}!</span>` : ''}
-    <button class="btn sm" data-act="trackBus" data-bus="${b.id}" style="width:auto" title="Live track">🛰️</button>
+    <button class="btn sm" data-act="trackBus" data-bus="${esc(b.id)}" style="width:auto" title="Live track">🛰️</button>
   </div>`;
 }
 function viewBuses() {
@@ -2141,7 +2136,7 @@ function renderBusList() {
   all.forEach((b) => { counts[busStatusOf(b)]++; });
   const chips = document.getElementById('bus-chips');
   if (chips) chips.innerHTML = [['all', 'All'], ['running', '🟢 Running'], ['idle', '🟡 Idle'], ['parked', '⚪ Parked']]
-    .map(([v, label]) => `<button class="chip ${_busFilter === v ? 'active' : ''}" data-act="busFilter" data-v="${v}">${label} ${counts[v]}</button>`).join('');
+    .map(([v, label]) => `<button class="chip ${_busFilter === v ? 'active' : ''}" data-act="busFilter" data-v="${esc(v)}">${label} ${counts[v]}</button>`).join('');
   const q = (document.getElementById('bus-search') || {}).value || '';
   const ql = q.trim().toLowerCase();
   const list = all.filter((b) => (_busFilter === 'all' || busStatusOf(b) === _busFilter)
@@ -2362,7 +2357,7 @@ function viewBusDetail(id) {
   if (can(S.user.role, 'challans')) {
     const c = challanFor(b.regNo);
     if (c && c.pendingCount) {
-      body += `<div class="card" style="border-left:4px solid var(--bad)" data-challanbus="${b.id}">
+      body += `<div class="card" style="border-left:4px solid var(--bad)" data-challanbus="${esc(b.id)}">
         <div class="row between"><div><div class="muted small">Pending challans</div>
           <div class="stat" style="color:var(--bad)">${money(c.pendingFine)}</div></div>
         <div style="text-align:right"><div class="tiny muted">${c.pendingCount} pending</div>
@@ -2370,7 +2365,7 @@ function viewBusDetail(id) {
     } else if (lookupable(b.regNo)) {
       body += `<div class="card"><div class="row between">
         <div class="small muted">${c ? 'No pending challans ✓' : 'Challans not checked'}</div>
-        <button class="btn sm" data-act="checkChallan" data-bus="${b.id}">${c ? 'Re-check' : 'Check'}</button></div></div>`;
+        <button class="btn sm" data-act="checkChallan" data-bus="${esc(b.id)}">${c ? 'Re-check' : 'Check'}</button></div></div>`;
     }
   }
   body += `<div class="card">
@@ -2386,11 +2381,11 @@ function viewBusDetail(id) {
     ${(() => { const sv = serviceInfo(b); const c = sv.status === 'overdue' ? 'b-red' : sv.status === 'soon' ? 'b-amber' : 'b-green';
       return `<div class="row between small" style="margin-bottom:10px"><span class="muted">Next service</span>
         <span class="badge ${c}">${sv.status === 'overdue' ? 'OVERDUE ' + Math.abs(sv.dueIn).toLocaleString('en-IN') + ' km' : 'in ' + sv.dueIn.toLocaleString('en-IN') + ' km'}</span></div>`; })()}
-    <div class="btnrow"><button class="btn sm" data-act="trackBus" data-bus="${b.id}">🛰️ Track live</button>
-      <button class="btn sm" data-act="gps" data-bus="${b.id}">📍 GPS &amp; service</button></div>
+    <div class="btnrow"><button class="btn sm" data-act="trackBus" data-bus="${esc(b.id)}">🛰️ Track live</button>
+      <button class="btn sm" data-act="gps" data-bus="${esc(b.id)}">📍 GPS &amp; service</button></div>
     ${can(S.user.role, 'logIncident') ? `<div class="btnrow" style="margin-top:8px">
-      <button class="btn sm" data-act="reportProblem" data-bus="${b.id}" data-driver="${(driverOfBus(b.id) || {}).id || ''}">🗣️ ${t('reportProblem')}</button></div>` : ''}
-    ${can(S.user.role, 'addFuel') ? `<div class="btnrow" style="margin-top:8px"><button class="btn sm" data-act="addFuel" data-bus="${b.id}">⛽ Log fuel</button>${busUsesDef(b) ? `<button class="btn sm" data-act="addDef" data-bus="${b.id}">🧪 Log AdBlue/DEF</button>` : ''}</div>` : ''}
+      <button class="btn sm" data-act="reportProblem" data-bus="${esc(b.id)}" data-driver="${(driverOfBus(b.id) || {}).id || ''}">🗣️ ${t('reportProblem')}</button></div>` : ''}
+    ${can(S.user.role, 'addFuel') ? `<div class="btnrow" style="margin-top:8px"><button class="btn sm" data-act="addFuel" data-bus="${esc(b.id)}">⛽ Log fuel</button>${busUsesDef(b) ? `<button class="btn sm" data-act="addDef" data-bus="${esc(b.id)}">🧪 Log AdBlue/DEF</button>` : ''}</div>` : ''}
     ${busUsesDef(b) ? (() => { const ds = defStatus(b); return `<div class="row between small" style="margin-top:10px"><span class="muted">AdBlue / DEF</span><span data-act="openDef" style="cursor:pointer">${ds.perHundred != null ? ds.perHundred.toFixed(1) + ' L/100km · ' : ''}${money(ds.costTotal)} ›</span></div>${ds.flag ? `<div class="tiny" style="color:${ds.flag.sev === 'high' ? 'var(--red)' : 'var(--amber)'};margin-top:3px">⚠️ ${esc(ds.flag.msg)}</div>` : ''}`; })() : ''}
   </div>`;
 
@@ -2420,7 +2415,7 @@ function viewBusDetail(id) {
   if (comps.length || can(S.user.role, 'issuePart')) {
     body += `<div class="card"><div class="row between"><h3>🛞 Tyres &amp; components</h3>${can(S.user.role, 'issuePart') ? `<button class="btn sm" data-act="openComponents">All</button>` : ''}</div>`;
     body += comps.length ? comps.sort((a, c) => componentLife(c).pct - componentLife(a).pct).map((c) => { const lf = componentLife(c), km = compKind(c);
-      return `<div class="li" data-act="openComp" data-id="${c.id}"><div class="ava">${km[0]}</div>
+      return `<div class="li" data-act="openComp" data-id="${esc(c.id)}"><div class="ava">${km[0]}</div>
         <div class="main"><div class="t">${esc(c.label || km[1])}${c.position ? ` <span class="tiny muted">${esc(c.position)}</span>` : ''}</div>
           <div class="s">${c.state === 'sent-out' ? 'at ' + esc(lastHist(c).vendor || 'vendor') : lf.tracked ? lf.pct + '% worn · ' + lf.kmLeft.toLocaleString('en-IN') + ' km left' : COMP_STATE[c.state][0]}</div>
           ${lf.tracked && c.state === 'in-service' ? lifeBar(lf.pct, lf.status) : ''}</div>
@@ -2434,10 +2429,10 @@ function viewBusDetail(id) {
   const openReps = openReportsForBus(b.id);
   const canDrivers = can(S.user.role, 'manageDrivers');
   body += `<div class="card"><div class="row between"><h3>Driver</h3>
-      ${can(S.user.role, 'assignDriver') ? `<button class="btn sm" data-act="assignDriver" data-bus="${b.id}">${drv ? 'Change' : 'Assign'}</button>` : ''}</div>`;
+      ${can(S.user.role, 'assignDriver') ? `<button class="btn sm" data-act="assignDriver" data-bus="${esc(b.id)}">${drv ? 'Change' : 'Assign'}</button>` : ''}</div>`;
   if (drv) {
     const sc = driverScore(drv.id);
-    body += `<div class="li" ${canDrivers ? `data-driver="${drv.id}"` : ''}><div class="ava">🧑‍✈️</div>
+    body += `<div class="li" ${canDrivers ? `data-driver="${esc(drv.id)}"` : ''}><div class="ava">🧑‍✈️</div>
       <div class="main"><div class="t">${esc(drv.name)}</div><div class="s">${drv.tripsLogged || 0} trips · ${esc(drv.phone || '')}</div></div>
       ${canDrivers ? `<div style="text-align:right"><span class="badge ${scoreClass(sc)}">${sc}</span><div class="stars">${starStr(scoreStars(sc))}</div></div>` : ''}</div>`;
   } else body += `<div class="muted small">No driver assigned.</div>`;
@@ -2448,18 +2443,18 @@ function viewBusDetail(id) {
       <div class="tiny muted" style="margin-bottom:6px">What the driver felt on the road — fix these first.</div>`;
     body += openReps.map((r) => `<div class="li"><div class="ava">🟠</div>
       <div class="main"><div class="t">${esc(r.problem)}</div><div class="s">${esc(r.category || '')} · ${esc(driverName(r.driverId))} · ${fmtDate(r.at)}</div></div>
-      ${can(S.user.role, 'addJob') ? `<button class="btn sm" data-act="reportToJob" data-report="${r.id}">→ Job</button>` : ''}</div>`).join('');
+      ${can(S.user.role, 'addJob') ? `<button class="btn sm" data-act="reportToJob" data-report="${esc(r.id)}">→ Job</button>` : ''}</div>`).join('');
     body += `</div>`;
   }
 
   // Documents — managers can add/edit so expiry alerts actually get created & cleared
   const canDocs = can(S.user.role, 'addBus');
   body += `<div class="card"><div class="row between"><h3>${t('documents')}</h3>
-    ${canDocs ? `<button class="btn sm" data-act="addDoc" data-bus="${b.id}">+ Doc</button>` : ''}</div>`;
+    ${canDocs ? `<button class="btn sm" data-act="addDoc" data-bus="${esc(b.id)}">+ Doc</button>` : ''}</div>`;
   body += (b.docs || []).map((d, i) => {
     const st = docStatus(d.expiry);
     return `<div class="row between small" style="padding:7px 0;border-bottom:1px solid var(--line)${canDocs ? ';cursor:pointer' : ''}"
-        ${canDocs ? `data-act="editDoc" data-bus="${b.id}" data-doc="${i}"` : ''}>
+        ${canDocs ? `data-act="editDoc" data-bus="${esc(b.id)}" data-doc="${esc(i)}"` : ''}>
       <div><b>${esc(d.type)}</b><div class="tiny muted">${esc(d.number||'')} · ${fmtDate(d.expiry)}</div></div>
       <span class="badge ${st.cls}">${st.txt}</span></div>`;
   }).join('') || `<div class="muted small">No documents${canDocs ? ' — tap “+ Doc” to add insurance / fitness / PUC / permit' : ''}</div>`;
@@ -2487,7 +2482,7 @@ function jobLi(j) {
   // The driver's own words — show the complaint that triggered this job right on
   // the card so the mechanic knows WHY, not just what was typed into the job.
   const rep = (S.cache.driverreports || []).find((r) => r.jobId === j.id);
-  return `<div class="jobcard" data-job="${j.id}" style="--sc:${sc}">
+  return `<div class="jobcard" data-job="${esc(j.id)}" style="--sc:${sc}">
     <div class="jc-top">
       <div class="jc-bus">🚌 ${esc(busName(j.busId))}</div>
       ${statusBadge(j.status)}
@@ -2545,11 +2540,11 @@ function jobsFilterBar() {
   const cnt = (s) => s === 'all' ? scoped.length : scoped.filter((j) => j.status === s).length;
   const statuses = [['all', t('filterAll')], ['open', t('open')], ['in-progress', t('statusInProgress')], ['done', t('toVerify')], ['verified', t('statusVerified')]];
   let bar = `<div class="chiprow">` + statuses.map(([v, l]) =>
-    `<button class="chip ${jobFilterState.status === v ? 'active' : ''}" data-act="filterStatus" data-fstatus="${v}">${esc(l)} ${cnt(v)}</button>`).join('') + `</div>`;
+    `<button class="chip ${jobFilterState.status === v ? 'active' : ''}" data-act="filterStatus" data-fstatus="${esc(v)}">${esc(l)} ${cnt(v)}</button>`).join('') + `</div>`;
   const mechs = S.cache.users.filter((u) => u.role === 'mechanic');
   if (S.user.role !== 'mechanic' && mechs.length) {
     bar += `<div class="chiprow"><button class="chip ${jobFilterState.mech === 'all' ? 'active' : ''}" data-act="filterMech" data-fmech="all">${t('filterAllMechs')}</button>` +
-      mechs.map((m) => `<button class="chip ${jobFilterState.mech === m.id ? 'active' : ''}" data-act="filterMech" data-fmech="${m.id}">${esc(m.name)}</button>`).join('') + `</div>`;
+      mechs.map((m) => `<button class="chip ${jobFilterState.mech === m.id ? 'active' : ''}" data-act="filterMech" data-fmech="${esc(m.id)}">${esc(m.name)}</button>`).join('') + `</div>`;
   }
   return bar;
 }
@@ -2602,7 +2597,7 @@ function photoStrip(job, field, editable) {
   const arr = job[field] || [];
   let h = `<div class="lbl">${field === 'beforePhotos' ? t('beforePhotos') : t('afterPhotos')}</div><div class="thumbs">`;
   h += arr.map((src, i) => `<img class="thumb" src="${esc(src)}" data-act="viewPhoto" data-src="${esc(src)}">`).join('');
-  if (editable) h += `<div class="photoadd" data-act="addPhotoSafe" data-job="${job.id}" data-field="${field}">＋</div>`;
+  if (editable) h += `<div class="photoadd" data-act="addPhotoSafe" data-job="${esc(job.id)}" data-field="${esc(field)}">＋</div>`;
   h += `</div>`;
   return h;
 }
@@ -2643,11 +2638,11 @@ function viewJobDetail(id) {
     <div class="tiny muted" style="margin-top:8px">⚠️ ${t('addPhotoNote')}</div></div>`;
 
   // Parts used
-  body += `<div class="card"><div class="row between"><h3>${t('partsUsed')}</h3>${can(S.user.role,'issuePart') && j.status!=='verified' ? `<button class="btn sm" data-act="issueTo" data-job="${j.id}">+ ${t('issuePart')}</button>`:''}</div>`;
+  body += `<div class="card"><div class="row between"><h3>${t('partsUsed')}</h3>${can(S.user.role,'issuePart') && j.status!=='verified' ? `<button class="btn sm" data-act="issueTo" data-job="${esc(j.id)}">+ ${t('issuePart')}</button>`:''}</div>`;
   body += (j.partsUsed || []).length ? (j.partsUsed.map((l) => {
     const p = byId(S.cache.parts, l.partId);
     return `<div class="row between small" style="padding:5px 0">
-      <span>${esc(p ? p.name : l.partId)} × ${l.qty}${l.reused ? ` <span class="badge b-low">♻️ ${t('isReusedShort')}</span>` : ''}</span>
+      <span>${esc(p ? p.name : l.partId)} × ${esc(Number(l.qty) || 0)}${l.reused ? ` <span class="badge b-low">♻️ ${t('isReusedShort')}</span>` : ''}</span>
       <b>${money(l.cost)}</b></div>`;
   }).join('')) : `<div class="muted small">No parts issued</div>`;
   // The mechanic-facing half of this card: request-a-part, the pending-request
@@ -2662,10 +2657,10 @@ function viewJobDetail(id) {
   const crs = j.coreReturns || [];
   if ((j.partsUsed || []).length || crs.length) {
     const missing = coreMissing(j);
-    body += `<div class="card"><div class="row between"><h3>🔧 Old parts returned</h3>${editable && (j.partsUsed || []).length ? `<button class="btn sm" data-act="returnCore" data-job="${j.id}">📦 Return old part</button>` : ''}</div>`;
+    body += `<div class="card"><div class="row between"><h3>🔧 Old parts returned</h3>${editable && (j.partsUsed || []).length ? `<button class="btn sm" data-act="returnCore" data-job="${esc(j.id)}">📦 Return old part</button>` : ''}</div>`;
     body += crs.map((c) => { const p = byId(S.cache.parts, c.partId); const cc = CORE_COND[c.condition] || CORE_COND.worn;
       const ai = c.ai ? `<div class="tiny" style="margin-top:4px;color:${c.ai.verdict === 'suspect' ? '#ef4444' : '#5d6675'}">🤖 ${c.ai.wear}% worn · ${esc(c.ai.verdict)}${c.ai.note ? ' — ' + esc(c.ai.note) : ''}</div>` : '';
-      const gradeBtn = (!c.ai && ['owner', 'supervisor'].includes(S.user.role)) ? `<div style="margin-top:6px"><button class="btn sm ghost" data-act="aiGradeCore" data-job="${j.id}" data-cr="${c.id}">📷 Grade wear</button></div>` : '';
+      const gradeBtn = (!c.ai && ['owner', 'supervisor'].includes(S.user.role)) ? `<div style="margin-top:6px"><button class="btn sm ghost" data-act="aiGradeCore" data-job="${esc(j.id)}" data-cr="${esc(c.id)}">📷 Grade wear</button></div>` : '';
       return `<div class="li"><img class="thumb" src="${esc(c.photo)}" data-act="viewPhoto" data-src="${esc(c.photo)}">
         <div class="main"><div class="t">${esc(p ? p.name : (c.note || 'Old part'))}</div><div class="s">${fmtDate(c.at)} · ${esc(userName(c.by))}</div>${ai}</div>
         <div style="text-align:right"><span class="badge ${cc[1]}">${cc[0]}</span>${gradeBtn}</div></div>`; }).join('');
@@ -2684,7 +2679,7 @@ function viewJobDetail(id) {
   const stillDown = ['open', 'in-progress'].includes(j.status);
   body += `<div class="card"><h3>Cost &amp; impact</h3>
     <div class="row between small"><span>Parts</span><b>${money(cost.parts)}</b></div>
-    <div class="row between small"><span>Labour (${j.labourHours||0} hr)</span><b>${money(cost.labour)}</b></div>
+    <div class="row between small"><span>Labour (${esc(Number(j.labourHours) || 0)} hr)</span><b>${money(cost.labour)}</b></div>
     ${cost.ext?`<div class="row between small"><span>Outside</span><b>${money(cost.ext)}</b></div>`:''}
     <div class="row between small"><span>🕒 Downtime ${dDays.toFixed(1)}d${stillDown ? ' (ongoing)' : ''} · lost revenue</span><b style="color:#ef4444">${money(dLost)}</b></div>
     <div class="hr"></div>
@@ -2704,18 +2699,18 @@ function actionsForJob(j, editable) {
   let actions = '';
   // Edit / Reassign — owner/supervisor, any time the job isn't verified yet.
   if (['owner', 'supervisor'].includes(S.user.role) && j.status !== 'verified') {
-    actions += `<button class="btn" data-act="editJob" data-job="${j.id}">✏️ ${t('editReassign')}</button>`;
+    actions += `<button class="btn" data-act="editJob" data-job="${esc(j.id)}">✏️ ${t('editReassign')}</button>`;
   }
   // Closing a card belongs to the supervisor or the owner. A mechanic sees the
   // work and its state; they do not sign it off. Mirrored in _guard_write on the
   // server, which is where it actually holds.
   const mayClose = ['owner', 'supervisor'].includes(S.user.role);
   if (editable && mayClose && (j.status === 'open' || j.status === 'in-progress')) {
-    actions += `<button class="btn primary" data-act="markDone" data-job="${j.id}">✅ ${t('markDone')}</button>`;
+    actions += `<button class="btn primary" data-act="markDone" data-job="${esc(j.id)}">✅ ${t('markDone')}</button>`;
   }
   if (j.status === 'done' && can(S.user.role, 'verifyJob')) {
-    actions += `<button class="btn primary" data-act="verifyJob" data-job="${j.id}">☑️ ${t('verify')}</button>
-      <button class="btn" data-act="rejectJob" data-job="${j.id}">↩️ Send back for rework</button>`;
+    actions += `<button class="btn primary" data-act="verifyJob" data-job="${esc(j.id)}">☑️ ${t('verify')}</button>
+      <button class="btn" data-act="rejectJob" data-job="${esc(j.id)}">↩️ Send back for rework</button>`;
   }
   if (j.status === 'verified') {
     actions += `<div class="banner" style="background:var(--green-wash);color:var(--green)">✓ Verified by ${esc(userName(j.verifiedBy))} on ${fmtDate(j.verifiedAt)}</div>`;
@@ -2754,10 +2749,10 @@ function sheetEditJob(jobId) {
     <label class="field"><span class="lbl">Outside vendor (optional)</span><input id="fe-vendor" value="${esc(j.externalVendor || '')}" placeholder="Leave blank if in-house"></label>
     <div class="grid2">
       <label class="field"><span class="lbl">Outside cost (₹)</span><input id="fe-extcost" type="number" inputmode="numeric" value="${j.externalCost || ''}"></label>
-      <label class="field"><span class="lbl">Labour hours</span><input id="fe-hrs" type="number" inputmode="decimal" value="${j.labourHours || ''}"></label>
+      <label class="field"><span class="lbl">Labour hours</span><input id="fe-hrs" type="number" inputmode="decimal" value="${esc(Number(j.labourHours) || '')}"></label>
     </div>
     <label class="field"><span class="lbl">Notes (optional)</span><textarea id="fe-notes" placeholder="Any extra detail for the mechanic">${esc(j.notes || '')}</textarea></label>
-    <button class="btn primary" data-act="saveEditJob" data-job="${j.id}">${t('save')}</button>`,
+    <button class="btn primary" data-act="saveEditJob" data-job="${esc(j.id)}">${t('save')}</button>`,
     (wrap) => mountCrewEditor(wrap, 'fe-mech', assignees));
 }
 async function saveEditJob(jobId) {
@@ -2809,7 +2804,7 @@ function sheetReturnCore(jobId) {
       <option value="partial">Partly worn</option>
       <option value="suspect">Looks almost new — suspicious</option></select></label>
     <label class="field"><span class="lbl">Note (optional)</span><input id="cr-note" placeholder="e.g. front brake pad, fully worn"></label>
-    <button class="btn primary" data-act="saveCoreReturn" data-job="${jobId}">${t('save')}</button>`);
+    <button class="btn primary" data-act="saveCoreReturn" data-job="${esc(jobId)}">${t('save')}</button>`);
 }
 async function captureCore() {
   const shot = await capturePhoto(); if (!shot) return;
@@ -3051,8 +3046,8 @@ function sheetAudit(mode) {
   openSheet(mode === 'blind' ? 'Blind count' : 'Full count', `
     <div class="tiny muted" style="margin-bottom:10px">${mode === 'blind' ? 'Physically count these parts and enter the actual number. System totals are hidden to keep it honest.' : 'Enter the physical count for each part.'}</div>
     ${parts.map((p) => `<label class="field"><span class="lbl">${esc(p.name)}${mode === 'full' ? ` <span class="tiny muted">(system ${p.qty} ${p.unit})</span>` : ''}</span>
-      <input class="au-count" data-pid="${p.id}" type="number" inputmode="numeric" placeholder="counted ${esc(p.unit)}"></label>`).join('')}
-    <button class="btn primary" data-act="saveAudit" data-mode="${mode}">Submit count</button>`);
+      <input class="au-count" data-pid="${esc(p.id)}" type="number" inputmode="numeric" placeholder="counted ${esc(p.unit)}"></label>`).join('')}
+    <button class="btn primary" data-act="saveAudit" data-mode="${esc(mode)}">Submit count</button>`);
 }
 async function saveAudit(mode) {
   const inputs = [...document.querySelectorAll('.au-count')];
@@ -3091,7 +3086,7 @@ async function loadGpsLinks() {
   h += `<div class="card"><h3>Unlinked devices (${unmatched.length})</h3>`;
   h += unmatched.length ? unmatched.map(({ f }) => `<div class="li"><div class="ava">🛰️</div>
       <div class="main"><div class="t">${esc(f.reg)}</div><div class="s">${Math.round(f.speedKph || 0)} km/h · odo ${(f.odometer || 0).toLocaleString('en-IN')}</div></div>
-      <select class="gpslink-sel" data-reg="${esc(f.reg)}" data-odo="${f.odometer || 0}"><option value="">Assign to…</option>${units.map((u) => `<option value="${u.id}">${esc(u.regNo)}${u.company ? ' · ' + esc(u.company) : ''}</option>`).join('')}</select></div>`).join('') : `<div class="muted small">No unlinked devices reporting right now.</div>`;
+      <select class="gpslink-sel" data-reg="${esc(f.reg)}" data-odo="${esc(f.odometer || 0)}"><option value="">Assign to…</option>${units.map((u) => `<option value="${u.id}">${esc(u.regNo)}${u.company ? ' · ' + esc(u.company) : ''}</option>`).join('')}</select></div>`).join('') : `<div class="muted small">No unlinked devices reporting right now.</div>`;
   h += `</div>`;
   h += `<div class="card"><h3>Linked &amp; tracking (${matched.length})</h3>` + (matched.length ? matched.map(({ b }) => `<div class="li"><div class="ava">✅</div><div class="main"><div class="t">${esc(b.regNo)}</div><div class="s">live GPS active</div></div></div>`).join('') : `<div class="muted small">None yet — assign a device above.</div>`) + `</div>`;
   const box = document.getElementById('gpslink'); if (!box) return;
@@ -3139,7 +3134,7 @@ function renderStorePartList(ql) {
   const total = parts.length, shown = parts.slice(0, STORE_LIST_CAP);
   box.innerHTML = (shown.map((p) => {
     const lowf = isLow(p);
-    return `<div class="li" data-part="${p.id}">${avatar(partImg(p), '🔩')}
+    return `<div class="li" data-part="${esc(p.id)}">${avatar(partImg(p), '🔩')}
       <div class="main"><div class="t">${esc(p.name)}</div><div class="s">${esc(p.partNo || '—')}${p.category ? ' · ' + esc(p.category) : ''}${p.reusable ? ' · ♻️ reusable' : ''} · ${money(p.unitCost)}/${p.unit}</div></div>
       <div style="text-align:right"><b>${p.qty}</b> <span class="tiny muted">${p.unit}</span>${lowf ? '<div class="badge b-amber tiny">LOW</div>' : ''}</div></div>`;
   }).join('')) + (total > STORE_LIST_CAP ? `<div class="tiny muted" style="padding:9px 2px">Showing ${STORE_LIST_CAP} of ${total.toLocaleString('en-IN')} parts — type to search the rest.</div>` : (total === 0 ? '<div class="empty">No matching parts</div>' : ''));
@@ -3167,9 +3162,9 @@ function viewPartDetail(id) {
   const _comps = componentsOfPart(id);
   if (isTrackablePart(p) || _comps.length) {
     const comps = _comps;
-    body += `<div class="card"><div class="row between"><h3>🛞 Tracked pieces</h3>${can(S.user.role, 'issuePart') && isTrackablePart(p) ? `<button class="btn sm" data-act="compFromPart" data-id="${p.id}">+ Track a piece</button>` : ''}</div>`;
+    body += `<div class="card"><div class="row between"><h3>🛞 Tracked pieces</h3>${can(S.user.role, 'issuePart') && isTrackablePart(p) ? `<button class="btn sm" data-act="compFromPart" data-id="${esc(p.id)}">+ Track a piece</button>` : ''}</div>`;
     body += comps.length ? comps.map((c) => { const lf = componentLife(c), km = compKind(c);
-      return `<div class="li" data-act="openComp" data-id="${c.id}"><div class="ava">${km[0]}</div>
+      return `<div class="li" data-act="openComp" data-id="${esc(c.id)}"><div class="ava">${km[0]}</div>
         <div class="main"><div class="t">${esc(c.label || km[1])}${c.serial ? ` <span class="tiny muted">${esc(c.serial)}</span>` : ''}</div>
           <div class="s">${compSubtitle(c)}${lf.tracked && c.state === 'in-service' ? ' · ' + lf.pct + '% worn' : ''}</div></div>
         <span class="badge ${COMP_STATE[c.state][1]}">${COMP_STATE[c.state][0]}</span></div>`; }).join('')
@@ -3563,7 +3558,7 @@ const COMP_RANK = { 'sent-out': 0, 'in-service': 1, 'refurbished': 2, 'removed':
 function compLi(c) {
   const km = compKind(c), st = COMP_STATE[c.state] || COMP_STATE['in-service'], lf = componentLife(c);
   const showBar = lf.tracked && c.state === 'in-service';
-  return `<div class="li" data-act="openComp" data-id="${c.id}">
+  return `<div class="li" data-act="openComp" data-id="${esc(c.id)}">
     <div class="ava">${km[0]}</div>
     <div class="main"><div class="t">${esc(c.label || km[1])}${c.serial ? ` <span class="tiny muted">${esc(c.serial)}</span>` : ''}</div>
       <div class="s">${compSubtitle(c)}${showBar ? ` · ${lf.pct}% worn` : ''}${c.refurbCount ? ` · ${compVerb(c)}×${c.refurbCount}` : ''}</div>
@@ -3575,9 +3570,9 @@ function viewComponents() {
   const alerts = componentAlerts();
   let body = `<div class="card"><div class="tiny muted">Tyres, alternators & other durable units tracked per piece — life in km, and every send-out for remould/rewind with the vendor's bill. Tap one for its history.</div></div>`;
   if (alerts.length) body += `<div class="card" style="border:1.5px solid var(--amber)"><div class="row between"><h3>⚠️ Needs attention</h3><span class="badge b-amber">${alerts.length}</span></div>
-    ${alerts.map((a) => `<div class="li" data-act="openComp" data-id="${a.c.id}" style="border:none;padding:6px 0"><div class="ava">${compKind(a.c)[0]}</div><div class="main"><div class="s">${a.msg}</div></div></div>`).join('')}</div>`;
+    ${alerts.map((a) => `<div class="li" data-act="openComp" data-id="${esc(a.c.id)}" style="border:none;padding:6px 0"><div class="ava">${compKind(a.c)[0]}</div><div class="main"><div class="s">${a.msg}</div></div></div>`).join('')}</div>`;
   const kinds = ['all', ...Object.keys(COMP_KINDS).filter((k) => comps.some((c) => c.kind === k))];
-  body += `<div class="chiprow">${kinds.map((k) => `<button class="chip ${_compFilter === k ? 'active' : ''}" data-act="compFilter" data-v="${k}">${k === 'all' ? 'All' : COMP_KINDS[k][0] + ' ' + COMP_KINDS[k][1]}</button>`).join('')}</div>`;
+  body += `<div class="chiprow">${kinds.map((k) => `<button class="chip ${_compFilter === k ? 'active' : ''}" data-act="compFilter" data-v="${esc(k)}">${k === 'all' ? 'All' : COMP_KINDS[k][0] + ' ' + COMP_KINDS[k][1]}</button>`).join('')}</div>`;
   const list = comps.filter((c) => _compFilter === 'all' || c.kind === _compFilter)
     .sort((a, b) => (COMP_RANK[a.state] - COMP_RANK[b.state]) || (componentLife(b).pct - componentLife(a).pct));
   body += `<input id="cmp-search" class="searchbox" placeholder="Search serial, bus or kind…" autocomplete="off">`;
@@ -3595,7 +3590,7 @@ function viewComponentDetail(id) {
   let body = `<div class="card"><div class="row between"><div class="row" style="gap:10px"><div class="ava" style="font-size:24px">${km[0]}</div>
     <div><div style="font-weight:800;font-size:17px">${esc(c.label || km[1])}</div><div class="small muted">${km[1]}${c.serial ? ' · ' + esc(c.serial) : ''}</div></div></div>
     <span class="badge ${st[1]}" style="font-size:14px">${st[0]}</span></div>
-    ${srcPart ? `<div class="tiny" style="margin-top:8px"><span data-part="${srcPart.id}" style="color:var(--brand2);cursor:pointer">📦 From catalogue: ${esc(srcPart.name)} ›</span></div>` : ''}</div>`;
+    ${srcPart ? `<div class="tiny" style="margin-top:8px"><span data-part="${esc(srcPart.id)}" style="color:var(--brand2);cursor:pointer">📦 From catalogue: ${esc(srcPart.name)} ›</span></div>` : ''}</div>`;
   // Life / placement
   body += `<div class="card"><h3>Life & placement</h3><div class="grid2">
     <div><div class="tiny muted">Fitted to</div><b>${c.busId ? esc(busName(c.busId)) : '—'}${c.position ? ' · ' + esc(c.position) : ''}</b></div>
@@ -3606,14 +3601,14 @@ function viewComponentDetail(id) {
   // Actions (state-driven)
   if (canEdit && c.state !== 'scrapped') {
     let btns = '';
-    if (c.state === 'sent-out') btns += `<button class="btn primary" data-act="receiveComp" data-id="${c.id}">📥 Received back (+ bill)</button>`;
+    if (c.state === 'sent-out') btns += `<button class="btn primary" data-act="receiveComp" data-id="${esc(c.id)}">📥 Received back (+ bill)</button>`;
     else {
       if (atMax) btns += `<div class="banner warn" style="margin-bottom:8px">Already ${v}ed ${c.refurbCount}× (max ${c.maxRefurb}). Best to scrap & replace.</div>`;
-      else btns += `<button class="btn primary" data-act="sendOutComp" data-id="${c.id}">🚚 Send out for ${v}</button>`;
-      if (c.state === 'in-service') btns += `<button class="btn" data-act="removeComp" data-id="${c.id}">📤 Remove from bus</button>`;
-      else btns += `<button class="btn" data-act="fitComp" data-id="${c.id}">🔧 Fit to a bus</button>`;
+      else btns += `<button class="btn primary" data-act="sendOutComp" data-id="${esc(c.id)}">🚚 Send out for ${v}</button>`;
+      if (c.state === 'in-service') btns += `<button class="btn" data-act="removeComp" data-id="${esc(c.id)}">📤 Remove from bus</button>`;
+      else btns += `<button class="btn" data-act="fitComp" data-id="${esc(c.id)}">🔧 Fit to a bus</button>`;
     }
-    btns += `<button class="btn ghost" data-act="scrapComp" data-id="${c.id}">🗑️ Scrap</button>`;
+    btns += `<button class="btn ghost" data-act="scrapComp" data-id="${esc(c.id)}">🗑️ Scrap</button>`;
     body += `<div class="card"><div class="btncol" style="display:flex;flex-direction:column;gap:8px">${btns}</div></div>`;
   }
   // History timeline
@@ -3708,7 +3703,7 @@ function sheetFitComp(id) {
     <label class="field"><span class="lbl">Bus</span><select id="ft-bus">${buses.map((b) => `<option value="${b.id}">${esc(b.regNo)} · ${(b.odometer || 0).toLocaleString('en-IN')} km</option>`).join('')}</select></label>
     <label class="field"><span class="lbl">Position (optional)</span><input id="ft-pos" value="${esc(c.position || '')}" placeholder="e.g. FR, FL"></label>
     <label class="field"><span class="lbl">Odometer now (km)</span><input id="ft-odo" type="number" inputmode="numeric" placeholder="current km"></label>
-    <button class="btn primary" data-act="saveFitComp" data-id="${id}">Fit</button>`);
+    <button class="btn primary" data-act="saveFitComp" data-id="${esc(id)}">Fit</button>`);
   const bs = document.getElementById('ft-bus'), od = document.getElementById('ft-odo');
   const setOdo = () => { const b = byId(S.cache.buses, bs.value); if (od && b) od.value = b.odometer || 0; };
   if (bs) { bs.onchange = setOdo; setOdo(); }
@@ -3738,7 +3733,7 @@ function sheetSendOut(id) {
     <div class="tiny muted" style="margin-bottom:10px">Record which vendor it went to. When it comes back, tap “Received back” to log their bill.</div>
     <label class="field"><span class="lbl">Vendor</span><input id="so-vendor" value="${esc(lastHist(c).vendor || '')}" placeholder="e.g. Jaipur Tyre Remould"></label>
     <label class="field"><span class="lbl">Note (optional)</span><input id="so-note" placeholder="reason / expected return"></label>
-    <button class="btn primary" data-act="saveSendOut" data-id="${id}">Send out</button>`);
+    <button class="btn primary" data-act="saveSendOut" data-id="${esc(id)}">Send out</button>`);
 }
 async function saveSendOut(id) {
   const c = byId(S.cache.components, id); if (!c) return;
@@ -3763,7 +3758,7 @@ function sheetReceiveComp(id) {
     <label class="field"><span class="lbl">Life after ${compVerb(c)} (km, 0 = n/a)</span><input id="rc-life" type="number" inputmode="numeric" value="${c.lifeKm || ''}"></label>
     ${backToBus ? `<label class="field"><span class="lbl">Refit to ${esc(backToBus.regNo)}?</span><select id="rc-refit"><option value="1">Yes — refit now</option><option value="0">No — keep as spare</option></select></label>` : ''}
     <label class="field"><span class="lbl">Note (optional)</span><input id="rc-note" placeholder="optional"></label>
-    <button class="btn primary" data-act="saveReceive" data-id="${id}">Save bill & receive</button>`);
+    <button class="btn primary" data-act="saveReceive" data-id="${esc(id)}">Save bill & receive</button>`);
 }
 async function captureCompBill() {
   const shot = await capturePhoto(); if (!shot) return;
@@ -3804,7 +3799,7 @@ function viewMe() {
     <div class="row"><div class="ava" style="width:48px;height:48px;font-size:24px">👤</div>
     <div><div style="font-weight:700">${esc(S.user.name)}</div><div class="small muted">${esc(S.user.role)}</div></div></div>
     <div class="hr"></div>
-    <button class="btn primary" data-act="${checkedIn ? 'checkout' : 'checkin'}">${checkedIn ? '🔴 '+t('checkout') : '🟢 '+t('checkin')}</button>
+    <button class="btn primary" data-act="${esc(checkedIn ? 'checkout' : 'checkin')}">${checkedIn ? '🔴 '+t('checkout') : '🟢 '+t('checkin')}</button>
     <div class="tiny muted" style="margin-top:8px;text-align:center">Selfie + GPS confirms you are at the garage.</div>
   </div>`;
 
@@ -3841,7 +3836,7 @@ function viewMe() {
   if (S.user.role === 'driver' || S.user.role === 'conductor') {
     const md = crewForUser(S.user.id);
     if (md) { const ds = driverDocStatus(md);
-      body += `<div class="card" data-act="openDriverDocs" data-driver="${md.id}" style="cursor:pointer"><div class="row between">
+      body += `<div class="card" data-act="openDriverDocs" data-driver="${esc(md.id)}" style="cursor:pointer"><div class="row between">
         <div class="row" style="gap:12px;align-items:center">${progressRing(ds.pct)}
           <div><div style="font-weight:800">📂 My documents</div>
             <div class="small muted">${ds.mandDone}/${ds.mandTotal} required uploaded${ds.mandDone < ds.mandTotal ? ' · ⚠️ finish these' : ' ✓'}</div></div></div>
@@ -3965,8 +3960,8 @@ function sheetAddDoc(busId, docIndex) {
     <div id="f-docthumb">${_docPhoto ? `<img class="thumb" src="${_docPhoto}">` : ''}</div>
     <button class="btn" data-act="docPhoto">📷 ${_docPhoto ? 'Replace' : 'Add'} document photo</button>
     <div class="spacer"></div>
-    <button class="btn primary" data-act="saveDoc" data-bus="${busId}">${t('save')}</button>
-    ${cur ? `<div class="spacer"></div><button class="btn" data-act="deleteDoc" data-bus="${busId}" data-doc="${idx}">🗑 Remove document</button>` : ''}`);
+    <button class="btn primary" data-act="saveDoc" data-bus="${esc(busId)}">${t('save')}</button>
+    ${cur ? `<div class="spacer"></div><button class="btn" data-act="deleteDoc" data-bus="${esc(busId)}" data-doc="${esc(idx)}">🗑 Remove document</button>` : ''}`);
 }
 async function saveDoc(busId) {
   const b = byId(S.cache.buses, busId); if (!b) return;
@@ -4165,8 +4160,8 @@ function viewNewJob(prefill = {}) {
   const prio = prefill.priority || 'medium';
   const PCOL = { high: '#ef4444', medium: '#f59e0b', low: '#16a571' };
   const seg = (v, label) => { const on = prio === v, c = PCOL[v];
-    return `<button class="prio-seg" data-act="setPrio" data-v="${v}" style="flex:1;padding:12px;border-radius:12px;cursor:pointer;font-weight:${on ? 800 : 600};border:1.5px solid ${on ? c : 'var(--line,#e6e9f0)'};color:${on ? '#161922' : '#8b91a0'};background:${on ? c + '22' : '#fff0'}">${label}</button>`; };
-  const stepHead = (n, label) => `<button type="button" class="wz-dot" data-act="wizGo" data-step="${n}">
+    return `<button class="prio-seg" data-act="setPrio" data-v="${esc(v)}" style="flex:1;padding:12px;border-radius:12px;cursor:pointer;font-weight:${on ? 800 : 600};border:1.5px solid ${on ? c : 'var(--line,#e6e9f0)'};color:${on ? '#161922' : '#8b91a0'};background:${on ? c + '22' : '#fff0'}">${label}</button>`; };
+  const stepHead = (n, label) => `<button type="button" class="wz-dot" data-act="wizGo" data-step="${esc(n)}">
       <span class="wz-n">${n}</span><span class="wz-l">${label}</span></button>`;
   const body = `
     <input type="hidden" id="f-reportId" value="${prefill.reportId || ''}">
@@ -4400,7 +4395,7 @@ function partPickerHtml(opts) {
   const key = o.key || ('pp' + (++_ppSeq));
   const cls = o.hiddenClass ? ` class="${o.hiddenClass}"` : '';
   return `<input type="hidden" id="pp-${key}"${cls} value="${esc(o.value || '')}"
-      data-pp="${key}"${o.inStockOnly ? ' data-pp-instock="1"' : ''}>
+      data-pp="${esc(key)}"${o.inStockOnly ? ' data-pp-instock="1"' : ''}>
     <input id="pps-${key}" class="pp-search" placeholder="${esc(o.placeholder || t('isSearch'))}" autocomplete="off">
     <div id="ppc-${key}"></div>
     <div id="ppl-${key}" class="pick-list"></div>`;
@@ -4790,7 +4785,7 @@ function viewVendors() {
   body += `<input id="vnd-search" class="searchbox" placeholder="Search vendor, category or email…" autocomplete="off">`;
   body += `<div class="card listwrap" id="vnd-list"><h3>Vendors</h3>`;
   body += vendors.length ? vendors.map((v) => { const bills = vendorBills(v.id); const pending = bills.filter((b) => b.paymentStatus !== 'paid').reduce((s, b) => s + (b.amount || 0), 0);
-    return `<div class="li" data-act="openVendor" data-id="${v.id}"><div class="ava">🏪</div>
+    return `<div class="li" data-act="openVendor" data-id="${esc(v.id)}"><div class="ava">🏪</div>
       <div class="main"><div class="t">${esc(v.name)}</div><div class="s">${esc(v.category || '')}${v.email ? ' · ' + esc(v.email) : ''}</div></div>
       ${pending ? `<span class="badge b-amber">${money(pending)} due</span>` : `<span class="tiny muted">${bills.length} bill(s)</span>`}</div>`; }).join('') : `<div class="empty">No vendors yet — tap + to add one.</div>`;
   body += `</div>`;
@@ -4803,7 +4798,7 @@ function viewVendorDetail(id) {
   const total = bills.reduce((s, b) => s + (b.amount || 0), 0);
   const pending = bills.filter((b) => b.paymentStatus !== 'paid').reduce((s, b) => s + (b.amount || 0), 0);
   let body = `<div class="card"><div class="row between"><div><div style="font-weight:800;font-size:17px">${esc(v.name)}</div><div class="small muted">${esc(v.category || 'Vendor')}</div></div>
-    ${can(S.user.role, 'addPurchase') ? `<button class="btn sm" data-act="editVendor" data-id="${v.id}">Edit</button>` : ''}</div>
+    ${can(S.user.role, 'addPurchase') ? `<button class="btn sm" data-act="editVendor" data-id="${esc(v.id)}">Edit</button>` : ''}</div>
     <div class="grid2" style="margin-top:10px">
       <div><div class="tiny muted">Total billed</div><b>${money(total)}</b></div>
       <div><div class="tiny muted">Pending</div><b style="color:var(--amber)">${money(pending)}</b></div>
@@ -4830,7 +4825,7 @@ function sheetAddVendor(id) {
       <label class="field"><span class="lbl">GSTIN</span><input id="v-gstin" value="${v ? esc(v.gstin || '') : ''}"></label></div>
     <label class="field"><span class="lbl">Invoice email <span class="tiny muted">(where they email bills)</span></span><input id="v-email" type="email" value="${v ? esc(v.email || '') : ''}" placeholder="billing@vendor.in"></label>
     <label class="field"><span class="lbl">Notes</span><input id="v-notes" value="${v ? esc(v.notes || '') : ''}" placeholder="terms, turnaround…"></label>
-    <button class="btn primary" data-act="saveVendor"${v ? ` data-id="${v.id}"` : ''}>${t('save')}</button>`);
+    <button class="btn primary" data-act="saveVendor"${v ? ` data-id="${esc(v.id)}"` : ''}>${t('save')}</button>`);
 }
 async function saveVendor(id) {
   const name = (($('#v-name') || {}).value || '').trim(); if (!name) return toast('Enter a vendor name');
@@ -5140,6 +5135,7 @@ async function saveChangePin() {
  * and its presence implied the opposite — that syncing was something he had to
  * remember. What is left is the two settings that genuinely live on this device
  * and the one repair that genuinely needs asking for. */
+const canSetServer = () => !!(S.user && ['owner', 'supervisor'].includes(S.user.role));
 function sheetSync() {
   const i = Sync.info();
   openSheet(t('deviceServer'), `
@@ -5150,11 +5146,11 @@ function sheetSync() {
       <div class="row between small"><span class="muted">Sync cursor</span><b>rev ${i.lastRev}</b></div>
       ${i.lastError ? `<div class="row between small"><span class="muted">Last failure</span><b style="color:#ef4444">${esc(i.lastError)}</b></div>` : ''}
     </div>
-    <label class="field"><span class="lbl">Server URL</span><input id="f-syncurl" value="${esc(i.url)}"></label>
-    <div class="tiny muted" style="margin-bottom:10px">On a phone, set this to your computer's address, e.g. http://192.168.29.219:8766</div>
+    ${canSetServer() ? `<label class="field"><span class="lbl">Server URL</span><input id="f-syncurl" value="${esc(i.url)}"></label>
+    <div class="tiny muted" style="margin-bottom:10px">On a phone, set this to your computer's address, e.g. http://192.168.29.219:8766. Leave empty for the normal server.</div>
     <label class="field"><span class="lbl">Anthropic API key — for AI Insights (optional)</span><input id="f-aikey" type="password" value="${esc(localStorage.getItem('aiKey') || '')}" placeholder="sk-ant-..."></label>
     <div class="tiny muted" style="margin-bottom:10px">Stored only on this device. Enables the "Ask the advisor" box on AI Insights.</div>
-    <button class="btn primary" data-act="saveSyncUrl">${t('saveWord')}</button>
+    <button class="btn primary" data-act="saveSyncUrl">${t('saveWord')}</button>` : `<div class="tiny muted">${esc(i.url)}</div>`}
     <div class="spacer"></div>
     <button class="btn ghost" data-act="syncRedownload">⤓ Re-download everything</button>
     <div class="tiny muted" style="margin-top:6px">Use this if this device is missing people or records that other devices can see. It re-reads the whole server; nothing you have entered here is lost.</div>`);
@@ -5314,7 +5310,7 @@ function viewPurchases() {
     <div class="ava">🧾</div>
     <div class="main"><div class="t">${esc(p.supplier)} — ${money(p.amount)}</div><div class="s">${esc(p.items||'')} · ${fmtDate(p.at)}</div></div>
     ${p.paymentStatus !== 'paid' && canPay
-      ? `<button class="btn sm" data-act="togglePaid" data-pur="${p.id}">Mark paid</button>`
+      ? `<button class="btn sm" data-act="togglePaid" data-pur="${esc(p.id)}">Mark paid</button>`
       : `<span class="badge ${p.paymentStatus==='paid'?'b-green':'b-amber'}">${p.paymentStatus}</span>`}
     ${p.billPhoto?`<img class="thumb" style="width:42px;height:42px" src="${esc(p.billPhoto)}" data-act="viewPhoto" data-src="${esc(p.billPhoto)}">`:''}
   </div>`).join('') : `<div class="muted small">No bills yet</div>`;
@@ -5341,7 +5337,7 @@ function viewAlerts() {
 
   body += `<input id="alr-search" class="searchbox" placeholder="Search plate, company or document…" autocomplete="off">`;
   body += `<div class="card listwrap" id="alr-list"><h3>${t('docAlerts')}</h3>`;
-  body += alerts.length ? alerts.map((a) => `<div class="li" data-bus="${a.bus.id}">
+  body += alerts.length ? alerts.map((a) => `<div class="li" data-bus="${esc(a.bus.id)}">
     <div class="ava">📄</div>
     <div class="main"><div class="t">${esc(a.bus.regNo)} · ${esc(a.doc.type)}</div><div class="s">${esc(a.bus.company)} · expires ${fmtDate(a.doc.expiry)}</div></div>
     <span class="badge ${a.st.cls}">${a.st.txt}</span></div>`).join('') : `<div class="empty">All documents valid 👍</div>`;
@@ -5441,13 +5437,13 @@ function viewChallans() {
     const bad = c && c.pendingCount;
     const right = !lookupable(b.regNo)
       ? `<span class="badge">no reg</span>`
-      : !c ? `<button class="btn sm" data-act="checkChallan" data-bus="${b.id}">Check</button>`
+      : !c ? `<button class="btn sm" data-act="checkChallan" data-bus="${esc(b.id)}">Check</button>`
         : bad ? `<span class="badge bad">${money(c.pendingFine)}</span>`
           : `<span class="badge ok">clear</span>`;
     const sub = !c ? 'not checked yet'
       : c.pendingCount ? `${c.pendingCount} pending · ${c.courtCount || 0} in court · checked ${fmtDate(c.fetchedAt)}`
         : `no pending challans · checked ${fmtDate(c.fetchedAt)}`;
-    return `<div class="li" ${c && c.pendingCount ? `data-challanbus="${b.id}"` : ''}>
+    return `<div class="li" ${c && c.pendingCount ? `data-challanbus="${esc(b.id)}"` : ''}>
       <div class="ava">${bad ? '🚨' : '🚌'}</div>
       <div class="main"><div class="t">${esc(b.regNo)}</div><div class="s">${esc(sub)}</div></div>
       ${right}</div>`;
@@ -5471,7 +5467,7 @@ function viewBusChallans(busId) {
       <div><div class="muted small">${esc(b.regNo)} — pending</div>
         <div class="stat" style="color:var(--bad)">${money(c.pendingFine)}</div></div>
       <div style="text-align:right"><div class="tiny muted">${c.pendingCount} pending · ${c.disposedCount} settled</div></div></div>
-    <button class="btn sm" data-act="checkChallan" data-bus="${b.id}" style="margin-top:10px">🔄 Refresh (1 credit)</button></div>`;
+    <button class="btn sm" data-act="checkChallan" data-bus="${esc(b.id)}" style="margin-top:10px">🔄 Refresh (1 credit)</button></div>`;
   body += `<div class="card"><h3>Challans (${rows.length})</h3>`;
   body += rows.length ? rows.map((r) => `<div class="li">
       <div class="ava">${r.status === 'Pending' ? '🔴' : '✅'}</div>
@@ -5542,7 +5538,7 @@ function viewCompanyDetail(company) {
     const bt = bj.reduce((s, j) => s + jobCost(j).total, 0);
     body += `<div class="card"><div class="row between"><h3>${esc(b.regNo)}</h3><b>${money(bt)}</b></div>`;
     body += bj.length ? bj.map((j) => { const c = jobCost(j);
-      return `<div class="li" data-job="${j.id}"><div class="main"><div class="t">${esc(j.problem)}</div>
+      return `<div class="li" data-job="${esc(j.id)}"><div class="main"><div class="t">${esc(j.problem)}</div>
         <div class="s">${fmtDate(j.createdAt)} · parts ${money(c.parts)} · labour ${money(c.labour)}${c.ext ? ' · outside ' + money(c.ext) : ''}</div></div>
         <b>${money(c.total)}</b></div>`; }).join('') : `<div class="muted small">No jobs</div>`;
     body += `</div>`;
@@ -5583,7 +5579,7 @@ const reportSinceMs = () => { const d = Number(reportDays()); return d ? Date.no
 const periodLabel = () => { const d = Number(reportDays()); return d ? ` (${d} days)` : ' (lifetime)'; };
 function periodBar() {
   return `<div class="row" style="gap:7px;margin-bottom:12px">${REPORT_PERIODS.map(([d, l]) =>
-    `<button class="btn sm ${String(reportDays()) === d ? 'primary' : 'ghost'}" data-act="reportPeriod" data-days="${d}" style="border:1px solid var(--line)">${l}</button>`).join('')}</div>`;
+    `<button class="btn sm ${String(reportDays()) === d ? 'primary' : 'ghost'}" data-act="reportPeriod" data-days="${esc(d)}" style="border:1px solid var(--line)">${l}</button>`).join('')}</div>`;
 }
 function busReport(b, since) {
   const jobs = S.cache.jobs.filter((j) => j.busId === b.id && (j.closedAt || j.createdAt) >= since);
@@ -5674,7 +5670,7 @@ function viewForecast() {
     <div class="tiny muted" style="margin-top:6px">Lost revenue = days down × daily earning (₹${dailyRev({}).toLocaleString('en-IN')}/bus default).${can(S.user.role, 'addBus') ? ' <a data-act="setFleetRev" style="color:var(--brand2);cursor:pointer">set ₹/day</a>' : ''}</div></div>`;
 
   body += `<div class="card"><h3>🔧 Coming up &amp; overdue</h3>`;
-  body += items.length ? items.slice(0, 60).map((i) => `<div class="li" data-act="busReport" data-bus="${i.bus.id}" style="cursor:pointer">
+  body += items.length ? items.slice(0, 60).map((i) => `<div class="li" data-act="busReport" data-bus="${esc(i.bus.id)}" style="cursor:pointer">
       <div class="ava">${i.icon}</div><div class="main"><div class="t">${esc(i.bus.regNo)} · ${esc(i.label)}</div>
       <div class="s">${i.detail}</div></div><span class="badge ${FC_COL[i.status] || 'b-low'}">${i.status === 'overdue' ? 'OVERDUE' : i.status === 'soon' ? 'SOON' : 'plan'}</span></div>`).join('')
     : `<div class="empty">Nothing due in the next 30 days 👍</div>`;
@@ -5683,7 +5679,7 @@ function viewForecast() {
   // Worst downtime offenders (where the money's leaking)
   const worst = [...buses].map((b) => ({ b, lost: busLostRev(b), days: busDownDays(b) })).filter((x) => x.days > 0).sort((a, c) => c.lost - a.lost).slice(0, 6);
   if (worst.length) {
-    body += `<div class="card"><h3>💸 Most downtime cost</h3>` + worst.map((x) => `<div class="li" data-act="busReport" data-bus="${x.b.id}" style="cursor:pointer">${avatar(busImg(x.b), '🚌')}
+    body += `<div class="card"><h3>💸 Most downtime cost</h3>` + worst.map((x) => `<div class="li" data-act="busReport" data-bus="${esc(x.b.id)}" style="cursor:pointer">${avatar(busImg(x.b), '🚌')}
       <div class="main"><div class="t">${esc(x.b.regNo)}</div><div class="s">${x.days.toFixed(1)} days down · ₹${dailyRev(x.b).toLocaleString('en-IN')}/day</div></div>
       <b style="color:#ef4444">${money(x.lost)}</b></div>`).join('') + `</div>`;
   }
@@ -5709,7 +5705,7 @@ function viewReports() {
   body += `<div class="card"><h3>By bus — highest spend first</h3>`;
   body += rows.length ? rows.map(({ b, r }) => {
     const cpk = busCostPerKm(b);
-    return `<div class="li" data-act="busReport" data-bus="${b.id}" style="cursor:pointer">${avatar(busImg(b), '🚌')}
+    return `<div class="li" data-act="busReport" data-bus="${esc(b.id)}" style="cursor:pointer">${avatar(busImg(b), '🚌')}
       <div class="main"><div class="t">${esc(b.regNo)}</div>
         <div class="s">${esc(b.company)} · ${r.n} job(s)${cpk ? ' · ₹' + cpk.toFixed(1) + '/km' : ''}</div></div>
       <b>${money(r.cost.total)}</b></div>`;
@@ -5722,7 +5718,7 @@ function viewBusReport(busId) {
   const r = busReport(b, reportSinceMs()), c = r.cost, cpk = busCostPerKm(b);
   let body = periodBar();
   body += `<div class="card"><div class="row between"><h3>${esc(b.regNo)}</h3>
-    <button class="btn sm" data-act="shareBusReport" data-bus="${b.id}">📤 Share</button></div>
+    <button class="btn sm" data-act="shareBusReport" data-bus="${esc(b.id)}">📤 Share</button></div>
     <div class="small muted">${esc(b.company)} · ${esc(b.model || '')} · ${(b.odometer || 0).toLocaleString('en-IN')} km</div></div>`;
   body += `<div class="card"><h3>Maintenance cost${periodLabel()}</h3>
     <div class="row between small"><span class="muted">Parts</span><b>${money(c.parts)}</b></div>
@@ -5744,7 +5740,7 @@ function viewBusReport(busId) {
   } else {
     body += `<div class="muted small">No fuel logged yet.</div>`;
   }
-  body += `${can(S.user.role, 'addFuel') ? `<div class="spacer"></div><button class="btn sm" data-act="addFuel" data-bus="${b.id}">⛽ Log fuel</button>` : ''}</div>`;
+  body += `${can(S.user.role, 'addFuel') ? `<div class="spacer"></div><button class="btn sm" data-act="addFuel" data-bus="${esc(b.id)}">⛽ Log fuel</button>` : ''}</div>`;
   body += `<div class="card"><h3>Jobs &amp; downtime</h3><div class="grid2">
       <div><div class="tiny muted">Jobs</div><b>${r.n}</b></div>
       <div><div class="tiny muted">Outside repairs</div><b>${r.extJobs}</b></div>
@@ -5851,7 +5847,7 @@ function viewScoreboard() {
     const col = (v, lbl, bad) => `<div style="text-align:center;min-width:44px">
         <div style="font-weight:800;font-size:14px;color:${bad ? 'var(--red)' : 'var(--text)'}">${v}</div>
         <div class="tiny muted">${lbl}</div></div>`;
-    return `<div class="li" data-act="scorecard" data-user="${u.id}" style="cursor:pointer">
+    return `<div class="li" data-act="scorecard" data-user="${esc(u.id)}" style="cursor:pointer">
       <div class="ava">${i === 0 ? '🏆' : '🔧'}</div>
       <div class="main"><div class="t">${i + 1}. ${esc(u.name)}${u.id === S.user.id ? ' (you)' : ''}</div>
         <div class="s">${m.jobs} ${t('mpJobs')} · ${m.att.lates} ${t('mpLate')}</div></div>
@@ -5971,7 +5967,7 @@ function viewPilferage() {
       <div><b style="font-size:15px">${esc(r.u.name)}</b><div class="tiny muted">${r.jobCount} job(s) · ${r.flags.length} signal type(s)</div></div></div>
       <span class="badge ${riskClass(r.risk)}" style="font-size:14px">${r.risk}</span></div>
     <div class="hr" style="margin:8px 0"></div>
-    ${r.flags.map((f) => `<div class="row between small" ${f.jobs.length ? `data-job="${f.jobs[0]}" style="cursor:pointer;padding:4px 0"` : 'style="padding:4px 0"'}>
+    ${r.flags.map((f) => `<div class="row between small" ${f.jobs.length ? `data-job="${esc(f.jobs[0])}" style="cursor:pointer;padding:4px 0"` : 'style="padding:4px 0"'}>
       <span>${esc(f.label)}${f.count > 1 ? ` ×${f.count}` : ''}${f.jobs.length ? ' ›' : ''}</span><b style="color:var(--red)">+${f.points}</b></div>`).join('')}
   </div>`).join('');
   return shell('Pilferage radar', body);
@@ -6039,7 +6035,7 @@ function viewFuel() {
   body += `<div class="card"><div class="muted small">Total fuel spend (logged)</div><div class="stat" style="color:var(--brand2)">${money(fleetCost)}</div>
     <div class="tiny muted">Log full-tank fills for accurate km/l.</div></div>`;
   body += `<div class="card"><h3>Mileage by bus</h3>`;
-  body += rows.length ? rows.map(({ b, m }) => `<div class="li" data-act="busReport" data-bus="${b.id}" style="cursor:pointer">${avatar(busImg(b), '🚌')}
+  body += rows.length ? rows.map(({ b, m }) => `<div class="li" data-act="busReport" data-bus="${esc(b.id)}" style="cursor:pointer">${avatar(busImg(b), '🚌')}
     <div class="main"><div class="t">${esc(b.regNo)}${m.drop ? ' <span class="badge b-red">mileage ↓</span>' : ''}</div>
       <div class="s">${m.avgKmpl != null ? m.avgKmpl.toFixed(1) + ' km/l' : 'no data'} · ${money(m.totalCost)} · ${m.fills} fill(s)</div></div>
     ${m.fuelPerKm != null ? `<b>₹${m.fuelPerKm.toFixed(1)}/km</b>` : ''}</div>`).join('') : `<div class="empty">No buses</div>`;
@@ -6111,7 +6107,7 @@ function viewDef() {
     <div class="tiny muted">AdBlue for BS6/Volvo SCR engines — not farm urea. Log top-ups for consumption &amp; cost.</div></div>`;
   if (!defBuses.length) body += `<div class="banner warn">No bus is marked as using DEF yet. Logging a top-up marks that bus automatically.</div>`;
   body += `<div class="card"><h3>DEF by bus</h3>`;
-  body += rows.length ? rows.map(({ b, s }) => `<div class="li" data-act="addDef" data-bus="${b.id}" style="cursor:pointer">${avatar(busImg(b), '🚌')}
+  body += rows.length ? rows.map(({ b, s }) => `<div class="li" data-act="addDef" data-bus="${esc(b.id)}" style="cursor:pointer">${avatar(busImg(b), '🚌')}
     <div class="main"><div class="t">${esc(b.regNo)}${s.flag ? ` <span class="badge ${s.flag.sev === 'high' ? 'b-red' : 'b-amber'}">DEF ⚠️</span>` : ''}</div>
       <div class="s">${s.perHundred != null ? s.perHundred.toFixed(1) + ' L/100km' : 'no data'} · ${money(s.costTotal)} · ${s.fills} top-up(s)</div>
       ${s.flag ? `<div class="tiny" style="color:${s.flag.sev === 'high' ? 'var(--red)' : 'var(--amber)'}">${esc(s.flag.msg)}</div>` : ''}</div>
@@ -6409,7 +6405,7 @@ function viewBreakdowns() {
     body += worstBus.map(([busId, n]) => {
       const b = byId(S.cache.buses, busId);
       const mtbf = busMTBF(busId);
-      return `<div class="li" data-bus="${busId}"><div style="flex:none">${plateChip(b)}</div>
+      return `<div class="li" data-bus="${esc(busId)}"><div style="flex:none">${plateChip(b)}</div>
         <div class="main"><div class="s">${mtbf ? `${mtbf.toLocaleString('en-IN')} km ${t('bdBetween')}` : t('bdNotEnough')}</div></div>
         <span class="badge ${n > 2 ? 'b-red' : 'b-amber'}">${n}</span></div>`;
     }).join('');
@@ -6420,7 +6416,7 @@ function viewBreakdowns() {
   body += `<div class="card listwrap" id="bd-list"><h3>${t('bdAll')}</h3>`;
   body += all.length ? all.map((b) => {
     const bus = byId(S.cache.buses, b.busId), m = bdSystem(b.system);
-    return `<div class="li" data-act="openBreakdown" data-id="${b.id}"><div class="ava">${m.icon}</div>
+    return `<div class="li" data-act="openBreakdown" data-id="${esc(b.id)}"><div class="ava">${m.icon}</div>
       <div class="main"><div class="t">${esc(bus ? bus.regNo : '—')} · ${t(m.k)}</div>
         <div class="s">${fmtDate(b.at)}${b.place ? ' · ' + esc(b.place) : ''}${b.downtimeHours ? ' · ' + b.downtimeHours + t('bdHrs') : ''}${b.towed ? ' · 🚛' : ''}</div></div>
       ${b.jobId ? `<span class="badge b-green">${t('bdLinked')}</span>` : `<span class="badge b-amber">${t('bdNoJob')}</span>`}</div>`;
@@ -6455,8 +6451,8 @@ function sheetBreakdown(id) {
       <input type="checkbox" id="bd-towed" ${b && b.towed ? 'checked' : ''} style="width:18px;height:18px;flex:none">
       <span class="small">🚛 ${t('bdTowed')}</span></label>
     <div class="tiny muted" style="margin-bottom:10px">${t('bdWhyHint')}</div>
-    <button class="btn primary" data-act="saveBreakdown" data-id="${b ? b.id : ''}">${t('save')}</button>
-    ${b && !b.jobId ? `<button class="btn" data-act="breakdownToJob" data-id="${b.id}" style="margin-top:8px">→ ${t('bdMakeJob')}</button>` : ''}`);
+    <button class="btn primary" data-act="saveBreakdown" data-id="${esc(b ? b.id : '')}">${t('save')}</button>
+    ${b && !b.jobId ? `<button class="btn" data-act="breakdownToJob" data-id="${esc(b.id)}" style="margin-top:8px">→ ${t('bdMakeJob')}</button>` : ''}`);
 }
 
 async function saveBreakdown(id) {
@@ -6600,7 +6596,7 @@ function serviceRecordCard(j, canEdit) {
       <span>${esc(durLabel)}</span><span>${fmtDur(dur)}</span></div>` : ''}`;
 
   let h = `<div class="card"><div class="row between"><h3>🕒 Service record</h3>
-    ${canEdit ? `<button class="btn sm" data-act="editService" data-job="${j.id}">✏️ Edit</button>` : ''}</div>`;
+    ${canEdit ? `<button class="btn sm" data-act="editService" data-job="${esc(j.id)}">✏️ Edit</button>` : ''}</div>`;
 
   if (!j.enterAt && !j.startAt && !j.completeAt && !j.outAt) {
     h += `<div class="muted small">No times recorded yet.${canEdit ? ' Tap Edit to fill in the workshop clock.' : ''}</div>`;
@@ -6647,7 +6643,7 @@ function sheetEditService(jobId) {
     <label class="field"><span class="lbl">🗒️ Remark</span>
       <input id="sv-remark" value="${esc(j.remark || '')}" placeholder="e.g. Rep. at Noida Eicher workshop"></label>
     <div class="tiny muted">Leave a time blank if it has not happened yet.</div>
-    <button class="btn primary" data-act="saveService" data-job="${jobId}" style="margin-top:10px">Save</button>`);
+    <button class="btn primary" data-act="saveService" data-job="${esc(jobId)}" style="margin-top:10px">Save</button>`);
 }
 
 async function saveService(jobId) {
@@ -6680,7 +6676,7 @@ function partsCardExtras(job) {
   // Request-part button: only the mechanic who can request, on a live job.
   if (can(S.user.role, 'requestPart') && (S.user.role !== 'mechanic' || mine)
       && job.status !== 'verified' && job.status !== 'done') {
-    h += `<button class="btn sm" data-act="requestPart" data-job="${job.id}" style="margin-top:8px">🙋 ${t('reqPartBtn')}</button>`;
+    h += `<button class="btn sm" data-act="requestPart" data-job="${esc(job.id)}" style="margin-top:8px">🙋 ${t('reqPartBtn')}</button>`;
   }
   // Pending requests list — a store to-do; storekeepers get a Fulfil action.
   const pending = reqs.filter((r) => r.status === 'requested');
@@ -6689,7 +6685,7 @@ function partsCardExtras(job) {
     h += pending.map((r) => {
       const p = byId(S.cache.parts, r.partId);
       const fulfil = can(S.user.role, 'issuePart')
-        ? `<button class="btn sm" data-act="fulfilRequest" data-job="${job.id}" data-req="${r.id}">${t('reqPartFulfil')}</button>` : '';
+        ? `<button class="btn sm" data-act="fulfilRequest" data-job="${esc(job.id)}" data-req="${esc(r.id)}">${t('reqPartFulfil')}</button>` : '';
       return `<div class="row between small" style="padding:5px 0">
         <span>🙋 ${esc(p ? p.name : (r.partName || r.partId))} × ${r.qty || 1}</span>${fulfil}</div>`;
     }).join('');
@@ -6702,7 +6698,7 @@ function partsCardExtras(job) {
   if (mayClose && (job.status === 'open' || job.status === 'in-progress')) {
     h += `<div class="hr"></div>${photoGateChecklist(job)}`;
     const ready = photoGateReady(job);
-    h += `<button class="btn primary" data-act="closeJob" data-job="${job.id}" style="margin-top:8px${ready ? '' : ';opacity:.5'}"${ready ? '' : ' disabled'}>✅ ${t('closeJobBtn')}</button>`;
+    h += `<button class="btn primary" data-act="closeJob" data-job="${esc(job.id)}" style="margin-top:8px${ready ? '' : ';opacity:.5'}"${ready ? '' : ' disabled'}>✅ ${t('closeJobBtn')}</button>`;
   }
   return h;
 }
@@ -6721,7 +6717,7 @@ function sheetRequestPart(jobId) {
       <select id="f-reqpart">${sorted.map((p) => `<option value="${p.id}">${esc(p.name)} (${p.qty} ${p.unit})</option>`).join('')}</select></label>
     <label class="field"><span class="lbl">${t('reqPartQty')}</span><input id="f-reqqty" type="number" inputmode="numeric" value="1"></label>
     <div class="banner">${t('reqPartNote')}</div>
-    <button class="btn primary" data-act="saveRequestPart" data-job="${jobId}">${t('submit')}</button>`);
+    <button class="btn primary" data-act="saveRequestPart" data-job="${esc(jobId)}">${t('submit')}</button>`);
 }
 async function saveRequestPart(jobId) {
   const j = byId(S.cache.jobs, jobId);
@@ -6776,11 +6772,11 @@ function sheetCloseJob(jobId) {
     <div class="lbl">${t('closeJobHours')}</div>
     <div class="row" style="gap:14px;align-items:center;justify-content:center;margin:10px 0">
       <button class="btn" data-act="hrsStep" data-dir="-1" style="font-size:24px;min-width:56px">−</button>
-      <b id="f-hrs" data-hrs="${hrs}" style="font-size:32px;min-width:64px;text-align:center">${hrs}</b>
+      <b id="f-hrs" data-hrs="${esc(hrs)}" style="font-size:32px;min-width:64px;text-align:center">${hrs}</b>
       <button class="btn" data-act="hrsStep" data-dir="1" style="font-size:24px;min-width:56px">＋</button>
     </div>
     <div class="tiny muted" style="text-align:center">${t('closeJobHint')}</div>
-    <button class="btn primary" data-act="confirmCloseJob" data-job="${jobId}" style="margin-top:12px">✅ ${t('markDone')}</button>`);
+    <button class="btn primary" data-act="confirmCloseJob" data-job="${esc(jobId)}" style="margin-top:12px">✅ ${t('markDone')}</button>`);
 }
 function hrsStep(dir) {
   const el = $('#f-hrs'); if (!el) return;
@@ -6885,7 +6881,9 @@ async function showGps(busId) {
     return;
   }
   // Live odometer feeds preventive maintenance — update the bus record.
-  if (tel.odometer && tel.odometer > (b.odometer || 0)) { b.odometer = tel.odometer; await DB.put('buses', b); }
+  // Only the real tracker counts. The simulator invents mileage, and saving it
+  // made every 'GPS & service' view of an untracked bus a false odometer reading.
+  if (tel.source === 'provider' && !b.odoBroken && tel.odometer && tel.odometer > (b.odometer || 0)) { b.odometer = tel.odometer; await DB.put('buses', b); }
   const sv = serviceInfo(b);
   const svCls = sv.status === 'overdue' ? 'b-red' : sv.status === 'soon' ? 'b-amber' : 'b-green';
   const svTxt = sv.status === 'overdue' ? `Service OVERDUE by ${Math.abs(sv.dueIn).toLocaleString('en-IN')} km`
@@ -6912,9 +6910,9 @@ async function showGps(busId) {
       <div class="small">${svTxt}</div>
       <div class="tiny muted" style="margin-top:4px">Auto-tracked from the live odometer (every ${sv.interval.toLocaleString('en-IN')} km).</div>
       ${can(S.user.role, 'logService') ? `<div class="hr"></div>
-      <button class="btn primary" data-act="logService" data-bus="${b.id}">✅ Mark service done</button>` : ''}
+      <button class="btn primary" data-act="logService" data-bus="${esc(b.id)}">✅ Mark service done</button>` : ''}
     </div>
-    <button class="btn ghost" data-act="gps" data-bus="${b.id}">↻ Refresh</button>`;
+    <button class="btn ghost" data-act="gps" data-bus="${esc(b.id)}">↻ Refresh</button>`;
 }
 function logService(busId) {
   if (!can(S.user.role, 'logService')) return toast(t('cbNotAllowed'));
@@ -6926,7 +6924,7 @@ function logService(busId) {
     </div>
     <label class="field"><span class="lbl">Parts / external cost (₹, optional)</span><input id="f-svcost" type="number" inputmode="numeric"></label>
     <label class="field"><span class="lbl">Notes</span><input id="f-svnote" placeholder="e.g. oil + filter changed"></label>
-    <button class="btn primary" data-act="confirmLogService" data-bus="${busId}">✅ Log service</button>`);
+    <button class="btn primary" data-act="confirmLogService" data-bus="${esc(busId)}">✅ Log service</button>`);
 }
 async function confirmLogService(busId) {
   if (!can(S.user.role, 'logService')) return toast(t('cbNotAllowed'));
@@ -6951,7 +6949,7 @@ async function confirmLogService(busId) {
 /* ------------------------------- Drivers ---------------------------------- */
 function driverLi(d) {
   const score = driverScore(d.id), bus = byId(S.cache.buses, d.busId);
-  return `<div class="li" data-driver="${d.id}"><div class="ava">🧑‍✈️</div>
+  return `<div class="li" data-driver="${esc(d.id)}"><div class="ava">🧑‍✈️</div>
     <div class="main"><div class="t">${esc(d.name)}</div>
       <div class="s">${bus ? esc(bus.regNo) : 'unassigned'} · ${d.tripsLogged || 0} trips</div></div>
     <div style="text-align:right"><span class="badge ${scoreClass(score)}">${score}</span>
@@ -6980,19 +6978,19 @@ function viewAssignments() {
   const buses = S.cache.buses;
   const seatOf = (busId) => (role === 'conductor' ? conductorOfBus(busId) : driverOfBus(busId));
   let body = `<div class="chiprow">${['driver', 'conductor'].map((r) =>
-    `<button class="chip ${role === r ? 'active' : ''}" data-act="asRole" data-v="${r}">${CREW_ROLE_META[r][0]} ${esc(crewRoleLabel(r))}</button>`).join('')}</div>`;
+    `<button class="chip ${role === r ? 'active' : ''}" data-act="asRole" data-v="${esc(r)}">${CREW_ROLE_META[r][0]} ${esc(crewRoleLabel(r))}</button>`).join('')}</div>`;
   body += `<div class="card"><div class="tiny muted">${t('asHint')}</div></div>`;
   body += `<div class="card"><div class="row between"><h3>${esc(crewRoleLabel(role))}</h3><span class="badge b-low">${crew.length}</span></div>`;
   body += crew.length ? crew.map((d) => {
     const bus = byId(buses, d.busId);
-    return `<div class="li" data-act="assignBus" data-driver="${d.id}" style="cursor:pointer"><div class="ava">${CREW_ROLE_META[role][0]}</div>
+    return `<div class="li" data-act="assignBus" data-driver="${esc(d.id)}" style="cursor:pointer"><div class="ava">${CREW_ROLE_META[role][0]}</div>
       <div class="main"><div class="t">${esc(d.name)}</div><div class="s">${bus ? esc(bus.regNo) + ' · ' + esc(bus.company || '') : t('asNoBus')}</div></div>
       <span class="badge ${bus ? 'b-green' : 'b-amber'}">${bus ? t('asAssigned') : t('asUnassigned')}</span></div>`;
   }).join('') : `<div class="empty">${t('asNobodyYet')}</div>`;
   body += `</div>`;
   const empty = buses.filter((b) => !seatOf(b.id));
   body += `<div class="card"><div class="row between"><h3>${t(role === 'conductor' ? 'asBusesNoConductor' : 'asBusesNoDriver')}</h3><span class="badge ${empty.length ? 'b-amber' : 'b-green'}">${empty.length}</span></div>`;
-  body += empty.length ? empty.map((b) => `<div class="li" data-act="assignDriver" data-bus="${b.id}" data-role="${role}" style="cursor:pointer"><div class="ava">🚌</div>
+  body += empty.length ? empty.map((b) => `<div class="li" data-act="assignDriver" data-bus="${esc(b.id)}" data-role="${esc(role)}" style="cursor:pointer"><div class="ava">🚌</div>
     <div class="main"><div class="t">${esc(b.regNo)}</div><div class="s">${esc(b.company || '')} · ${esc(b.model || '')}</div></div>
     <span class="badge b-amber">${t('asAssignWord')} →</span></div>`).join('') : `<div class="muted small">${t(role === 'conductor' ? 'asAllHaveConductor' : 'asAllHaveDriver')}</div>`;
   body += `</div>`;
@@ -7025,9 +7023,9 @@ function viewDriverDetail(id) {
     <div class="row between"><div><div class="tiny muted">${t(crole === 'conductor' ? 'cbBus' : 'cbAssignedBus')}</div><b>${bus ? esc(bus.regNo) : '—'}</b></div>
       <div style="text-align:right"><div class="tiny muted">${t('cbRating')}</div><div class="stars">${starStr(scoreStars(score))}</div></div></div>
     <div class="spacer"></div>
-    <div class="btnrow">${inactive ? (canManage ? `<button class="btn sm" data-act="${isArchived ? 'crewRestore' : 'crewRejoin'}" data-driver="${d.id}">↩️ ${t(isArchived ? 'cbRestoreBtn' : 'cbRejoinBtn')}</button>` : '')
-      : `<button class="btn sm" data-act="assignBus" data-driver="${d.id}">${t('cbChangeBus')}</button>
-      ${can(S.user.role, 'logIncident') ? `<button class="btn sm" data-act="reportProblem" data-bus="${d.busId || ''}" data-driver="${d.id}">${t('cbLogReport')}</button>` : ''}`}</div></div>`;
+    <div class="btnrow">${inactive ? (canManage ? `<button class="btn sm" data-act="${esc(isArchived ? 'crewRestore' : 'crewRejoin')}" data-driver="${esc(d.id)}">↩️ ${t(isArchived ? 'cbRestoreBtn' : 'cbRejoinBtn')}</button>` : '')
+      : `<button class="btn sm" data-act="assignBus" data-driver="${esc(d.id)}">${t('cbChangeBus')}</button>
+      ${can(S.user.role, 'logIncident') ? `<button class="btn sm" data-act="reportProblem" data-bus="${esc(d.busId || '')}" data-driver="${esc(d.id)}">${t('cbLogReport')}</button>` : ''}`}</div></div>`;
 
   // Who he is — the half of the bank that is not documents. Rows are omitted
   // when empty rather than shown as dashes, so the gaps are visible at a glance.
@@ -7050,22 +7048,22 @@ function viewDriverDetail(id) {
     + row(t('cbRefName'), d.refName)
     + row(t('cbRefPhone'), d.refPhone, d.refPhone ? 'tel:' + _digits(d.refPhone) : null);
   body += `<div class="card"><div class="row between"><h3>${t('cbDetails')}</h3>${
-    canManage ? `<button class="btn sm ghost" data-act="editCrewProfile" data-driver="${d.id}" style="width:auto">✏️ ${t('cbEdit')}</button>` : ''}</div>
+    canManage ? `<button class="btn sm ghost" data-act="editCrewProfile" data-driver="${esc(d.id)}" style="width:auto">✏️ ${t('cbEdit')}</button>` : ''}</div>
     ${details || `<div class="muted small">${t('cbNoDetails')}</div>`}
     ${canManage && !inactive ? `<div class="spacer"></div><div class="btnrow">
-      <button class="btn sm ghost" data-act="crewArchive" data-driver="${d.id}">🗄️ ${t('cbArchiveBtn')}</button>
-      <button class="btn sm ghost" data-act="crewExit" data-driver="${d.id}">📦 ${t('cbMarkLeftBtn')}</button></div>` : ''}</div>`;
+      <button class="btn sm ghost" data-act="crewArchive" data-driver="${esc(d.id)}">🗄️ ${t('cbArchiveBtn')}</button>
+      <button class="btn sm ghost" data-act="crewExit" data-driver="${esc(d.id)}">📦 ${t('cbMarkLeftBtn')}</button></div>` : ''}</div>`;
 
   // Document vault summary (tap to manage)
   const ds = driverDocStatus(d);
-  body += `<div class="card" data-act="openDriverDocs" data-driver="${d.id}" style="cursor:pointer"><div class="row between">
+  body += `<div class="card" data-act="openDriverDocs" data-driver="${esc(d.id)}" style="cursor:pointer"><div class="row between">
     <div class="row" style="gap:12px;align-items:center">${progressRing(ds.pct)}
       <div><div style="font-weight:800">📂 ${t('documents')}</div>
         <div class="small muted">${ds.mandDone}/${ds.mandTotal} ${t('cbMandatoryWord')}${ds.mandDone < ds.mandTotal ? ' · ⚠️ ' + t('cbIncomplete') : ' ✓'}</div></div></div>
     <span class="tiny" style="color:var(--brand2)">${t('cbOpenWord')} ›</span></div></div>`;
 
   body += `<div class="card"><div class="row between"><h3>Performance</h3>
-    ${can(S.user.role, 'logIncident') ? `<button class="btn sm" data-act="addIncident" data-driver="${d.id}">+ Data point</button>` : ''}</div>`;
+    ${can(S.user.role, 'logIncident') ? `<button class="btn sm" data-act="addIncident" data-driver="${esc(d.id)}">+ Data point</button>` : ''}</div>`;
   if (Object.keys(byType).length) body += `<div class="row" style="flex-wrap:wrap;gap:6px;margin-bottom:10px">${
     Object.entries(byType).map(([tp, n]) => { const c = INCIDENT[tp] || INCIDENT.other; return `<span class="badge b-low">${c.icon} ${c.label} ×${n}</span>`; }).join('')}</div>`;
   body += incs.length ? incs.map((i) => { const c = INCIDENT[i.type] || INCIDENT.other;
@@ -7089,12 +7087,12 @@ function viewDriverDetail(id) {
     body += `</div>`;
   }
   body += `<div class="card"><h3>Trip reports</h3>`;
-  body += reps.length ? reps.map((r) => `<div class="li" ${r.jobId ? `data-job="${r.jobId}"` : ''}>
+  body += reps.length ? reps.map((r) => `<div class="li" ${r.jobId ? `data-job="${esc(r.jobId)}"` : ''}>
       <div class="ava">${r.status === 'open' ? '🟠' : '✅'}</div>
       <div class="main"><div class="t">${esc(r.problem)}</div><div class="s">${esc(r.category || '')} · ${fmtDate(r.at)}</div></div>
       ${r.status !== 'open' ? '<span class="badge b-green">fixed</span>'
         : r.jobId ? '<span class="badge b-amber">linked</span>'
-        : `<button class="btn sm" data-act="reportToJob" data-report="${r.id}">→ Job</button>`}</div>`).join('')
+        : `<button class="btn sm" data-act="reportToJob" data-report="${esc(r.id)}">→ Job</button>`}</div>`).join('')
     : `<div class="muted small">No reports.</div>`;
   body += `</div>`;
   shell(esc(d.name), body);
@@ -7134,7 +7132,7 @@ function viewDriverHome() {
       <div class="tiny muted" style="margin-top:8px">${recent.length ? `${t('drvLast90')}: ${reasons}. ` : ''}${tip}</div></div>`;
   body += driverTripCard();   // trip cash + expenses
   if (d.busId) {
-    body += `<button class="btn primary" data-act="reportProblem" data-bus="${d.busId}" data-driver="${d.id}">🛠️ ${t('reportProblem')}</button><div class="spacer"></div>`;
+    body += `<button class="btn primary" data-act="reportProblem" data-bus="${esc(d.busId)}" data-driver="${esc(d.id)}">🛠️ ${t('reportProblem')}</button><div class="spacer"></div>`;
   } else {
     body += `<div class="banner warn">${t('noBusAssigned')}</div><div class="spacer"></div>`;
   }
@@ -7143,7 +7141,7 @@ function viewDriverHome() {
   body += reps.length ? reps.map((r) => {
     const resolved = r.status !== 'open';
     // Resolved + linked → tap through to the job (route is permission-safe for drivers).
-    const tap = (resolved && r.jobId) ? ` data-job="${r.jobId}" style="cursor:pointer"` : '';
+    const tap = (resolved && r.jobId) ? ` data-job="${esc(r.jobId)}" style="cursor:pointer"` : '';
     const sub = resolved
       ? `${esc(r.category || '')} · ${t('fixed')}${r.resolvedAt ? ' · ' + fmtDate(r.resolvedAt) : ''}`
       : `${esc(r.category || '')} · ${fmtDate(r.at)}`;
@@ -7151,7 +7149,7 @@ function viewDriverHome() {
     const right = resolved
       ? `<span class="badge b-green">${t('fixed')}</span>`
       : (r.jobId ? `<span class="badge b-amber">${t('openStatus')}</span>`
-        : `<button class="btn sm" data-act="cancelReport" data-report="${r.id}">${t('drvCancelBtn')}</button>`);
+        : `<button class="btn sm" data-act="cancelReport" data-report="${esc(r.id)}">${t('drvCancelBtn')}</button>`);
     return `<div class="li"${tap}><div class="ava">${resolved ? '✅' : '🟠'}</div>
       <div class="main"><div class="t">${esc(r.problem)}</div><div class="s">${sub}</div></div>
       ${right}</div>`;
@@ -7220,7 +7218,7 @@ function busAccounting(busId, sinceMs) {
 function driverTripCard() {
   const d = driverForUser(S.user.id); if (!d) return '';
   const t = activeTripFor(d.id);
-  if (!t) return `<button class="btn primary" data-act="startTrip" data-driver="${d.id}">🚌 Start trip &amp; cash</button><div class="spacer"></div>`;
+  if (!t) return `<button class="btn primary" data-act="startTrip" data-driver="${esc(d.id)}">🚌 Start trip &amp; cash</button><div class="spacer"></div>`;
   const c = tripCash(t);
   return `<div class="card" style="border:1.5px solid var(--brand2)"><div class="row between"><h3>💰 Trip cash</h3><span class="tiny muted">${esc(t.fromTo || 'Trip')}</span></div>
     <div class="grid2" style="margin-top:6px">
@@ -7228,8 +7226,8 @@ function driverTripCard() {
       <div><div class="tiny muted">Cash spent</div><b>${money(c.cash)}</b></div>
       <div><div class="tiny muted">Cash left</div><b style="color:${c.remaining < 0 ? 'var(--red)' : 'var(--green)'}">${money(c.remaining)}</b></div>
       <div><div class="tiny muted">On card (diesel/FASTag)</div><b>${money(c.card)}</b></div></div>
-    <div class="btnrow" style="margin-top:10px"><button class="btn primary" data-act="addTripExp" data-trip="${t.id}">+ Add expense</button>
-      <button class="btn" data-act="closeTrip" data-trip="${t.id}">End trip</button></div>
+    <div class="btnrow" style="margin-top:10px"><button class="btn primary" data-act="addTripExp" data-trip="${esc(t.id)}">+ Add expense</button>
+      <button class="btn" data-act="closeTrip" data-trip="${esc(t.id)}">End trip</button></div>
     ${(t.expenses || []).length ? '<div class="hr"></div>' + t.expenses.slice().reverse().map((e) => `<div class="row between small" style="padding:3px 0"><span>${catMeta(e.cat).icon} ${catMeta(e.cat).label}${e.note ? ' · ' + esc(e.note) : ''} <span class="tiny muted">${e.mode}</span></span><b>${money(e.amount)}</b></div>`).join('') : ''}
     </div>`;
 }
@@ -7239,7 +7237,7 @@ function sheetStartTrip(driverId) {
     <div class="tiny muted" style="margin-bottom:10px">Bus: <b>${bus ? esc(bus.regNo) : '—'}</b></div>
     <label class="field"><span class="lbl">Route (from → to)</span><input id="tp-route" value="${bus && bus.routeLabel ? esc(expandRoute(bus.routeLabel)) : ''}" placeholder="e.g. Jaipur to Delhi"></label>
     <label class="field"><span class="lbl">Cash allowance (₹)</span><input id="tp-allow" type="number" inputmode="numeric" value="${DEFAULT_ALLOWANCE}"></label>
-    <button class="btn primary" data-act="saveStartTrip" data-driver="${driverId}">Start trip</button>`);
+    <button class="btn primary" data-act="saveStartTrip" data-driver="${esc(driverId)}">Start trip</button>`);
 }
 async function saveStartTrip(driverId) {
   const d = driverById(driverId); if (!d) return;
@@ -7256,7 +7254,7 @@ function sheetAddTripExp(tripId) {
     <label class="field"><span class="lbl">Amount (₹)</span><input id="ex-amt" type="number" inputmode="numeric"></label>
     <label class="field"><span class="lbl">Note (optional)</span><input id="ex-note" placeholder="e.g. tyre puncture near Kishangarh"></label>
     <button class="btn" data-act="captureExpPhoto">📷 Bill photo (optional)</button><div id="ex-prev" class="thumbs" style="margin:8px 0"></div>
-    <button class="btn primary" data-act="saveTripExp" data-trip="${tripId}">Add</button>`);
+    <button class="btn primary" data-act="saveTripExp" data-trip="${esc(tripId)}">Add</button>`);
 }
 async function captureExpPhoto() { const s = await capturePhoto(); if (!s) return; _expShot = await Sync.uploadPhoto(s) || s; const p = $('#ex-prev'); if (p) p.innerHTML = `<img class="thumb" src="${_expShot}">`; }
 async function saveTripExp(tripId) {
@@ -7277,7 +7275,7 @@ function viewAccounting() {
   let body = `<div class="card"><div class="muted small">Running cost — all buses</div><div class="stat" style="color:var(--brand2)">${money(grand)}</div>
     <div class="tiny muted">Trip cash + card (diesel/FASTag) + fuel + maintenance. Driver salary shown per bus.</div></div>`;
   body += `<div class="card"><h3>By bus</h3>`;
-  body += rows.length ? rows.map(({ b, a }) => `<div class="li" data-act="openBusAcct" data-id="${b.id}"><div class="ava">🚌</div>
+  body += rows.length ? rows.map(({ b, a }) => `<div class="li" data-act="openBusAcct" data-id="${esc(b.id)}"><div class="ava">🚌</div>
     <div class="main"><div class="t">${esc(b.regNo)}</div><div class="s">${a.trips} trip(s) · fuel ${money(a.fuelCost)} · maint ${money(a.maint)}${a.salary ? ' · salary/mo ' + money(a.salary) : ''}</div></div>
     <b>${money(a.total)}</b></div>`).join('') : `<div class="empty">No expenses logged yet — drivers add them from their home screen.</div>`;
   body += `</div>`;
@@ -7296,7 +7294,7 @@ function viewBusAccounting(busId) {
       <div><div class="tiny muted">Maintenance</div><b>${money(a.maint)}</b></div>
       <div><div class="tiny muted">Cash given out</div><b>${money(a.allowance)}</b></div>
       <div><div class="tiny muted">Driver salary /mo</div><b>${money(a.salary)}</b></div></div>
-    ${drv && can(S.user.role, 'manageDrivers') ? `<button class="btn sm" data-act="setSalary" data-driver="${drv.id}" style="margin-top:10px">💵 Set ${esc(drv.name)}'s monthly salary</button>` : ''}</div>`;
+    ${drv && can(S.user.role, 'manageDrivers') ? `<button class="btn sm" data-act="setSalary" data-driver="${esc(drv.id)}" style="margin-top:10px">💵 Set ${esc(drv.name)}'s monthly salary</button>` : ''}</div>`;
   const catRows = Object.entries(a.byCat).sort((x, y) => y[1] - x[1]).map(([c, v]) => `<div class="row between small" style="padding:3px 0"><span>${catMeta(c).icon} ${catMeta(c).label}</span><b>${money(v)}</b></div>`).join('');
   body += `<div class="card"><h3>By category</h3>${catRows || '<div class="muted small">No expenses yet</div>'}</div>`;
   body += `<div class="card"><h3>Trips</h3>` + (trips.length ? trips.map((t) => { const c = tripCash(t); return `<div class="li"><div class="ava">🧾</div>
@@ -7313,12 +7311,12 @@ async function setSalary(driverId) {
 }
 
 /* ===== Crew logins & PINs — give imported drivers/conductors app accounts =====
- * Creates a user account (role driver/conductor) + a device-local login PIN for
- * each driver profile and each bus conductor, mapped to their bus. Idempotent:
- * skips anyone who already has a login. PINs default to the last 4 of their
- * phone (memorable) or a random 4-digit; the owner distributes them and staff
- * can change theirs after first login. */
-const _pin4 = (phone) => '0000';   // uniform crew PIN (owner's choice); staff change it after first login
+ * Creates a user account (role driver/conductor) for each driver profile and each
+ * bus conductor, mapped to their bus. Idempotent: skips anyone who already has a
+ * login. The PIN is NOT chosen here any more. Every crew login used to share one
+ * PIN, and the login ids are public, so anyone could sign in as any of them. The
+ * server now gives each person their own PIN when the logins are activated, and
+ * this device keeps the PINs it was handed so the office can read them out. */
 async function createCrewLogins() {
   const haveUser = new Set((S.cache.users || []).map((u) => u.id));
   const newUsers = [], updDrivers = [], updBuses = []; let driverLogins = 0, conductorLogins = 0;
@@ -7326,7 +7324,6 @@ async function createCrewLogins() {
     if (d.userId && haveUser.has(d.userId)) return;
     const uid2 = d.userId || ('u-' + d.id), crole = crewRoleOf(d);
     if (!haveUser.has(uid2)) { newUsers.push({ id: uid2, name: d.name, role: crole }); haveUser.add(uid2); }
-    if (!credGet(uid2)) credSet(uid2, _pin4(d.phone));
     d.userId = uid2; updDrivers.push(d); if (crole === 'conductor') conductorLogins++; else driverLogins++;
   });
   (S.cache.buses || []).forEach((b) => {
@@ -7334,7 +7331,6 @@ async function createCrewLogins() {
     if (b.conductorUserId && haveUser.has(b.conductorUserId)) return;
     const uid2 = 'u-cond-' + _regIdKey(b.regNo);   // an id: the stored spelling, never the match key
     if (!haveUser.has(uid2)) { newUsers.push({ id: uid2, name: _titleCase(nm), role: 'conductor' }); haveUser.add(uid2); }
-    if (!credGet(uid2)) credSet(uid2, _pin4(b.crewPhone));
     b.conductorUserId = uid2; updBuses.push(b); conductorLogins++;
   });
   if (newUsers.length) await DB.bulkPut('users', newUsers);
@@ -7347,14 +7343,23 @@ async function makeCrewLogins() {
   const stop = showBusyOverlay('Creating crew logins…');
   const r = await createCrewLogins();
   if (stop) stop();
-  toast(r.created ? `${r.driverLogins} driver + ${r.conductorLogins} conductor logins ready ✓` : 'All crew already have logins');
+  // A login only works once the server holds it — that is also when it gets its PIN.
+  if (r.created && Sync.info().authed) return activateCrewServer();
+  toast(r.created ? `${r.driverLogins} driver + ${r.conductorLogins} conductor logins added — tap Activate (online) to give them PINs` : 'All crew already have logins');
   rerender();
 }
 
-// Device-bound identity: turn the synced crew roster into REAL server accounts
-// (PIN 0000) so every driver/conductor gets a server-verified token on login and
-// their writes are attributable + enforceable. Owner/supervisor only; idempotent.
-// The roster is read from this device's cache and SENT (the seed never pushes it).
+// Device-bound identity: turn the synced crew roster into REAL server accounts so
+// every driver/conductor gets a server-verified token on login and their writes are
+// attributable + enforceable. Owner/supervisor only; idempotent. The roster is read
+// from this device's cache and SENT (the seed never pushes it). The server answers
+// with the PIN of every account it created or moved off the old shared PIN — the
+// only time those PINs exist in the clear — and this device keeps them.
+function keepCrewPins(r) {
+  const pins = (r && r.pins) || {};
+  Object.keys(pins).forEach((id) => credSet(id, pins[id]));
+  return Object.keys(pins).length;
+}
 function crewRoster() {
   return (S.cache.users || [])
     .filter((u) => u.role === 'driver' || u.role === 'conductor')
@@ -7365,9 +7370,11 @@ async function activateCrewServer() {
   const stop = showBusyOverlay('Activating crew server logins…');
   try {
     const r = await Sync.registerRoster(crewRoster());
-    try { localStorage.setItem('gsRosterActivated', String(Date.now())); } catch (e) { /* ignore */ }
+    try { localStorage.setItem(ROSTER_FLAG, String(Date.now())); } catch (e) { /* ignore */ }
     if (stop) stop();
-    toast(r && r.created ? `Activated ${r.created} crew server logins ✓` : 'All crew already activated ✓');
+    const n = keepCrewPins(r);
+    toast(n ? `${n} crew PIN${n === 1 ? '' : 's'} set — read them out from this screen ✓` : 'All crew already activated ✓');
+    if (S.route && S.route.name === 'crewpins') rerender();
   } catch (e) {
     if (stop) stop();
     toast('Could not reach server — try again when online');
@@ -7375,28 +7382,64 @@ async function activateCrewServer() {
 }
 // Fire the activation once automatically for a signed-in manager, so the roster is
 // materialized server-side without anyone having to find the button. Best-effort.
+// v2: runs once more on every manager device, because this is also what moves crew
+// off the old shared PIN. Crew cannot sign in until it has run somewhere.
+const ROSTER_FLAG = 'gsRosterActivated_v2';
 function maybeAutoActivateCrew(user) {
   if (!user || !['owner', 'supervisor'].includes(user.role)) return;
   let done = false;
-  try { done = !!localStorage.getItem('gsRosterActivated'); } catch (e) { /* ignore */ }
+  try { done = !!localStorage.getItem(ROSTER_FLAG); } catch (e) { /* ignore */ }
   if (done || !Sync.info().authed) return;
   Sync.registerRoster(crewRoster())
-    .then((r) => { try { localStorage.setItem('gsRosterActivated', String(Date.now())); } catch (e) {} if (r && r.created) toast(`Activated ${r.created} crew server logins ✓`); })
+    .then((r) => {
+      try { localStorage.setItem(ROSTER_FLAG, String(Date.now())); } catch (e) {}
+      const n = keepCrewPins(r);
+      if (n) toast(`${n} crew PIN${n === 1 ? '' : 's'} set — see Crew logins & PINs ✓`);
+    })
     .catch(() => { /* offline / not authed — the manual button remains */ });
+}
+// Crew phones and Drive folder links left the public seed files. The devices that
+// loaded the old files still hold them; a manager's device hands them to the
+// server once, so a new phone gets them by syncing instead. Best-effort, retried
+// on a later sign-in until it succeeds.
+async function maybeBackfillContacts(user) {
+  if (!user || !['owner', 'supervisor'].includes(user.role)) return;
+  try { if (localStorage.getItem('gsContactBackfill_v1') || !Sync.info().authed) return; } catch (e) { return; }
+  try {
+    const recs = [];
+    const take = (store, fields) => DB._rawAll(store).then((rows) => rows.forEach((x) => {
+      if (x && !x._deleted && !x._redacted && fields.some((f) => x[f])) recs.push({ store, id: x.id, data: x });
+    }));
+    await take('drivers', ['phone', 'altPhone']);
+    await take('buses', ['crewPhone', 'docsFolderId']);
+    for (let i = 0; i < recs.length; i += 100) await Sync.backfillContacts(recs.slice(i, i + 100));
+    localStorage.setItem('gsContactBackfill_v1', String(Date.now()));
+  } catch (e) { /* offline — try again next sign-in */ }
+}
+
+// A crew member's PIN is lost (or this device never had it): give them a new one.
+async function resetCrewPin(userId) {
+  const u = byId(S.cache.users, userId); if (!u) return;
+  if (!Sync.info().authed) return toast('Sign in online first (needs a live connection)');
+  if (!confirm(`Give ${u.name} a new PIN? Their old PIN stops working.`)) return;
+  let pin; do { pin = String(Math.floor(Math.random() * 10000)).padStart(4, '0'); } while (pin === '0000');
+  try { await Sync.setPin(userId, pin); } catch (e) { return toast('Could not reset — check you are online'); }
+  credSet(userId, pin); toast(`${u.name}: new PIN ${pin}`); rerender();
 }
 function viewCrewPins() {
   const users = [...(S.cache.users || [])].filter((u) => u.role === 'driver' || u.role === 'conductor')
     .sort((a, b) => a.role.localeCompare(b.role) || a.name.localeCompare(b.name));
   const busOf = (u) => { if (u.role === 'driver') { const d = (S.cache.drivers || []).find((x) => x.userId === u.id); return d ? busName(d.busId) : ''; } const b = busForConductor(u.id); return b ? b.regNo : ''; };
-  let body = `<div class="card"><div class="tiny muted">App login PINs for drivers &amp; conductors (stored on this device). Every driver &amp; conductor PIN is <b>0000</b> — they should change it after first login in Me → Change PIN.</div>
+  let body = `<div class="card"><div class="tiny muted">App login PINs for drivers &amp; conductors. Each person has their <b>own</b> PIN. This list shows the PINs this phone was given when the logins were activated; if a PIN is missing or lost, tap <b>New PIN</b>. Read each PIN only to that person.</div>
     <button class="btn primary" data-act="makeCrewLogins" style="margin-top:10px">👥 Create missing logins &amp; PINs</button>
     <button class="btn" data-act="activateCrewServer" style="margin-top:8px">🔐 Activate crew server logins</button>
-    <div class="tiny muted" style="margin-top:6px">Activation registers each crew member on the server so their check-ins, trips &amp; work carry a verified identity (not just a shared 0000). Runs once automatically; use this if any crew still can't sync.</div></div>`;
+    <div class="tiny muted" style="margin-top:6px">Activation registers each crew member on the server with their own PIN, so their check-ins, trips &amp; work carry a verified identity. It runs once automatically; use it after adding crew, or if any crew still can't sign in.</div></div>`;
   body += `<input id="cp-search" class="searchbox" placeholder="Search name, role or bus…" autocomplete="off">`;
   body += `<div class="card listwrap" id="cp-list"><h3>Drivers &amp; conductors (${users.length})</h3>`;
   body += users.length ? users.map((u) => `<div class="li"><div class="ava">${ROLE_META[u.role][0]}</div>
     <div class="main"><div class="t">${esc(u.name)}</div><div class="s">${u.role}${busOf(u) ? ' · ' + esc(busOf(u)) : ''}</div></div>
-    <span class="badge b-low" style="font-size:14px;letter-spacing:1px">${esc(credGet(u.id) || '— set —')}</span></div>`).join('') : `<div class="empty">No driver/conductor logins yet — tap “Create missing logins”.</div>`;
+    <span class="badge b-low" style="font-size:14px;letter-spacing:1px">${esc(credGet(u.id) || '—')}</span>
+    <button class="btn sm ghost" data-act="resetCrewPin" data-user="${esc(u.id)}" style="width:auto;margin-left:6px">New PIN</button></div>`).join('') : `<div class="empty">No driver/conductor logins yet — tap “Create missing logins”.</div>`;
   body += `</div>`;
   shell('Crew logins & PINs', body);
   attachSearch('cp-search', 'cp-list');
@@ -7448,7 +7491,7 @@ function progressRing(pct, animate) {
   return `<svg class="ring-svg" width="76" height="76" viewBox="0 0 76 76">
     <circle cx="38" cy="38" r="${r}" fill="none" stroke="var(--line,#e6e9f0)" stroke-width="7"/>
     <circle class="fg" cx="38" cy="38" r="${r}" fill="none" stroke="${col}" stroke-width="7" stroke-linecap="round"
-      stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${(animate ? c : off).toFixed(1)}" data-off="${off.toFixed(1)}" transform="rotate(-90 38 38)"/>
+      stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${(animate ? c : off).toFixed(1)}" data-off="${esc(off.toFixed(1))}" transform="rotate(-90 38 38)"/>
     <text x="38" y="44" text-anchor="middle" font-size="16" font-weight="800" fill="var(--ink,#161922)">${Math.round(p)}%</text></svg>`;
 }
 function viewDriverDocs(driverId) {
@@ -7471,7 +7514,7 @@ function viewDriverDocs(driverId) {
     const numMask = numOnly ? esc(doc.mask ? maskAadhaar(cur.number) : cur.number) : '';
     const stat = has ? (exp ? (expSoon ? `<span style="color:#f59e0b">${t('cbExpiresWord')} ${fmtDate(cur.expiry)}</span>` : t('cbValid')) : (num || t('cbOnFile')))
       : numOnly ? `${numMask}<br><span style="color:#f59e0b">${t('cbPhotoNeeded')}</span>` : (mand ? t('cbRequired') : t('cbAddWord'));
-    return `<div class="doccard ${cls}" data-act="driverDoc" data-driver="${d.id}" data-key="${doc.key}" style="animation-delay:${Math.min(i, 8) * 0.05}s">
+    return `<div class="doccard ${cls}" data-act="driverDoc" data-driver="${esc(d.id)}" data-key="${esc(doc.key)}" style="animation-delay:${Math.min(i, 8) * 0.05}s">
       ${has ? '<div class="dtick">✅</div>' : ''}
       <div class="dicon">${doc.icon}</div>
       <div class="dname">${esc(docLabel(doc))}</div>
@@ -7491,11 +7534,11 @@ let _docShot = null, _docShotBack = null, _docNumCur = '';
  * Filled, the photo IS the control: tapping it opens it full-size, which is what
  * tapping a photo should do, and a small Retake pill handles the other case. */
 function docShotSlot(side, src, sideLabel, want) {
-  const act = src ? `data-act="viewPhoto" data-src="${esc(src)}"` : `data-act="captureDoc" data-side="${side}"`;
+  const act = src ? `data-act="viewPhoto" data-src="${esc(src)}"` : `data-act="captureDoc" data-side="${esc(side)}"`;
   return `<div class="shot ${src ? 'filled' : (want ? 'want' : '')}" ${act}>
     ${src ? `<img src="${esc(src)}" alt="${esc(sideLabel)}">
         <div class="tick">✓</div>
-        <button class="redo" data-act="captureDoc" data-side="${side}">${esc(t('cbRetake'))}</button>`
+        <button class="redo" data-act="captureDoc" data-side="${esc(side)}">${esc(t('cbRetake'))}</button>`
       : `<div class="ph"><div class="ic">📷</div><div class="tx">${esc(t('cbTapToAdd'))}</div></div>`}
     <div class="side">${esc(sideLabel)}</div></div>`;
 }
@@ -7520,7 +7563,7 @@ function sheetDriverDoc(driverId, key) {
       ${masked ? `<div class="btnrow" style="margin:-4px 0 10px"><button class="btn sm ghost" data-act="revealDocNum">👁 ${t('cbShowFull')}</button><button class="btn sm ghost" data-act="editDocNum">✏️ ${t('cbChangeWord')}</button></div>`
         : `<button class="btn sm ghost" data-act="scanDocNum" style="margin:-4px 0 10px">📷 ${t('cbScanNumber')}</button>`}` : ''}
     ${doc.expiry ? `<label class="field"><span class="lbl">📅 ${t('cbExpiryDate')}</span><input id="doc-exp" type="date" value="${cur.expiry ? new Date(cur.expiry).toISOString().slice(0, 10) : ''}"></label>` : ''}
-    <button class="btn primary" data-act="saveDriverDoc" data-driver="${driverId}" data-key="${key}">${t('cbSaveDoc')}</button>`);
+    <button class="btn primary" data-act="saveDriverDoc" data-driver="${esc(driverId)}" data-key="${esc(key)}">${t('cbSaveDoc')}</button>`);
 }
 function docShotsHtml(doc) {
   return docShotSlot('front', _docShot, t(doc.back ? 'cbFrontSide' : 'cbDocumentWord'), !_docShot)
@@ -7617,7 +7660,7 @@ function crewLi(d) {
   // enough to search on, and the mask is what gets rendered.
   const hay = `${d.name} ${d.phone || ''} ${crewLicenceNo(d)} ${_digits(crewAadhaarNo(d)).slice(-4)} ${bus} ${crewRoleLabel(role)}`;
   const sub = [d.phone || t('cbNoPhone'), bus || t('cbNoBus'), crewLicenceNo(d)].filter(Boolean).join(' · ');
-  return `<div class="li" data-driver="${d.id}" data-hay="${esc(hay)}" style="${left ? 'opacity:.62' : ''}">
+  return `<div class="li" data-driver="${esc(d.id)}" data-hay="${esc(hay)}" style="${left ? 'opacity:.62' : ''}">
     <div class="ava">${d.photo ? `<img src="${esc(d.photo)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:14px">` : meta[0]}</div>
     <div class="main"><div class="t">${esc(d.name)} <span class="tiny muted">${esc(crewRoleLabel(role))}</span></div>
       <div class="s">${esc(sub)}</div></div>
@@ -7629,7 +7672,7 @@ function renderCrewList() {
   const counts = {}; CREW_FILTERS.forEach(([v]) => { counts[v] = all.filter((d) => crewMatchesFilter(d, v)).length; });
   const chips = document.getElementById('crew-chips');
   if (chips) chips.innerHTML = CREW_FILTERS
-    .map(([v, key, icon]) => `<button class="chip ${_crewFilter === v ? 'active' : ''}" data-act="crewFilter" data-v="${v}">${icon} ${esc(t(key))} ${counts[v]}</button>`).join('');
+    .map(([v, key, icon]) => `<button class="chip ${_crewFilter === v ? 'active' : ''}" data-act="crewFilter" data-v="${esc(v)}">${icon} ${esc(t(key))} ${counts[v]}</button>`).join('');
   const q = ((document.getElementById('crew-search') || {}).value || '').trim().toLowerCase();
   const list = all.filter((d) => crewMatchesFilter(d, _crewFilter)
     && (!q || `${d.name} ${d.phone || ''} ${crewLicenceNo(d)} ${_digits(crewAadhaarNo(d)).slice(-4)} ${busName(d.busId)}`.toLowerCase().includes(q)));
@@ -7675,7 +7718,7 @@ function sheetAddCrew(role) {
   const today = new Date().toISOString().slice(0, 10);
   openSheet(t('cbNewJoining'), `
     <div class="chiprow" id="crew-role-chips">${Object.keys(CREW_ROLE_META).map((r) =>
-      `<button class="chip ${_crewNewRole === r ? 'active' : ''}" data-act="crewRolePick" data-v="${r}">${CREW_ROLE_META[r][0]} ${esc(crewRoleLabel(r))}</button>`).join('')}</div>
+      `<button class="chip ${_crewNewRole === r ? 'active' : ''}" data-act="crewRolePick" data-v="${esc(r)}">${CREW_ROLE_META[r][0]} ${esc(crewRoleLabel(r))}</button>`).join('')}</div>
     <button class="btn" data-act="crewPhoto">📷 ${t('cbTakePhoto')}</button>
     <div id="crew-prev" class="thumbs" style="margin:10px 0"></div>
     <label class="field"><span class="lbl">${t('cbFullName')} *</span><input id="c-name" placeholder="${esc(t('cbNamePh'))}"></label>
@@ -7819,7 +7862,7 @@ function sheetCrewDuplicate(dups) {
         <div class="s">${esc(crewRoleLabel(crewRoleOf(d)))} · ${t(CREW_STATUS_KEY[st])} · ${esc(on.join(', '))}</div>
         ${why ? `<div class="tiny" style="color:#ef4444">${esc(why)}</div>` : ''}
         ${st === 'left' && d.rehire ? `<div class="tiny" style="color:#ef4444">${t('cbDupRehire')}: ${esc(t(REHIRE_KEY[d.rehire] || 'cbRehireMaybe'))}</div>` : ''}</div>
-      <button class="btn sm" data-act="crewReuse" data-driver="${d.id}" style="width:auto">${t('cbDupReuse')}</button></div>`;
+      <button class="btn sm" data-act="crewReuse" data-driver="${esc(d.id)}" style="width:auto">${t('cbDupReuse')}</button></div>`;
   }).join('');
   openSheet('⚠️ ' + t('cbDupTitle'), `
     <div class="tiny muted" style="margin-bottom:12px">${t('cbDupSheetHint')}</div>
@@ -7894,7 +7937,7 @@ function sheetCrewProfile(id) {
       <label class="field"><span class="lbl">${t('cbRefName')}</span><input id="e-ref" value="${esc(d.refName || '')}"></label>
       <label class="field"><span class="lbl">${t('cbRefPhone')}</span><input id="e-refph" inputmode="tel" value="${esc(d.refPhone || '')}"></label>
     </div>
-    <button class="btn primary" data-act="saveCrewProfile" data-driver="${d.id}">${t('save')}</button>`);
+    <button class="btn primary" data-act="saveCrewProfile" data-driver="${esc(d.id)}">${t('save')}</button>`);
 }
 
 async function saveCrewProfile(id) {
@@ -7943,7 +7986,7 @@ function sheetCrewExit(id) {
     <label class="field"><span class="lbl">${t('cbNote')}</span><input id="x-note" placeholder="${esc(t('cbOptional'))}"></label>
     <label class="field"><span class="lbl">${t('cbRehireQ')}</span><select id="x-rehire">
       <option value="yes">${esc(t('cbRehireYes'))}</option><option value="maybe">${esc(t('cbRehireMaybe'))}</option><option value="no">${esc(t('cbRehireNo'))}</option></select></label>
-    <button class="btn primary" data-act="saveCrewExit" data-driver="${d.id}">${t('cbMarkLeftBtn')}</button>`);
+    <button class="btn primary" data-act="saveCrewExit" data-driver="${esc(d.id)}">${t('cbMarkLeftBtn')}</button>`);
 }
 
 async function saveCrewExit(id) {
@@ -8209,7 +8252,7 @@ function sheetAssignBus(driverId) {
   const d = driverById(driverId), buses = S.cache.buses;
   openSheet('Assign bus', `<label class="field"><span class="lbl">Bus for ${esc(d.name)}</span>
     <select id="f-abus"><option value="">— unassigned —</option>${buses.map((b) => `<option value="${b.id}" ${b.id === d.busId ? 'selected' : ''}>${esc(b.regNo)}</option>`).join('')}</select></label>
-    <button class="btn primary" data-act="saveAssignBus" data-driver="${driverId}">Save</button>`);
+    <button class="btn primary" data-act="saveAssignBus" data-driver="${esc(driverId)}">Save</button>`);
 }
 async function saveAssignBus(driverId) {
   const d = driverById(driverId); const busId = $('#f-abus').value || null;
@@ -8226,7 +8269,7 @@ function sheetAssignDriverToBus(busId, role) {
   const cur = seat === 'conductor' ? conductorOfBus(busId) : driverOfBus(busId);
   openSheet(t(seat === 'conductor' ? 'asAssignConductor' : 'asAssignDriver'), `<label class="field"><span class="lbl">${esc(crewRoleLabel(seat))} — ${t('asForThisBus')}</span>
     <select id="f-adrv"><option value="">${esc(t('asNone'))}</option>${ds.map((d) => `<option value="${d.id}" ${cur && cur.id === d.id ? 'selected' : ''}>${esc(d.name)}</option>`).join('')}</select></label>
-    <button class="btn primary" data-act="saveAssignDriver" data-bus="${busId}" data-role="${seat}">${t('save')}</button>`);
+    <button class="btn primary" data-act="saveAssignDriver" data-bus="${esc(busId)}" data-role="${esc(seat)}">${t('save')}</button>`);
 }
 async function saveAssignDriver(busId, role) {
   const seat = role === 'conductor' ? 'conductor' : 'driver';
@@ -8247,7 +8290,7 @@ function sheetIncident(driverId) {
     <label class="field"><span class="lbl">Repair cost (₹, optional)</span><input id="f-icost" type="number" inputmode="numeric"></label>
     <div id="f-iphoto"></div><button class="btn" data-act="incidentPhoto">📷 Add photo</button>
     <div class="spacer"></div>
-    <button class="btn primary" data-act="saveIncident" data-driver="${driverId}">Save</button>`);
+    <button class="btn primary" data-act="saveIncident" data-driver="${esc(driverId)}">Save</button>`);
 }
 async function saveIncident(driverId) {
   const d = driverById(driverId);
@@ -8271,7 +8314,7 @@ let _reportPhoto = '';
 function sheetTripReport(busId, driverId) {
   const bus = byId(S.cache.buses, busId);
   _reportPhoto = '';
-  const tiles = REPORT_CATS.map((c, i) => `<button type="button" class="cat-tile${i === 0 ? ' on' : ''}" data-act="pickReportCat" data-cat="${c.val}">
+  const tiles = REPORT_CATS.map((c, i) => `<button type="button" class="cat-tile${i === 0 ? ' on' : ''}" data-act="pickReportCat" data-cat="${esc(c.val)}">
       <span class="cat-ic">${c.icon}</span><span class="cat-lb">${t(c.key)}</span></button>`).join('');
   openSheet(t('reportProblem'), `
     ${bus ? `<div class="small muted" style="margin-bottom:10px">${t('myBus')}: <b>${esc(bus.regNo)}</b></div>` : `<div class="banner warn">${t('noBusAssigned')}</div>`}
@@ -8286,7 +8329,7 @@ function sheetTripReport(busId, driverId) {
     <div id="f-rphoto" style="margin-top:8px"></div>
     <div class="tiny muted" style="margin-top:6px">${t('drvAttachHint')}</div>
     <div class="spacer"></div>
-    <button class="btn primary" data-act="saveReport" data-bus="${busId}" data-driver="${driverId || ''}">${t('submit')}</button>`);
+    <button class="btn primary" data-act="saveReport" data-bus="${esc(busId)}" data-driver="${esc(driverId || '')}">${t('submit')}</button>`);
 }
 // Single-select highlight for the category tiles → writes the stable English
 // value into the hidden #f-rcat field that saveReport reads.
@@ -8478,7 +8521,7 @@ function viewRoutes() {
   let body = '';
   if (risks.length) {
     body += `<div class="card" style="border:1.5px solid var(--amber)"><div class="row between"><h3>⚠️ Pickups at risk now</h3><span class="badge b-amber">${risks.length}</span></div>`;
-    body += risks.map((r) => `<div class="li" data-routebus="${r.bus.id}"><div class="ava">🚍</div>
+    body += risks.map((r) => `<div class="li" data-routebus="${esc(r.bus.id)}"><div class="ava">🚍</div>
       <div class="main"><div class="t">${esc(busName(r.bus.id))} → ${esc(r.stop.name)}</div>
       <div class="s">due ${minToHhmm(r.sched)}${r.etaMin != null ? ' · ETA ' + minToHhmm(r.etaMin) : ''}${r.reason ? ' · ' + r.reason : ''}</div></div>
       <span class="badge b-amber">late risk</span></div>`).join('');
@@ -8488,7 +8531,7 @@ function viewRoutes() {
   body += `<div class="card"><h3>Buses</h3>`;
   body += buses.length ? buses.map((b) => {
     const r = routeForBus(b.id); const n = r ? (r.stops || []).length : 0;
-    return `<div class="li" data-routebus="${b.id}"><div class="ava">🚌</div>
+    return `<div class="li" data-routebus="${esc(b.id)}"><div class="ava">🚌</div>
       <div class="main"><div class="t">${esc(b.regNo)}</div>
       <div class="s">${n ? n + ' stop' + (n > 1 ? 's' : '') : 'No route yet — tap to set up'}</div></div>
       ${n ? `<span class="tiny" style="color:var(--brand2)">view ›</span>` : `<span class="badge b-amber">set up</span>`}</div>`;
@@ -8500,7 +8543,7 @@ function viewRouteDetail(busId) {
   const bus = byId(S.cache.buses, busId); if (!bus) return viewRoutes();
   const route = routeForBus(busId);
   let body = `<div class="card"><div class="row between"><h3>${esc(bus.regNo)}</h3>
-    <button class="btn sm" data-act="addStop" data-routebus="${busId}">+ Stop</button></div>
+    <button class="btn sm" data-act="addStop" data-routebus="${esc(busId)}">+ Stop</button></div>
     <div class="tiny muted">Stops in order. Leave the time blank to auto-learn it from GPS arrivals. The depot is your garage location.</div></div>`;
   const stops = route ? (route.stops || []) : [];
   if (!stops.length) {
@@ -8510,7 +8553,7 @@ function viewRouteDetail(busId) {
     body += stops.map((s, i) => {
       const sched = stopSched(s); const learned = hhmmToMin(s.schedTime) == null && sched != null;
       const p = stopPunctuality(s);
-      return `<div class="li" data-act="editStop" data-routebus="${busId}" data-stop="${s.id}" style="cursor:pointer">
+      return `<div class="li" data-act="editStop" data-routebus="${esc(busId)}" data-stop="${esc(s.id)}" style="cursor:pointer">
         <div class="ava">${i === 0 ? '①' : i + 1}</div>
         <div class="main"><div class="t">${esc(s.name)}</div>
           <div class="s">go ${sched != null ? minToHhmm(sched) : '—'}${learned ? ' (learned)' : ''} · on-time ${p.onTime == null ? '—' : p.onTime + '%'}${p.avgLate ? ' · avg +' + p.avgLate + 'm' : ''} · ${p.n} day(s)</div></div>
@@ -8538,8 +8581,8 @@ function sheetAddStop(busId, stopId) {
       <label class="field"><span class="lbl">Radius (m)</span><input id="f-stopradius" type="number" inputmode="numeric" min="10" value="${cur && cur.radiusM || 150}"></label>
       <label class="field"><span class="lbl">Go-time (HH:MM, blank = auto-learn)</span><input id="f-stoptime" value="${esc(cur && cur.schedTime || '')}" placeholder="06:45"></label>
     </div>
-    <button class="btn primary" data-act="saveStop" data-routebus="${busId}">${t('save')}</button>
-    ${cur ? `<div class="spacer"></div><button class="btn" data-act="delStop" data-routebus="${busId}" data-stop="${cur.id}" style="color:var(--red)">🗑 Remove stop</button>` : ''}`);
+    <button class="btn primary" data-act="saveStop" data-routebus="${esc(busId)}">${t('save')}</button>
+    ${cur ? `<div class="spacer"></div><button class="btn" data-act="delStop" data-routebus="${esc(busId)}" data-stop="${esc(cur.id)}" style="color:var(--red)">🗑 Remove stop</button>` : ''}`);
 }
 async function captureStopLocation() {
   toast('Getting location…');
@@ -8758,10 +8801,10 @@ function computeInsights() {
 function insightCard(i) {
   const c = i.sev === 'high' ? 'b-red' : i.sev === 'med' ? 'b-amber' : 'b-low';
   const nav = i.nav ? (i.nav.name === 'components' && i.nav.id
-    ? `data-act="openComp" data-id="${i.nav.id}"`
+    ? `data-act="openComp" data-id="${esc(i.nav.id)}"`
     : i.nav.id
-    ? `data-${i.nav.name === 'jobs' ? 'job' : i.nav.name === 'buses' ? 'bus' : i.nav.name === 'drivers' ? 'driver' : 'part'}="${i.nav.id}"`
-    : `data-nav="${i.nav.name}"`) : '';
+    ? `data-${i.nav.name === 'jobs' ? 'job' : i.nav.name === 'buses' ? 'bus' : i.nav.name === 'drivers' ? 'driver' : 'part'}="${esc(i.nav.id)}"`
+    : `data-nav="${esc(i.nav.name)}"`) : '';
   return `<div class="card insight" ${nav}>
     <div class="row" style="gap:11px;align-items:flex-start">
       <div class="ins-ic">${i.icon}</div>
@@ -9139,6 +9182,7 @@ const _dispatchClick = async (e) => {
       case 'openCrewPins': return push({ name: 'crewpins' });
       case 'makeCrewLogins': return makeCrewLogins();
       case 'activateCrewServer': return activateCrewServer();
+      case 'resetCrewPin': return resetCrewPin(el.dataset.user);
       case 'openAccounting': return push({ name: 'accounting' });
       case 'openBusAcct': return push({ name: 'busacct', id: el.getAttribute('data-id') });
       case 'startTrip': return sheetStartTrip(el.getAttribute('data-driver'));
@@ -9315,7 +9359,14 @@ const _dispatchClick = async (e) => {
       case 'startFresh': return startFresh();
       case 'changePin': return sheetChangePin();
       case 'saveChangePin': return saveChangePin();
-      case 'saveSyncUrl': { Sync.setUrl($('#f-syncurl').value.trim()); const k = $('#f-aikey'); if (k) localStorage.setItem('aiKey', k.value.trim()); closeSheet(); toast('Saved'); return; }
+      case 'saveSyncUrl': {
+        // Where this device sends every later PIN and session. Only the people who
+        // run the garage may change it, and only to a real server address.
+        if (!canSetServer()) return toast('Only the owner or a supervisor can change the server');
+        const u = $('#f-syncurl').value.trim();
+        if (!Sync.setUrl(u)) return toast('Use an https:// address (http only on this Wi-Fi)');
+        const k = $('#f-aikey'); if (k) localStorage.setItem('aiKey', k.value.trim()); closeSheet(); toast('Saved'); return;
+      }
 
       case 'closeSheet': return closeSheet();
       case 'logout': {
@@ -9464,12 +9515,12 @@ function renderLogin() {
     <h1 style="margin:0">${esc(BIZ)}</h1>
     <div class="muted small">${t('appName')} · ${t('tagline')}</div>
     ${recent.length ? `<div class="muted small" style="margin-top:16px">${t('recentHere')}</div>
-      <div class="userpick">${recent.map((u) => `<div class="u" data-recent="${u.id}">
+      <div class="userpick">${recent.map((u) => `<div class="u" data-recent="${esc(u.id)}">
         ${userPhoto(u) ? `<img class="ava" style="margin:0 auto 6px" src="${esc(userPhoto(u))}" alt="">` : `<div style="font-size:22px">${ROLE_META[u.role] ? ROLE_META[u.role][0] : '👤'}</div>`}
         <div style="font-weight:700;font-size:14px">${esc(u.name.split(' ')[0])}</div>
         <div class="tiny muted">${ROLE_META[u.role] ? ROLE_META[u.role][1] : esc(u.role)}</div></div>`).join('')}</div>` : ''}
     <div class="muted small" style="margin-top:18px">${t('whoAreYou')}</div>
-    <div class="userpick">${roles.map((r) => `<div class="u" data-role="${r}">
+    <div class="userpick">${roles.map((r) => `<div class="u" data-role="${esc(r)}">
       <div style="font-size:22px">${ROLE_META[r][0]}</div>
       <div style="font-weight:700;font-size:14px">${ROLE_META[r][1]}</div>
       <div class="tiny muted">${counts[r]} ${counts[r] > 1 ? 'people' : 'person'}</div></div>`).join('')}</div>
@@ -9507,7 +9558,7 @@ function renderRolePick(role) {
     // account id is shown under it; it is the only thing that differs.
     const shared = {};
     list.forEach((u) => { const k = _nameKey(u.name); shared[k] = (shared[k] || 0) + 1; });
-    el.innerHTML = f.length ? f.map((u) => `<div class="u" data-login="${u.id}">
+    el.innerHTML = f.length ? f.map((u) => `<div class="u" data-login="${esc(u.id)}">
       <div style="font-size:20px">${ROLE_META[role][0]}</div>
       <div style="font-weight:700;font-size:14px">${esc(u.name)}</div>
       ${shared[_nameKey(u.name)] > 1 ? `<div class="tiny muted" style="letter-spacing:.3px">${esc(u.id)}</div>` : ''}</div>`).join('') : `<div class="muted small">No match</div>`;
@@ -9557,7 +9608,7 @@ function renderPin(user) {
       <div class="muted small">${t('enterPin')}</div>
       <div class="pindots">${'●'.repeat(_pin.length)}${'○'.repeat(Math.max(0,4-_pin.length))}</div>
       <div class="pinpad">
-        ${[1,2,3,4,5,6,7,8,9].map((n) => `<button data-k="${n}">${n}</button>`).join('')}
+        ${[1,2,3,4,5,6,7,8,9].map((n) => `<button data-k="${esc(n)}">${n}</button>`).join('')}
         <button data-k="back">⌫</button><button data-k="0">0</button><button data-k="ok">✓</button>
       </div>
       <button class="btn ghost sm" data-k="cancel" style="margin-top:14px">${t('cancel')}</button>
@@ -9643,6 +9694,19 @@ async function seedFill(store, rows) {
   return fresh.length;
 }
 
+// The old shared crew PIN was planted on every device by the bundle. It no longer
+// signs anyone in, so a copy left behind only makes the PIN list show a PIN that
+// does not work. Drop every cached copy of it, once.
+function dropSharedCrewPin() {
+  try {
+    if (localStorage.getItem('gsSharedPinDropped_v1')) return;
+    const m = JSON.parse(localStorage.getItem('creds') || '{}');
+    Object.keys(m).forEach((id) => { if (m[id] === '0000') delete m[id]; });
+    localStorage.setItem('creds', JSON.stringify(m));
+    localStorage.setItem('gsSharedPinDropped_v1', String(Date.now()));
+  } catch (e) { /* ignore */ }
+}
+
 async function applyBundledSeed() {
   // Cheap check first: if this device is already on the current seed version
   // there is nothing to do, and the 541 KB never needs fetching at all.
@@ -9660,9 +9724,6 @@ async function applyBundledSeed() {
     await seedFill('buses', seed.buses);
     await seedFill('drivers', seed.drivers);
     await seedFill('users', seed.users);
-    // Overwrite so a PIN reset (e.g. everyone → 0000) reaches devices on the next
-    // version. Only crew (driver/conductor) ids are in seed.creds.
-    if (seed.creds) Object.keys(seed.creds).forEach((id) => credSet(id, seed.creds[id]));
     localStorage.setItem('gsSeedVer', ver);
   } catch (e) { console.error('Bundled seed failed:', e); }
 }
@@ -9716,8 +9777,10 @@ async function applyDriveDocs() {
     const folders = D.docFolders || {}, docs = D.busDocs || {}, upd = [];
     buses.filter((b) => b.source !== 'drive-doc').forEach((b) => {
       const nr = _normReg(b.regNo), legacy = _regIdKey(b.regNo); let ch = false;
+      // The folder ids left the public bundle. Absent here means "not shipped",
+      // not "unlinked", so an existing link is kept.
       const fid = folders[nr] || folders[legacy] || null;
-      if (b.docsFolderId !== fid) { b.docsFolderId = fid; ch = true; }
+      if (fid && b.docsFolderId !== fid) { b.docsFolderId = fid; ch = true; }
       const dk = docs[nr] ? nr : (docs[legacy] ? legacy : null);
       if (dk) { b.docs = docs[dk].map((x) => ({ type: x.type, number: x.number || '', expiry: x.expiry ? new Date(x.expiry + 'T00:00:00').getTime() : null })); ch = true; }
       if (ch) upd.push(b);
@@ -9766,10 +9829,13 @@ async function attemptLogin(user, pin, redraw) {
   // rotated credential keeps working on every phone that ever used the old one.
   if (r && r.rejected && r.known) {
     credClear(user.id);
+    // A retired PIN (the old shared crew PIN, or a demo PIN from the source) is
+    // the right PIN, not a guess: say what to do instead of "wrong PIN".
+    if (r.reason === 'default_pin' || r.reason === 'demo_pin') { toast(t('pinRetired')); _pin = ''; return redraw(); }
     offlineFail(user.id);
     toast(t('wrongPin')); _pin = ''; return redraw();
   }
-  if (credGet(user.id) === pin) { offlineClear(user.id); return enterApp(user); }
+  if (pin !== '0000' && credGet(user.id) === pin) { offlineClear(user.id); return enterApp(user); }
   // Server was UNREACHABLE (cold start / no internet) and we have no saved PIN
   // for this account on this device — we genuinely can't verify. This is NOT a
   // wrong PIN, so don't say so and don't count it as a brute-force attempt
@@ -9779,7 +9845,7 @@ async function attemptLogin(user, pin, redraw) {
   offlineFail(user.id);
   toast(t('wrongPin')); _pin = ''; redraw();
 }
-function enterApp(user) { pushRecent(user.id); S.user = user; maybeAutoActivateCrew(user); maybeBackfillConductors(user); reconcileStaffNames(user); route({ name: 'home' }); }
+function enterApp(user) { pushRecent(user.id); S.user = user; maybeAutoActivateCrew(user); maybeBackfillContacts(user); maybeBackfillConductors(user); reconcileStaffNames(user); route({ name: 'home' }); }
 
 /* "Recent on this phone" — remembers who has signed in on THIS device so a
  * personal phone can skip role→name and go straight to the PIN pad. Just ids in
@@ -9797,6 +9863,7 @@ function userPhoto(u) { const d = crewForUser(u.id); return (d && d.photo) || nu
   try {
   await seedIfEmpty(isDemoMode());   // production seeds roster+config only, never demo buses/jobs
   seedCreds();
+  dropSharedCrewPin();
   await applyBundledSeed();           // load the real fleet/parts/vendors/crew from the bundled data
   await applyDriveDocs();             // link buses to their Google Drive document folders
   // Before the login screen is drawn, not after signing in — the name on the

@@ -56,7 +56,8 @@ Content-Type: application/json
 
 ### `GET /gps/latest?reg=RJ14%20PA%201023`  (your self-test)
 Returns the last telemetry we stored for a registration, so you can confirm a push landed.
-`200` with the record, or `404` if none yet.
+Send the same `Authorization: Bearer <token>` header you use for ingest.
+`200` with the record, `404` if none yet, or `401` without the header.
 
 ---
 
