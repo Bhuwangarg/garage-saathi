@@ -213,6 +213,12 @@ def _vapid_pem_path():
 # clear 413 from us instead of an opaque platform error the app cannot explain.
 _ON_VERCEL = bool(os.environ.get("VERCEL"))
 MAX_UPLOAD_BYTES = int(os.environ.get("MAX_UPLOAD_MB", "4" if _ON_VERCEL else "8")) * 1024 * 1024
+# Any request body. Photos arrive as base64 inside JSON, so allow the upload cap
+# plus that encoding's overhead, and never less than a large sync batch needs.
+MAX_REQUEST_BYTES = max(MAX_UPLOAD_BYTES * 4 // 3 + 64 * 1024, 6 * 1024 * 1024)
+# Records in one /push. The app sends at most 250 and a restore 200; one request
+# holds the server's write lock for its whole batch.
+MAX_PUSH_RECORDS = int(os.environ.get("MAX_PUSH_RECORDS", "1000"))
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "").strip()
 
 # Login brute-force protection: lock a user (and the source IP) after too many
@@ -227,6 +233,9 @@ MAX_IP_FAILS = int(os.environ.get("MAX_IP_FAILS", "50"))
 # would take about a week of uninterrupted attack, so this still makes the PIN
 # a credential while no longer stranding a storekeeper who fat-fingered it.
 LOCK_WINDOW = int(os.environ.get("LOGIN_LOCK_SEC", "300"))     # 5 min
+# How many reverse proxies sit in front of a standalone server (0 = none: use the
+# socket address). Ignored on Vercel, which supplies the client address itself.
+TRUSTED_PROXY_HOPS = int(os.environ.get("TRUSTED_PROXY_HOPS", "0"))
 
 # Mirrors the client seed so the same demo PINs work against the server.
 SEED_USERS = [
@@ -337,8 +346,13 @@ _CTYPES = {
 }
 # Only these are ever served. An allow-list, so a stray file at the repo root can
 # never be published by accident — sync.db and the VAPID key live here too.
-_STATIC_OK = {".html", ".js", ".css", ".json", ".webmanifest", ".svg", ".png",
-              ".jpg", ".jpeg", ".ico", ".woff2", ".map"}
+_STATIC_OK = {".html", ".js", ".css", ".webmanifest", ".svg", ".png",
+              ".jpg", ".jpeg", ".ico", ".woff2"}
+# `.json` used to be on the list, and crew-removal backups (real Aadhaar and
+# licence numbers) are .json files written into this same folder — a standalone
+# server served them to anyone who guessed the timestamped name. The app loads no
+# .json. Tooling and platform folders, and dot-files, are never served either.
+_STATIC_DENY_DIRS = {"scripts", "mobile", "api", "uploads", "__pycache__", "node_modules"}
 
 
 def _redact(msg):
@@ -462,6 +476,18 @@ def db():
         # PINs are 4 digits and every crew account ships with 0000.
         c.execute("""CREATE TABLE IF NOT EXISTS loginfails(k TEXT, at BIGINT)""")
         c.execute("""CREATE INDEX IF NOT EXISTS loginfails_k ON loginfails(k)""")
+        # One id per login attempt, so a successful attempt can remove exactly the
+        # row it added (many attempts land in the same second).
+        # Commit first: on Postgres a failing ALTER (column already there) makes
+        # the connection reconnect, which would drop anything not yet committed.
+        try:
+            c.commit()
+        except Exception:
+            pass
+        try:
+            c.execute("ALTER TABLE loginfails ADD COLUMN nonce TEXT")
+        except Exception:
+            pass
         # Logins switched off because the crew record says the person left or was
         # archived. Kept apart from `users` so a rehire only has to remove the row.
         c.execute("""CREATE TABLE IF NOT EXISTS disabledlogins(id TEXT PRIMARY KEY, at BIGINT)""")
@@ -604,43 +630,65 @@ def purge_demo_users():
 
 
 # ----------------------------- auth helpers --------------------------------
-def locked_for(uid, ip):
-    """Seconds remaining if the user (strict) or IP (generous) is locked, else 0.
+def client_ip(handler):
+    """The caller's address, from a source the caller cannot choose.
 
-    Stored in the database rather than memory so the limit holds no matter which
-    container answers the request.
-    """
+    The first X-Forwarded-For value is whatever the client wrote, so keying the
+    per-IP backstop on it let a script present a fresh IP with every guess, or
+    pin the garage's shared IP to lock every staff member out. On Vercel the
+    platform sets x-real-ip itself. Elsewhere a proxy is trusted only when
+    TRUSTED_PROXY_HOPS says how many sit in front, and then the address is read
+    from the right-hand end, which the proxies wrote."""
+    if _ON_VERCEL:
+        ip = (handler.headers.get("x-real-ip") or "").strip()
+        if ip:
+            return ip
+    hops = TRUSTED_PROXY_HOPS
+    if hops > 0:
+        parts = [p.strip() for p in (handler.headers.get("X-Forwarded-For") or "").split(",") if p.strip()]
+        if len(parts) >= hops:
+            return parts[-hops]
+    return handler.client_address[0]
+
+
+def reserve_attempt(uid, ip, nonce=None):
+    """Count this login attempt BEFORE the PIN is checked, and refuse it if the
+    account or address is already at its limit. Returns seconds to wait, or 0.
+
+    Checking the count and recording a failure as two separate steps let a burst
+    of simultaneous requests all pass the check before any failure was written,
+    so far more than MAX_FAILS guesses were tried per window. The check and the
+    insert are now one step, and a correct PIN removes its own reservation."""
     now = int(time.time())
     cutoff = now - LOCK_WINDOW
+    ukey, ikey = "u:" + uid, "ip:" + ip
     with _lock:
         c = db()
         c.execute("DELETE FROM loginfails WHERE at < ?", (cutoff,))
-        out = 0
-        for key, limit in ((uid, MAX_FAILS), ("ip:" + ip, MAX_IP_FAILS)):
+        for key, limit in ((ukey, MAX_FAILS), (ikey, MAX_IP_FAILS)):
             rows = c.execute("SELECT at FROM loginfails WHERE k=? AND at>=? ORDER BY at ASC",
                              (key, cutoff)).fetchall()
             if len(rows) >= limit:
-                out = int(LOCK_WINDOW - (now - rows[0][0])) + 1
-                break
+                c.commit()
+                c.close()
+                return max(int(LOCK_WINDOW - (now - rows[0][0])) + 1, 1)
+        for key in (ukey, ikey):
+            c.execute("INSERT INTO loginfails(k,at,nonce) VALUES(?,?,?)", (key, now, nonce))
         c.commit()
         c.close()
-    return max(out, 0)
+    return 0
 
 
-def record_fail(uid, ip):
-    now = int(time.time())
+def release_attempt(uid, ip, nonce=None):
+    """A correct PIN: drop this account's failure history and the one reservation
+    this attempt added to the address. The rest of the address's count stays —
+    one good login used to wipe it, so a valid account reset the backstop for
+    every guess made against other accounts."""
     with _lock:
         c = db()
-        for key in (uid, "ip:" + ip):
-            c.execute("INSERT INTO loginfails(k,at) VALUES(?,?)", (key, now))
-        c.commit()
-        c.close()
-
-
-def clear_fails(uid, ip):
-    with _lock:
-        c = db()
-        c.execute("DELETE FROM loginfails WHERE k=? OR k=?", (uid, "ip:" + ip))
+        c.execute("DELETE FROM loginfails WHERE k=?", ("u:" + uid,))
+        if nonce:
+            c.execute("DELETE FROM loginfails WHERE k=? AND nonce=?", ("ip:" + ip, nonce))
         c.commit()
         c.close()
 
@@ -738,7 +786,7 @@ def do_login(user_id, pin):
             c2.close()
     except Exception:
         pass          # a login must never fail because bookkeeping did
-    return {"token": _make_token(row[0]), "user": {"id": row[0], "name": row[1], "role": row[2]}}
+    return {"token": _make_token(row[0], row[3]), "user": {"id": row[0], "name": row[1], "role": row[2]}}
 
 
 def user_exists(user_id):
@@ -756,11 +804,24 @@ def user_exists(user_id):
     return bool(row)
 
 
-def _make_token(uid):
+# Tokens issued before sessions were bound to the PIN carry the old signature.
+# They are honoured only if they expire before this moment (2026-09-17 18:00 UTC),
+# so the change logs nobody out, and after it no unbound token works at all.
+LEGACY_TOKEN_CUTOFF = 1789668000
+
+
+def _token_sig(uid, exp, salt):
+    """The signature covers the account's current PIN salt. set_pin gives the
+    account a new salt, so a PIN change or reset ends every session issued under
+    the old PIN — before, a token taken from a phone kept working for its whole
+    lifetime after the PIN it came from was changed."""
+    msg = f"{uid}.{exp}.{salt}" if salt is not None else f"{uid}.{exp}"
+    return hmac.new(_session_secret().encode(), msg.encode(), hashlib.sha256).hexdigest()
+
+
+def _make_token(uid, salt):
     exp = int(time.time() + SESSION_TTL)
-    payload = f"{uid}.{exp}"
-    sig = hmac.new(_session_secret().encode(), payload.encode(), hashlib.sha256).hexdigest()
-    return f"{payload}.{sig}"
+    return f"{uid}.{exp}.{_token_sig(uid, exp, salt)}"
 
 
 def user_for_token(token):
@@ -775,14 +836,16 @@ def user_for_token(token):
             return None
     except ValueError:
         return None
-    good = hmac.new(_session_secret().encode(), f"{uid}.{exp}".encode(), hashlib.sha256).hexdigest()
-    if not hmac.compare_digest(sig, good):
-        return None
     c = db()
-    row = c.execute("SELECT id,name,role FROM users WHERE id=? AND id NOT IN "
+    row = c.execute("SELECT id,name,role,salt FROM users WHERE id=? AND id NOT IN "
                     "(SELECT id FROM disabledlogins)", (uid,)).fetchone()
     c.close()
-    return {"id": row[0], "name": row[1], "role": row[2]} if row else None
+    if not row:
+        return None
+    if not hmac.compare_digest(sig, _token_sig(uid, exp, row[3])):
+        if int(exp) > LEGACY_TOKEN_CUTOFF or not hmac.compare_digest(sig, _token_sig(uid, exp, None)):
+            return None
+    return {"id": row[0], "name": row[1], "role": row[2]}
 
 
 def create_user(name, role, pin):
@@ -1853,9 +1916,26 @@ def _load_live_gps():
         print("gpslive load skipped:", e)
 
 
+# The push services browsers actually use. The server POSTs to whatever endpoint
+# a subscription names, so an unchecked one let any login aim the server at an
+# internal address and read, from the delivery count, whether it answered.
+_PUSH_HOSTS = re.compile(r"^(fcm\.googleapis\.com|android\.googleapis\.com|updates\.push\.services\.mozilla\.com"
+                         r"|[a-z0-9.-]+\.push\.services\.mozilla\.com|web\.push\.apple\.com"
+                         r"|[a-z0-9.-]+\.push\.apple\.com|[a-z0-9.-]+\.notify\.windows\.com)$")
+
+
+def valid_push_endpoint(ep):
+    try:
+        u = urllib.parse.urlparse(ep)
+    except Exception:
+        return False
+    return (u.scheme == "https" and not u.username and not u.password and u.port in (None, 443)
+            and bool(_PUSH_HOSTS.match((u.hostname or "").lower())))
+
+
 def save_pushsub(sub, role):
     ep = sub.get("endpoint") if isinstance(sub, dict) else None
-    if not ep:
+    if not ep or not valid_push_endpoint(ep):
         return False
     with _lock:
         c = db()
@@ -1887,9 +1967,12 @@ def send_push(title, body, url="/", roles=("owner", "supervisor")):
     for ep, sub_json, role in rows:
         if roles and role not in roles:
             continue
+        if not valid_push_endpoint(ep):          # stored before endpoints were checked
+            _del_pushsub(ep)
+            continue
         try:
             webpush(subscription_info=json.loads(sub_json), data=payload,
-                    vapid_private_key=pem, vapid_claims={"sub": VAPID_SUBJECT})
+                    vapid_private_key=pem, vapid_claims={"sub": VAPID_SUBJECT}, timeout=10)
             sent += 1
         except WebPushException as e:
             code = getattr(getattr(e, "response", None), "status_code", None)
@@ -2568,6 +2651,9 @@ def echallan_lookup(rc_no):
 
 # ------------------------------- HTTP --------------------------------------
 class Handler(BaseHTTPRequestHandler):
+    # A connection that stops sending holds a thread; do not wait on it forever.
+    timeout = 60
+
     def _send(self, code, payload=None, raw=None, ctype="application/json", cache=None):
         if raw is not None:
             body = raw
@@ -2587,16 +2673,28 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(body)
 
     def _body(self):
-        n = int(self.headers.get("Content-Length") or 0)
+        n = self._content_length() or 0
         try:
             return json.loads(self.rfile.read(n) or b"{}")
         except Exception:
             return {}
 
+    def _content_length(self):
+        """The declared body size, or None if it is unusable.
+
+        The header was trusted as given: a negative value read until the client
+        hung up (and slipped under the upload cap, since -1 is not greater than
+        it), and a huge one was buffered in full before any login was checked."""
+        try:
+            n = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            return None
+        return n if 0 <= n <= MAX_REQUEST_BYTES else None
+
     def _raw_body(self):
         """Undecoded bytes — Meta's webhook signature is computed over the exact
         payload, so it cannot be re-serialised from parsed JSON."""
-        n = int(self.headers.get("Content-Length") or 0)
+        n = self._content_length() or 0
         try:
             return self.rfile.read(n) or b""
         except Exception:
@@ -2829,6 +2927,10 @@ class Handler(BaseHTTPRequestHandler):
         ext = os.path.splitext(rel)[1].lower()
         if ext not in _STATIC_OK:
             return False
+        segs = [p for p in rel.split("/") if p]
+        if not segs or segs[0] in _STATIC_DENY_DIRS or any(p.startswith(".") for p in segs) \
+                or "backup" in segs[-1].lower():
+            return False
         full = os.path.normpath(os.path.join(APP_ROOT, rel))
         # normpath collapses .., so this rejects traversal after resolution
         # rather than trying to spot it in the raw path.
@@ -2858,12 +2960,15 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         self._boot()
         u = urlparse(self.path)
+        if self._content_length() is None:
+            self.close_connection = True
+            return self._send(413, {"error": "request body missing a valid size, or too large"})
         if u.path == "/auth/login":
             b = self._body()
             uid = b.get("userId") or ""
-            ip = (self.headers.get("X-Forwarded-For", "").split(",")[0].strip()
-                  or self.client_address[0])
-            wait = locked_for(uid, ip)
+            ip = client_ip(self)
+            attempt = uuid.uuid4().hex
+            wait = reserve_attempt(uid, ip, attempt)
             if wait:
                 return self._send(429, {"error": "too many attempts", "retryAfterSec": wait})
             refusal = login_refusal(uid, b.get("pin"))
@@ -2871,20 +2976,22 @@ class Handler(BaseHTTPRequestHandler):
                 # The right PIN for the account, but one printed in the public
                 # source. Not a failed guess, so no lockout strike; `known` makes
                 # the app drop any copy it cached instead of signing in offline.
+                release_attempt(uid, ip, attempt)
                 return self._send(403, {"error": refusal, "known": True})
             r = do_login(uid, b.get("pin"))
             if r and login_disabled(uid):
                 # Right PIN, but the crew record says this person has left.
                 # Said only after the PIN checks out, so it reveals nothing to
                 # someone guessing.
+                release_attempt(uid, ip, attempt)
                 return self._send(403, {"error": "account_disabled", "known": True})
             if not r:
-                record_fail(uid, ip)
+                # The attempt was already counted by reserve_attempt.
                 # `known` lets the client treat this rejection as final instead of
                 # falling back to a stale cached PIN. It leaks nothing: the login
                 # screen already lists every account on the roster by name and id.
                 return self._send(401, {"error": "invalid PIN", "known": user_exists(uid)})
-            clear_fails(uid, ip)
+            release_attempt(uid, ip, attempt)
             return self._send(200, r)
 
         if u.path == "/odometer/submit":
@@ -3065,6 +3172,8 @@ class Handler(BaseHTTPRequestHandler):
             if not me:
                 return self._send(401, {"error": "unauthorized"})
             recs = self._body().get("records") or []
+            if not isinstance(recs, list) or len(recs) > MAX_PUSH_RECORDS:
+                return self._send(413, {"error": "too many records in one push (max %d)" % MAX_PUSH_RECORDS})
             res = push(recs, me)
             # A single-record push that was refused still answers 403, because
             # that is the shape older clients read to decide to quarantine.
@@ -3203,14 +3312,18 @@ class Handler(BaseHTTPRequestHandler):
             if not me:
                 return self._send(401, {"error": "unauthorized"})
             b = self._body()
-            ok = save_pushsub(b.get("subscription"), b.get("role") or me["role"])
+            # Alerts are routed by role, so the role is the caller's own, not one
+            # the body names.
+            ok = save_pushsub(b.get("subscription"), me["role"])
             return self._send(200 if ok else 400, {"ok": ok})
 
         if u.path == "/push/test":                   # send a test alert to the caller's role
             me = self._auth_user()
             if not me:
                 return self._send(401, {"error": "unauthorized"})
-            n = send_push("Garage Saathi", "✅ Test alert — phone notifications are working.", "/", roles=None)
+            # To the caller's role only: a test from any login used to fire every
+            # subscription on the server.
+            n = send_push("Garage Saathi", "✅ Test alert — phone notifications are working.", "/", roles=(me["role"],))
             return self._send(200, {"ok": True, "sent": n, "webpush": _WEBPUSH})
 
         if u.path == "/gps/ingest":                  # GPS provider pushes telemetry here

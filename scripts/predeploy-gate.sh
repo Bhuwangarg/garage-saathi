@@ -42,7 +42,7 @@ if command -v node >/dev/null 2>&1; then
 fi
 
 # Serve the app.
-python3 -m http.server "$PORT" --directory "$REPO" >/dev/null 2>&1 &
+python3 -m http.server "$PORT" --bind 127.0.0.1 --directory "$REPO" >/dev/null 2>&1 &
 SRV=$!
 cleanup() { kill "$SRV" 2>/dev/null; }
 trap cleanup EXIT

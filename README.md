@@ -22,17 +22,18 @@ Also: **Hindi/English toggle**, role-based access (Owner / Supervisor / Store / 
 
 ## Run it
 
-Two small servers: one serves the app, one is the shared "cloud" for sync.
-Both use Python, already on your Mac.
+One server serves both the app and the shared "cloud" for sync. It uses Python,
+already on your Mac.
 
 ```bash
 cd garage-saathi
-python3 -m http.server 8765        # the app  (terminal 1)
-python3 sync_server.py             # sync/cloud (terminal 2)
+ENABLE_DEMO_SEED=1 python3 sync_server.py   # demo logins, local testing only
 ```
 
-- **On this computer:** open <http://localhost:8765>
-- **On your phone** (same WiFi): open `http://192.168.29.219:8765`
+- **On this computer:** open <http://localhost:8766>
+- **On your phone** (same WiFi): open `http://192.168.29.219:8766`
+- Do not use `python3 -m http.server` here: it serves every file in the folder,
+  including the database and backups.
   - In Chrome/Safari → menu → **Add to Home Screen** to install it like a real app.
   - For sync on the phone: open **Me → Sync** and set the server URL to
     `http://192.168.29.219:8766`.

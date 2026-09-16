@@ -549,11 +549,26 @@ const day = 86400000;
  * around its use, so deferring them changes no behaviour — it just stops a
  * storekeeper opening the stock list from paying for a map library. */
 const _scriptCache = {};
+/* Third-party code runs inside the app, next to the session token. Each file is
+ * pinned to an exact version AND to a hash of its bytes, so a new or tampered
+ * release on the CDN is refused by the browser instead of run. Bumping a version
+ * means updating its hash here and in mobile/build-www.mjs. */
+const CDN_SRI = {
+  'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js': 'sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH',
+  'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css': 'sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H',
+  'https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.15/dist/face-api.js': 'sha384-M5nePoB6/w/a9JhtegEibSLGiJy/+QMZZMfvcxjWVCQW/HPwrQ7i21V/Px/8AyVA',
+  'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js': 'sha384-GJqSu7vueQ9qN0E9yLPb3Wtpd7OrgK8KmYzC8T1IysG1bcvxvIO4qtYR/D3A991F',
+  'https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js': 'sha384-DT0Ls0mO7JmjTnT+oBuMhEJzYJO1zUqzuuMXNdnOmOQRIpN2BgSjvBV/j50NngIT',
+};
+function withIntegrity(el, url) {
+  if (CDN_SRI[url]) { el.integrity = CDN_SRI[url]; el.crossOrigin = 'anonymous'; }
+  return el;
+}
 function loadScriptOnce(src, globalName) {
   if (globalName && window[globalName]) return Promise.resolve(true);
   if (_scriptCache[src]) return _scriptCache[src];
   _scriptCache[src] = new Promise((resolve) => {
-    const el = document.createElement('script');
+    const el = withIntegrity(document.createElement('script'), src);
     el.src = src; el.async = true;
     el.onload = () => resolve(true);
     el.onerror = () => { delete _scriptCache[src]; resolve(false); };   // allow a retry
@@ -563,7 +578,7 @@ function loadScriptOnce(src, globalName) {
 }
 function loadCssOnce(href) {
   if (document.querySelector('link[href="' + href + '"]')) return;
-  const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = href;
+  const l = withIntegrity(document.createElement('link'), href); l.rel = 'stylesheet'; l.href = href;
   document.head.appendChild(l);
 }
 const loadSeedData = () => Promise.all([
@@ -576,7 +591,7 @@ const loadMapLib = () => {
 };
 const loadFaceLib = () => window.FaceDetector
   ? Promise.resolve(false)                         // native detector — no download at all
-  : loadScriptOnce('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js', 'faceapi');
+  : loadScriptOnce('https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.15/dist/face-api.js', 'faceapi');
 
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => (
   { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -759,7 +774,7 @@ async function ensureFaceModels() {
   if (!window.faceapi) await loadFaceLib();             // fetch it now, not on every page load
   if (!window.faceapi) return false;                    // still absent → offline
   if (_faceModelsLoaded) return true;
-  try { await faceapi.nets.tinyFaceDetector.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model'); _faceModelsLoaded = true; return true; }
+  try { await faceapi.nets.tinyFaceDetector.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.15/model'); _faceModelsLoaded = true; return true; }
   catch (e) { return false; }
 }
 const faceDetectorReady = () => !!window.FaceDetector || (window.faceapi && _faceModelsLoaded);
@@ -2835,8 +2850,9 @@ function ensureTesseract() {
   if (window.Tesseract) return Promise.resolve(true);
   if (_tessLoad) return _tessLoad;
   _tessLoad = new Promise((resolve) => {
-    const s = document.createElement('script');
-    s.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
+    const src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';
+    const s = withIntegrity(document.createElement('script'), src);
+    s.src = src;
     s.onload = () => resolve(!!window.Tesseract);
     s.onerror = () => { _tessLoad = null; resolve(false); };
     document.head.appendChild(s);
@@ -4885,7 +4901,7 @@ let _fflateLoad = null;
 function ensureFflate() {
   if (window.fflate) return Promise.resolve(true);
   if (_fflateLoad) return _fflateLoad;
-  _fflateLoad = new Promise((res) => { const s = document.createElement('script'); s.src = 'https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js'; s.onload = () => res(!!window.fflate); s.onerror = () => { _fflateLoad = null; res(false); }; document.head.appendChild(s); });
+  _fflateLoad = new Promise((res) => { const src = 'https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js'; const s = withIntegrity(document.createElement('script'), src); s.src = src; s.onload = () => res(!!window.fflate); s.onerror = () => { _fflateLoad = null; res(false); }; document.head.appendChild(s); });
   return _fflateLoad;
 }
 // Parse a .xlsx ArrayBuffer → rows (2D array of trimmed strings), resolving shared strings.

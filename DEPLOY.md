@@ -32,15 +32,17 @@ curl -s https://garage-saathi-sync.vercel.app/health | python3 -m json.tool
 ---
 
 ## Local development
-Two small servers: one serves the app, one is the local "cloud" for sync.
+One server: `sync_server.py` serves the app and the sync API from the same port.
 
 ```bash
 export GPS_INGEST_TOKEN="$(cat .gps_ingest_token)"
-python3 -m http.server 8765        # the app  (terminal 1)
-python3 sync_server.py             # sync/cloud (terminal 2)
+ENABLE_DEMO_SEED=1 python3 sync_server.py    # open http://localhost:8766
 ```
 
-On `localhost` the app targets `:8766` of its own host automatically. To expose a
+Do not serve the repository with `python3 -m http.server`: it publishes every file
+in the folder, including `sync.db`, keys and any backup, to anyone on the network.
+`sync_server.py` serves only app files. On `localhost` the app targets `:8766` of
+its own host automatically. To expose a
 local server to an outside integrator for an hour, `cloudflared tunnel --url
 http://localhost:8766` prints a temporary HTTPS URL — it changes each run and dies
 with the process, so it is a test tool, never production.

@@ -169,7 +169,11 @@ def main():
 
     # --- back up before touching anything ------------------------------------
     stamp = time.strftime("%Y%m%d-%H%M%S")
-    path = os.path.abspath("crew-backup-%s.json" % stamp)
+    # Outside the repository. The backup holds real Aadhaar and licence numbers,
+    # and a file in the app folder was one guessed URL away from being served.
+    outdir = os.path.expanduser("~/garage-saathi-backups")
+    os.makedirs(outdir, exist_ok=True)
+    path = os.path.join(outdir, "crew-backup-%s.json" % stamp)
     payload = {"app": "garage-saathi", "kind": "crew-removal-backup", "at": stamp,
                "roster": roster, "records": [r for r in records if r.get("store") in ("drivers", "buses", "users")]}
     try:

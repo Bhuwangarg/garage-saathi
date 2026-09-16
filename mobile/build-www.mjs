@@ -12,6 +12,7 @@
 import { cp, mkdir, rm, readFile, writeFile, access } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createHash } from 'node:crypto';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, '..');
@@ -48,8 +49,17 @@ for (const d of DIRS) {
 const VENDOR = [
   ['https://unpkg.com/leaflet@1.9.4/dist/leaflet.css', 'vendor/leaflet.css'],
   ['https://unpkg.com/leaflet@1.9.4/dist/leaflet.js', 'vendor/leaflet.js'],
-  ['https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js', 'vendor/face-api.js'],
+  ['https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.15/dist/face-api.js', 'vendor/face-api.js'],
 ];
+// The bytes packaged into the app must be the bytes that were reviewed. A pinned
+// version is not enough on its own — a CDN or registry compromise can change the
+// file behind the same URL — so each download is checked against its sha256 and
+// the build fails on a mismatch. Keep in step with CDN_SRI in app.js.
+const VENDOR_SHA256 = {
+  'vendor/leaflet.css': 'a7837102824184820dfa198d1ebcd109ff6d0ff9a2672a074b9a1b4d147d04c6',
+  'vendor/leaflet.js': 'db49d009c841f5ca34a888c96511ae936fd9f5533e90d8b2c4d57596f4e5641a',
+  'vendor/face-api.js': '0160f7af3a8c78cece45c7ecc765383bad74becfd438bb787cdd627b2d6f2cf6',
+};
 const cache = join(here, '.vendor-cache');
 await mkdir(cache, { recursive: true });
 await mkdir(join(www, 'vendor'), { recursive: true });
@@ -61,6 +71,10 @@ for (const [url, dest] of VENDOR) {
     const res = await fetch(url);
     if (!res.ok) throw new Error(`vendor fetch failed ${res.status}: ${url}`);
     await writeFile(cached, Buffer.from(await res.arrayBuffer()));
+  }
+  const digest = createHash('sha256').update(await readFile(cached)).digest('hex');
+  if (digest !== VENDOR_SHA256[dest]) {
+    throw new Error(`vendor hash mismatch for ${dest}: got ${digest} — refusing to package it (delete mobile/.vendor-cache if the pinned file was updated on purpose)`);
   }
   await cp(cached, join(www, dest));
 }
@@ -88,7 +102,7 @@ for (const img of LEAFLET_IMAGES) {
 const CDN_MAP = [
   ['https://unpkg.com/leaflet@1.9.4/dist/leaflet.css', 'vendor/leaflet.css'],
   ['https://unpkg.com/leaflet@1.9.4/dist/leaflet.js', 'vendor/leaflet.js'],
-  ['https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js', 'vendor/face-api.js'],
+  ['https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.15/dist/face-api.js', 'vendor/face-api.js'],
 ];
 let rewrites = 0;
 for (const file of ['index.html', 'app.js']) {

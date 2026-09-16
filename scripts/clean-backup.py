@@ -12,7 +12,12 @@ updatedAt — deleting is the last thing that happened to them.
 That matters more than it sounds. An earlier version of this script deduplicated
 by registration and kept "the most recently updated row", which silently chose a
 tombstone over the live bus for four registrations and would have restored them
-as deleted. So: tombstones are dropped outright, and nothing is merged.
+as deleted. So: tombstones are dropped, and nothing is merged.
+
+Except in `users` and `drivers`. Those tombstones are decisions the server acts
+on: a deleted login must not be re-created by "Activate crew server logins", and
+a removed crew member must not sign in. Dropping them meant a cleaned restore
+quietly brought deleted people back with working logins, so they are always kept.
 
 If live duplicates genuinely exist the script reports them and stops, rather than
 guessing which row is the real bus.
@@ -46,6 +51,8 @@ def main():
     # --- tombstones ------------------------------------------------------------
     if not a.keep_tombstones:
         for store in list(data):
+            if store in ("users", "drivers"):
+                continue
             rows = data.get(store) or []
             live = [r for r in rows if not r.get("_deleted")]
             if len(live) != len(rows):

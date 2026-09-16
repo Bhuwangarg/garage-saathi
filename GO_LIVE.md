@@ -210,6 +210,10 @@ bash scripts/predeploy-gate.sh     # 14 checks, ~60s
   address and pay are removed server-side before they reach a non-manager.
 - **`WA_APP_SECRET` must be set** for WhatsApp odometer capture: without it the
   webhook now answers 503 instead of trusting unsigned deliveries.
+- **Optional knobs added Sep 2026:** `AI_DAILY_LIMIT` (AI advisor calls per
+  owner/supervisor per day, default 60), `MAX_PUSH_RECORDS` (default 1000), and
+  `TRUSTED_PROXY_HOPS` for a standalone server behind a proxy (ignored on Vercel).
+- **Crew-removal backups** now go to `~/garage-saathi-backups/`, outside the repo.
 - **Trip-cash flow is English-only in Hindi mode** — the driver's money screen.
 - **Check-in fails silently without a camera** — no sheet, no toast, no error.
 - **Supabase free tier**: 500 MB (the garage is ~3 MB) and projects pause after

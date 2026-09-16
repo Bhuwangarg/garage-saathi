@@ -130,15 +130,16 @@ def main():
     check("...and cannot sign in as the owner with it", st != 200)
     st, _ = http("/auth/setpin", {"userId": "u-drv-new", "pin": "8642"}, sup)
     check("a supervisor can still reset a driver's PIN", st == 200)
+    _, drv, _ = login("u-drv-new", "8642")          # a reset ends the old session
     st, _ = http("/auth/setpin", {"userId": "u-super", "pin": "9753"}, owner)
     check("the owner can reset a supervisor's PIN", st == 200)
+    _, sup, _ = login("u-super", "9753")
     st, _ = http("/auth/users", {"name": "Fake Owner", "role": "owner", "pin": "2468"}, sup)
     check("a supervisor cannot create an owner login", st == 403)
     st, _ = http("/auth/users", {"name": "Odd", "role": "superadmin", "pin": "2468"}, owner)
     check("an unknown role is refused", st == 400)
     st, r = http("/auth/users", {"name": "New Store", "role": "store", "pin": "2468"}, owner)
     check("the owner can still create a store login", st == 200 and r.get("user", {}).get("role") == "store")
-    _, sup, _ = login("u-super", "9753")
     st, _ = http("/auth/users", {"name": "New Mech", "role": "mechanic", "pin": "1593"}, sup)
     check("a supervisor can still create a mechanic", st == 200)
 
