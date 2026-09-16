@@ -18,7 +18,7 @@ const I18N = {
     purchases: 'Purchases / Bills', serviceHistory: 'Service history', documents: 'Documents',
     addPhotoNote: 'Before AND after photos required to close a job (outside repairs: a bill photo)', noJobs: 'No jobs yet', expired: 'EXPIRED',
     // Login
-    tagline: 'Garage maintenance, Jaipur', enterPin: 'Enter PIN', wrongPin: 'Wrong PIN', pinRetired: 'That PIN no longer works — ask the office for your new PIN',
+    tagline: 'Garage maintenance, Jaipur', enterPin: 'Enter PIN', wrongPin: 'Wrong PIN', loginOff: 'This login has been switched off — speak to the office', pinRetired: 'That PIN no longer works — ask the office for your new PIN',
     recentHere: 'Recent on this phone', whoAreYou: 'Who are you?', selectName: 'Select your name', searchName: 'Search name…',
     cantReach: "Can't reach the server — check internet and try again",
     odoBroken: 'Odometer not working on this bus',
@@ -235,7 +235,7 @@ const I18N = {
     purchases: 'खरीद / बिल', serviceHistory: 'सेवा इतिहास', documents: 'कागज़ात',
     addPhotoNote: 'काम बंद करने के लिए पहले और बाद दोनों की फोटो ज़रूरी हैं (बाहर मरम्मत: बिल की फोटो)', noJobs: 'अभी कोई काम नहीं', expired: 'समाप्त',
     // Login
-    tagline: 'गैराज मरम्मत, जयपुर', enterPin: 'पिन डालें', wrongPin: 'गलत पिन', pinRetired: 'यह पिन अब नहीं चलेगा — ऑफिस से अपना नया पिन लें',
+    tagline: 'गैराज मरम्मत, जयपुर', enterPin: 'पिन डालें', wrongPin: 'गलत पिन', loginOff: 'यह लॉगिन बंद कर दिया गया है — दफ़्तर से बात करें', pinRetired: 'यह पिन अब नहीं चलेगा — ऑफिस से अपना नया पिन लें',
     recentHere: 'इस फ़ोन पर हाल के', whoAreYou: 'आप कौन हैं?', selectName: 'अपना नाम चुनें', searchName: 'नाम खोजें…',
     cantReach: 'सर्वर से संपर्क नहीं — इंटरनेट जाँचें और फिर कोशिश करें',
     odoBroken: 'इस बस का ओडोमीटर काम नहीं कर रहा',
@@ -3811,7 +3811,7 @@ function viewMe() {
     <div class="ava">${a.type==='in'?'🟢':'🔴'}</div>
     <div class="main"><div class="t">${a.type==='in'?'In':'Out'}</div>
       <div class="s">${fmtDateTime(a.at)} ${a.dist!=null?`· ${Math.round(a.dist)}m from garage`:''}</div></div>
-    ${a.late?'<span class="badge b-amber">LATE</span>':''}
+    ${a.type==='in' && (a.at ? isLateAt(a.at) : a.late)?'<span class="badge b-amber">LATE</span>':''}
     ${a.selfie?`<img class="thumb" style="width:42px;height:42px" src="${esc(a.selfie)}" data-act="viewPhoto" data-src="${esc(a.selfie)}">`:''}
   </div>`).join('') : `<div class="muted small">No records</div>`;
   body += `</div>`;
@@ -3883,11 +3883,10 @@ async function doAttendance(type) {
   // No location at all → can't confirm they're at the garage. Record only on confirm.
   if (lat == null && !confirm('Could not get your location. Mark attendance without GPS verification?')) return;
 
-  // Late if checking in after the garage's configured shift start (default 09:30).
-  const cutoff = (S.cache.garage && S.cache.garage.lateCutoff) || '09:30';
-  const cm = cutoff.split(':'); const ch = Number(cm[0]) || 9, cmin = Number(cm[1]) || 0;
-  const d = new Date();
-  const late = type === 'in' && (d.getHours() > ch || (d.getHours() === ch && d.getMinutes() > cmin));
+  // Late if checking in after the garage's configured shift start (default 09:30),
+  // by the SERVER's clock: a phone set back no longer checks in on time.
+  const at = Sync.now ? Sync.now() : Date.now();
+  const late = type === 'in' && isLateAt(at);
 
   const g = S.cache.garage;
   const tooFar = g && g.locSet && dist != null && dist > g.radiusM;
@@ -3901,7 +3900,7 @@ async function doAttendance(type) {
   }
 
   const selfieRef = selfie ? (await Sync.uploadPhoto(selfie) || selfie) : '';
-  await DB.put('attendance', { id: uid('a-'), userId: S.user.id, type, at: Date.now(), lat, lng, dist, selfie: selfieRef, late, faceVerified: !!cap.faceVerified, flagged: !!tooFar || lat == null });
+  await DB.put('attendance', { id: uid('a-'), userId: S.user.id, type, at, lat, lng, dist, selfie: selfieRef, late, faceVerified: !!cap.faceVerified, flagged: !!tooFar || lat == null });
   await load();
   toast(type === 'in' ? (late ? 'Checked in (late)' : `Checked in ✓${cap.faceVerified ? ' · face verified 🙂' : ''}`) : `Checked out ✓${cap.faceVerified ? ' · face verified 🙂' : ''}`);
   viewMe();
@@ -3970,15 +3969,27 @@ async function saveDoc(busId) {
   const idx = Number($('#f-docidx').value);
   const doc = { type: $('#f-doctype').value, number: $('#f-docnum').value.trim(), expiry: new Date(expStr + 'T00:00:00').getTime(), photo: _docPhoto };
   b.docs = b.docs || [];
+  const prevDoc = idx >= 0 ? b.docs[idx] : null;
   if (idx >= 0) b.docs[idx] = doc; else b.docs.push(doc);
+  if (prevDoc) dropReplacedPhotos([prevDoc.photo], [doc.photo]);
   await DB.put('buses', b);
   _docPhoto = '';
   await load(); closeSheet(); toast('Document saved'); rerender();
 }
+/* Photos a record no longer points at. Nothing ever removed an upload, so an
+ * Aadhaar or licence image stayed reachable by its link after it was replaced or
+ * the document removed. Managers only — the server refuses anyone else — and
+ * best-effort: a failure leaves the file, never blocks the save. */
+function dropReplacedPhotos(oldUrls, keepUrls) {
+  if (!S.user || !['owner', 'supervisor', 'crewmanager'].includes(S.user.role) || !Sync.deleteUploads) return;
+  const keep = new Set((keepUrls || []).filter(Boolean));
+  const gone = (oldUrls || []).filter((u) => typeof u === 'string' && /^https?:/.test(u) && !keep.has(u));
+  if (gone.length) Sync.deleteUploads(gone);
+}
 async function deleteDoc(busId, docIndex) {
   const b = byId(S.cache.buses, busId); if (!b) return;
   const idx = Number(docIndex);
-  if (b.docs && idx >= 0) { b.docs.splice(idx, 1); await DB.put('buses', b); }
+  if (b.docs && idx >= 0) { const [gone] = b.docs.splice(idx, 1); await DB.put('buses', b); dropReplacedPhotos([gone && gone.photo], []); }
   await load(); closeSheet(); toast('Document removed'); rerender();
 }
 
@@ -5122,7 +5133,7 @@ async function saveChangePin() {
   if (p1 !== p2) return toast('PINs do not match');
   try {
     if (Sync.setPin) { await Sync.setPin(S.user.id, p1); }
-    credSet(S.user.id, p1);
+    cachePin(S.user, p1);
     closeSheet(); toast('PIN changed ✓');
   } catch (e) {
     toast('Could not reach server — connect online to change your PIN');
@@ -5142,6 +5153,8 @@ function sheetSync() {
     <div class="card">
       <div class="row between small"><span class="muted">This device</span><b>${esc(i.deviceId)}</b></div>
       <div class="row between small"><span class="muted">Waiting to send</span><b>${i.pending}</b></div>
+      ${i.heldForOthers ? `<div class="row between small"><span class="muted">Held for another person</span><b>${i.heldForOthers}</b></div>
+      <div class="tiny muted">Changes someone else made on this phone. They are sent when that person signs in here again.</div>` : ''}
       <div class="row between small"><span class="muted">Last reached server</span><b>${i.lastSyncAt ? timeAgo(i.lastSyncAt) : 'never'}</b></div>
       <div class="row between small"><span class="muted">Sync cursor</span><b>rev ${i.lastRev}</b></div>
       ${i.lastError ? `<div class="row between small"><span class="muted">Last failure</span><b style="color:#ef4444">${esc(i.lastError)}</b></div>` : ''}
@@ -5234,12 +5247,12 @@ async function saveStaff() {
   try {
     const user = await Sync.addStaff({ name, role, pin });
     await DB.put('users', user);               // synced roster carries NO pin
-    // Never cache a PIN for someone who cannot sign in — caching it is what
-    // would make the throwaway value above reachable.
-    if (!noLogin) credSet(user.id, pin);        // cache on this (the owner's) device only
+    // The PIN is not kept on this phone: the person who chose it hands it over
+    // now. A manager's phone used to collect every staff PIN it ever created.
     await load();
     closeSheet();
-    toast(noLogin ? `${name} added to the team` : `${name} added — they must first sign in online on each device`);
+    if (noLogin) toast(`${name} added to the team`);
+    else alert(`${name} added.\n\nPIN: ${pin}\n\nGive it to ${name} now — it is not saved on this phone. They sign in online first on each device.`);
     rerender();
   } catch (e) {
     // Re-enable on failure only — on success the sheet is already closed, and
@@ -5793,11 +5806,24 @@ async function shareText(title, text) {
  * and punctuality. Owner sets the late-penalty policy. Everyone sees the board.
  */
 const sameMonth = (ts) => { const d = new Date(ts), n = new Date(); return d.getFullYear() === n.getFullYear() && d.getMonth() === n.getMonth(); };
+/* Was a check-in at time `at` after the shift start? Judged here, on the device
+ * reading the record, from the check-in time and THIS garage's cutoff in India
+ * time — not from the `late` flag the checking-in phone wrote about itself. */
+const _istHM = (ts) => { try { return new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(ts)); } catch (e) { const d = new Date(ts); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); } };
+function isLateAt(ts) {
+  const cutoff = (S.cache.garage && S.cache.garage.lateCutoff) || '09:30';
+  const [ch, cm] = cutoff.split(':').map((x) => Number(x) || 0);
+  const [h, m] = _istHM(ts).split(':').map(Number);
+  return h > ch || (h === ch && m > cm);
+}
 function mechAttendance(userId, monthOnly) {
   let ins = (S.cache.att || []).filter((a) => a.userId === userId && a.type === 'in');
   if (monthOnly) ins = ins.filter((a) => sameMonth(a.at));
-  const lates = ins.filter((a) => a.late).length;
-  return { checkins: ins.length, lates, onTime: ins.length ? Math.round((ins.length - lates) / ins.length * 100) : 100 };
+  const lates = ins.filter((a) => (a.at ? isLateAt(a.at) : a.late)).length;
+  // Reached the server long after the time it claims: offline, or a phone clock
+  // set back. Counted as stated, but shown so the office can look.
+  const unverified = ins.filter((a) => a.atUnverified).length;
+  return { checkins: ins.length, lates, unverified, onTime: ins.length ? Math.round((ins.length - lates) / ins.length * 100) : 100 };
 }
 function latePenaltyFor(userId) {
   const g = S.cache.garage || {};
@@ -5875,7 +5901,8 @@ function viewScorecard(userId) {
       <div><div class="tiny muted">On-time</div><b>${att.onTime}%</b></div>
       <div><div class="tiny muted">Late penalty</div><b style="color:var(--red)">${money(pen.amount)}</b></div></div>
     ${pen.rate ? `<div class="tiny muted" style="margin-top:8px">${pen.grace} free late/month, then ${money(pen.rate)} each${pen.cap ? ` (monthly cap ${money(pen.cap)})` : ''} · ${pen.chargeable} chargeable now.</div>`
-      : `<div class="tiny muted" style="margin-top:8px">No late penalty set${['owner', 'supervisor'].includes(S.user.role) ? ' — set it in Me → Garage setup.' : '.'}</div>`}</div>`;
+      : `<div class="tiny muted" style="margin-top:8px">No late penalty set${['owner', 'supervisor'].includes(S.user.role) ? ' — set it in Me → Garage setup.' : '.'}</div>`}
+    ${att.unverified ? `<div class="tiny" style="margin-top:6px;color:var(--amber,#b45309)">⚠️ ${att.unverified} check-in${att.unverified > 1 ? 's' : ''} reached the server much later than the time shown (phone offline, or its clock was changed) — worth checking.</div>` : ''}</div>`;
   body += `<div class="card"><h3>Work quality — why ${m.score}/100</h3>
     ${penLine('Rework sent back', m.reworks, m.pen.rework)}
     ${penLine('Missing proof photos', m.proofGaps, m.pen.proof)}
@@ -7603,8 +7630,11 @@ async function saveDriverDoc(driverId, key) {
   // that would overwrite the real number with its own mask.
   if (numEl) { const v = numEl.value.trim(); entry.number = (/^X{4}/i.test(v) || (!v && _docNumCur)) ? _docNumCur : v; }
   const expEl = document.getElementById('doc-exp'); if (expEl && expEl.value) entry.expiry = new Date(expEl.value).getTime();
+  const prev = (d.docs || {})[key] || {};
   d.docs = Object.assign({}, d.docs, { [key]: entry });
   await DB.put('drivers', d);
+  // The replaced image is deleted from storage, not left reachable at its link.
+  dropReplacedPhotos([prev.photo, prev.photoBack], [entry.photo, entry.photoBack]);
   _docShot = null; _docShotBack = null;
   await load(); closeSheet(); toast(t('cbDocSaved')); viewDriverDocs(driverId);
 }
@@ -8241,7 +8271,7 @@ async function saveDriver() {
   if (pin) {
     try {
       const u = await Sync.addStaff({ name: name + ' (Driver)', role: 'driver', pin });
-      driver.userId = u.id; credSet(u.id, pin); await DB.put('users', u); await DB.put('drivers', driver);
+      driver.userId = u.id; await DB.put('users', u); await DB.put('drivers', driver);   // PIN not kept on this phone
     } catch (e) {
       loginMsg = Sync.info().authed ? ' (login not created — server unreachable)' : ' (login needs you online — add a PIN later)';
     }
@@ -8414,7 +8444,9 @@ function learnedMin(stopId) {
   return mins.length % 2 ? mins[mid] : Math.round((mins[mid - 1] + mins[mid]) / 2);   // true median
 }
 const stopSched = (stop) => { const m = hhmmToMin(stop.schedTime); return m != null ? m : learnedMin(stop.id); };
-const stopArrivalToday = (stopId) => (S.cache.triplog || []).find((t) => t.stopId === stopId && t.day === todayKey()) || null;
+// Per bus as well as per stop: an arrival logged for another bus (or forged
+// for this stop) must not stop this bus's real arrival being recorded.
+const stopArrivalToday = (stopId, busId) => (S.cache.triplog || []).find((t) => t.stopId === stopId && t.day === todayKey() && (!busId || t.busId === busId)) || null;
 function stopPunctuality(stop) {
   const logs = (S.cache.triplog || []).filter((t) => t.stopId === stop.id && t.deltaMin != null);
   if (!logs.length) return { n: 0, onTime: null, avgLate: 0 };   // no scheduled history yet
@@ -8427,10 +8459,11 @@ function stopPunctuality(stop) {
 // radius and we haven't logged it today, record actual time + delta vs schedule.
 async function captureArrivals(bus, tel) {
   const route = routeForBus(bus.id);
-  if (!route || !tel || tel.lat == null) return false;
+  // Only a real tracker fix is an arrival; the simulator's position is invented.
+  if (!route || !tel || tel.lat == null || tel.source !== 'provider') return false;
   let changed = false;
   for (const stop of route.stops || []) {
-    if (stopArrivalToday(stop.id)) continue;
+    if (stopArrivalToday(stop.id, bus.id)) continue;
     if (haversineM(tel.lat, tel.lng, stop.lat, stop.lng) <= (stop.radiusM || 150)) {
       const sched = stopSched(stop), aMin = nowMin();
       let delta = null;
@@ -8452,7 +8485,7 @@ function routeRisk(bus, tel) {
   if (!route || !(route.stops || []).length) return null;
   // Without a live position we can't predict — don't fire false alerts.
   if (!tel || tel.lat == null) return null;
-  const next = (route.stops || []).find((s) => !stopArrivalToday(s.id) && stopSched(s) != null);
+  const next = (route.stops || []).find((s) => !stopArrivalToday(s.id, bus.id) && stopSched(s) != null);
   if (!next) return null;
   const sched = stopSched(next), mins = nowMin(), within = sched - mins;
   // Warning window: due within 15 min, or up to ~2h overdue. Outside that it's
@@ -9373,6 +9406,7 @@ const _dispatchClick = async (e) => {
         // Clear THIS user's cached PIN so a shared device doesn't let the next
         // person sign back in offline as them. Others' cached PINs are untouched.
         if (S.user) credClear(S.user.id);
+        if (Sync.setActor) Sync.setActor('');
         Sync.logout(); S.user = null; return renderLogin();
       }
     }
@@ -9640,6 +9674,26 @@ function credSet(id, pin) {
   let m = {}; try { m = JSON.parse(localStorage.getItem('creds') || '{}'); } catch (e) { /* ignore */ }
   m[id] = pin; localStorage.setItem('creds', JSON.stringify(m));
 }
+/* Whose PIN this phone may keep. A PIN kept here is readable by anyone who gets
+ * at the phone's storage, and the PINs that open the whole garage — owner,
+ * supervisor, crew manager — were kept too. Those now sign in online every time
+ * (and again when their session ends). Demo mode on a local test machine is the
+ * exception, so offline test runs still work. */
+const PIN_NO_CACHE_ROLES = ['owner', 'supervisor', 'crewmanager'];
+function mayCachePin(role) { return isDemoMode() || !PIN_NO_CACHE_ROLES.includes(role); }
+function cachePin(user, pin) {
+  if (user && mayCachePin(user.role)) credSet(user.id, pin); else if (user) credClear(user.id);
+}
+// Once per device: drop manager PINs saved before this rule.
+function dropManagerPins() {
+  try {
+    if (isDemoMode() || localStorage.getItem('gsManagerPinsDropped_v1')) return;
+    const m = JSON.parse(localStorage.getItem('creds') || '{}');
+    (S.cache.users || []).forEach((u) => { if (PIN_NO_CACHE_ROLES.includes(u.role)) delete m[u.id]; });
+    localStorage.setItem('creds', JSON.stringify(m));
+    localStorage.setItem('gsManagerPinsDropped_v1', String(Date.now()));
+  } catch (e) { /* ignore */ }
+}
 function credClear(id) {
   let m = {}; try { m = JSON.parse(localStorage.getItem('creds') || '{}'); } catch (e) { /* ignore */ }
   delete m[id]; localStorage.setItem('creds', JSON.stringify(m));
@@ -9815,7 +9869,7 @@ function offlineClear(id) {
 // Offline, we fall back to this device's cached credential only.
 async function attemptLogin(user, pin, redraw) {
   const r = await Sync.login(user.id, pin);
-  if (r && r.user) { credSet(user.id, pin); offlineClear(user.id); return enterApp(user); }  // verified online
+  if (r && r.user) { cachePin(r.user, pin); offlineClear(user.id); return enterApp(user); }  // verified online
   if (r && r.locked) { toast(t('tooManyTries')); _pin = ''; return redraw(); }
   // Fall back to this device's PIN when the server is unreachable OR when it
   // rejects an account it doesn't have — the bulk-seeded drivers/conductors live
@@ -9832,10 +9886,16 @@ async function attemptLogin(user, pin, redraw) {
     // A retired PIN (the old shared crew PIN, or a demo PIN from the source) is
     // the right PIN, not a guess: say what to do instead of "wrong PIN".
     if (r.reason === 'default_pin' || r.reason === 'demo_pin') { toast(t('pinRetired')); _pin = ''; return redraw(); }
+    if (r.reason === 'account_disabled') { toast(t('loginOff')); _pin = ''; return redraw(); }
     offlineFail(user.id);
     toast(t('wrongPin')); _pin = ''; return redraw();
   }
-  if (pin !== '0000' && credGet(user.id) === pin) { offlineClear(user.id); return enterApp(user); }
+  if (pin !== '0000' && mayCachePin(user.role) && credGet(user.id) === pin) {
+    // A session left on this phone by someone else must not sign this person's
+    // changes: drop it rather than send their work under another name and role.
+    if (Sync.tokenUser && Sync.tokenUser() && Sync.tokenUser() !== user.id) Sync.logout();
+    offlineClear(user.id); return enterApp(user);
+  }
   // Server was UNREACHABLE (cold start / no internet) and we have no saved PIN
   // for this account on this device — we genuinely can't verify. This is NOT a
   // wrong PIN, so don't say so and don't count it as a brute-force attempt
@@ -9845,7 +9905,7 @@ async function attemptLogin(user, pin, redraw) {
   offlineFail(user.id);
   toast(t('wrongPin')); _pin = ''; redraw();
 }
-function enterApp(user) { pushRecent(user.id); S.user = user; maybeAutoActivateCrew(user); maybeBackfillContacts(user); maybeBackfillConductors(user); reconcileStaffNames(user); route({ name: 'home' }); }
+function enterApp(user) { pushRecent(user.id); S.user = user; if (Sync.setActor) Sync.setActor(user.id); dropManagerPins(); maybeAutoActivateCrew(user); maybeBackfillContacts(user); maybeBackfillConductors(user); reconcileStaffNames(user); route({ name: 'home' }); }
 
 /* "Recent on this phone" — remembers who has signed in on THIS device so a
  * personal phone can skip role→name and go straight to the PIN pad. Just ids in

@@ -187,9 +187,10 @@ def main():
         print("\n--dry-run: nothing was changed.")
         return 0
 
-    print("\nThis is permanent. Licence numbers, Aadhaar, documents, photos and")
-    print("employment history for these people are not recoverable except from the")
-    print("backup above.")
+    print("\nThis is permanent. Licence numbers, Aadhaar, documents and employment")
+    print("history for these people are not recoverable except from the backup above.")
+    print("Their document photos and profile photos are DELETED from storage — the")
+    print("backup keeps only their old links, which will no longer open.")
     typed = input('Type DELETE to go ahead: ').strip()
     if typed.upper() != "DELETE":
         # Case-insensitive on purpose. The guard is "type the whole word out",
@@ -246,6 +247,27 @@ def main():
         print("  records %d/%d" % (min(i + 100, len(batch)), len(batch)), flush=True)
     print("  %d record(s) removed." % applied)
     delete_logins([u["id"] for u in crew_logins], "login(s)")
+
+    # The photos go too. Removing the record used to leave every Aadhaar and
+    # licence image reachable at its link, indefinitely.
+    urls = []
+    for r in crew_recs:
+        d = r.get("data") or {}
+        if isinstance(d.get("photo"), str):
+            urls.append(d["photo"])
+        for doc in (d.get("docs") or {}).values():
+            if isinstance(doc, dict):
+                urls += [doc[k] for k in ("photo", "photoBack") if isinstance(doc.get(k), str)]
+    urls = [u for u in urls if u.startswith("http")]
+    removed = 0
+    for i in range(0, len(urls), 200):
+        st, res = call(base, "/upload/delete", {"urls": urls[i:i + 200]}, token=token)
+        if st == 200:
+            removed += res.get("removed", 0)
+        else:
+            print("  photo delete failed (%s): %s" % (st, res.get("error")))
+            break
+    print("  %d photo file(s) deleted." % removed)
     print("\nThe %s are gone. Everything below is optional — stopping here\nleaves that done." % what)
 
     # --- then, separately, collapse the duplicate logins ---------------------

@@ -82,6 +82,16 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
   let lastRev = parseInt(ls.getItem('lastRev') || '0', 10);
   let lastSyncAt = parseInt(ls.getItem('lastSyncAt') || '0', 10);
   let outbox = new Set(JSON.parse(ls.getItem('outbox') || '[]'));
+  // Who made each pending change. The outbox is device-wide, so changes one
+  // person saved offline (or left unsent at logout) used to go out under whoever
+  // signed in next — authorised by their role and stamped with their name. Now a
+  // change is only sent under the session of the person who made it; anyone
+  // else's waits until they sign in again.
+  let outboxBy = JSON.parse(ls.getItem('outboxBy') || '{}');
+  let actor = ls.getItem('syncActor') || '';
+  // Server clock minus this phone's clock, from the last pull. Evidence stamped
+  // with a time (attendance) uses the server's clock, not a phone set back.
+  let clockOffset = parseInt(ls.getItem('clockOffset') || '0', 10) || 0;
   // Photos captured offline (no server URL yet): map of "store|id|field" -> dataUrl.
   // Re-uploaded when the network returns, then the record is patched to the URL.
   let photoQ = JSON.parse(ls.getItem('photoQueue') || '{}');
@@ -94,7 +104,12 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
   let busy = false, kickTimer = null, pollTimer = null;
   let cbStatus = null, cbApplied = null, cbConflict = null;
 
-  const saveOutbox = () => ls.setItem('outbox', JSON.stringify([...outbox]));
+  const saveOutbox = () => {
+    ls.setItem('outbox', JSON.stringify([...outbox]));
+    for (const k of Object.keys(outboxBy)) if (!outbox.has(k)) delete outboxBy[k];
+    ls.setItem('outboxBy', JSON.stringify(outboxBy));
+  };
+  const tokenUser = () => (token ? token.split('.')[0] : '');
   const savePhotoQ = () => ls.setItem('photoQueue', JSON.stringify(photoQ));
   const saveQuarantine = () => ls.setItem('quarantine', JSON.stringify(quarantine));
   const setStatus = (s) => { status = s; if (cbStatus) cbStatus(s); };
@@ -159,6 +174,9 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
     }
   }
   function logout() { token = ''; ls.removeItem('token'); }
+  // The person using the app now. Local changes are recorded as theirs.
+  function setActor(uid) { actor = uid || ''; ls.setItem('syncActor', actor); }
+  const now = () => Date.now() + clockOffset;
 
   /* Wake the backend before it is needed.
    *
@@ -273,6 +291,8 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
         body: JSON.stringify({ question, context, biz }),
       });
       if (res.status === 501 || res.status === 401) return { configured: false };  // no server key / not authed → let caller fall back
+      if (res.status === 429) return { configured: true, error: 'Daily AI limit reached — try again tomorrow' };
+      if (res.status === 403) return { configured: true, error: 'The AI advisor is for the owner and supervisors' };
       if (!res.ok) return { configured: true, error: 'AI server error ' + res.status };
       return { text: (await res.json()).text || '' };
     } catch (e) { return { configured: false }; }
@@ -338,6 +358,19 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
     return await res.json();
   }
 
+  // Delete photos that were replaced or whose record was removed (managers).
+  async function deleteUploads(urls) {
+    const list = (urls || []).filter((u) => typeof u === 'string' && /^https?:/.test(u));
+    if (!list.length || !token) return 0;
+    try {
+      const res = await fetch(baseUrl() + '/upload/delete', {
+        method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ urls: list }),
+      });
+      return res.ok ? ((await res.json()).removed || 0) : 0;
+    } catch (e) { return 0; }
+  }
+
   // Telemetry for one bus (live from the tracker, or the demo simulator). Needs a
   // session: a bus's live position is not public.
   async function gps(bus) {
@@ -373,7 +406,9 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
   // Called by db.js on every LOCAL write.
   function markDirty(store, id) {
     if (!STORES.includes(store)) return;
-    outbox.add(store + '|' + id);
+    const key = store + '|' + id;
+    outbox.add(key);
+    if (actor) outboxBy[key] = actor;
     saveOutbox();
     kick();
   }
@@ -421,7 +456,9 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
     if (!outbox.size) return;
     // Bounded per tick, so a large outbox can never starve pull(). The rest goes
     // out on following ticks; the poller runs every 4s.
-    const keys = [...outbox].filter((k) => !quarantine[k]).slice(0, PUSH_PER_TICK);
+    const me = tokenUser();
+    const keys = [...outbox].filter((k) => !quarantine[k] && (!outboxBy[k] || outboxBy[k] === me))
+      .slice(0, PUSH_PER_TICK);
     if (!keys.length) return;
     setStatus('syncing');
 
@@ -580,6 +617,7 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
     if (res.status === 401) throw sessionDead('pull');
     if (!res.ok) throw new Error('pull ' + res.status);
     const j = await res.json();
+    if (typeof j.serverTime === 'number') { clockOffset = j.serverTime - Date.now(); ls.setItem('clockOffset', String(clockOffset)); }
     let applied = 0; let conflicts = 0;
     for (const r of (j.records || [])) {
       if (!STORES.includes(r.store) || !r.data) continue;
@@ -592,7 +630,12 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
       const key = r.store + '|' + r.id;
       const local = (DB._rawGet ? await DB._rawGet(r.store, r.id) : await DB.get(r.store, r.id));
       const unredact = local && local._redacted && !r.data._redacted;
-      if (!local || unredact || (r.data.updatedAt || 0) > (local.updatedAt || 0)) {
+      // A local copy dated far in the future (from a bad clock, or a forged
+      // write pulled before the server clamped timestamps) must not outrank
+      // every later correction forever.
+      const localTs = local ? (local.updatedAt || 0) : 0;
+      const localAt = localTs > Date.now() + 86400000 ? 0 : localTs;
+      if (!local || unredact || (r.data.updatedAt || 0) > localAt) {
         // Concurrent-overwrite signal: a server copy newer than a LOCAL edit we
         // still owe the server (in the outbox). Last-write-wins still applies
         // (server is newer), but the local editor must be told their change was
@@ -685,7 +728,8 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
       await reset();
     } catch (e) { /* the 4s tick carries on regardless */ }
   }
-  const info = () => ({ deviceId, lastRev, pending: outbox.size, url: baseUrl(), status, authed: !!token, lastSyncAt, lastError,
+  const info = () => ({ deviceId, lastRev, pending: outbox.size,
+    heldForOthers: [...outbox].filter((k) => outboxBy[k] && outboxBy[k] !== actor).length, url: baseUrl(), status, authed: !!token, lastSyncAt, lastError,
                         photosPending: Object.keys(photoQ).length, quarantined: Object.keys(quarantine).length });
 
   // Sync-safe delete used by feature code: tombstone + dirty so the deletion
@@ -718,7 +762,7 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
     } catch (e) { return null; }
   }
 
-  return { start, tick, kick, setUrl, reset, info, login, logout, warmUp, roster, pendingIds, addStaff, deleteStaff, renameStaff, registerRoster, setPin, gps, validSyncUrl, backfillContacts, ai, aiVision, challans, fleet, latest, uploadPhoto,
+  return { start, tick, kick, setUrl, reset, info, login, logout, warmUp, roster, pendingIds, addStaff, deleteStaff, renameStaff, registerRoster, setPin, gps, validSyncUrl, backfillContacts, setActor, tokenUser, now, deleteUploads, ai, aiVision, challans, fleet, latest, uploadPhoto,
            queuePhoto, remove, clearQuarantine, subscribePush, pushTest,
            get status() { return status; } };
 })();

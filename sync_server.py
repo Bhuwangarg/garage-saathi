@@ -462,6 +462,11 @@ def db():
         # PINs are 4 digits and every crew account ships with 0000.
         c.execute("""CREATE TABLE IF NOT EXISTS loginfails(k TEXT, at BIGINT)""")
         c.execute("""CREATE INDEX IF NOT EXISTS loginfails_k ON loginfails(k)""")
+        # Logins switched off because the crew record says the person left or was
+        # archived. Kept apart from `users` so a rehire only has to remove the row.
+        c.execute("""CREATE TABLE IF NOT EXISTS disabledlogins(id TEXT PRIMARY KEY, at BIGINT)""")
+        # AI proxy calls per user per day — the key is billed to the operator.
+        c.execute("""CREATE TABLE IF NOT EXISTS aiusage(k TEXT PRIMARY KEY, n BIGINT)""")
         try:
             c.commit()
         except Exception:
@@ -554,6 +559,7 @@ def bootstrap():
             return
         try:
             _load_live_gps()
+            rebuild_disabled_logins()
             if ENABLE_DEMO_SEED:
                 seed_users()
             elif PURGE_DEMO_USERS:
@@ -773,7 +779,8 @@ def user_for_token(token):
     if not hmac.compare_digest(sig, good):
         return None
     c = db()
-    row = c.execute("SELECT id,name,role FROM users WHERE id=?", (uid,)).fetchone()
+    row = c.execute("SELECT id,name,role FROM users WHERE id=? AND id NOT IN "
+                    "(SELECT id FROM disabledlogins)", (uid,)).fetchone()
     c.close()
     return {"id": row[0], "name": row[1], "role": row[2]} if row else None
 
@@ -903,6 +910,9 @@ SERVER_INGEST_ONLY = {"gpsevents", "gpslive", "challans", "odometerlogs", "wacon
 # bound, last-write-wins makes a far-future write permanent — the owner's
 # correction is silently discarded because its timestamp is "older".
 MAX_FUTURE_SKEW_MS = 5 * 60 * 1000
+# A check-in reaching the server later than this after its stated time is marked
+# `atUnverified`: offline, or a phone clock set back to dodge a late mark.
+ATTENDANCE_TRUST_MS = 10 * 60 * 1000
 
 # Proof that the work happened. Mirrors photoGateReady() in app.js — but that one
 # runs in the browser, which a thief simply does not use.
@@ -930,7 +940,40 @@ def _job_crew(rec):
     return ids
 
 
-def _guard_write(store, rid, data, actor, existing):
+# Roles that run the garage. Per-record authorship rules below bind everyone else.
+MANAGER_ROLES = ("owner", "supervisor")
+# Records that are evidence against the people who write them: counts that show a
+# shortfall, fuel that shows a mileage drop. Once written, only a manager changes
+# or removes them — the ledger's append-only rule, extended to its siblings.
+APPEND_ONLY_FOR_STAFF = ("audits", "fuel", "def")
+# What a non-manager may change on a supplier bill after it is entered: marking it
+# paid (togglePaid in app.js). The amount and lines are fixed.
+PURCHASE_STAFF_FIELDS = ("paymentStatus", "paidAt", "paidBy")
+# Server stamps and bookkeeping that differ on every write and are not content.
+_META = ("updatedAt", "_by", "_byRole", "_org", "_createdBy", "_createdRole")
+
+
+def _same_except(a, b, allowed):
+    """Are records a and b equal apart from the `allowed` fields and metadata?"""
+    keys = (set(a) | set(b)) - set(allowed) - set(_META)
+    return all(a.get(k) == b.get(k) for k in keys)
+
+
+def _crew_record_for(c, user_id):
+    """The live crew-bank record (drivers store) whose login is this user."""
+    if c is None:
+        return None
+    for raw, in c.execute("SELECT data FROM records WHERE store='drivers'").fetchall():
+        try:
+            d = json.loads(raw)
+        except Exception:
+            continue
+        if isinstance(d, dict) and d.get("userId") == user_id and not d.get("_deleted"):
+            return d
+    return None
+
+
+def _guard_write(store, rid, data, actor, existing, c=None):
     """Enforce, server-side, the rules the app promises.
 
     Everything here was previously enforced only in app.js. Staff are given a
@@ -943,10 +986,108 @@ def _guard_write(store, rid, data, actor, existing):
         return None
     old = existing or {}
 
+    manager = actor["role"] in MANAGER_ROLES
+
     if store == "attendance":
+        # A check-in is the evidence a late penalty is charged on. Staff used to
+        # be able to rewrite or delete their own rows (clearing a late mark) and,
+        # by id, a colleague's. Once written, only a manager changes one.
+        if old and not manager:
+            return "attendance cannot be changed once recorded"
         # Whose attendance this is comes from the token, never the body —
         # otherwise anyone can mark a colleague present who never came in.
-        data["userId"] = actor["id"]
+        if not old:
+            data["userId"] = actor["id"]
+            # When the server received it. The check-in time itself comes from
+            # the phone, corrected by the server clock it last saw; a time that
+            # is well before arrival is marked, so a late check-in pushed from a
+            # phone set back (or held offline) cannot pass as on time unseen.
+            now = now_ms()
+            data["receivedAt"] = now
+            try:
+                at = int(data.get("at") or 0)
+            except (TypeError, ValueError):
+                at = 0
+            if not at or at > now + MAX_FUTURE_SKEW_MS:
+                data["at"] = now
+            elif now - at > ATTENDANCE_TRUST_MS:
+                data["atUnverified"] = True
+        return None
+
+    if store in APPEND_ONLY_FOR_STAFF and not manager:
+        if old:
+            return "%s entries cannot be changed once recorded" % store
+        if data.get("_deleted"):
+            return "%s entries cannot be deleted" % store
+        return None
+
+    if store == "purchases" and not manager and old:
+        if data.get("_deleted"):
+            return "bills cannot be deleted"
+        if not _same_except(old, data, PURCHASE_STAFF_FIELDS):
+            return "a bill cannot be changed after it is entered, only marked paid"
+        return None
+
+    if store == "driverreports" and not manager:
+        if not old:
+            return None
+        # The reporter can take back their own mistaken report while it is still
+        # open and no job hangs off it (cancelReport in app.js). Nothing else.
+        mine = old.get("_createdBy") == actor["id"]
+        if not mine:
+            crew = _crew_record_for(c, actor["id"])
+            mine = bool(crew) and old.get("driverId") == crew.get("id")
+        if not mine:
+            return "only the person who filed a report may change it"
+        if data.get("_deleted"):
+            return "reports cannot be deleted"
+        if old.get("status") != "open" or old.get("jobId"):
+            return "this report is already being dealt with"
+        if data.get("status") not in ("open", "cancelled") or data.get("jobId"):
+            return "a report can only be cancelled by its reporter"
+        if not _same_except(old, data, ("status", "resolvedAt")):
+            return "a report's details cannot be changed"
+        return None
+
+    if store == "trips" and actor["role"] == "driver":
+        # The driver's own cash session, and only while it is open. The allowance
+        # handed over and the expenses already claimed are fixed once recorded.
+        crew = _crew_record_for(c, actor["id"])
+        if not crew:
+            return "no crew record is linked to this login"
+        if data.get("driverId") != crew.get("id") or (old and old.get("driverId") != crew.get("id")):
+            return "a driver can only record their own trips"
+        if data.get("_deleted"):
+            return "trips cannot be deleted"
+        if old:
+            if old.get("status") == "closed":
+                return "a closed trip cannot be changed"
+            if not _same_except(old, data, ("expenses", "status", "closedAt")):
+                return "a trip's bus, allowance and start cannot be changed"
+            if data.get("status") not in ("active", "closed"):
+                return "invalid trip status"
+            before, after = old.get("expenses") or [], data.get("expenses") or []
+            if not isinstance(after, list) or after[:len(before)] != before:
+                return "expenses already claimed cannot be changed or removed"
+        return None
+
+    if store == "triplog" and actor["role"] == "driver":
+        # A stop arrival is punctuality evidence. A driver may only log their own
+        # bus, once per stop per day, and never rewrite or remove one.
+        if old:
+            return "a stop arrival cannot be changed once recorded"
+        crew = _crew_record_for(c, actor["id"])
+        if not crew or not crew.get("busId") or data.get("busId") != crew.get("busId"):
+            return "a driver can only log arrivals for their own bus"
+        if c is not None:
+            for raw, in c.execute("SELECT data FROM records WHERE store='triplog'").fetchall():
+                try:
+                    t = json.loads(raw)
+                except Exception:
+                    continue
+                if (isinstance(t, dict) and not t.get("_deleted") and t.get("busId") == data.get("busId")
+                        and t.get("stopId") == data.get("stopId") and t.get("day") == data.get("day")):
+                    return "this stop is already logged for today"
         return None
 
     if store == "ledger":
@@ -962,6 +1103,29 @@ def _guard_write(store, rid, data, actor, existing):
     if store == "jobcards":
         status = data.get("status")
         prev = old.get("status")
+
+        # A job card is what labour and parts are billed against. Removing one is
+        # the owner's or supervisor's decision; the store login could delete any.
+        if not manager and data.get("_deleted") and not old.get("_deleted"):
+            return "only an owner or supervisor may delete a job card"
+
+        # Signed off means paid against. Staff may still attach a part the store
+        # issued afterwards, but hours, outside cost and parts already on the card
+        # are fixed until an owner or supervisor re-opens it.
+        if not manager and prev == "verified" and status == "verified":
+            for f in ("labourHours", "externalCost", "externalVendor"):
+                if data.get(f) != old.get(f):
+                    return "a verified job's hours and costs cannot be changed — re-open it first"
+            new_lines = {}
+            for l in data.get("partsUsed") or []:
+                if isinstance(l, dict):
+                    k = (l.get("partId"), bool(l.get("reused")))
+                    new_lines[k] = new_lines.get(k, 0) + (l.get("qty") or 0)
+            for l in old.get("partsUsed") or []:
+                if isinstance(l, dict):
+                    k = (l.get("partId"), bool(l.get("reused")))
+                    if new_lines.get(k, 0) < (l.get("qty") or 0):
+                        return "parts on a verified job cannot be removed or reduced — re-open it first"
 
         # A mechanic works on the cards they are on, and only those.
         #
@@ -1077,26 +1241,84 @@ def may_write(role, store):
     return role in allowed
 
 
-def _log_stock_move(c, part_id, was, now_q, actor, batch, rev):
-    """Append an immutable record of a quantity change.
+def _qty(v):
+    try:
+        return float(v) if v is not None else 0.0
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _log_stock_moves(c, moves, ledger_rows, actor, rev):
+    """Append an immutable record of each quantity change in one push.
 
     The store role can legitimately edit `parts`, so this is not about refusing
-    the write — it is about making sure it cannot happen quietly. `justified` is
-    False when no ledger row for this part arrived in the same push, which is
-    exactly the shape of taking stock off the shelf and then correcting the book
-    so the count comes out even.
+    the write — it is about making sure it cannot happen quietly. A change is
+    `justified` only when the ledger rows this push actually STORED for that part
+    account for it exactly: stock in minus stock out equals the change in the
+    count. It used to be enough that any ledger record for the part appeared in
+    the request — one that was refused or never saved counted, and a one-unit
+    issue excused a ten-unit drop.
+
+    Each row gets a random id. The id was part + millisecond, so two moves of one
+    part in the same millisecond overwrote each other and the larger one vanished.
     """
-    justified = any(
-        (b.get("store") == "ledger" and isinstance(b.get("data"), dict)
-         and b["data"].get("partId") == part_id)
-        for b in (batch or []))
-    mid = "sm-%s-%d" % (part_id, now_ms())
-    return _upsert_record(c, "stockmoves", mid, {
-        "id": mid, "partId": part_id,
-        "was": was, "now": now_q, "delta": (now_q or 0) - (was or 0),
-        "by": actor["id"], "byRole": actor["role"],
-        "justified": justified, "at": now_ms(),
-    }, now_ms(), rev)
+    net = {}
+    for l in ledger_rows:
+        pid = l.get("partId")
+        q = _qty(l.get("qty"))
+        net[pid] = net.get(pid, 0.0) + (q if l.get("type") == "in" else -q if l.get("type") == "out" else 0.0)
+    total = {}
+    for pid, was, now_q in moves:
+        total[pid] = total.get(pid, 0.0) + (now_q - was)
+    for pid, was, now_q in moves:
+        justified = pid in net and abs(net[pid] - total[pid]) < 1e-9
+        mid = "sm-" + uuid.uuid4().hex
+        rev = _upsert_record(c, "stockmoves", mid, {
+            "id": mid, "partId": pid,
+            "was": was, "now": now_q, "delta": now_q - was,
+            "by": actor["id"], "byRole": actor["role"],
+            "justified": justified, "at": now_ms(),
+        }, now_ms(), rev)
+    return rev
+
+
+def _sync_disabled_login(c, crew):
+    """Keep a crew member's login in step with their crew-bank record.
+
+    Marking someone left or archived only changed the crew record, so the person
+    kept a working PIN and full sync access. A login whose crew record is left,
+    archived or deleted is now refused; setting them active again restores it."""
+    uid = crew.get("userId")
+    if not uid:
+        return
+    if crew.get("_deleted") or crew.get("status") in ("left", "archived"):
+        c.execute("INSERT INTO disabledlogins(id,at) VALUES(?,?) "
+                  "ON CONFLICT(id) DO UPDATE SET at=excluded.at", (uid, now_ms()))
+    else:
+        c.execute("DELETE FROM disabledlogins WHERE id=?", (uid,))
+
+
+def rebuild_disabled_logins():
+    """Derive the disabled list from every crew record, once per process, so crew
+    who left before this rule existed are covered too."""
+    with _lock:
+        c = db()
+        for raw, in c.execute("SELECT data FROM records WHERE store='drivers'").fetchall():
+            try:
+                d = json.loads(raw)
+            except Exception:
+                continue
+            if isinstance(d, dict):
+                _sync_disabled_login(c, d)
+        c.commit()
+        c.close()
+
+
+def login_disabled(user_id):
+    c = db()
+    row = c.execute("SELECT 1 FROM disabledlogins WHERE id=?", (user_id,)).fetchone()
+    c.close()
+    return bool(row)
 
 
 _UNSAFE_ID = re.compile(r"[<>\"'`&\x00-\x1f]")
@@ -1117,6 +1339,8 @@ def push(records, actor=None):
         applied = 0
         rejected = 0
         refused = []
+        moves = []            # (partId, was, now) — logged once the batch is known
+        applied_ledger = []   # ledger rows this push actually stored
         for r in records:
             store, rid = r.get("store"), r.get("id")
             upd = int(r.get("updatedAt") or 0)
@@ -1165,6 +1389,11 @@ def push(records, actor=None):
             # the record permanent under last-write-wins.
             if upd > now_ms() + MAX_FUTURE_SKEW_MS:
                 upd = now_ms()
+            # Devices order records by data.updatedAt, not the envelope. Clamping
+            # only the envelope let a far-future payload make every device ignore
+            # the owner's later correction.
+            if isinstance(data, dict):
+                data["updatedAt"] = upd
             row = c.execute("SELECT updatedAt,data FROM records WHERE store=? AND id=?",
                             (store, rid)).fetchone()
             existing = None
@@ -1173,8 +1402,20 @@ def push(records, actor=None):
                     existing = json.loads(row[1])
                 except Exception:
                     existing = None
+            if actor and isinstance(data, dict):
+                # Who first wrote the record survives every later edit; _by is
+                # only the last writer.
+                if existing and existing.get("_createdBy"):
+                    data["_createdBy"] = existing["_createdBy"]
+                    data["_createdRole"] = existing.get("_createdRole")
+                elif not existing:
+                    data["_createdBy"] = actor["id"]
+                    data["_createdRole"] = actor["role"]
+                else:
+                    data.pop("_createdBy", None)
+                    data.pop("_createdRole", None)
             if actor:
-                reason = _guard_write(store, rid, data, actor, existing)
+                reason = _guard_write(store, rid, data, actor, existing, c)
                 if reason:
                     rejected += 1
                     refused.append({"store": store, "id": rid, "reason": reason})
@@ -1185,13 +1426,22 @@ def push(records, actor=None):
                 # no client can write or delete, with who did it and whether a
                 # ledger row justified it — so "correcting" the book to match an
                 # emptier shelf stops being invisible.
-                if store == "parts" and actor and isinstance(data, dict):
-                    was = (existing or {}).get("qty")
-                    now_q = data.get("qty")
-                    if was is not None and now_q is not None and was != now_q:
-                        rev = _log_stock_move(c, rid, was, now_q, actor, records, rev)
+                if store == "parts" and actor and isinstance(data, dict) and existing is not None:
+                    # A missing qty counts as zero. Skipping it let a count go
+                    # 10 -> nothing -> 3 with no move logged at all. (A part the
+                    # server has never seen is not a move: the bundle's parts are
+                    # only pushed the first time someone edits one.)
+                    was, now_q = _qty(existing.get("qty")), _qty(data.get("qty"))
+                    if was != now_q:
+                        moves.append((rid, was, now_q))
+                if store == "ledger" and actor and isinstance(data, dict) and not data.get("_deleted"):
+                    applied_ledger.append(data)
+                if store == "drivers" and isinstance(data, dict):
+                    _sync_disabled_login(c, data)
                 rev = _upsert_record(c, store, rid, data, upd, rev)
                 applied += 1
+        if moves:
+            rev = _log_stock_moves(c, moves, applied_ledger, actor, rev)
         c.commit()
         c.close()
         return {"ok": True, "applied": applied, "rejected": rejected,
@@ -1413,7 +1663,8 @@ def pull(since, limit=None, actor=None):
     # Redact AFTER the cursor is taken: an omitted record must still count as
     # sent, or the client would ask for the same page forever.
     recs = [x for x in (redact_for(actor, r) for r in recs) if x is not None]
-    return {"records": recs, "maxRev": cursor, "more": cursor < maxrev, "tableMax": maxrev}
+    return {"records": recs, "maxRev": cursor, "more": cursor < maxrev, "tableMax": maxrev,
+            "serverTime": now_ms()}
 
 
 # ----------------------------- GPS simulator -------------------------------
@@ -1672,6 +1923,65 @@ def gps_telemetry(bus_id, odo, reg=None):
             "odometer": odometer, "lastPing": int(t * 1000)}
 
 
+# The AI advisor is an owner/supervisor screen, and every call is billed to the
+# operator's key. Any login could use it as a general proxy, with any model.
+AI_MODEL = "claude-haiku-4-5-20251001"
+AI_DAILY_LIMIT = int(os.environ.get("AI_DAILY_LIMIT", "60"))
+
+
+def ai_allowed(user):
+    """None if this user may make one more AI call today (and counts it), else why not."""
+    if user.get("role") not in ("owner", "supervisor"):
+        return "forbidden"
+    key = "%s:%s" % (user["id"], datetime.utcnow().strftime("%Y-%m-%d"))
+    with _lock:
+        c = db()
+        row = c.execute("SELECT n FROM aiusage WHERE k=?", (key,)).fetchone()
+        n = int(row[0]) if row else 0
+        if n >= AI_DAILY_LIMIT:
+            c.close()
+            return "daily AI limit reached"
+        c.execute("INSERT INTO aiusage(k,n) VALUES(?,?) ON CONFLICT(k) DO UPDATE SET n=excluded.n", (key, n + 1))
+        c.commit()
+        c.close()
+    return None
+
+
+_UPLOAD_NAME = re.compile(r"^[0-9a-f]{32}\.(jpg|png)$")
+
+
+def delete_uploads(urls):
+    """Remove uploaded images for good: a replaced document photo, a removed
+    document, a crew member removed from the register.
+
+    Nothing ever deleted an upload, so an Aadhaar or licence photo stayed
+    reachable at its link after the person and their record were gone. Only
+    names this server generated are touched."""
+    removed = 0
+    for url in urls or []:
+        if not isinstance(url, str):
+            continue
+        name = url.rsplit("/", 1)[-1].split("?", 1)[0]
+        if not _UPLOAD_NAME.match(name):
+            continue
+        if _USE_R2 and R2_PUBLIC_URL and url.startswith(R2_PUBLIC_URL.rstrip("/") + "/"):
+            try:
+                _r2_client().delete_object(Bucket=R2_BUCKET, Key=name)
+                removed += 1
+            except Exception as e:
+                print("R2 delete failed:", _redact(e))
+            continue
+        if "/uploads/" in url:
+            fp = os.path.join(UPLOADS, name)
+            if os.path.isfile(fp):
+                try:
+                    os.remove(fp)
+                    removed += 1
+                except OSError:
+                    pass
+    return removed
+
+
 def save_upload(data_url, host, proto="http"):
     head, _, b64 = data_url.partition(",")
     ext = "png" if "image/png" in head else "jpg"
@@ -1910,12 +2220,37 @@ def bus_by_phone(phone):
     with _lock:
         c = db()
         rows = c.execute("SELECT id,data FROM records WHERE store='buses'").fetchall()
+        crew = c.execute("SELECT data FROM records WHERE store='drivers'").fetchall()
         c.close()
+    buses = {}
     for rid, raw in rows:
         try:
             b = json.loads(raw)
         except Exception:
             continue
+        if isinstance(b, dict) and not b.get("_deleted"):
+            buses[rid] = b
+    # The crew bank decides who crews which bus, and it follows people when they
+    # leave, are archived or move. buses.crewPhone is a copy made once from the
+    # route sheet and never updated, so a driver who left kept writing his old
+    # bus's odometer. An active crew member with this number on a bus wins; a
+    # number that belongs only to crew who have left binds nothing.
+    departed = False
+    for raw, in crew:
+        try:
+            d = json.loads(raw)
+        except Exception:
+            continue
+        if not isinstance(d, dict) or re.sub(r"\D", "", str(d.get("phone") or ""))[-10:] != tail:
+            continue
+        if d.get("_deleted") or d.get("status") in ("left", "archived"):
+            departed = True
+            continue
+        if d.get("busId") in buses:
+            return buses[d["busId"]]
+    if departed:
+        return None
+    for b in buses.values():
         if re.sub(r"\D", "", str(b.get("crewPhone") or ""))[-10:] == tail:
             return b
     return None
@@ -2031,6 +2366,7 @@ def odometer_submit(phone, image_data_url, source="test", dry=False):
 
     prev = int(bus.get("odometer") or 0)
     now = now_ms()
+    wa = source == "whatsapp"
     log = {
         "id": "odo-" + uuid.uuid4().hex[:12],
         "busId": bus.get("id"), "reg": bus.get("regNo"),
@@ -2039,6 +2375,23 @@ def odometer_submit(phone, image_data_url, source="test", dry=False):
         "raw": raw, "source": source, "at": now, "updatedAt": now,
         "status": "accepted",
     }
+
+    # The owner marked this bus's meter as broken; nothing it shows is a reading.
+    if bus.get("odoBroken"):
+        log["status"] = "held-broken"
+        if not dry:
+            _write_odo_log(log)
+        return {"status": "held", "bus": bus.get("regNo"), "km": km, "reply":
+                f"{bus.get('regNo')}: meter kharab mark hai, reading darj nahi hui. Office ko batayein."}
+
+    # A bus with no reading yet takes whatever the first message says as its
+    # baseline, forever. From a phone that is for a person to confirm.
+    if wa and not prev:
+        log["status"] = "held-first"
+        if not dry:
+            _write_odo_log(log)
+        return {"status": "held", "bus": bus.get("regNo"), "km": km, "reply":
+                f"{bus.get('regNo')}: pehli reading {km:,} km. Office confirm karega."}
 
     # A reading that goes backwards is either a misread or the wrong bus. Never
     # write it — a decreasing odometer would make every downstream km figure
@@ -2062,18 +2415,60 @@ def odometer_submit(phone, image_data_url, source="test", dry=False):
                 f"{bus.get('regNo')}: {km:,} km — pichhli baar se {km - prev:,} km zyada. "
                 "Office confirm karega."}
 
+    # The per-message limit alone let repeated photos walk the odometer up
+    # without bound, 1,600 km at a time. Over a day, from a phone, the total is
+    # capped too: measured from the reading this bus had before its first
+    # WhatsApp update in the last 24 hours.
+    if wa and prev:
+        base = prev
+        with _lock:
+            c = db()
+            for raw, in c.execute("SELECT data FROM records WHERE store='odometerlogs'").fetchall():
+                try:
+                    lg = json.loads(raw)
+                except Exception:
+                    continue
+                if (isinstance(lg, dict) and lg.get("busId") == bus.get("id") and lg.get("status") == "accepted"
+                        and lg.get("source") == "whatsapp" and now - int(lg.get("at") or 0) < 86400000
+                        and lg.get("prevKm")):
+                    base = min(base, int(lg["prevKm"]))
+            c.close()
+        if km - base > ODO_MAX_DAILY_KM:
+            log["status"] = "held-daily"
+            if not dry:
+                _write_odo_log(log)
+            return {"status": "held", "bus": bus.get("regNo"), "km": km, "reply":
+                    f"{bus.get('regNo')}: aaj ki readings milakar {km - base:,} km ho gaye. Office confirm karega."}
+
     if dry:
         return {"status": "accepted", "dry": True, "bus": bus.get("regNo"), "km": km,
                 "prev": prev, "raw": raw,
                 "reply": f"[dry] {bus.get('regNo')}: {km:,} km read, nothing written."}
 
-    bus["odometer"] = km
-    bus["odometerAt"] = now
-    bus["updatedAt"] = now
     with _lock:
         c = db()
+        # Re-read the bus under the lock and change only the odometer. The copy
+        # read before the vision call can be a minute old, and writing it back
+        # whole silently undid any owner or supervisor edit made meanwhile.
+        row = c.execute("SELECT data FROM records WHERE store='buses' AND id=?", (bus["id"],)).fetchone()
+        try:
+            cur = json.loads(row[0]) if row else None
+        except Exception:
+            cur = None
+        changed = (not isinstance(cur, dict) or cur.get("_deleted") or cur.get("odoBroken")
+                   or int(cur.get("odometer") or 0) > km)
+        if changed:
+            log["status"] = "held-changed"
+            rev = c.execute("SELECT COALESCE(MAX(rev),0) FROM records").fetchone()[0]
+            _upsert_record(c, "odometerlogs", log["id"], log, now, rev)
+            c.commit(); c.close()
+            return {"status": "held", "bus": bus.get("regNo"), "km": km, "reply":
+                    f"{bus.get('regNo')}: bus ki details abhi badli hain. Office check karega."}
+        cur["odometer"] = km
+        cur["odometerAt"] = now
+        cur["updatedAt"] = max(now, int(cur.get("updatedAt") or 0) + 1)
         rev = c.execute("SELECT COALESCE(MAX(rev),0) FROM records").fetchone()[0]
-        rev = _upsert_record(c, "buses", bus["id"], bus, now, rev)
+        rev = _upsert_record(c, "buses", cur["id"], cur, cur["updatedAt"], rev)
         _upsert_record(c, "odometerlogs", log["id"], log, now, rev)
         c.commit(); c.close()
 
@@ -2478,6 +2873,11 @@ class Handler(BaseHTTPRequestHandler):
                 # the app drop any copy it cached instead of signing in offline.
                 return self._send(403, {"error": refusal, "known": True})
             r = do_login(uid, b.get("pin"))
+            if r and login_disabled(uid):
+                # Right PIN, but the crew record says this person has left.
+                # Said only after the PIN checks out, so it reveals nothing to
+                # someone guessing.
+                return self._send(403, {"error": "account_disabled", "known": True})
             if not r:
                 record_fail(uid, ip)
                 # `known` lets the client treat this rejection as final instead of
@@ -2709,6 +3109,15 @@ class Handler(BaseHTTPRequestHandler):
                                             "hint": "pass force:true only if you mean to merge into existing data"})
             return self._send(200, push(recs, None))
 
+        if u.path == "/upload/delete":           # manager: delete replaced/removed photos
+            me = self._auth_user()
+            if not me:
+                return self._send(401, {"error": "unauthorized"})
+            if me["role"] not in ("owner", "supervisor", "crewmanager"):
+                return self._send(403, {"error": "forbidden"})
+            urls = self._body().get("urls") or []
+            return self._send(200, {"ok": True, "removed": delete_uploads(urls[:200])})
+
         if u.path == "/upload":
             if not self._auth_user():
                 return self._send(401, {"error": "unauthorized"})
@@ -2725,8 +3134,12 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, save_upload(data, _host, _proto))
 
         if u.path == "/ai":          # server-side Anthropic proxy — keeps the API key OFF devices
-            if not self._auth_user():
+            me = self._auth_user()
+            if not me:
                 return self._send(401, {"error": "unauthorized"})
+            why = ai_allowed(me)
+            if why:
+                return self._send(403 if why == "forbidden" else 429, {"error": why})
             if not ANTHROPIC_API_KEY:
                 return self._send(501, {"error": "AI not configured on server"})
             b = self._body()
@@ -2737,7 +3150,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(400, {"error": "question required"})
             try:
                 payload = json.dumps({
-                    "model": b.get("model") or "claude-haiku-4-5-20251001",
+                    "model": AI_MODEL,           # never the caller's choice — it sets the bill
                     "max_tokens": 500,
                     "system": f"You are the operations advisor for {biz}, a bus maintenance garage in Jaipur, India. Be concise and practical, use rupee (Rs) figures, focus on cutting cost and pilferage. Max 6 sentences.",
                     "messages": [{"role": "user", "content": f"Current garage data:\n{context}\n\nQuestion: {question}"}],
@@ -2752,8 +3165,12 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(502, {"error": "AI upstream error"})
 
         if u.path == "/ai/vision":   # Claude vision — part-wear grading + serial OCR
-            if not self._auth_user():
+            me = self._auth_user()
+            if not me:
                 return self._send(401, {"error": "unauthorized"})
+            why = ai_allowed(me)
+            if why:
+                return self._send(403 if why == "forbidden" else 429, {"error": why})
             if not ANTHROPIC_API_KEY:
                 return self._send(501, {"error": "AI not configured on server"})
             b = self._body()
@@ -2765,7 +3182,7 @@ class Handler(BaseHTTPRequestHandler):
                 header, b64 = image.split(",", 1)
                 media = header.split(";")[0].split(":")[1] if ":" in header else "image/jpeg"
                 payload = json.dumps({
-                    "model": b.get("model") or "claude-haiku-4-5-20251001",
+                    "model": AI_MODEL,
                     "max_tokens": 300,
                     "messages": [{"role": "user", "content": [
                         {"type": "image", "source": {"type": "base64", "media_type": media, "data": b64}},

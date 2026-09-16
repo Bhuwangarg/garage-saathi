@@ -149,7 +149,12 @@ check("store CAN write jobcards (fulfil)", push_one(STORE, "jobcards", "j-store"
 push_one(SUPER, "jobcards", "j-mech", {"id": "j-mech", "status": "open", "assignees": [{"userId": "u-m1"}]})
 check("mechanic CAN write jobcards (work)",
       push_one(MECH, "jobcards", "j-mech", {"id": "j-mech", "status": "open", "labourHours": 2})["applied"] == 1)
-check("driver CAN write trips (cash session)", push_one(DRIVER, "trips", "t-ok")["applied"] == 1)
+# A driver's trip belongs to their own crew-bank record.
+push_one(SUPER, "drivers", "d-drvA", {"id": "d-drvA", "name": "Driver A", "userId": "u-drvA", "busId": "b-ok"})
+check("driver CAN write trips (cash session)",
+      push_one(DRIVER, "trips", "t-ok", {"id": "t-ok", "driverId": "d-drvA", "status": "active", "expenses": []})["applied"] == 1)
+check("driver CANNOT write another driver's trip",
+      push_one(DRIVER, "trips", "t-other", {"id": "t-other", "driverId": "d-someoneelse"})["rejected"] == 1)
 check("driver CAN write attendance", push_one(DRIVER, "attendance", "a-drv")["applied"] == 1)
 check("conductor CAN write attendance", push_one(COND, "attendance", "a-con")["applied"] == 1)
 check("conductor CAN write driverreports", push_one(COND, "driverreports", "dr-con")["applied"] == 1)
@@ -160,7 +165,7 @@ check("owner passes everything (buses)", push_one(OWNER, "buses", "b-owner")["ap
 check("nobody may client-push gpsevents (server-ingest only)", push_one(MECH, "gpsevents", "ev-x")["rejected"] == 1)
 
 print("Phase 2 — immutable server provenance (_by / _byRole / _org)")
-push_one(DRIVER, "trips", "t-prov", {"id": "t-prov", "driverId": "u-drvA", "_by": "u-owner"})
+push_one(DRIVER, "trips", "t-prov", {"id": "t-prov", "driverId": "d-drvA", "_by": "u-owner"})
 rec = stored("trips", "t-prov")
 check("_by stamped from token, not body", rec.get("_by") == "u-drvA")
 check("body-supplied _by was OVERWRITTEN", rec.get("_by") != "u-owner")
