@@ -2048,7 +2048,14 @@ def ai_allowed(user):
     return None
 
 
-_UPLOAD_NAME = re.compile(r"^[0-9a-f]{32}\.(jpg|png)$")
+_UPLOAD_NAME = re.compile(r"^[0-9a-f]{32}\.(jpg|png|pdf)$")
+# What an upload may be, told by its first bytes and not by the data URL's
+# label: a camera or gallery picture (JPEG/PNG), or a PDF such as a DigiLocker
+# licence. Anything else was stored as ".jpg" before, whatever it really was.
+_UPLOAD_KINDS = ((b"\xff\xd8\xff", "jpg", "image/jpeg"),
+                 (b"\x89PNG\r\n\x1a\n", "png", "image/png"),
+                 (b"%PDF-", "pdf", "application/pdf"))
+UPLOAD_CTYPES = {ext: ctype for _, ext, ctype in _UPLOAD_KINDS}
 
 
 def delete_uploads(urls):
@@ -2084,11 +2091,18 @@ def delete_uploads(urls):
 
 
 def save_upload(data_url, host, proto="http"):
-    head, _, b64 = data_url.partition(",")
-    ext = "png" if "image/png" in head else "jpg"
-    ctype = "image/png" if ext == "png" else "image/jpeg"
+    """Store one upload and return {"url"}, or {"error"} when it is not a JPEG,
+    PNG or PDF."""
+    _head, _, b64 = data_url.partition(",")
+    try:
+        raw = base64.b64decode(b64, validate=True)
+    except Exception:
+        return {"error": "not valid base64"}
+    kind = next((k for k in _UPLOAD_KINDS if raw.startswith(k[0])), None)
+    if not kind:
+        return {"error": "only JPEG, PNG or PDF files can be uploaded"}
+    _, ext, ctype = kind
     name = uuid.uuid4().hex + "." + ext
-    raw = base64.b64decode(b64)
     # Cloudflare R2 (free, persistent) when configured — the image lives in object
     # storage and its permanent public URL syncs in the record. Falls back to local
     # disk otherwise (ephemeral on a free host).
@@ -2833,7 +2847,9 @@ class Handler(BaseHTTPRequestHandler):
             fp = os.path.join(UPLOADS, name)
             if not os.path.isfile(fp):
                 return self._send(404, {"error": "not found"})
-            ct = "image/png" if name.endswith(".png") else "image/jpeg"
+            if not _UPLOAD_NAME.match(name):
+                return self._send(404, {"error": "not found"})
+            ct = UPLOAD_CTYPES[name.rsplit(".", 1)[1]]
             with open(fp, "rb") as f:
                 return self._send(200, raw=f.read(), ctype=ct)
         # The login screen is built from whoever this device knows about, and a
@@ -3258,7 +3274,8 @@ class Handler(BaseHTTPRequestHandler):
             # X-Forwarded-Proto, and default to https for any non-local host.
             _proto = (self.headers.get("X-Forwarded-Proto")
                       or ("http" if _host.startswith(("localhost", "127.")) else "https"))
-            return self._send(200, save_upload(data, _host, _proto))
+            saved = save_upload(data, _host, _proto)
+            return self._send(400 if "error" in saved else 200, saved)
 
         if u.path == "/ai":          # server-side Anthropic proxy — keeps the API key OFF devices
             me = self._auth_user()

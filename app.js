@@ -188,6 +188,9 @@ const I18N = {
     deviceServer: 'Device & server', deviceServerSub: 'Address, API key, and re-download', saveWord: 'Save',
     cbFrontSide: 'Front', cbBackSide: 'Back', cbDocumentWord: 'Document', cbTapToAdd: 'Tap to add',
     cbRetake: 'Retake', cbPhotoFailed: "That picture didn't come through — take it again",
+    cbCamera: 'Camera', cbUpload: 'Upload', cbUploadPhoto: 'Upload photo', cbPdfWord: 'PDF', cbPickPhotoOrPdf: 'Pick a photo or a PDF',
+    cbPdfTooBig: 'That PDF is over 3 MB — upload a smaller copy or a photo', cbPdfNoScan: "Can't read the number from a PDF — type it in",
+    cbPdfNeedsNet: 'A PDF needs internet to save — try again when you are online',
     cbBackLicense: 'The back carries the vehicle classes he is endorsed for. Optional, but worth having.',
     cbBackAadhaar: 'The back carries the address. Optional.',
     cbBackGeneric: 'Add the back too if the document has one. Optional.',
@@ -405,6 +408,9 @@ const I18N = {
     deviceServer: 'डिवाइस और सर्वर', deviceServerSub: 'पता, API key, और दोबारा डाउनलोड', saveWord: 'सेव करें',
     cbFrontSide: 'सामने', cbBackSide: 'पीछे', cbDocumentWord: 'कागज़', cbTapToAdd: 'फोटो लगाएँ',
     cbRetake: 'दोबारा', cbPhotoFailed: 'यह फोटो नहीं आई — दोबारा लें',
+    cbCamera: 'कैमरा', cbUpload: 'अपलोड', cbUploadPhoto: 'फोटो अपलोड करें', cbPdfWord: 'PDF', cbPickPhotoOrPdf: 'फोटो या PDF चुनिए',
+    cbPdfTooBig: 'यह PDF 3 MB से बड़ी है — छोटी कॉपी या फोटो लगाएँ', cbPdfNoScan: 'PDF से नंबर नहीं पढ़ सकते — टाइप कीजिए',
+    cbPdfNeedsNet: 'PDF सेव करने के लिए इंटरनेट चाहिए — नेट आने पर दोबारा करें',
     cbBackLicense: 'पीछे की तरफ़ गाड़ी की कैटेगरी लिखी होती है। ज़रूरी नहीं, पर रखना अच्छा है।',
     cbBackAadhaar: 'पीछे की तरफ़ पता होता है। ज़रूरी नहीं।',
     cbBackGeneric: 'अगर कागज़ के दो तरफ़ हैं तो पीछे की फोटो भी लगाएँ। ज़रूरी नहीं।',
@@ -725,8 +731,9 @@ function fileToThumb(file, max = 900) {
   });
 }
 
-// Open device camera and return a downscaled dataURL.
-function capturePhoto() {
+// Open the phone's picker and settle with the chosen File, or null if dismissed.
+// `capture` set → straight to the camera; unset → gallery, files, or camera.
+function pickFile(accept, capture) {
   return new Promise((resolve) => {
     // Cancelling the camera has to settle this too.
     //
@@ -746,21 +753,68 @@ function capturePhoto() {
     // Older WebKit has no `cancel` event: coming back to the window with no file
     // chosen means dismissed. The delay lets a real `change` land first.
     const onFocus = () => setTimeout(() => { if (!(inp.files && inp.files.length)) finish(null); }, 900);
-    inp.type = 'file'; inp.accept = 'image/*'; inp.capture = 'environment';
+    inp.type = 'file'; inp.accept = accept;
+    if (capture) inp.capture = capture;
     inp.style.display = 'none';
     inp.oncancel = () => finish(null);
-    inp.onchange = async () => {
-      const f = inp.files && inp.files[0];
-      if (!f) return finish(null);
-      const thumb = await fileToThumb(f);
-      // Say so. A silent null here is indistinguishable from "I did nothing".
-      if (!thumb) { toast(t('cbPhotoFailed')); return finish(null); }
-      finish(thumb);
-    };
+    inp.onchange = () => finish((inp.files && inp.files[0]) || null);
     document.body.appendChild(inp);
     window.addEventListener('focus', onFocus);
     inp.click();
   });
+}
+// Open device camera and return a downscaled dataURL.
+async function capturePhoto() {
+  const f = await pickFile('image/*', 'environment');
+  if (!f) return null;
+  const thumb = await fileToThumb(f);
+  // Say so. A silent null here is indistinguishable from "I did nothing".
+  if (!thumb) toast(t('cbPhotoFailed'));
+  return thumb;
+}
+/* A document already on the phone — a gallery picture, a scan in Files, or a
+ * PDF such as a DigiLocker licence. Pictures are downscaled like camera shots
+ * (a little larger, so small print stays legible); a PDF is kept as it is.
+ * The server checks the bytes again: only JPEG, PNG and PDF are stored. */
+const DOC_PDF_MAX = 3 * 1024 * 1024;   // base64 of this still fits the 4 MB upload cap
+const isPdfSrc = (src) => typeof src === 'string' && (/^data:application\/pdf[;,]/i.test(src) || /\.pdf(?:$|[?#])/i.test(src));
+async function uploadDocFile(allowPdf) {
+  const f = await pickFile(allowPdf ? 'image/*,application/pdf,.pdf' : 'image/*');
+  if (!f) return null;
+  // Decide by the first bytes: some Android pickers hand over a PDF with no type.
+  let pdf = false;
+  try { pdf = (await f.slice(0, 5).text()) === '%PDF-'; } catch (e) { pdf = false; }
+  if (pdf) {
+    if (!allowPdf) { toast(t('cbPhotoFailed')); return null; }
+    if (f.size > DOC_PDF_MAX) { toast(t('cbPdfTooBig')); return null; }
+    const b64 = await new Promise((res) => {
+      const fr = new FileReader();
+      fr.onload = () => res(String(fr.result || '').split(',')[1] || null);
+      fr.onerror = () => res(null);
+      try { fr.readAsDataURL(f); } catch (e) { res(null); }
+    });
+    if (!b64) { toast(t('cbPhotoFailed')); return null; }
+    return 'data:application/pdf;base64,' + b64;
+  }
+  const thumb = await fileToThumb(f, 1400);
+  if (!thumb) toast(allowPdf ? t('cbPickPhotoOrPdf') : t('cbPhotoFailed'));
+  return thumb;
+}
+// A PDF opens in the phone's own viewer; there is no in-page PDF renderer.
+function openPdf(src) {
+  let url = src;
+  if (/^data:/i.test(src)) {
+    try {
+      const bin = atob(src.split(',')[1] || '');
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (e) { return toast(t('cbPhotoFailed')); }
+  }
+  const a = document.createElement('a');
+  a.href = url; a.target = '_blank'; a.rel = 'noopener';
+  document.body.appendChild(a); a.click(); a.remove();
 }
 
 /* ===== Face check-in: live camera + face detection ========================
@@ -6957,6 +7011,7 @@ async function rejectJob(jobId) {
 }
 
 function viewPhoto(src) {
+  if (isPdfSrc(src)) return openPdf(src);
   openSheet('Photo', `<img src="${esc(src)}" style="width:100%;border-radius:12px">`);
 }
 async function showGps(busId) {
@@ -7633,12 +7688,27 @@ let _docShot = null, _docShotBack = null, _docNumCur = '';
  * Filled, the photo IS the control: tapping it opens it full-size, which is what
  * tapping a photo should do, and a small Retake pill handles the other case. */
 function docShotSlot(side, src, sideLabel, want) {
-  const act = src ? `data-act="viewPhoto" data-src="${esc(src)}"` : `data-act="captureDoc" data-side="${esc(side)}"`;
-  return `<div class="shot ${src ? 'filled' : (want ? 'want' : '')}" ${act}>
-    ${src ? `<img src="${esc(src)}" alt="${esc(sideLabel)}">
-        <div class="tick">✓</div>
-        <button class="redo" data-act="captureDoc" data-side="${esc(side)}">${esc(t('cbRetake'))}</button>`
-      : `<div class="ph"><div class="ic">📷</div><div class="tx">${esc(t('cbTapToAdd'))}</div></div>`}
+  const sd = `data-side="${esc(side)}"`;
+  if (!src) {
+    // Empty: the two ways in, side by side — the camera, or a file already on
+    // the phone (gallery picture, scan, DigiLocker PDF).
+    return `<div class="shot ${want ? 'want' : ''}">
+      <div class="picks">
+        <button class="pick" data-act="captureDoc" ${sd}><span class="ic">📷</span>${esc(t('cbCamera'))}</button>
+        <button class="pick" data-act="uploadDoc" ${sd}><span class="ic">📁</span>${esc(t('cbUpload'))}</button>
+      </div>
+      <div class="side">${esc(sideLabel)}</div></div>`;
+  }
+  const face = isPdfSrc(src)
+    ? `<div class="pdf"><div class="ic">📄</div><div class="tx">${esc(t('cbPdfWord'))}</div></div>`
+    : `<img src="${esc(src)}" alt="${esc(sideLabel)}">`;
+  return `<div class="shot filled" data-act="viewPhoto" data-src="${esc(src)}">
+    ${face}
+    <div class="tick">✓</div>
+    <div class="redos">
+      <button class="redo" data-act="captureDoc" ${sd} aria-label="${esc(t('cbRetake'))}">📷</button>
+      <button class="redo" data-act="uploadDoc" ${sd} aria-label="${esc(t('cbUpload'))}">📁</button>
+    </div>
     <div class="side">${esc(sideLabel)}</div></div>`;
 }
 let _docKeyOpen = '';
@@ -7668,9 +7738,10 @@ function docShotsHtml(doc) {
   return docShotSlot('front', _docShot, t(doc.back ? 'cbFrontSide' : 'cbDocumentWord'), !_docShot)
     + (doc.back ? docShotSlot('back', _docShotBack, t('cbBackSide'), false) : '');
 }
-async function captureDoc(side) {
-  const shot = await capturePhoto();
-  if (!shot) return;                       // cancelled, or capturePhoto already said why
+async function captureDoc(side, fromFile) {
+  // The person's own photo is a picture, never a PDF.
+  const shot = fromFile ? await uploadDocFile(_docKeyOpen !== 'photo') : await capturePhoto();
+  if (!shot) return;                       // cancelled, or the picker already said why
   if (side === 'back') _docShotBack = shot; else _docShot = shot;
   const box = document.getElementById('doc-shots');
   const doc = DRIVER_DOCS.find((x) => x.key === _docKeyOpen);
@@ -7678,6 +7749,7 @@ async function captureDoc(side) {
 }
 async function scanDocNum() {
   if (!_docShot) return toast('Take the document photo first');
+  if (isPdfSrc(_docShot)) return toast(t('cbPdfNoScan'));
   const stop = showBusyOverlay('Reading number…');
   const text = await localOcr(_docShot, { whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 ' });
   if (stop) stop();
@@ -7694,9 +7766,13 @@ async function saveDriverDoc(driverId, key) {
   if (!_docShot) return toast(t('cbDocNeedPhoto'));
   // Offline, uploadPhoto returns null and the data URL is stored inline — the
   // record still saves, and the photo still syncs, just heavier.
-  const photo = await Sync.uploadPhoto(_docShot) || _docShot;
+  // A PDF is never kept inline: megabytes inside the record would ride along on
+  // every sync of the crew register. It has to reach the server first.
+  const put = async (src) => { const url = await Sync.uploadPhoto(src); return url || (isPdfSrc(src) && /^data:/i.test(src) ? null : src); };
+  const photo = await put(_docShot);
+  if (!photo) return toast(t('cbPdfNeedsNet'));
   const entry = { photo, at: Date.now(), by: S.user.id };
-  if (_docShotBack) entry.photoBack = await Sync.uploadPhoto(_docShotBack) || _docShotBack;
+  if (_docShotBack) { entry.photoBack = await put(_docShotBack); if (!entry.photoBack) return toast(t('cbPdfNeedsNet')); }
   const numEl = document.getElementById('doc-num');
   // A masked field the user never touched still reads "XXXX XXXX 1234" — saving
   // that would overwrite the real number with its own mask.
@@ -7821,7 +7897,8 @@ function sheetAddCrew(role) {
   openSheet(t('cbNewJoining'), `
     <div class="chiprow" id="crew-role-chips">${Object.keys(CREW_ROLE_META).map((r) =>
       `<button class="chip ${_crewNewRole === r ? 'active' : ''}" data-act="crewRolePick" data-v="${esc(r)}">${CREW_ROLE_META[r][0]} ${esc(crewRoleLabel(r))}</button>`).join('')}</div>
-    <button class="btn" data-act="crewPhoto">📷 ${t('cbTakePhoto')}</button>
+    <div class="btnrow"><button class="btn" data-act="crewPhoto">📷 ${t('cbTakePhoto')}</button>
+      <button class="btn" data-act="crewPhotoUpload">📁 ${t('cbUploadPhoto')}</button></div>
     <div id="crew-prev" class="thumbs" style="margin:10px 0"></div>
     <label class="field"><span class="lbl">${t('cbFullName')} *</span><input id="c-name" placeholder="${esc(t('cbNamePh'))}"></label>
     <div class="grid2">
@@ -7859,8 +7936,8 @@ function sheetAddCrew(role) {
     <div class="tiny muted" style="margin-top:8px">${t('cbDocsLater')}</div>`);
 }
 
-async function captureCrewPhoto() {
-  const s = await capturePhoto(); if (!s) return;
+async function captureCrewPhoto(fromFile) {
+  const s = fromFile ? await uploadDocFile(false) : await capturePhoto(); if (!s) return;
   _crewShot = await Sync.uploadPhoto(s) || s;
   const p = document.getElementById('crew-prev'); if (p) p.innerHTML = `<img class="thumb" src="${_crewShot}">`;
 }
@@ -9373,6 +9450,7 @@ const _dispatchClick = async (e) => {
       case 'addCrew': return sheetAddCrew();
       case 'crewRolePick': _crewNewRole = el.getAttribute('data-v'); return sheetAddCrew(_crewNewRole);
       case 'crewPhoto': return captureCrewPhoto();
+      case 'crewPhotoUpload': return captureCrewPhoto(true);
       case 'saveCrew': return saveCrew();
       case 'editCrewProfile': return sheetCrewProfile(el.getAttribute('data-driver'));
       case 'saveCrewProfile': return saveCrewProfile(el.getAttribute('data-driver'));
@@ -9399,6 +9477,7 @@ const _dispatchClick = async (e) => {
       case 'openDriverDocs': return push({ name: 'driverdocs', id: el.getAttribute('data-driver') });
       case 'driverDoc': return sheetDriverDoc(el.getAttribute('data-driver'), el.getAttribute('data-key'));
       case 'captureDoc': return captureDoc(el.getAttribute('data-side'));
+      case 'uploadDoc': return captureDoc(el.getAttribute('data-side'), true);
       case 'scanDocNum': return scanDocNum();
       case 'saveDriverDoc': return saveDriverDoc(el.getAttribute('data-driver'), el.getAttribute('data-key'));
       case 'returnCore': return sheetReturnCore(el.getAttribute('data-job'));
