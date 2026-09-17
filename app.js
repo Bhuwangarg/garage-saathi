@@ -42,7 +42,7 @@ const I18N = {
     hmFleetHealth: 'Fleet health', hmBreakdownsSub: 'failures on the road, 90 days',
     hmServiceDue: 'Service overdue', hmAllServiced: 'every bus is up to date',
     hmInShop: 'In the workshop now', hmShopEmpty: 'Nothing in the workshop. Enjoy it.',
-    hmIdle: 'idle', hmMore: 'more',
+    hmIdle: 'idle', hmMore: 'more', hmAllJobs: 'All jobs',
     hmComplaints: 'Driver complaints', hmNoDriver: 'Buses with no driver',
     hmLowStock: 'Parts running low', hmLowStockSub: 'order before a job stops',
     hmWaitingSignoff: 'Waiting on somebody else', hmWaitingSignoffSub: 'You closed these. The owner or another supervisor signs them off — nothing for you to do.',
@@ -259,7 +259,7 @@ const I18N = {
     hmFleetHealth: 'बेड़े की सेहत', hmBreakdownsSub: 'रास्ते में खराबी, 90 दिन',
     hmServiceDue: 'सर्विस बाकी', hmAllServiced: 'हर बस की सर्विस समय पर है',
     hmInShop: 'अभी वर्कशॉप में', hmShopEmpty: 'वर्कशॉप खाली है। अच्छी बात है।',
-    hmIdle: 'खाली खड़ी', hmMore: 'और',
+    hmIdle: 'खाली खड़ी', hmMore: 'और', hmAllJobs: 'सारे काम',
     hmComplaints: 'ड्राइवर शिकायतें', hmNoDriver: 'बिना ड्राइवर वाली बसें',
     hmLowStock: 'पुर्जे कम पड़ रहे', hmLowStockSub: 'काम रुकने से पहले मंगाइए',
     hmWaitingSignoff: 'किसी और पर बाकी', hmWaitingSignoffSub: 'ये आपने बंद किए हैं। जाँच मालिक या दूसरा सुपरवाइज़र करेगा — आपको कुछ नहीं करना।',
@@ -1786,6 +1786,33 @@ const notCheckedInBanner = () => {
  * owed, work waiting on a second signature, and the flags that mean somebody
  * should be asked a question. Nothing here is a task they would do themselves.
  */
+// Jobs standing in the workshop, oldest first.
+function inShopJobs() {
+  return S.cache.jobs
+    .filter((j) => j.status === 'open' || j.status === 'in-progress')
+    .sort((a, b) => (a.enterAt || a.createdAt) - (b.enterAt || b.createdAt));
+}
+// What is standing in the yard, with the clock running. The supervisor gets the
+// long list; the owner, whose nav has no Jobs tab, gets the oldest few and a way
+// into the full board — otherwise the board is only reachable when something is
+// waiting for sign-off.
+function inShopCard(inShop, limit, allLink) {
+  let card = `<div class="card"><div class="row between"><h3>🏭 ${t('hmInShop')}</h3>
+      <span class="badge ${inShop.length ? 'b-amber' : 'b-green'}">${inShop.length}</span></div>`;
+  card += inShop.length ? inShop.slice(0, limit).map((j) => {
+    const since = j.enterAt || j.createdAt;
+    const idle = jobIdleMs(j);
+    return `<div class="li" data-job="${esc(j.id)}"><div class="ava">${j.startAt ? '🔧' : '⏳'}</div>
+      <div class="main"><div class="t">${esc(busName(j.busId))} · ${esc(j.problem)}</div>
+        <div class="s">${t('mchSince')} ${timeAgo(since)}${(!j.startAt && j.status === 'open') ? ' · ' + t('mchNotStarted') : ''}${idle ? ' · ' + t('hmIdle') + ' ' + Math.round(idle / 3600000) + t('bdHrs') : ''}</div></div>
+      ${statusBadge(j.status)}</div>`;
+  }).join('') : `<div class="muted small">${t('hmShopEmpty')}</div>`;
+  const more = inShop.length > limit ? `+${inShop.length - limit} ${t('hmMore')} · ` : '';
+  if (allLink) card += `<div class="small" style="margin-top:8px;color:var(--brand2);cursor:pointer" data-act="openJobsBoard">${more}${t('hmAllJobs')} ›</div>`;
+  else if (more) card += `<div class="tiny muted" style="margin-top:6px" data-nav="jobs">+${inShop.length - limit} ${t('hmMore')} ›</div>`;
+  return card + `</div>`;
+}
+
 function viewOwnerHome() {
   const cost30 = costLast30();
   const prev30 = (() => {
@@ -1824,6 +1851,8 @@ function viewOwnerHome() {
   if (owed) rows.push(triageRow('warn', '🧾', t('hmOwed'), t('hmOwedSub'), 'data-act="openPurchases"', money(owed)));
   body += triageCard(rows);
 
+  body += inShopCard(inShopJobs(), 3, true);
+
   body += `<div class="card"><h3>${t('hmFleetHealth')}</h3>
     ${triageRow(bd90.length ? 'warn' : 'ok', '🛠️', t('bdTitle'), t('hmBreakdownsSub'), 'data-act="openBreakdowns"', bd90.length)}
     ${triageRow(overdue.length ? 'warn' : 'ok', '🔧', t('hmServiceDue'), overdue.length ? esc(overdue.slice(0, 3).map((x) => x.b.regNo).join(', ')) : t('hmAllServiced'), 'data-nav="fleet"', overdue.length)}
@@ -1846,9 +1875,7 @@ function viewOwnerHome() {
  * owner and the supervisor was handed the same screen.
  */
 function viewSupervisorHome() {
-  const inShop = S.cache.jobs
-    .filter((j) => j.status === 'open' || j.status === 'in-progress')
-    .sort((a, b) => (a.enterAt || a.createdAt) - (b.enterAt || b.createdAt));
+  const inShop = inShopJobs();
   const selfOk = selfSignsOff(S.user.role);
   const mineToVerify = selfOk ? [] : S.cache.jobs.filter((j) => j.status === 'done' && j.closedBy === S.user.id);
   const othersToVerify = S.cache.jobs.filter((j) => j.status === 'done' && (selfOk || j.closedBy !== S.user.id));
@@ -1860,19 +1887,7 @@ function viewSupervisorHome() {
 
   let body = greetBlock('🧑‍🔧') + notCheckedInBanner();
 
-  // What is standing in the yard, oldest first, with the clock running.
-  body += `<div class="card"><div class="row between"><h3>🏭 ${t('hmInShop')}</h3>
-      <span class="badge ${inShop.length ? 'b-amber' : 'b-green'}">${inShop.length}</span></div>`;
-  body += inShop.length ? inShop.slice(0, 8).map((j) => {
-    const since = j.enterAt || j.createdAt;
-    const idle = jobIdleMs(j);
-    return `<div class="li" data-job="${esc(j.id)}"><div class="ava">${j.startAt ? '🔧' : '⏳'}</div>
-      <div class="main"><div class="t">${esc(busName(j.busId))} · ${esc(j.problem)}</div>
-        <div class="s">${t('mchSince')} ${timeAgo(since)}${(!j.startAt && j.status === 'open') ? ' · ' + t('mchNotStarted') : ''}${idle ? ' · ' + t('hmIdle') + ' ' + Math.round(idle / 3600000) + t('bdHrs') : ''}</div></div>
-      ${statusBadge(j.status)}</div>`;
-  }).join('') + (inShop.length > 8 ? `<div class="tiny muted" style="margin-top:6px" data-nav="jobs">+${inShop.length - 8} ${t('hmMore')} ›</div>` : '')
-    : `<div class="muted small">${t('hmShopEmpty')}</div>`;
-  body += `</div>`;
+  body += inShopCard(inShop, 8, false);
 
   const rows = [];
   if (openReports.length) rows.push(triageRow('crit', '🗣️', t('hmComplaints'), esc(busName(openReports[0].busId)) + (openReports.length > 1 ? ' +' + (openReports.length - 1) : ''), `data-bus="${esc(openReports[0].busId)}"`, openReports.length));
@@ -9306,6 +9321,8 @@ const _dispatchClick = async (e) => {
       case 'openSafety': return push({ name: 'safety' });
       case 'openBreakdowns': return push({ name: 'breakdowns' });
       case 'openHistory': _histBus = 'all'; return push({ name: 'history' });
+      // Pushed, not a tab switch: the owner has no Jobs tab, so back must return home.
+      case 'openJobsBoard': jobFilterState.status = 'all'; jobFilterState.mech = 'all'; return push({ name: 'jobs' });
       case 'openOutsideJobs': return push({ name: 'outsidejobs' });
       case 'newGatePass': return sheetGatePass({});
       case 'saveGatePass': return saveGatePass();
