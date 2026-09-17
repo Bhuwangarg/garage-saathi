@@ -96,13 +96,17 @@ jobs:
           # A packaged app must never reach for a CDN: it is expected to work in
           # a workshop with no signal.
           for f in index.html app.js; do
-            grep -q 'unpkg.com/leaflet\|cdn.jsdelivr.net/npm/@vladmandic/face-api/dist' "$pub/$f" \
+            # The version is optional in the pattern: app.js pins face-api@1.7.15
+            # (C-list), and an unpinned URL must not slip past either.
+            grep -Eq 'unpkg\.com/leaflet|cdn\.jsdelivr\.net/npm/@vladmandic/face-api(@[^/]+)?/dist' "$pub/$f" \
               && { echo "::error::a CDN URL survived in $f — the app would need the network to render"; fail=1; }
           done
           # app.js must still be the current build in every other respect.
+          # These URLs must match CDN_MAP in mobile/build-www.mjs exactly — when
+          # the face-api version was pinned there and not here, every build failed.
           if ! diff <(sed -e 's#vendor/leaflet.css#https://unpkg.com/leaflet@1.9.4/dist/leaflet.css#g' \
                           -e 's#vendor/leaflet.js#https://unpkg.com/leaflet@1.9.4/dist/leaflet.js#g' \
-                          -e 's#vendor/face-api.js#https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js#g' \
+                          -e 's#vendor/face-api.js#https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.15/dist/face-api.js#g' \
                           "$pub/app.js") app.js >/dev/null; then
             echo "::error::app.js in the APK differs from the repo copy beyond the CDN rewrite — cap sync did not take"
             fail=1
