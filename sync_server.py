@@ -1190,6 +1190,14 @@ def _guard_write(store, rid, data, actor, existing, c=None):
                     if new_lines.get(k, 0) < (l.get("qty") or 0):
                         return "parts on a verified job cannot be removed or reduced — re-open it first"
 
+        # Parts already issued stay on the card, whatever the incoming write
+        # says. See _merge_parts_used: the write that drops one is a stale
+        # device, not a correction, and the part is already out of the store.
+        # The rule above still refuses a staff edit to a verified card outright,
+        # so that case keeps its explanation instead of being quietly fixed.
+        if not data.get("_deleted") and isinstance(old.get("partsUsed"), list):
+            data["partsUsed"] = _merge_parts_used(old.get("partsUsed"), data.get("partsUsed"))
+
         # A mechanic works on the cards they are on, and only those.
         #
         # The app has always shown a mechanic just their own jobs, but the server
@@ -1309,6 +1317,46 @@ def _qty(v):
         return float(v) if v is not None else 0.0
     except (TypeError, ValueError):
         return 0.0
+
+
+def _parts_key(line):
+    return (line.get("partId"), bool(line.get("reused")))
+
+
+def _merge_parts_used(old_lines, new_lines):
+    """Keep every part already on a job card, at the quantity it already had.
+
+    A `partsUsed` line is a copy of a stock-ledger row: the part has physically
+    left the store against this card. Nothing in the app ever takes one back
+    off, so a write that is missing a line is not someone removing a part — it
+    is a device that loaded the card before the part was issued. Plain
+    last-write-wins would drop the line while the stock stayed down, and the
+    shortfall would land in the pilferage radar as if somebody had walked out
+    with it.
+
+    Merging rather than refusing matters: that stale write usually carries real
+    work (hours, photos), and refusing it would lose that instead."""
+    merged = []
+    seen = {}
+    for line in new_lines or []:
+        if not isinstance(line, dict):
+            continue
+        copy = dict(line)
+        merged.append(copy)
+        seen.setdefault(_parts_key(line), copy)
+    for line in old_lines or []:
+        if not isinstance(line, dict):
+            continue
+        key = _parts_key(line)
+        kept = seen.get(key)
+        if kept is None:
+            copy = dict(line)
+            merged.append(copy)
+            seen[key] = copy
+        elif _qty(line.get("qty")) > _qty(kept.get("qty")):
+            kept["qty"] = line.get("qty")
+            kept["cost"] = line.get("cost")
+    return merged
 
 
 def _log_stock_moves(c, moves, ledger_rows, actor, rev):

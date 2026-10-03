@@ -28,7 +28,8 @@ const I18N = {
     isPart: 'Part', isSearch: 'Type a part name, code or category…', isToJob: 'Issue to job card',
     isPickFirst: 'Search and pick a part first',
     isInStock: 'in stock', isOutOfStock: 'none left', isNoMatch: 'No part matches that.',
-    isPickBoth: 'Pick a part and a job', isGate: 'Parts can only be issued against a job card. This stops untracked pilferage.',
+    isPickBoth: 'Pick a part and a job', isChooseJob: 'Choose the job card', isPickJob: 'Choose which job card this part is for',
+    jpRestored: 'Put back on the job card from the stock ledger:', isGate: 'Parts can only be issued against a job card. This stops untracked pilferage.',
     isReused: 'Reused / second-hand part', isReusedShort: 'reused', isReusedCost: 'What it is worth',
     isReusedHint: 'Charge what the used part is actually worth, not the price of a new one — otherwise every cost-per-km figure for this bus is wrong, and it flatters whoever fitted it. Zero is a fine answer for something off the scrap shelf.',
     hmNothing: 'nothing needs you right now', hmNotCheckedIn: 'You are not checked in today.',
@@ -248,7 +249,8 @@ const I18N = {
     isPart: 'पुर्जा', isSearch: 'पुर्जे का नाम, कोड या श्रेणी लिखिए…', isToJob: 'किस जॉब कार्ड पर',
     isPickFirst: 'पहले पुर्जा खोजकर चुनिए',
     isInStock: 'स्टॉक में', isOutOfStock: 'स्टॉक खत्म', isNoMatch: 'कोई पुर्जा नहीं मिला।',
-    isPickBoth: 'पुर्जा और काम दोनों चुनिए', isGate: 'पुर्जा सिर्फ़ जॉब कार्ड पर ही जारी होगा। इसी से बिना हिसाब चोरी रुकती है।',
+    isPickBoth: 'पुर्जा और काम दोनों चुनिए', isChooseJob: 'जॉब कार्ड चुनिए', isPickJob: 'यह पुर्जा किस जॉब कार्ड का है, चुनिए',
+    jpRestored: 'स्टॉक लेजर से जॉब कार्ड पर वापस लगाया:', isGate: 'पुर्जा सिर्फ़ जॉब कार्ड पर ही जारी होगा। इसी से बिना हिसाब चोरी रुकती है।',
     isReused: 'पुराना / सेकंड-हैंड पुर्जा', isReusedShort: 'पुराना', isReusedCost: 'इसकी असली कीमत',
     isReusedHint: 'पुराने पुर्जे की जो असली कीमत है वही लिखिए, नए के दाम नहीं — वरना इस बस का प्रति किमी खर्च गलत निकलेगा, और लगाने वाले का हिसाब अच्छा दिखेगा। रद्दी से उठाए पुर्जे के लिए शून्य लिखना भी ठीक है।',
     hmNothing: 'अभी कुछ बाकी नहीं', hmNotCheckedIn: 'आज आपकी हाज़िरी नहीं लगी है।',
@@ -1064,25 +1066,106 @@ async function issuePart({ partId, qty, jobId, reused = false, reusedCost = null
   // item left the store, and "every item out is on the ledger" is the invariant
   // the whole anti-pilferage design rests on — a flag that skipped it would be
   // the easiest way to walk a new part out of the door.
-  part.qty -= qty;
-  await DB.put('parts', part);
   // What CHANGES for a reused part is the price. Charging a salvaged clutch at
   // the price of a new one makes every cost-per-km and money-pit figure wrong,
   // and flatters whoever fitted it.
   const unit = reused ? Math.max(0, Number(reusedCost) || 0) : part.unitCost;
   const cost = qty * unit;
+  // The ledger row goes FIRST, before the stock count comes down. These are
+  // three separate writes and anything can stop the app between them — an
+  // incoming call backgrounds it, the phone kills the tab for memory. Written
+  // in this order, an interruption leaves an issue nobody acted on yet, which
+  // reconcileJobParts() can finish. The other way round it left stock short
+  // with nothing to say where the part went, which reads as pilferage.
   await DB.put('ledger', {
     id: uid('l-'), partId, type: 'out', qty, jobId,
     reason: reused ? 'Issued to job (reused)' : 'Issued to job',
     reused: !!reused, unitCost: unit,
     by: S.user.id, at: Date.now(),
   });
+  part.qty -= qty;
+  await DB.put('parts', part);
   const line = (job.partsUsed || []).find((l) => l.partId === partId && !!l.reused === !!reused);
   if (line) { line.qty += qty; line.cost += cost; }
   else { job.partsUsed = [...(job.partsUsed || []), { partId, qty, cost, reused: !!reused }]; }
   await DB.put('jobcards', job);
   await load();
   toast(`${reused ? '♻️ ' : ''}Issued ${qty} ${part.unit} → ${busName(job.busId)}`);
+}
+
+/* The stock ledger is what a job card's parts list is a copy of.
+ *
+ * `issuePart` writes three records — the ledger row, the lower stock count, the
+ * line on the card — and only the first is beyond rewriting: the server refuses
+ * any edit to a ledger row, and only this function ever writes one against a
+ * job. The line on the card is the fragile copy. It is lost when the app is
+ * stopped mid-issue (a phone call), and it used to be lost when another device
+ * saved the same card from a copy loaded before the part was issued. The stock
+ * stayed down either way, because nobody else had touched that part — so the
+ * store was short a part that no job card accounted for.
+ *
+ * So the card is reconciled against the ledger. Nothing is ever taken off a
+ * card: the ledger only grows, and no screen in the app removes a part line. */
+function jobPartGaps() {
+  const issued = new Map();                 // jobId -> partId|reused -> {qty, cost}
+  for (const l of S.cache.ledger || []) {
+    if (!l || l._deleted || l.type !== 'out' || !l.jobId) continue;
+    const qty = Number(l.qty) || 0;
+    if (qty <= 0) continue;
+    const reused = !!l.reused;
+    const key = l.partId + '|' + (reused ? 'r' : 'n');
+    const part = byId(S.cache.parts, l.partId);
+    // Rows written before the ledger carried its own price fall back to the
+    // part's current one, which is what the card would have been charged.
+    const unit = l.unitCost != null ? (Number(l.unitCost) || 0) : (part ? (part.unitCost || 0) : 0);
+    let lines = issued.get(l.jobId);
+    if (!lines) { lines = new Map(); issued.set(l.jobId, lines); }
+    const cur = lines.get(key) || { partId: l.partId, reused, qty: 0, cost: 0 };
+    cur.qty += qty; cur.cost += qty * unit;
+    lines.set(key, cur);
+  }
+  const gaps = [];
+  issued.forEach((lines, jobId) => {
+    const job = byId(S.cache.jobs, jobId);
+    if (!job || job._deleted) return;       // a card that is gone accounts for nothing
+    const have = new Map();
+    for (const line of job.partsUsed || []) {
+      const key = line.partId + '|' + (line.reused ? 'r' : 'n');
+      const cur = have.get(key) || { qty: 0, cost: 0 };
+      cur.qty += Number(line.qty) || 0; cur.cost += Number(line.cost) || 0;
+      have.set(key, cur);
+    }
+    lines.forEach((want, key) => {
+      const got = have.get(key) || { qty: 0, cost: 0 };
+      const missingQty = want.qty - got.qty;
+      if (missingQty > 1e-9) {
+        gaps.push({ job, partId: want.partId, reused: want.reused,
+          qty: missingQty, cost: Math.max(0, want.cost - got.cost) });
+      }
+    });
+  });
+  return gaps;
+}
+
+// Put every issued part the ledger knows about back onto its job card. Quiet
+// when there is nothing to repair, which is almost always.
+async function reconcileJobParts() {
+  // Only the roles the server lets write a job card — a mechanic's repair would
+  // be refused and quarantined, and they cannot issue a part in the first place.
+  if (!S.user || !can(S.user.role, 'issuePart')) return 0;
+  const gaps = jobPartGaps();
+  if (!gaps.length) return 0;
+  const cards = new Set();
+  for (const g of gaps) {
+    const line = (g.job.partsUsed || []).find((l) => l.partId === g.partId && !!l.reused === g.reused);
+    if (line) { line.qty = (Number(line.qty) || 0) + g.qty; line.cost = (Number(line.cost) || 0) + g.cost; }
+    else { g.job.partsUsed = [...(g.job.partsUsed || []), { partId: g.partId, qty: g.qty, cost: g.cost, reused: g.reused }]; }
+    cards.add(g.job);
+  }
+  for (const job of cards) await DB.put('jobcards', job);
+  const names = [...new Set(gaps.map((g) => { const p = byId(S.cache.parts, g.partId); return p ? p.name : g.partId; }))];
+  toast(`🔩 ${t('jpRestored')} ${names.slice(0, 3).join(', ')}${names.length > 3 ? ' +' + (names.length - 3) : ''}`);
+  return gaps.length;
 }
 
 async function receiveStock({ partId, qty, cost = 0, reason = 'Stock received', silent = false }) {
@@ -4573,11 +4656,20 @@ function sheetIssue(presetJob) {
   if (!openJobs.length) {
     return openSheet(t('issuePart'), `<div class="banner warn">No open job card to issue against. Parts can only be issued to a job (anti-pilferage). Create a job first.</div>`);
   }
+  // A preset only counts if that card is still open: a verified one is not in
+  // the list, and the browser would quietly select the first option instead.
+  const preset = openJobs.some((j) => j.id === presetJob) ? presetJob : '';
   // A dropdown of 2,391 parts is not a picker, it is a haystack. Type instead.
   openSheet(t('issuePart'), `
     <label class="field"><span class="lbl">🔩 ${t('isPart')}</span>
       ${partPickerHtml({ key: 'iss', inStockOnly: true })}</label>
-    <label class="field"><span class="lbl">🧾 ${t('isToJob')}</span><select id="f-job">${openJobs.map((j) => `<option value="${j.id}" ${j.id===presetJob?'selected':''}>${esc(busName(j.busId))} — ${esc(j.problem.slice(0,28))}</option>`).join('')}</select></label>
+    <label class="field"><span class="lbl">🧾 ${t('isToJob')}</span><select id="f-job">${
+      // No job is chosen for you. Opened from the store there is no job in mind,
+      // and a dropdown that arrives showing the first open card is one distracted
+      // tap away from issuing the part against somebody else's bus — stock down,
+      // and nothing on the card the storekeeper meant.
+      preset ? '' : `<option value="" selected>— ${esc(t('isChooseJob'))} —</option>`
+    }${openJobs.map((j) => `<option value="${j.id}" ${j.id === preset ? 'selected' : ''}>${esc(busName(j.busId))} — ${esc(j.problem.slice(0,28))}</option>`).join('')}</select></label>
     <label class="field"><span class="lbl"># ${t('reqPartQty')}</span><input id="f-qty" type="number" inputmode="numeric" value="1"></label>
     <label class="row" style="gap:9px;margin:2px 0 6px;cursor:pointer">
       <input type="checkbox" id="f-reused" style="width:18px;height:18px;flex:none">
@@ -4613,6 +4705,7 @@ function sheetIssue(presetJob) {
 }
 async function confirmIssue() {
   if (!($('#pp-iss') || {}).value) return toast(t('isPickFirst'));
+  if (!($('#f-job') || {}).value) return toast(t('isPickJob'));
   const reused = !!($('#f-reused') || {}).checked;
   await issuePart({
     partId: ($('#pp-iss') || {}).value, qty: Number($('#f-qty').value) || 0,
@@ -10066,7 +10159,7 @@ async function attemptLogin(user, pin, redraw) {
   offlineFail(user.id);
   toast(t('wrongPin')); _pin = ''; redraw();
 }
-function enterApp(user) { pushRecent(user.id); S.user = user; if (Sync.setActor) Sync.setActor(user.id); dropManagerPins(); maybeAutoActivateCrew(user); maybeBackfillContacts(user); maybeBackfillConductors(user); reconcileStaffNames(user); route({ name: 'home' }); }
+function enterApp(user) { pushRecent(user.id); S.user = user; if (Sync.setActor) Sync.setActor(user.id); dropManagerPins(); maybeAutoActivateCrew(user); maybeBackfillContacts(user); maybeBackfillConductors(user); reconcileStaffNames(user); reconcileJobParts(); route({ name: 'home' }); }
 
 /* "Recent on this phone" — remembers who has signed in on THIS device so a
  * personal phone can skip role→name and go straight to the PIN pad. Just ids in
@@ -10145,6 +10238,9 @@ function userPhoto(u) { const d = crewForUser(u.id); return (d && d.photo) || nu
       // like: "the data I filled above disappeared". It is also why a phone call
       // lost the card: the call backgrounds the app, the tick fires on return.
       await load();
+      // A card that arrived without a part the ledger says was issued to it is
+      // repaired here, which is also where the loss used to become visible.
+      await reconcileJobParts();
       if (S.user && !userIsEditing()) rerender();
       else _renderPending = true;
     },
