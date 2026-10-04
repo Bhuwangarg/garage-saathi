@@ -940,3 +940,40 @@ body.printing-gp .gp-screen{display:none !important}
 .shot .pdf .ic{font-size:30px;line-height:1}
 .shot .pdf .tx{font-size:12px;font-weight:800;letter-spacing:.08em}
 .docshots + .doshint{margin:-8px 0 12px;font-size:11.5px;color:var(--muted);line-height:1.45}
+
+/* ===== Gate check ==========================================================
+ * Ticks are tapped ten times a departure, so they do not animate at all. The
+ * one animated thing is the release button: a 1.5 s linear fill while held
+ * (the driver is deciding) and a 200 ms ease-out snap back on let-go (the
+ * system answering). Press feedback is a small scale, as on every button. */
+.gc-list{padding-top:4px;padding-bottom:4px}
+.gc-row{display:flex;align-items:center;gap:10px;padding:11px 0;border-top:1px solid var(--line2)}
+.gc-row:first-child{border-top:0}
+.gc-main{flex:1;min-width:0}
+.gc-main .t{font-weight:700;font-size:14px;line-height:1.3}
+.gc-note{color:var(--red);font-size:12.5px;margin-top:2px}
+.gc-thumb{width:40px;height:40px;border-radius:10px;object-fit:cover;border:1px solid var(--line);flex:none}
+.gc-seg{display:flex;flex:none;border:1px solid var(--line);border-radius:11px;overflow:hidden}
+.gc-seg button{min-height:40px;min-width:58px;padding:0 10px;border:0;background:var(--surface);color:var(--text2);
+  font:700 13px var(--font);cursor:pointer;transition:none}
+.gc-seg button+button{border-left:1px solid var(--line)}
+.gc-seg button.on-ok{background:var(--green);color:#fff}
+.gc-seg button.on-bad{background:var(--red);color:#fff}
+.gc-row.bad .gc-main .t{color:var(--red)}
+.gc-hold{position:relative;overflow:hidden;display:block;width:100%;min-height:58px;margin-top:6px;border:0;border-radius:16px;
+  background:var(--ink);color:var(--accent-ink);font:800 16px var(--font);cursor:pointer;touch-action:none;
+  -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;transition:transform 160ms cubic-bezier(.23,1,.32,1)}
+.gc-hold:active:not([disabled]){transform:scale(.97)}
+.gc-hold[disabled]{opacity:.45;cursor:not-allowed}
+.gc-hold .fill{position:absolute;inset:0;background:var(--green);clip-path:inset(0 100% 0 0);
+  transition:clip-path 200ms cubic-bezier(.23,1,.32,1)}
+.gc-hold.send .fill{background:var(--red)}
+.gc-hold.pressing .fill,.gc-hold.done .fill{clip-path:inset(0 0 0 0);transition:clip-path 1500ms linear}
+.gc-hold .lbl{position:relative}
+.gc-hold.done .fill{transition:none}
+@media (prefers-reduced-motion:reduce){
+  .gc-hold,.gc-hold .fill,.gc-hold.pressing .fill{transition:none}
+  /* No sweeping fill: the label says "Keep holding…" instead, and the bar fills only once released. */
+  .gc-hold.pressing .fill{clip-path:inset(0 100% 0 0)}
+  .gc-hold:active:not([disabled]){transform:none}
+}

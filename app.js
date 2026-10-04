@@ -216,6 +216,19 @@ const I18N = {
     cbDupReused: 'updated and back on the roster ✓', cbDupStatusArchived: 'archived record',
     cbDupStatusLeft: 'left the company', cbDupStatusActive: 'currently working',
     // ---- Duty board (driver/conductor ↔ bus) + Crew Manager ----
+    gcTitle: 'Gate check', gcStart: 'Start gate check', gcStartSub: 'Before the bus leaves: a selfie at the bus, then 10 checks. About 3 minutes.',
+    gcSelfieCap: 'Gate check — at the bus', gcNeedFace: 'A selfie at the bus is needed to start the gate check', gcGps: 'Location is off — the office will see this check has no location',
+    gcPass: 'OK', gcFail: 'Problem', gcWhatWrong: 'What is wrong?', gcWhatWrongPh: 'e.g. AC not cooling at the back', gcAddPhoto: 'Add a photo (optional)', gcNoteNeeded: 'Write what is wrong first',
+    gcPhotoFirst: 'Take the photo to mark this OK', gcPhotoNeeded: 'photo needed', gcItemsLeft: 'items left', gcFinishHint: 'Mark every item OK or Problem.', gcHoldHint: 'Press and hold for a moment. Let go to cancel.',
+    gcHoldRelease: 'Hold to release bus', gcHoldSend: 'Hold to send to office', gcKeepHolding: 'Keep holding…', gcSentToOffice: 'Sent to the office — wait for go or hold',
+    gcOpen: 'In progress', gcReleased: 'Released', gcAwaiting: 'Waiting for office', gcAwaitingSub: 'An item failed. Do not leave until the office says go — they have been alerted.',
+    gcApproved: 'Office says go', gcHeld: 'Office says hold', gcRecheck: 'Fix it and check again', gcNewDep: 'New departure check', gcFailedEarlier: 'failed earlier, re-checked',
+    gcStartedAt: 'started', gcNotFound: 'This gate check is not on this phone yet.', gcNoLocation: 'no location', gcFaceNo: 'face not verified', gcNotOnBoardShort: 'not on duty board',
+    gcOffice: 'Gate checks', gcWaiting: 'Waiting for you', gcNoneWaiting: 'No bus is waiting at the gate.', gcToday: 'Today', gcNoneToday: 'No checks yet today.', gcNoCheck: 'Buses with no check today',
+    gcGo: 'Go', gcHold: 'Hold', gcReason: 'Reason (required)', gcReasonGoPh: 'e.g. AC will be fixed at the Mathura stop', gcReasonHoldPh: 'e.g. Fix the AC before leaving', gcReasonNeeded: 'Write a reason first', gcDecided: 'Decision sent to the driver',
+    gcHistory: 'Earlier decisions', hmGateWaiting: 'Bus waiting at the gate', hmGateWaitingSub: 'A check failed — go or hold?', asGateLine: 'Gate check',
+    gi_ac: 'AC cooling', gi_blankets: 'Blanket and pillow on every berth', gi_cabin: 'Berths, floor and washroom clean', gi_charging: 'Charging points work', gi_water: 'Water bottles loaded',
+    gi_tyres: 'Tyres and lights OK', gi_fuel: 'Enough fuel for the first leg', gi_papers: 'RC, permit, insurance, PUC on board', gi_safety: 'First-aid box, extinguisher, emergency hammer', gi_uniform: 'Crew in uniform',
     asWhoWas: 'Who was on a bus that day', asWhoWasHint: 'For a review, complaint or challan: pick the date of travel and the bus.', asLookUp: 'Look up', asPickBus: 'Pick a bus',
     asNotRecorded: 'Not recorded — the duty log starts on', asNobodySeat: 'Nobody in this seat that day', asAllDay: 'all day', asFromT: 'from', asUntilT: 'until',
     asTitle: 'Duty board', asHint: 'Tap a name to change their bus, or tap a bus to fill the empty seat.',
@@ -440,6 +453,19 @@ const I18N = {
     cbDupReused: 'अपडेट होकर दोबारा काम पर ✓', cbDupStatusArchived: 'पुराना रिकॉर्ड',
     cbDupStatusLeft: 'नौकरी छोड़ चुका', cbDupStatusActive: 'अभी काम कर रहा है',
     // ---- Duty board (driver/conductor ↔ bus) + Crew Manager ----
+    gcTitle: 'गेट चेक', gcStart: 'गेट चेक शुरू करें', gcStartSub: 'बस निकलने से पहले: बस के पास सेल्फी, फिर 10 जाँच। लगभग 3 मिनट।',
+    gcSelfieCap: 'गेट चेक — बस के पास', gcNeedFace: 'गेट चेक शुरू करने के लिए बस के पास सेल्फी ज़रूरी है', gcGps: 'लोकेशन बंद है — ऑफिस को दिखेगा कि इस चेक में लोकेशन नहीं है',
+    gcPass: 'ठीक', gcFail: 'दिक्कत', gcWhatWrong: 'क्या खराब है?', gcWhatWrongPh: 'जैसे पीछे AC ठंडा नहीं कर रहा', gcAddPhoto: 'फ़ोटो जोड़ें (ज़रूरी नहीं)', gcNoteNeeded: 'पहले लिखें क्या खराब है',
+    gcPhotoFirst: 'ठीक करने के लिए फ़ोटो लें', gcPhotoNeeded: 'फ़ोटो चाहिए', gcItemsLeft: 'जाँच बाकी', gcFinishHint: 'हर चीज़ को ठीक या दिक्कत चुनें।', gcHoldHint: 'थोड़ी देर दबाकर रखें। छोड़ने पर रद्द।',
+    gcHoldRelease: 'बस छोड़ने के लिए दबाए रखें', gcHoldSend: 'ऑफिस भेजने के लिए दबाए रखें', gcKeepHolding: 'दबाए रखें…', gcSentToOffice: 'ऑफिस को भेजा — चलो या रुको का इंतज़ार करें',
+    gcOpen: 'चल रहा है', gcReleased: 'बस छूटी', gcAwaiting: 'ऑफिस के जवाब का इंतज़ार', gcAwaitingSub: 'एक जाँच में दिक्कत है। ऑफिस के "चलो" कहने तक न निकलें — उन्हें सूचना दे दी गई है।',
+    gcApproved: 'ऑफिस: चलो', gcHeld: 'ऑफिस: रुको', gcRecheck: 'ठीक करके फिर जाँचें', gcNewDep: 'नई रवानगी का चेक', gcFailedEarlier: 'पहले दिक्कत थी, फिर जाँचा',
+    gcStartedAt: 'शुरू', gcNotFound: 'यह गेट चेक अभी इस फ़ोन पर नहीं आया।', gcNoLocation: 'लोकेशन नहीं', gcFaceNo: 'चेहरा पक्का नहीं', gcNotOnBoardShort: 'ड्यूटी में नाम नहीं',
+    gcOffice: 'गेट चेक', gcWaiting: 'आपका इंतज़ार', gcNoneWaiting: 'कोई बस गेट पर इंतज़ार में नहीं।', gcToday: 'आज', gcNoneToday: 'आज अभी कोई चेक नहीं।', gcNoCheck: 'आज बिना चेक वाली बसें',
+    gcGo: 'चलो', gcHold: 'रुको', gcReason: 'वजह (ज़रूरी)', gcReasonGoPh: 'जैसे मथुरा स्टॉप पर AC ठीक होगा', gcReasonHoldPh: 'जैसे निकलने से पहले AC ठीक करें', gcReasonNeeded: 'पहले वजह लिखें', gcDecided: 'फ़ैसला ड्राइवर को भेजा',
+    gcHistory: 'पहले के फ़ैसले', hmGateWaiting: 'बस गेट पर इंतज़ार में', hmGateWaitingSub: 'जाँच में दिक्कत — चलो या रुको?', asGateLine: 'गेट चेक',
+    gi_ac: 'AC ठंडा कर रहा है', gi_blankets: 'हर बर्थ पर कंबल और तकिया', gi_cabin: 'बर्थ, फ़र्श और वॉशरूम साफ़', gi_charging: 'चार्जिंग पॉइंट चालू', gi_water: 'पानी की बोतलें रखीं',
+    gi_tyres: 'टायर और लाइट ठीक', gi_fuel: 'पहले हिस्से के लिए पूरा डीज़ल', gi_papers: 'RC, परमिट, बीमा, PUC बस में', gi_safety: 'फ़र्स्ट-एड, फ़ायर एक्सटिंग्विशर, इमरजेंसी हथौड़ा', gi_uniform: 'स्टाफ़ वर्दी में',
     asWhoWas: 'उस दिन बस पर कौन था', asWhoWasHint: 'रिव्यू, शिकायत या चालान के लिए: यात्रा की तारीख और बस चुनें।', asLookUp: 'देखें', asPickBus: 'बस चुनें',
     asNotRecorded: 'रिकॉर्ड नहीं — ड्यूटी लॉग शुरू हुआ', asNobodySeat: 'उस दिन इस सीट पर कोई नहीं', asAllDay: 'पूरा दिन', asFromT: 'से', asUntilT: 'तक',
     asTitle: 'ड्यूटी', asHint: 'बस बदलने के लिए नाम दबाएं, या खाली सीट भरने के लिए बस दबाएं।',
@@ -929,6 +955,10 @@ const PERMS = {
   // and nothing else. It deliberately has no money, fleet, jobs or store rights.
   manageDrivers: ['owner', 'supervisor', 'crewmanager'],   // crew bank, details, documents
   assignDriver: ['owner', 'supervisor', 'crewmanager'],    // driver/conductor ↔ bus
+  // Gate check: the driver fills it; owner and supervisor see every check and
+  // decide go/hold on a failed one. Mirrors _guard_gatecheck on the server.
+  gateCheck: ['owner', 'supervisor', 'driver'],
+  gateDecide: ['owner', 'supervisor'],
   // Split off manageDrivers on purpose: minting logins and PINs for the whole
   // crew is an owner's job, not part of keeping their records.
   manageCrewLogins: ['owner', 'supervisor'],
@@ -1000,7 +1030,8 @@ async function load() {
   const breakdowns = await DB.all('breakdowns').catch(() => []);
   const gatepasses = await DB.all('gatepasses').catch(() => []);
   const dutylog = await DB.all('dutylog').catch(() => []);
-  S.cache = { users, buses, parts, jobs, ledger, att, purchases, drivers, incidents, driverreports, routes, triplog, fuel, gpsevents, audits, components, def, vendors, trips, challans, usage, stockmoves, breakdowns, gatepasses, dutylog, garage };
+  const gatechecks = await DB.all('gatechecks').catch(() => []);
+  S.cache = { users, buses, parts, jobs, ledger, att, purchases, drivers, incidents, driverreports, routes, triplog, fuel, gpsevents, audits, components, def, vendors, trips, challans, usage, stockmoves, breakdowns, gatepasses, dutylog, gatechecks, garage };
   refreshBiz();   // keep the displayed business name in sync with garage config
 }
 const byId = (arr, id) => arr.find((x) => x.id === id);
@@ -2030,6 +2061,8 @@ function viewOwnerHome() {
     <div class="tiny muted">${t('hmLast30')}${owed ? ` · ${t('youOwe')} ${money(owed)}` : ''}</div></div>`;
 
   const rows = [];
+  const gateWait = gateWaitingCount();
+  if (gateWait) rows.push(triageRow('crit', '⛔', t('hmGateWaiting'), t('hmGateWaitingSub'), 'data-act="openGateChecks"', gateWait));
   if (toVerify.length) rows.push(triageRow('crit', '☑️', t('hmToVerify'), t('hmToVerifySub'), 'data-nav="jobs"', toVerify.length));
   if (unexplained.length) rows.push(triageRow('crit', '🔎', t('hmUnexplained'), t('hmUnexplainedSub'), 'data-nav="storehealth"', unexplained.length));
   if (pf.length) rows.push(triageRow('crit', '🕵️', t('hmPilferage'), t('hmPilferageSub'), 'data-act="openPilferage"', pf.length));
@@ -2079,6 +2112,8 @@ function viewSupervisorHome() {
 
   const rows = [];
   if (openReports.length) rows.push(triageRow('crit', '🗣️', t('hmComplaints'), esc(busName(openReports[0].busId)) + (openReports.length > 1 ? ' +' + (openReports.length - 1) : ''), `data-bus="${esc(openReports[0].busId)}"`, openReports.length));
+  const gateWait = gateWaitingCount();
+  if (gateWait) rows.push(triageRow('crit', '⛔', t('hmGateWaiting'), t('hmGateWaitingSub'), 'data-act="openGateChecks"', gateWait));
   if (othersToVerify.length) rows.push(triageRow('crit', '☑️', t('hmToVerify'), t('hmToVerifySub'), 'data-nav="jobs"', othersToVerify.length));
   if (noDriver.length) rows.push(triageRow('warn', '🧑‍✈️', t('hmNoDriver'), esc(noDriver.slice(0, 3).map((b) => b.regNo).join(', ')), 'data-act="openAssignments"', noDriver.length));
   if (overdue.length) rows.push(triageRow('warn', '🔧', t('hmServiceDue'), esc(overdue.slice(0, 3).map((x) => x.b.regNo).join(', ')), 'data-nav="fleet"', overdue.length));
@@ -7301,6 +7336,10 @@ function dutyLookupCard() {
         // Someone found after the log began says nothing about the hours before it.
         return lines + (partial && who.length ? `<div class="tiny muted">${t('asNotRecorded')} ${fmtDateTime(start)}</div>` : '');
       }).join('');
+      // The gate check is the other record of who was at the bus: a selfie, taken there.
+      h += gateChecks().filter((c) => c.busId === q.busId && c.date === q.date).sort((a, b) => a.startedAt - b.startedAt)
+        .map((c) => `<div class="li" data-act="openGate" data-id="${esc(c.id)}" style="cursor:pointer"><div class="ava">🚦</div>
+          <div class="main"><div class="t">${t('asGateLine')} · ${esc(c.driverName)}</div><div class="s">${hhmm(c.startedAt)} · ${t((GATE_STATUS[c.status] || GATE_STATUS.open)[1])}</div></div></div>`).join('');
     }
   }
   return h + `</div>`;
@@ -7465,6 +7504,7 @@ function viewDriverHome() {
       <div><div class="muted small">${t('yourRating')}</div><div class="stat">${score}<span style="font-size:14px"> /100</span></div></div>
       <div style="text-align:right"><div class="stars big">${starStr(scoreStars(score))}</div><div class="tiny muted">${d.tripsLogged || 0} ${t('trips')}</div></div></div>
       <div class="tiny muted" style="margin-top:8px">${recent.length ? `${t('drvLast90')}: ${reasons}. ` : ''}${tip}</div></div>`;
+  body += gateHomeCard(d);    // departure checklist — first thing before the bus leaves
   body += driverTripCard();   // trip cash + expenses
   if (d.busId) {
     body += `<button class="btn primary" data-act="reportProblem" data-bus="${esc(d.busId)}" data-driver="${esc(d.id)}">🛠️ ${t('reportProblem')}</button><div class="spacer"></div>`;
@@ -7510,6 +7550,249 @@ function viewConductorHome() {
   } else body += `<div class="card"><div class="empty">No bus assigned yet. Ask your supervisor.</div></div>`;
   shell(t('myTrips'), body);
 }
+
+/* ===== Gate Check: the departure checklist (gate.js) =======================
+ * The driver starts it at the bus with a live selfie and GPS, goes through ten
+ * items (AC, blankets and cabin need a photo), and holds the release button.
+ * All passed → the bus is released. Anything failed → it waits for the owner
+ * or a supervisor to say go or hold, with a reason; they are alerted at once.
+ * The server enforces every one of these rules (_guard_gatecheck). */
+const gateChecks = () => (S.cache.gatechecks || []).filter((c) => c && !c._deleted);
+const gateItemLabel = (k) => t('gi_' + k);
+const hhmm = (ts) => (ts ? new Date(ts).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '—');
+const GATE_STATUS = {   // status → [badge class, i18n key]
+  open: ['b-low', 'gcOpen'], awaiting: ['b-red', 'gcAwaiting'], held: ['b-red', 'gcHeld'],
+  approved: ['b-amber', 'gcApproved'], released: ['b-green', 'gcReleased'],
+};
+const gateBadge = (c) => { const m = GATE_STATUS[c.status] || GATE_STATUS.open; return `<span class="badge ${m[0]}">${t(m[1])}</span>`; };
+function gateFlags(c) {
+  const f = [];
+  if (c.lat == null) f.push(t('gcNoLocation'));
+  if (!c.faceVerified) f.push(t('gcFaceNo'));
+  if (c.onDutyBoard === false) f.push(t('gcNotOnBoardShort'));
+  return f.length ? `<div class="tiny" style="color:var(--amber);font-weight:700">⚠️ ${f.map(esc).join(' · ')}</div>` : '';
+}
+
+// Driver home: today's check for my bus, or the button to start one.
+function gateHomeCard(d) {
+  if (!d || !d.busId) return '';
+  const cur = Gate.currentCheck(gateChecks(), d.busId, Date.now());
+  if (!cur) {
+    return `<div class="card gc-start"><h3>🚦 ${t('gcTitle')}</h3><div class="tiny muted">${t('gcStartSub')}</div>
+      <div class="spacer"></div><button class="btn primary" data-act="gateStart">${t('gcStart')}</button></div>`;
+  }
+  const o = Gate.outcome(cur.items);
+  const sub = cur.status === 'open' ? `${o.missing.length} ${t('gcItemsLeft')}`
+    : cur.status === 'released' ? `${t('gcReleased')} ${hhmm(cur.releasedAt || cur.updatedAt)}`
+    : (cur.status === 'held' || cur.status === 'approved') && cur.decision && cur.decision.reason ? esc(cur.decision.reason) : t('gcAwaitingSub');
+  const again = Gate.DONE.includes(cur.status)
+    ? `<button class="btn sm ghost" data-act="gateStart" style="margin-top:6px">${t('gcNewDep')}</button>` : '';
+  return `<div class="card"><div class="li" data-act="openGate" data-id="${esc(cur.id)}" style="cursor:pointer">
+      <div class="ava">🚦</div><div class="main"><div class="t">${t('gcTitle')}</div><div class="s">${sub}</div></div>${gateBadge(cur)}</div>${again}</div>`;
+}
+
+async function gateStart() {
+  const d = driverForUser(S.user.id);
+  if (!d || !d.busId) return toast(t('noBusAssigned'));
+  const cap = await captureFace(t('gcSelfieCap'));
+  if (!cap) return toast(t('gcNeedFace'));
+  let lat = null, lng = null;
+  try {
+    const pos = await new Promise((res, rej) => navigator.geolocation.getCurrentPosition(res, rej, { enableHighAccuracy: true, timeout: 8000 }));
+    lat = pos.coords.latitude; lng = pos.coords.longitude;
+  } catch (e) { toast(t('gcGps')); }
+  const selfie = cap.photo ? (await Sync.uploadPhoto(cap.photo) || cap.photo) : '';
+  const bus = byId(S.cache.buses, d.busId) || {};
+  const at = Sync.now ? Sync.now() : Date.now();
+  const rec = {
+    id: uid('gc-'), busId: d.busId, regNo: bus.regNo || '', driverId: d.id, driverName: d.name,
+    startedAt: at, date: Gate.dayKey(at), selfie, faceVerified: !!cap.faceVerified, lat, lng,
+    onDutyBoard: driversOfBus(d.busId).some((x) => x.id === d.id), status: 'open', items: {},
+  };
+  await DB.put('gatechecks', rec);
+  await load();
+  push({ name: 'gate', id: rec.id });
+}
+
+const _gateMine = (c) => { const d = S.user.role === 'driver' ? driverForUser(S.user.id) : null; return !!(d && c && c.driverId === d.id); };
+
+function viewGate(id) {
+  const c = gateChecks().find((x) => x.id === id);
+  if (!c) return shell(t('gcTitle'), `<div class="card"><div class="empty">${t('gcNotFound')}</div></div>`);
+  const mine = _gateMine(c), editable = mine && c.status === 'open';
+  const o = Gate.outcome(c.items), before = new Set(c.failedBefore || []);
+  let body = `<div class="card"><div class="row" style="gap:12px">
+      ${c.selfie ? `<img class="thumb" src="${esc(c.selfie)}" alt="" data-act="viewPhoto" data-src="${esc(c.selfie)}" style="width:52px;height:52px;border-radius:14px;object-fit:cover">` : '<div class="ava">🧑‍✈️</div>'}
+      <div style="flex:1;min-width:0"><div><span class="plate">${esc(c.regNo)}</span></div>
+        <div class="small muted">${esc(c.driverName)} · ${t('gcStartedAt')} ${hhmm(c.startedAt)}</div>${gateFlags(c)}</div>${gateBadge(c)}</div></div>`;
+  if (c.status === 'awaiting') body += `<div class="banner bad">⛔ ${t('gcAwaitingSub')}</div>`;
+  // A decision belongs to the status it produced: after a re-check goes back to
+  // the office, the earlier hold is history, not the current answer.
+  if ((c.status === 'held' || c.status === 'approved') && c.decision && c.decision.reason) {
+    const who = c.decision.by ? userName(c.decision.by) : '';
+    body += `<div class="banner ${c.status === 'held' ? 'bad' : 'warn'}" style="display:block"><b>${t(c.status === 'held' ? 'gcHeld' : 'gcApproved')}</b>: ${esc(c.decision.reason)}${who && who !== '—' ? ` <span class="muted">— ${esc(who)}</span>` : ''}</div>`;
+  }
+  body += `<div class="card gc-list">` + Gate.GATE_ITEMS.map((spec) => {
+    const it = (c.items || {})[spec.k] || {};
+    const state = it.ok === true ? 'ok' : it.ok === false ? 'bad' : '';
+    const thumb = it.photo ? `<img class="gc-thumb" src="${esc(it.photo)}" alt="" data-act="viewPhoto" data-src="${esc(it.photo)}">` : '';
+    const right = editable
+      ? `<div class="gc-seg"><button class="${state === 'ok' ? 'on-ok' : ''}" data-act="gateOk" data-id="${esc(c.id)}" data-k="${spec.k}">${spec.photo ? '📷 ' : ''}${t('gcPass')}</button><button class="${state === 'bad' ? 'on-bad' : ''}" data-act="gateBad" data-id="${esc(c.id)}" data-k="${spec.k}">${t('gcFail')}</button></div>`
+      : `<span class="badge ${state === 'ok' ? 'b-green' : state === 'bad' ? 'b-red' : 'b-low'}">${state === 'ok' ? '✓' : state === 'bad' ? '✗' : '—'}</span>`;
+    return `<div class="gc-row ${state}"><div class="gc-main"><div class="t">${esc(gateItemLabel(spec.k))}${spec.photo && !it.photo && state !== 'bad' ? ` <span class="tiny muted">· ${t('gcPhotoNeeded')}</span>` : ''}</div>
+        ${it.ok === false && it.note ? `<div class="s gc-note">${esc(it.note)}</div>` : ''}
+        ${before.has(spec.k) && it.ok !== false ? `<div class="tiny" style="color:var(--amber)">${t('gcFailedEarlier')}</div>` : ''}</div>${thumb}${right}</div>`;
+  }).join('') + `</div>`;
+  if (editable) {
+    const mode = o.verdict === 'pass' ? 'release' : o.verdict === 'fail' ? 'send' : '';
+    const label = mode === 'release' ? t('gcHoldRelease') : mode === 'send' ? t('gcHoldSend') : `${o.missing.length} ${t('gcItemsLeft')}`;
+    body += `<button class="gc-hold ${mode}" id="gc-hold" type="button" data-id="${esc(c.id)}" ${mode ? '' : 'disabled'}><span class="fill"></span><span class="lbl">${label}</span></button>
+      <div class="tiny muted" style="text-align:center;margin-top:8px">${mode ? t('gcHoldHint') : t('gcFinishHint')}</div>`;
+  }
+  if ((c.pastDecisions || []).length) {
+    body += `<div class="card"><h3>${t('gcHistory')}</h3>` + c.pastDecisions.map((d) => `<div class="tiny muted" style="padding:3px 0">${hhmm(d.at)} · ${t(d.verdict === 'go' ? 'gcApproved' : 'gcHeld')}: ${esc(d.reason || '')}${d.by ? ' — ' + esc(userName(d.by)) : ''}</div>`).join('') + `</div>`;
+  }
+  if (mine && c.status === 'held') body += `<button class="btn primary" data-act="gateRecheck" data-id="${esc(c.id)}">${t('gcRecheck')}</button>`;
+  if (c.status === 'awaiting' && can(S.user.role, 'gateDecide')) {
+    body += `<div class="btnrow"><button class="btn accent" data-act="gateDecide" data-id="${esc(c.id)}" data-v="go">✓ ${t('gcGo')}</button>
+      <button class="btn danger" data-act="gateDecide" data-id="${esc(c.id)}" data-v="hold">✋ ${t('gcHold')}</button></div>`;
+  }
+  shell(`${t('gcTitle')} · ${c.regNo}`, body, null, NARROW);
+  if (editable) bindGateHold();
+}
+
+/* Hold-to-release. Slow where the driver decides (1.5 s, linear fill), fast
+ * where the system answers (200 ms snap back on release). No confirm dialog to
+ * tap through, and no accidental release from a pocket. The ticks above are
+ * deliberately not animated: they are tapped ten times a departure. */
+const GATE_HOLD_MS = 1500;
+function bindGateHold() {
+  const btn = document.getElementById('gc-hold');
+  if (!btn || btn.disabled) return;
+  let timer = null;
+  const lbl = btn.querySelector('.lbl'), idle = lbl.textContent;
+  const start = (e) => {
+    if (timer || btn.disabled) return;
+    if (e && e.cancelable) e.preventDefault();
+    btn.classList.add('pressing'); lbl.textContent = t('gcKeepHolding');
+    if (btn.setPointerCapture && e && e.pointerId != null) { try { btn.setPointerCapture(e.pointerId); } catch (_) {} }
+    timer = setTimeout(async () => {
+      timer = null;
+      // The screen was redrawn under the finger: this button is gone, and so is
+      // any certainty the driver is still holding it. Do nothing.
+      if (!btn.isConnected) return;
+      btn.disabled = true; btn.classList.remove('pressing'); btn.classList.add('done');
+      await gateRelease(btn.getAttribute('data-id'));
+    }, GATE_HOLD_MS);
+  };
+  const stop = () => { if (!timer) return; clearTimeout(timer); timer = null; btn.classList.remove('pressing'); lbl.textContent = idle; };
+  btn.addEventListener('pointerdown', start);
+  ['pointerup', 'pointercancel', 'lostpointercapture'].forEach((ev) => btn.addEventListener(ev, stop));
+  btn.addEventListener('contextmenu', (e) => e.preventDefault());   // long-press menu on Android
+  btn.addEventListener('keydown', (e) => { if ((e.key === ' ' || e.key === 'Enter') && !e.repeat) start(e); });
+  btn.addEventListener('keyup', (e) => { if (e.key === ' ' || e.key === 'Enter') stop(); });
+}
+
+async function _gateSave(c) { await DB.put('gatechecks', c); await load(); rerender(); }
+const _gateEditable = (id) => { const c = gateChecks().find((x) => x.id === id); return c && _gateMine(c) && c.status === 'open' ? c : null; };
+
+async function gateOk(id, k) {
+  const c = _gateEditable(id); if (!c) return;
+  const spec = Gate.GATE_ITEMS.find((s) => s.k === k); if (!spec) return;
+  let photo = '';
+  if (spec.photo) {
+    const p = await capturePhoto();
+    if (!p) return toast(t('gcPhotoFirst'));
+    photo = await Sync.uploadPhoto(p) || p;
+  }
+  c.items = Object.assign({}, c.items, { [k]: { ok: true, photo, at: Date.now() } });
+  await _gateSave(c);
+}
+
+let _gateBadPhoto = '';
+function gateBad(id, k) {
+  const c = _gateEditable(id); if (!c) return;
+  const cur = (c.items || {})[k] || {};
+  _gateBadPhoto = cur.ok === false ? (cur.photo || '') : '';
+  openSheet(`${gateItemLabel(k)} — ${t('gcFail')}`, `<label class="field"><span class="lbl">${t('gcWhatWrong')}</span>
+      <textarea id="gc-note" rows="3" placeholder="${esc(t('gcWhatWrongPh'))}">${esc(cur.ok === false ? cur.note || '' : '')}</textarea></label>
+    <div id="gc-badph">${_gateBadPhoto ? `<img class="gc-thumb" src="${esc(_gateBadPhoto)}" alt="">` : ''}</div>
+    <button class="btn" data-act="gateBadPhoto">📷 ${t('gcAddPhoto')}</button><div class="spacer"></div>
+    <button class="btn primary" data-act="gateBadSave" data-id="${esc(id)}" data-k="${esc(k)}">${t('save')}</button>`);
+}
+async function gateBadPhoto() {
+  const p = await capturePhoto(); if (!p) return;
+  _gateBadPhoto = await Sync.uploadPhoto(p) || p;
+  const box = document.getElementById('gc-badph'); if (box) box.innerHTML = `<img class="gc-thumb" src="${esc(_gateBadPhoto)}" alt="">`;
+}
+async function gateBadSave(id, k) {
+  const c = _gateEditable(id); if (!c) return closeSheet();
+  const note = (($('#gc-note') || {}).value || '').trim();
+  if (!note) return toast(t('gcNoteNeeded'));
+  c.items = Object.assign({}, c.items, { [k]: { ok: false, note, photo: _gateBadPhoto, at: Date.now() } });
+  _gateBadPhoto = '';
+  closeSheet(); await _gateSave(c);
+}
+
+async function gateRelease(id) {
+  const c = _gateEditable(id); if (!c) return;
+  const next = Gate.releaseStatus(c); if (!next) return rerender();
+  c.status = next;
+  if (next === 'released') c.releasedAt = Date.now();   // the server stamps its own time over this
+  await _gateSave(c);
+  toast(next === 'released' ? `✅ ${t('gcReleased')}` : `⛔ ${t('gcSentToOffice')}`);
+}
+async function gateRecheck(id) {
+  const c = gateChecks().find((x) => x.id === id);
+  if (!c || !_gateMine(c) || c.status !== 'held') return;
+  c.status = 'open';
+  await _gateSave(c);
+}
+
+// The office: go or hold, always with a reason.
+function gateDecide(id, v) {
+  if (!can(S.user.role, 'gateDecide')) return;
+  const go = v === 'go';
+  openSheet(go ? `✓ ${t('gcGo')}` : `✋ ${t('gcHold')}`, `<label class="field"><span class="lbl">${t('gcReason')}</span>
+      <textarea id="gc-reason" rows="3" placeholder="${esc(t(go ? 'gcReasonGoPh' : 'gcReasonHoldPh'))}"></textarea></label>
+    <button class="btn ${go ? 'accent' : 'danger'}" data-act="gateDecideSave" data-id="${esc(id)}" data-v="${go ? 'go' : 'hold'}">${t(go ? 'gcGo' : 'gcHold')}</button>`);
+}
+async function gateDecideSave(id, v) {
+  const c = gateChecks().find((x) => x.id === id);
+  if (!c || c.status !== 'awaiting' || !can(S.user.role, 'gateDecide')) return closeSheet();
+  const reason = (($('#gc-reason') || {}).value || '').trim();
+  if (!reason) return toast(t('gcReasonNeeded'));
+  c.status = v === 'go' ? 'approved' : 'held';
+  c.decision = { reason, by: S.user.id, at: Date.now() };   // by/at are re-stamped by the server
+  closeSheet(); await _gateSave(c); toast(t('gcDecided'));
+}
+
+function viewGateChecks() {
+  const now = Date.now();
+  const recent = gateChecks().filter((c) => now - (c.startedAt || 0) < Gate.WINDOW_MS);
+  const waiting = recent.filter((c) => c.status === 'awaiting').sort((a, b) => (a.sentAt || a.updatedAt) - (b.sentAt || b.updatedAt));
+  const row = (c) => {
+    const o = Gate.outcome(c.items);
+    const sub = c.status === 'awaiting' || c.status === 'held'
+      ? o.failed.map((k) => `${gateItemLabel(k)}: ${(c.items[k] || {}).note || ''}`).join(' · ')
+      : `${esc(c.driverName)} · ${hhmm(c.releasedAt || c.startedAt)}`;
+    return `<div class="li" data-act="openGate" data-id="${esc(c.id)}" style="cursor:pointer"><div class="ava">🚦</div>
+      <div class="main"><div class="t">${esc(c.regNo)}${c.status === 'awaiting' ? ' · ' + esc(c.driverName) : ''}</div><div class="s">${esc(sub)}</div>${gateFlags(c)}</div>${gateBadge(c)}</div>`;
+  };
+  let body = `<div class="card"><div class="row between"><h3>⛔ ${t('gcWaiting')}</h3><span class="badge ${waiting.length ? 'b-red' : 'b-green'}">${waiting.length}</span></div>`;
+  body += waiting.length ? waiting.map(row).join('') : `<div class="muted small">${t('gcNoneWaiting')}</div>`;
+  body += `</div>`;
+  const rest = recent.filter((c) => c.status !== 'awaiting').sort((a, b) => b.startedAt - a.startedAt);
+  body += `<div class="card"><div class="row between"><h3>${t('gcToday')}</h3><span class="badge b-low">${rest.length}</span></div>`;
+  body += rest.length ? rest.map(row).join('') : `<div class="muted small">${t('gcNoneToday')}</div>`;
+  body += `</div>`;
+  const started = new Set(recent.map((c) => c.busId));
+  const none = (S.cache.buses || []).filter((b) => driverOfBus(b.id) && !started.has(b.id));
+  body += `<details class="card"><summary class="row between" style="cursor:pointer"><h3>${t('gcNoCheck')}</h3><span class="badge b-amber">${none.length}</span></summary>
+    ${none.map((b) => `<div class="li" data-bus="${esc(b.id)}" style="cursor:pointer"><div class="ava">🚌</div><div class="main"><div class="t">${esc(b.regNo)}</div><div class="s">${esc((driverOfBus(b.id) || {}).name || '')}</div></div></div>`).join('')}</details>`;
+  shell(t('gcOffice'), body, null, NARROW);
+}
+const gateWaitingCount = () => gateChecks().filter((c) => c.status === 'awaiting' && Date.now() - (c.startedAt || 0) < Gate.WINDOW_MS).length;
 
 /* ===== Trip cash & expenses → per-bus accounting ==========================
  * A driver starts a TRIP (a cash session) for their bus with a ₹ allowance
@@ -9313,7 +9596,7 @@ const current = () => S.stack[S.stack.length - 1];
 const ROUTE_PERM = { money: 'money', fleet: 'fleet', people: 'people', bills: 'bills', insights: 'insights', drivers: 'manageDrivers', assignments: 'assignDriver', routes: 'manageRoutes', reports: 'dashboard', busreport: 'dashboard', livemap: 'dashboard', track: 'dashboard', fuel: 'addFuel', safety: 'dashboard', breakdowns: 'logIncident', warranty: 'addFuel', storehealth: 'issuePart', linkgps: 'addBus', newjob: 'addJob', forecast: 'dashboard', pilferage: 'insights', components: 'issuePart', def: 'addFuel', vendors: 'addPurchase', import: 'addPurchase', crewpins: 'manageCrewLogins', crewbank: 'manageDrivers', usage: 'dashboard', accounting: 'dashboard', busacct: 'dashboard',
   // `purchases` renders the same view as `bills`; without its own entry the
   // `bills` permission was bypassable just by using the other route name.
-  purchases: 'bills', alerts: 'dashboard', buses: 'fleet',
+  purchases: 'bills', alerts: 'dashboard', buses: 'fleet', gate: 'gateCheck', gatechecks: 'gateDecide',
   store: 'viewStore', jobs: 'viewJobs', scoreboard: 'viewScoreboard',
   challans: 'challans', buschallans: 'challans',
   // Company billing and another person's scorecard rendered for any role because
@@ -9336,6 +9619,8 @@ function render(r) {
     case 'people': return viewPeople();
     case 'bills': return viewPurchases();
     case 'buses': return r.id ? viewBusDetail(r.id) : viewBuses();
+    case 'gate': return viewGate(r.id);
+    case 'gatechecks': return viewGateChecks();
     case 'jobs': return r.id ? viewJobDetail(r.id) : viewJobs();
     case 'store': return r.id ? viewPartDetail(r.id) : viewStore();
     case 'me': return viewMe();
@@ -9394,6 +9679,7 @@ function back() { try { history.back(); } catch (e) { if (S.stack.length > 1) { 
 let _renderPending = false;
 function userIsEditing() {
   if (document.querySelector('.sheetwrap')) return true;          // a sheet is open
+  if (document.querySelector('.gc-hold.pressing')) return true;  // mid-hold on the gate release
   const a = document.activeElement;
   if (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return true;  // cursor in a field
   // Full-screen forms. These are not sheets, so the check above never saw them.
@@ -9749,6 +10035,16 @@ const _dispatchClick = async (e) => {
       case 'saveAssignBus': return saveAssignBus(el.getAttribute('data-driver'));
       case 'assignDriver': return sheetAssignDriverToBus(el.getAttribute('data-bus'), el.getAttribute('data-role'), Number(el.getAttribute('data-slot')) || null);
       case 'asRole': _asRole = el.getAttribute('data-v'); return rerender();
+      case 'gateStart': return gateStart();
+      case 'openGate': return push({ name: 'gate', id: el.getAttribute('data-id') });
+      case 'openGateChecks': return push({ name: 'gatechecks' });
+      case 'gateOk': return gateOk(el.getAttribute('data-id'), el.getAttribute('data-k'));
+      case 'gateBad': return gateBad(el.getAttribute('data-id'), el.getAttribute('data-k'));
+      case 'gateBadPhoto': return gateBadPhoto();
+      case 'gateBadSave': return gateBadSave(el.getAttribute('data-id'), el.getAttribute('data-k'));
+      case 'gateRecheck': return gateRecheck(el.getAttribute('data-id'));
+      case 'gateDecide': return gateDecide(el.getAttribute('data-id'), el.getAttribute('data-v'));
+      case 'gateDecideSave': return gateDecideSave(el.getAttribute('data-id'), el.getAttribute('data-v'));
       case 'asLookup': _asLookup = { date: ($('#as-date') || {}).value || '', busId: ($('#as-bus') || {}).value || '' }; return rerender();
       case 'saveAssignDriver': return saveAssignDriver(el.getAttribute('data-bus'), el.getAttribute('data-role'), Number(el.getAttribute('data-slot')) || null);
       case 'addIncident': return can(S.user.role, 'logIncident') ? sheetIncident(el.getAttribute('data-driver')) : toast(t('cbNotAllowed'));

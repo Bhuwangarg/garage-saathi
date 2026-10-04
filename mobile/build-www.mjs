@@ -28,6 +28,7 @@ const FILES = [
   'db.js',
   'sync.js',
   'duty.js',
+  'gate.js',
   'app.js',
   'manifest.webmanifest',
 ];

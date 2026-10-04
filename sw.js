@@ -20,7 +20,7 @@
  * Data lives in IndexedDB, so the shell is all this caches. Cross-origin
  * requests (the sync server, uploads, the Anthropic API) are NOT intercepted.
  */
-const CACHE = 'garage-saathi-v87';
+const CACHE = 'garage-saathi-v88';
 const SHELL = [
   './',
   './index.html',
@@ -30,6 +30,7 @@ const SHELL = [
   './db.js',
   './sync.js',
   './duty.js',
+  './gate.js',
   './app.js',
   './manifest.webmanifest',
 ];
@@ -39,7 +40,10 @@ self.addEventListener('install', (e) => {
   // seed-data.js) must NOT fail the whole install, or the old worker gets stuck.
   e.waitUntil(
     caches.open(CACHE)
-      .then((c) => Promise.allSettled(SHELL.map((u) => c.add(u))))
+      // `reload` skips the browser's HTTP cache. The host sends max-age=300, so a
+      // plain add() could store a five-minute-old styles.css beside a new app.js,
+      // and a new screen would render with the previous build's stylesheet.
+      .then((c) => Promise.allSettled(SHELL.map((u) => c.add(new Request(u, { cache: 'reload' })))))
       .then(() => self.skipWaiting())
   );
 });

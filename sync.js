@@ -41,7 +41,10 @@ const Sync = (function () {
                   // Who sat on which bus, and from when. Written by managers on the
                   // duty board, append-only on the server. Synced from day one so a
                   // review can be traced to a crew whichever phone made the change.
-                  'dutylog'];
+                  'dutylog',
+                  // The departure checklist: filled on the driver's phone, decided
+                  // on the owner's. Synced so both see the same bus at the gate.
+                  'gatechecks'];
 
   const ls = window.localStorage;
   // Default sync backend: a device's explicit setting always wins. Otherwise, on

@@ -947,6 +947,9 @@ WRITE_ROLES = {
     # Who sat on which bus, from when — written by whoever runs the duty board.
     # Append-only; see _guard_write.
     "dutylog":       {"owner", "supervisor", "crewmanager"},
+    # The departure checklist. The driver fills it and releases; owner and
+    # supervisor only decide go/hold on a failed one. See _guard_write.
+    "gatechecks":    {"owner", "supervisor", "driver"},
     "trips":         {"owner", "supervisor", "driver"},
     "triplog":       {"owner", "supervisor", "driver"},
     # Operational stores every role legitimately writes:
@@ -1053,6 +1056,9 @@ def _guard_write(store, rid, data, actor, existing, c=None):
     old = existing or {}
 
     manager = actor["role"] in MANAGER_ROLES
+
+    if store == "gatechecks":
+        return _guard_gatecheck(data, actor, old, manager, c)
 
     if store == "dutylog":
         # The record a review, a complaint or a challan is traced to a crew by.
@@ -1328,6 +1334,117 @@ def _guard_write(store, rid, data, actor, existing, c=None):
 
 
 
+# ----------------------------- gate check ----------------------------------
+# Mirrors GATE_ITEMS in gate.js — test_gatecheck.py fails if they drift apart.
+GATE_ITEMS = [("ac", True), ("blankets", True), ("cabin", True), ("charging", False),
+              ("water", False), ("tyres", False), ("fuel", False), ("papers", False),
+              ("safety", False), ("uniform", False)]
+# Who the check is about, and what the driver proved at the start. Fixed once written.
+GATE_FIXED = ("busId", "regNo", "driverId", "driverName", "userId", "startedAt", "date",
+              "selfie", "faceVerified", "lat", "lng", "onDutyBoard")
+
+
+def _gate_outcome(items):
+    """'pass', 'fail' or 'incomplete' — the same rule as Gate.outcome()."""
+    items = items if isinstance(items, dict) else {}
+    failed = False
+    for key, needs_photo in GATE_ITEMS:
+        it = items.get(key)
+        if not isinstance(it, dict):
+            return "incomplete"
+        if it.get("ok") is True:
+            if needs_photo and not it.get("photo"):
+                return "incomplete"
+        elif it.get("ok") is False:
+            if not str(it.get("note") or "").strip():
+                return "incomplete"
+            failed = True
+        else:
+            return "incomplete"
+    return "fail" if failed else "pass"
+
+
+def _gate_failed(items):
+    items = items if isinstance(items, dict) else {}
+    return [k for k, _ in GATE_ITEMS if isinstance(items.get(k), dict) and items[k].get("ok") is False]
+
+
+def _guard_gatecheck(data, actor, old, manager, c):
+    """The rules of the departure checklist, enforced where a modified app
+    cannot skip them. A driver can only fill in their own check and can only
+    release it if every item passed; a failed one goes to the office. Only the
+    owner or a supervisor decides go/hold, and only with a reason. Nobody can
+    delete a check or change who did it, when, and the selfie that proved it."""
+    if data.get("_deleted"):
+        return "a gate check cannot be deleted"
+    status, was = data.get("status"), (old or {}).get("status")
+    if actor["role"] == "driver":
+        crew = _crew_record_for(c, actor["id"])
+        if not crew:
+            return "no crew record is linked to this login"
+        if data.get("driverId") != crew.get("id") or (old and old.get("driverId") != crew.get("id")):
+            return "a driver can only fill in their own gate check"
+        if data.get("decision") != (old or {}).get("decision"):
+            return "only the office can approve or hold a bus"
+        if not old:
+            if status != "open":
+                return "a gate check starts open"
+            if not data.get("busId") or data.get("busId") != crew.get("busId"):
+                return "a gate check is for the driver's own bus"
+            at = data.get("startedAt")
+            if not isinstance(at, (int, float)) or at > now_ms() + MAX_FUTURE_SKEW_MS:
+                return "a gate check needs a real start time"
+            data["userId"] = actor["id"]
+            return None
+        if any(data.get(k) != old.get(k) for k in GATE_FIXED):
+            return "who did the check, when and the selfie cannot be changed"
+        # Every item that has ever failed on this check stays on record, so a
+        # re-check that turns a failed item into a pass is visible to the office.
+        data["failedBefore"] = sorted(set(old.get("failedBefore") or []) | set(_gate_failed(old.get("items"))))
+        if was not in ("open", "held"):
+            if data != old and (status != was or data.get("items") != old.get("items")):
+                return "this check is already with the office or released"
+            return None
+        if status == "open":
+            return None
+        verdict = _gate_outcome(data.get("items"))
+        if status == "released":
+            if verdict != "pass":
+                return "a bus can only be released when every item passed"
+            data["releasedAt"] = now_ms()
+            return None
+        if status == "awaiting":
+            if verdict != "fail":
+                return "only a check with a failed item goes to the office"
+            data["sentAt"] = now_ms()
+            return None
+        return "invalid gate check status"
+    if not manager:
+        return "role may not write this store"
+    # Owner / supervisor: decide go or hold on a check waiting for the office.
+    if not old:
+        return "a gate check is started by the driver at the bus"
+    if was != "awaiting" or status not in ("approved", "held"):
+        return "only a check waiting for the office can be approved or held"
+    keep = {k: v for k, v in old.items()
+            if k not in ("status", "decision", "pastDecisions", "updatedAt", "_by", "_byRole", "_org")}
+    if any(data.get(k) != v for k, v in keep.items()):
+        return "the office decides go or hold; it does not change the check"
+    dec = data.get("decision")
+    if not isinstance(dec, dict) or not str(dec.get("reason") or "").strip():
+        return "approving or holding a bus needs a reason"
+    dec["by"] = actor["id"]
+    dec["byRole"] = actor["role"]
+    dec["at"] = now_ms()
+    dec["verdict"] = "go" if status == "approved" else "hold"
+    # A hold, then a re-check, then a go: the hold stays on record.
+    past = list(old.get("pastDecisions") or [])
+    if isinstance(old.get("decision"), dict):
+        past.append(old["decision"])
+    data["pastDecisions"] = past
+    return None
+
+
 def may_write(role, store):
     # Checked before the owner short-circuit: these stores are written only by the
     # server from an upstream source (GPS telemetry, the eChallan proxy). A client
@@ -1502,6 +1619,7 @@ def push(records, actor=None):
         refused = []
         moves = []            # (partId, was, now) — logged once the batch is known
         applied_ledger = []   # ledger rows this push actually stored
+        gate_alerts = []      # gate checks that just went to the office
         for r in records:
             store, rid = r.get("store"), r.get("id")
             upd = int(r.get("updatedAt") or 0)
@@ -1599,14 +1717,20 @@ def push(records, actor=None):
                     applied_ledger.append(data)
                 if store == "drivers" and isinstance(data, dict):
                     _sync_disabled_login(c, data)
+                if (store == "gatechecks" and isinstance(data, dict) and data.get("status") == "awaiting"
+                        and (existing or {}).get("status") != "awaiting"):
+                    gate_alerts.append(data)
                 rev = _upsert_record(c, store, rid, data, upd, rev)
                 applied += 1
         if moves:
             rev = _log_stock_moves(c, moves, applied_ledger, actor, rev)
         c.commit()
         c.close()
-        return {"ok": True, "applied": applied, "rejected": rejected,
-                "refused": refused, "maxRev": rev}
+    # After the lock is released: a push notification is a network call.
+    for g in gate_alerts:
+        _gate_alert(g)
+    return {"ok": True, "applied": applied, "rejected": rejected,
+            "refused": refused, "maxRev": rev}
 
 
 # Contact and document fields that used to ship in the public seed bundle and now
@@ -2047,6 +2171,18 @@ def save_pushsub(sub, role):
 def _del_pushsub(ep):
     with _lock:
         c = db(); c.execute("DELETE FROM pushsubs WHERE endpoint=?", (ep,)); c.commit(); c.close()
+
+
+def _gate_alert(check):
+    """A bus is waiting at the gate with a failed item: tell the office now.
+    Never raises — a failed notification must not fail the driver's push."""
+    try:
+        failed = ", ".join(_gate_failed(check.get("items"))) or "an item"
+        send_push("⛔ %s waiting at the gate" % (check.get("regNo") or "A bus"),
+                  "%s: %s failed. Approve or hold." % (check.get("driverName") or "Driver", failed),
+                  "/")
+    except Exception as e:
+        print("gate alert failed:", e)
 
 
 def send_push(title, body, url="/", roles=("owner", "supervisor")):

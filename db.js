@@ -5,7 +5,7 @@
  */
 
 const DB_NAME = 'garage-saathi';
-const DB_VERSION = 16;  // v16 adds dutylog (dated crew seat changes); v12 adds the usage store (daily per-person feature counters) — onupgradeneeded creates any missing
+const DB_VERSION = 17;  // v17 adds gatechecks; v16 adds dutylog (dated crew seat changes); v12 adds the usage store (daily per-person feature counters) — onupgradeneeded creates any missing
 
 const STORES = {
   users: 'id',
@@ -36,6 +36,7 @@ const STORES = {
                         // and whether a ledger row justified it. Clients pull it and never push it.
   gatepasses: 'id',     // outside-job gate pass: the printed slip a unit leaves the garage on,
                         // and the record the returning unit's serial is checked against.
+  gatechecks: 'id',    // departure checklist: one per bus departure — selfie, items, release / office decision
   dutylog: 'id',       // append-only: one row per crew seat change, with when. The duty board
                         // only knows who is on a bus now; this is who was on it on a given day.
   meta: 'key',
