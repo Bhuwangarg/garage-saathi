@@ -944,6 +944,9 @@ WRITE_ROLES = {
     "gatepasses":    {"owner", "supervisor"},
     "users":         {"owner", "supervisor"},
     "jobcards":      {"owner", "supervisor", "store", "mechanic"},
+    # Who sat on which bus, from when — written by whoever runs the duty board.
+    # Append-only; see _guard_write.
+    "dutylog":       {"owner", "supervisor", "crewmanager"},
     "trips":         {"owner", "supervisor", "driver"},
     "triplog":       {"owner", "supervisor", "driver"},
     # Operational stores every role legitimately writes:
@@ -1050,6 +1053,35 @@ def _guard_write(store, rid, data, actor, existing, c=None):
     old = existing or {}
 
     manager = actor["role"] in MANAGER_ROLES
+
+    if store == "dutylog":
+        # The record a review, a complaint or a challan is traced to a crew by.
+        # If it could be edited, "who drove that night" would be whatever the
+        # last person to touch it wanted — so nobody edits it, owner included.
+        if old:
+            if data.get("_deleted"):
+                return "the duty log cannot be deleted"
+            # Two phones can each write the same starting row for a crew member
+            # (its id is fixed per person). Keep the first; the second is a no-op,
+            # not a refusal, so it never sits in a phone's quarantine.
+            if old.get("reason") == "baseline" and data.get("reason") == "baseline":
+                data.clear()
+                data.update(old)
+                return None
+            return "the duty log cannot be changed once written"
+        if data.get("_deleted"):
+            return "the duty log cannot be deleted"
+        if not data.get("crewId") or data.get("role") not in ("driver", "conductor"):
+            return "a duty row needs a crew member and a seat"
+        bus = data.get("busId")
+        if bus is not None and not isinstance(bus, str):
+            return "invalid bus"
+        at = data.get("at")
+        if not isinstance(at, (int, float)) or at > now_ms() + MAX_FUTURE_SKEW_MS:
+            return "a duty row needs a real time"
+        # Who made the change comes from the token, never the body.
+        data["by"] = actor["id"]
+        return None
 
     if store == "attendance":
         # A check-in is the evidence a late penalty is charged on. Staff used to

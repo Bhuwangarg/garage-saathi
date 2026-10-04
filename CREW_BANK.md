@@ -186,3 +186,38 @@ form.
   most are blank and need filling from the office register.
 - Document *photos* are still to be collected for everyone — the bank shows the
   worklist under the "Docs missing" filter.
+
+## Duty log (Oct 2026)
+
+`busId` on a crew record says who is on a bus **now** and is overwritten on every
+change. The `dutylog` store keeps **when**: one row per seat change
+(`at, crewId, crewName, role, busId, regNo, reason, by`). The logic lives in
+`duty.js` (pure, tested by `node test_duty.js`), and the server rules are tested
+by `python3 test_dutylog.py`.
+
+- **Every write that can move crew on or off a bus goes through `putCrew(d, was, reason)`.**
+  It appends a row only when the bus the person actually holds changes
+  (`dutyBusOf`: archived or left crew hold none). A new code path that sets
+  `busId` and calls `DB.put('drivers')` directly creates a hole in the history.
+- **Append-only on the server, owner included.** Rows can't be edited or deleted.
+  `by` is stamped from the token.
+- **Baselines**: one `dl-base-<crewId>` row per crew member already on a bus,
+  written only by a manager phone that synced within the last 2 minutes. That way a
+  stale phone can't write a wrong starting point. The id is fixed, so a second
+  phone's copy is a no-op on the server.
+- **Lookup**: Duty board → "Who was on a bus that day". The day runs midnight to midnight
+  (look up a night service by its departure date). Before the log's first row the answer is
+  "not recorded", never "nobody".
+- `duty.js` is in the service-worker shell, `vercel.json` includeFiles,
+  `mobile/build-www.mjs` and the Android workflow. A new shell file needs all four.
+
+### Two driver seats
+
+A bus has **two driver seats** (seat 2 is the relief driver on night and long
+routes) and one conductor seat. `Duty.driverSeats` decides who is in which seat.
+`driverSlot` on the record wins. Records without it fill the free seats in id order,
+so imported `u-drv-<REG>-0` / `-1` land in seat 1 / seat 2. A third driver
+shows on the bus page as a warning and is never hidden. **All seat changes go through
+`_takeSeat(d, busId, slot)`**, which moves off only the holder of that one seat
+and pins whoever stays. `driverOfBus` still means one driver: seat 1, or seat 2
+when seat 1 is empty.

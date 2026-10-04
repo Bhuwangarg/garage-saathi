@@ -216,11 +216,14 @@ const I18N = {
     cbDupReused: 'updated and back on the roster ✓', cbDupStatusArchived: 'archived record',
     cbDupStatusLeft: 'left the company', cbDupStatusActive: 'currently working',
     // ---- Duty board (driver/conductor ↔ bus) + Crew Manager ----
+    asWhoWas: 'Who was on a bus that day', asWhoWasHint: 'For a review, complaint or challan: pick the date of travel and the bus.', asLookUp: 'Look up', asPickBus: 'Pick a bus',
+    asNotRecorded: 'Not recorded — the duty log starts on', asNobodySeat: 'Nobody in this seat that day', asAllDay: 'all day', asFromT: 'from', asUntilT: 'until',
     asTitle: 'Duty board', asHint: 'Tap a name to change their bus, or tap a bus to fill the empty seat.',
     asNoBus: 'no bus assigned', asAssigned: 'assigned', asUnassigned: 'unassigned',
     asBusesNoDriver: 'Buses without a driver', asBusesNoConductor: 'Buses without a conductor',
     asAssignWord: 'assign', asAllHaveDriver: 'Every bus has a driver 👍', asAllHaveConductor: 'Every bus has a conductor 👍',
     asAssignDriver: 'Assign driver', asAssignConductor: 'Assign conductor', asNone: '— none —',
+    asSeat: 'Seat', asDriverN: 'Driver', asSeat2Hint: 'relief driver, night / long route', asFirstFree: 'First free seat', asSeatEmpty: 'Empty', asExtraDriver: 'Also marked on this bus — move to a seat or another bus',
     asDriverAssigned: 'Driver assigned', asConductorAssigned: 'Conductor assigned', asForThisBus: 'for this bus',
     asNobodyYet: 'Nobody on the roster yet',
     cmToday: "Today's duty", cmNeedDriver: 'need a driver', cmNeedConductor: 'need a conductor',
@@ -437,11 +440,14 @@ const I18N = {
     cbDupReused: 'अपडेट होकर दोबारा काम पर ✓', cbDupStatusArchived: 'पुराना रिकॉर्ड',
     cbDupStatusLeft: 'नौकरी छोड़ चुका', cbDupStatusActive: 'अभी काम कर रहा है',
     // ---- Duty board (driver/conductor ↔ bus) + Crew Manager ----
+    asWhoWas: 'उस दिन बस पर कौन था', asWhoWasHint: 'रिव्यू, शिकायत या चालान के लिए: यात्रा की तारीख और बस चुनें।', asLookUp: 'देखें', asPickBus: 'बस चुनें',
+    asNotRecorded: 'रिकॉर्ड नहीं — ड्यूटी लॉग शुरू हुआ', asNobodySeat: 'उस दिन इस सीट पर कोई नहीं', asAllDay: 'पूरा दिन', asFromT: 'से', asUntilT: 'तक',
     asTitle: 'ड्यूटी', asHint: 'बस बदलने के लिए नाम दबाएं, या खाली सीट भरने के लिए बस दबाएं।',
     asNoBus: 'कोई बस नहीं', asAssigned: 'दी गई', asUnassigned: 'नहीं दी',
     asBusesNoDriver: 'बिना ड्राइवर की बसें', asBusesNoConductor: 'बिना कंडक्टर की बसें',
     asAssignWord: 'दें', asAllHaveDriver: 'हर बस पर ड्राइवर है 👍', asAllHaveConductor: 'हर बस पर कंडक्टर है 👍',
     asAssignDriver: 'ड्राइवर दें', asAssignConductor: 'कंडक्टर दें', asNone: '— कोई नहीं —',
+    asSeat: 'सीट', asDriverN: 'ड्राइवर', asSeat2Hint: 'दूसरा ड्राइवर, रात / लंबा रूट', asFirstFree: 'पहली खाली सीट', asSeatEmpty: 'खाली', asExtraDriver: 'यह भी इसी बस पर दर्ज है — सीट या दूसरी बस दें',
     asDriverAssigned: 'ड्राइवर दे दिया', asConductorAssigned: 'कंडक्टर दे दिया', asForThisBus: 'इस बस के लिए',
     asNobodyYet: 'अभी रोल पर कोई नहीं',
     cmToday: 'आज की ड्यूटी', cmNeedDriver: 'बसों को ड्राइवर चाहिए', cmNeedConductor: 'बसों को कंडक्टर चाहिए',
@@ -993,7 +999,8 @@ async function load() {
   const stockmoves = await DB.all('stockmoves').catch(() => []);
   const breakdowns = await DB.all('breakdowns').catch(() => []);
   const gatepasses = await DB.all('gatepasses').catch(() => []);
-  S.cache = { users, buses, parts, jobs, ledger, att, purchases, drivers, incidents, driverreports, routes, triplog, fuel, gpsevents, audits, components, def, vendors, trips, challans, usage, stockmoves, breakdowns, gatepasses, garage };
+  const dutylog = await DB.all('dutylog').catch(() => []);
+  S.cache = { users, buses, parts, jobs, ledger, att, purchases, drivers, incidents, driverreports, routes, triplog, fuel, gpsevents, audits, components, def, vendors, trips, challans, usage, stockmoves, breakdowns, gatepasses, dutylog, garage };
   refreshBiz();   // keep the displayed business name in sync with garage config
 }
 const byId = (arr, id) => arr.find((x) => x.id === id);
@@ -1320,8 +1327,52 @@ const activeCrew = () => allCrew().filter((d) => crewStatusOf(d) === 'active');
 const activeDrivers = () => activeCrew().filter((d) => crewRoleOf(d) === 'driver');
 // Bus-facing lookups mean the *driver* of the bus — never the conductor, who now
 // also carries that busId. Someone who has left crews nothing.
-const driverOfBus = (busId) => activeDrivers().find((d) => d.busId === busId) || null;
+// A bus has two driver seats (the second is the relief driver on night and long
+// routes) — see Duty.driverSeats. "The driver of the bus" means seat 1, or seat 2
+// when seat 1 is empty.
+const driverSeatsOf = (busId) => Duty.driverSeats(activeDrivers(), busId);
+const driverOfBus = (busId) => { const s = driverSeatsOf(busId); return s[0] || s[1] || null; };
+const driversOfBus = (busId) => driverSeatsOf(busId).filter(Boolean);
+const driverSlotOf = (d) => { const s = d && d.busId ? driverSeatsOf(d.busId) : []; return s[0] === d ? 1 : s[1] === d ? 2 : 0; };
 const conductorOfBus = (busId) => activeCrew().find((d) => d.busId === busId && crewRoleOf(d) === 'conductor') || null;
+
+/* The dated duty log (duty.js). `busId` on a crew record says who is on a bus
+ * now and is overwritten on every change; the log keeps when each change
+ * happened, so "who drove this bus on the 21st" has an answer. Every write of a
+ * crew record that can move them on or off a bus goes through putCrew(), which
+ * appends a row when — and only when — the seat they actually hold changed. */
+const dutyBusOf = (d) => (d && crewStatusOf(d) === 'active' ? (d.busId || null) : null);
+async function putCrew(d, was, reason) {
+  await DB.put('drivers', d);
+  const now = dutyBusOf(d);
+  if (now === (was || null)) return;
+  const bus = now ? (S.cache.buses || []).find((b) => b.id === now) : null;
+  const row = Duty.dutyRow({ crew: d, busId: now, at: Date.now(), reason, by: S.user && S.user.id, regNo: bus && bus.regNo });
+  await DB.put('dutylog', row);
+  (S.cache.dutylog = S.cache.dutylog || []).push(row);
+}
+/* The log starts the day it ships, so everyone already on a bus needs one
+ * starting row. Only written on a phone that has just synced: a stale phone
+ * would otherwise put a crew member on a bus they left days ago, and a history
+ * row, unlike the duty board, is never corrected afterwards. */
+let _baselining = false;
+async function ensureDutyBaselines() {
+  if (_baselining || !S.user || !can(S.user.role, 'assignDriver') || typeof Duty === 'undefined') return;
+  const info = Sync.info();
+  if (info.status !== 'synced' || Date.now() - (info.lastSyncAt || 0) > 2 * 60 * 1000) return;
+  const missing = Duty.missingBaselines(S.cache.dutylog, activeCrew(), dutyBusOf);
+  if (!missing.length) return;
+  _baselining = true;
+  try {
+    const at = Date.now();
+    for (const d of missing) {
+      const bus = (S.cache.buses || []).find((b) => b.id === dutyBusOf(d));
+      const row = Duty.baselineRow({ crew: d, busId: dutyBusOf(d), at, by: S.user.id, regNo: bus && bus.regNo });
+      await DB.put('dutylog', row);
+      S.cache.dutylog.push(row);
+    }
+  } finally { _baselining = false; }
+}
 // Identity lookups stay role-agnostic: a conductor opening "my documents" must
 // find his own record.
 const crewForUser = (userId) => allCrew().find((d) => d.userId === userId) || null;
@@ -2592,17 +2643,23 @@ function viewBusDetail(id) {
   }
 
   // Driver assigned to this bus + their open trip reports
-  const drv = driverOfBus(b.id);
+  const seats = driverSeatsOf(b.id);
   const openReps = openReportsForBus(b.id);
-  const canDrivers = can(S.user.role, 'manageDrivers');
-  body += `<div class="card"><div class="row between"><h3>Driver</h3>
-      ${can(S.user.role, 'assignDriver') ? `<button class="btn sm" data-act="assignDriver" data-bus="${esc(b.id)}">${drv ? 'Change' : 'Assign'}</button>` : ''}</div>`;
-  if (drv) {
+  const canDrivers = can(S.user.role, 'manageDrivers'), canAssign = can(S.user.role, 'assignDriver');
+  body += `<div class="card"><h3>Drivers</h3>`;
+  body += [0, 1].map((i) => {
+    const drv = seats[i], n = i + 1;
+    const btn = canAssign ? `<button class="btn sm" data-act="assignDriver" data-bus="${esc(b.id)}" data-role="driver" data-slot="${n}">${drv ? 'Change' : 'Assign'}</button>` : '';
+    if (!drv) return `<div class="li"><div class="ava">🧑‍✈️</div><div class="main"><div class="t muted">${t('asDriverN')} ${n} · ${t('asSeatEmpty')}</div>${n === 2 ? `<div class="s">${t('asSeat2Hint')}</div>` : ''}</div>${btn}</div>`;
     const sc = driverScore(drv.id);
-    body += `<div class="li" ${canDrivers ? `data-driver="${esc(drv.id)}"` : ''}><div class="ava">🧑‍✈️</div>
-      <div class="main"><div class="t">${esc(drv.name)}</div><div class="s">${drv.tripsLogged || 0} trips · ${esc(drv.phone || '')}</div></div>
-      ${canDrivers ? `<div style="text-align:right"><span class="badge ${scoreClass(sc)}">${sc}</span><div class="stars">${starStr(scoreStars(sc))}</div></div>` : ''}</div>`;
-  } else body += `<div class="muted small">No driver assigned.</div>`;
+    return `<div class="li" ${canDrivers ? `data-driver="${esc(drv.id)}"` : ''}><div class="ava">🧑‍✈️</div>
+      <div class="main"><div class="t">${esc(drv.name)}</div><div class="s">${t('asDriverN')} ${n} · ${drv.tripsLogged || 0} trips · ${esc(drv.phone || '')}</div></div>
+      ${canDrivers ? `<div style="text-align:right"><span class="badge ${scoreClass(sc)}">${sc}</span><div class="stars">${starStr(scoreStars(sc))}</div></div>` : ''}${btn}</div>`;
+  }).join('');
+  // A third driver on one bus is old data the two seats cannot hold. Show it,
+  // never hide it, so the office can move them.
+  body += (seats.overflow || []).map((o) => `<div class="li" ${canDrivers ? `data-driver="${esc(o.id)}"` : ''}><div class="ava">⚠️</div>
+      <div class="main"><div class="t">${esc(o.name)}</div><div class="s">${t('asExtraDriver')}</div></div></div>`).join('');
   body += `</div>`;
 
   if (openReps.length) {
@@ -7210,6 +7267,45 @@ function viewDrivers() {
  * the same layout twice, switched by a chip — who has no bus, and which buses
  * have an empty seat. This is the daily job. */
 let _asRole = 'driver';
+let _asLookup = null;   // { date: 'YYYY-MM-DD', busId } — the duty-log lookup on the board
+
+/* "Who was on this bus on this day", from the duty log. The day runs midnight
+ * to midnight local time — a night service is looked up by its departure date.
+ * Before the log began the answer is "not recorded", never "nobody". */
+function dutyLookupCard() {
+  const buses = (S.cache.buses || []).slice().sort((a, b) => String(a.regNo).localeCompare(String(b.regNo)));
+  const q = _asLookup || {};
+  const today = new Date(); const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  let h = `<div class="card"><h3>${t('asWhoWas')}</h3><div class="tiny muted">${t('asWhoWasHint')}</div>
+    <div class="row" style="gap:8px;flex-wrap:wrap;margin-top:8px">
+      <input id="as-date" type="date" value="${esc(q.date || iso(today))}" max="${esc(iso(today))}" style="flex:1;min-width:140px">
+      <select id="as-bus" style="flex:2;min-width:160px"><option value="">${t('asPickBus')}</option>${buses.map((b) => `<option value="${esc(b.id)}" ${q.busId === b.id ? 'selected' : ''}>${esc(b.regNo)}</option>`).join('')}</select>
+      <button class="btn sm" data-act="asLookup">${t('asLookUp')}</button></div>`;
+  if (q.date && q.busId) {
+    const from = new Date(q.date + 'T00:00:00').getTime(), to = from + day;
+    const log = S.cache.dutylog || [], start = Duty.coveredFrom(log);
+    const hhmm = (ts) => new Date(ts).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+    h += `<div class="hr"></div>`;
+    if (start == null || to <= start) {
+      h += `<div class="small muted">${t('asNotRecorded')} ${start == null ? '—' : fmtDate(start)}</div>`;
+    } else {
+      h += ['driver', 'conductor'].map((seat) => {
+        const who = Duty.seatHoldersDuring(log, q.busId, seat, from, to);
+        const partial = from < start;   // the log began part-way through this day
+        const lines = who.length ? who.map((w) => {
+          const span = (w.since <= from && w.until >= to) ? t('asAllDay')
+            : `${w.since > from ? t('asFromT') + ' ' + hhmm(w.since) : ''}${w.until < to ? ' ' + t('asUntilT') + ' ' + hhmm(w.until) : ''}`.trim();
+          return `<div class="li" data-driver="${esc(w.crewId)}" style="cursor:pointer"><div class="ava">${CREW_ROLE_META[seat][0]}</div>
+            <div class="main"><div class="t">${esc((driverById(w.crewId) || {}).name || w.crewName)}</div><div class="s">${esc(crewRoleLabel(seat))} · ${esc(span)}</div></div></div>`;
+        }).join('') : `<div class="small muted">${esc(crewRoleLabel(seat))}: ${t(partial ? 'asNotRecorded' : 'asNobodySeat')}${partial ? ' ' + fmtDateTime(start) : ''}</div>`;
+        // Someone found after the log began says nothing about the hours before it.
+        return lines + (partial && who.length ? `<div class="tiny muted">${t('asNotRecorded')} ${fmtDateTime(start)}</div>` : '');
+      }).join('');
+    }
+  }
+  return h + `</div>`;
+}
+
 function viewAssignments() {
   const role = _asRole === 'conductor' ? 'conductor' : 'driver';
   const crew = activeCrew().filter((d) => crewRoleOf(d) === role).sort((a, b) => a.name.localeCompare(b.name));
@@ -7218,11 +7314,12 @@ function viewAssignments() {
   let body = `<div class="chiprow">${['driver', 'conductor'].map((r) =>
     `<button class="chip ${role === r ? 'active' : ''}" data-act="asRole" data-v="${esc(r)}">${CREW_ROLE_META[r][0]} ${esc(crewRoleLabel(r))}</button>`).join('')}</div>`;
   body += `<div class="card"><div class="tiny muted">${t('asHint')}</div></div>`;
+  if (typeof Duty !== 'undefined') body += dutyLookupCard();
   body += `<div class="card"><div class="row between"><h3>${esc(crewRoleLabel(role))}</h3><span class="badge b-low">${crew.length}</span></div>`;
   body += crew.length ? crew.map((d) => {
     const bus = byId(buses, d.busId);
     return `<div class="li" data-act="assignBus" data-driver="${esc(d.id)}" style="cursor:pointer"><div class="ava">${CREW_ROLE_META[role][0]}</div>
-      <div class="main"><div class="t">${esc(d.name)}</div><div class="s">${bus ? esc(bus.regNo) + ' · ' + esc(bus.company || '') : t('asNoBus')}</div></div>
+      <div class="main"><div class="t">${esc(d.name)}</div><div class="s">${bus ? esc(bus.regNo) + (role === 'driver' && driverSlotOf(d) === 2 ? ' · ' + t('asDriverN') + ' 2' : '') + ' · ' + esc(bus.company || '') : t('asNoBus')}</div></div>
       <span class="badge ${bus ? 'b-green' : 'b-amber'}">${bus ? t('asAssigned') : t('asUnassigned')}</span></div>`;
   }).join('') : `<div class="empty">${t('asNobodyYet')}</div>`;
   body += `</div>`;
@@ -8095,13 +8192,31 @@ async function saveCrew() {
   return commitNewCrew({ fields, docs });
 }
 
-/* A bus carries one driver and one conductor — taking a seat frees whoever had
- * it, but only that seat. */
-async function _clearSeat(busId, seat, exceptId) {
-  if (!busId) return;
-  for (const o of activeCrew()) {
-    if (o.id !== exceptId && o.busId === busId && crewRoleOf(o) === seat) { o.busId = null; await DB.put('drivers', o); }
+/* Put `d` in a seat on `busId` (null = off every bus). A bus has one conductor
+ * seat and two driver seats; `slot` picks the driver seat, or, when not given,
+ * the first free one (seat 1 if both are taken). Whoever held that seat is moved
+ * off the bus — only that seat: filling the conductor's chair never takes a
+ * driver off, and filling seat 2 never takes seat 1's driver off.
+ * Sets d.busId / d.driverSlot; the caller saves `d` through putCrew. */
+async function _takeSeat(d, busId, slot) {
+  d.busId = busId || null;
+  if (!busId) { d.driverSlot = null; return; }
+  const role = crewRoleOf(d);
+  const others = activeCrew().filter((o) => o.id !== d.id && o.busId === busId && crewRoleOf(o) === role);
+  if (role === 'conductor') {
+    for (const o of others) { const w = dutyBusOf(o); o.busId = null; await putCrew(o, w, 'seat-taken'); }
+    return;
   }
+  const seats = Duty.driverSeats(others, busId);
+  const want = slot === 1 || slot === 2 ? slot : (!seats[0] ? 1 : !seats[1] ? 2 : 1);
+  const out = seats[want - 1];
+  // Pin whoever stays, so a seat they only held by id order cannot move under them.
+  for (let i = 0; i < 2; i++) {
+    const o = seats[i];
+    if (o && o !== out && o.driverSlot !== i + 1) { o.driverSlot = i + 1; await DB.put('drivers', o); }
+  }
+  if (out) { const w = dutyBusOf(out); out.busId = null; out.driverSlot = null; await putCrew(out, w, 'seat-taken'); }
+  d.driverSlot = want;
 }
 
 async function commitNewCrew({ fields, docs }) {
@@ -8110,8 +8225,8 @@ async function commitNewCrew({ fields, docs }) {
     id: 'crew-' + now.toString(36) + '-' + Math.random().toString(36).slice(2, 6),
     userId: null, tripsLogged: 0, salaryMonthly: 0, docs, source: 'crew-bank',
   }, fields);
-  await _clearSeat(rec.busId, crewRoleOf(rec), rec.id);
-  await DB.put('drivers', rec);
+  await _takeSeat(rec, rec.busId);
+  await putCrew(rec, null, 'joined');
   await load(); closeSheet();
   toast(`${rec.name} ${t('cbAdded')}`);
   push({ name: 'drivers', id: rec.id });
@@ -8157,6 +8272,7 @@ async function crewReuse(id) {
   if (crewStatusOf(d) === 'left' && d.rehire === 'no'
     && !confirm(`⚠️ ${d.name} ${t('cbNoRehireWarn')}\n\n${t('cbDupReason')}: ${crewLeftReason(d) || t('cbNotRecorded')}\n\n${t('cbBringBack')}`)) return;
   _crewPending = null;
+  const _wasBus = dutyBusOf(d);
   // Blank fields must not wipe what is already on file — an empty address typed
   // today is not a statement that his old address was wrong.
   Object.keys(p.fields).forEach((k) => { const val = p.fields[k]; if (val !== '' && val != null) d[k] = val; });
@@ -8172,8 +8288,8 @@ async function crewReuse(id) {
   d.docs = docs;
   d.archivedAt = null; d.leftAt = null; d.leftReason = ''; d.leftReasonKey = null; d.leftNote = ''; d.rehire = null;
   d.rejoinedAt = Date.now();
-  await _clearSeat(d.busId, crewRoleOf(d), d.id);
-  await DB.put('drivers', d);
+  await _takeSeat(d, d.busId, d.driverSlot);
+  await putCrew(d, _wasBus, 'rejoined');
   await load(); closeSheet();
   toast(`${d.name} ${t('cbDupReused')}`);
   push({ name: 'drivers', id: d.id });
@@ -8267,6 +8383,7 @@ async function saveCrewExit(id) {
   const open = crewOpenWork(d);
   if (open.length && !confirm(`⚠️ ${d.name} still has:\n\n${open.map((x) => '• ' + x).join('\n')}\n\nMarking him as left frees his bus and takes him off every list — settle this first, or it stays open with nobody watching it.\n\nMark as left anyway?`)) return;
   const v = (x) => (document.getElementById(x) || {}).value || '';
+  const was = dutyBusOf(d);
   d.status = 'left';
   d.leftAt = v('x-date') ? new Date(v('x-date') + 'T00:00:00').getTime() : Date.now();
   d.leftReasonKey = v('x-reason');
@@ -8274,7 +8391,7 @@ async function saveCrewExit(id) {
   d.leftReason = [enLabel(d.leftReasonKey), d.leftNote].filter(Boolean).join(' — ');   // English, for the CSV
   d.rehire = v('x-rehire') || 'maybe';
   d.busId = null;                      // his bus is free from today
-  await DB.put('drivers', d);
+  await putCrew(d, was, 'left');
   await load(); closeSheet(); toast(`${d.name} ${t('cbMarkedLeft')}`); rerender();
 }
 
@@ -8305,17 +8422,19 @@ async function archiveCrew(id) {
   const d = driverById(id); if (!d) return;
   const open = crewOpenWork(d);
   if (open.length && !confirm(`⚠️ ${d.name} still has:\n\n${open.map((x) => '• ' + x).join('\n')}\n\nArchiving takes him off every working list — settle this first, or it stays open with nobody watching it.\n\nArchive anyway?`)) return;
+  const was = dutyBusOf(d);
   d.status = 'archived'; d.archivedAt = Date.now();
-  await DB.put('drivers', d);
+  await putCrew(d, was, 'archived');
   await load(); toast(`${d.name} ${t('cbArchivedToast')}`); rerender();
 }
 
 async function restoreCrew(id) {
   if (!can(S.user.role, 'manageDrivers')) return toast(t('cbNotAllowed'));
   const d = driverById(id); if (!d) return;
+  const was = dutyBusOf(d);
   d.status = 'active'; d.archivedAt = null; d.rejoinedAt = Date.now();
-  await _clearSeat(d.busId, crewRoleOf(d), d.id);
-  await DB.put('drivers', d);
+  await _takeSeat(d, d.busId, d.driverSlot);
+  await putCrew(d, was, 'restored');
   await load(); toast(`${d.name} ${t('cbRestoredToast')}`); rerender();
 }
 
@@ -8333,8 +8452,12 @@ async function bulkArchiveCrew() {
   if (!confirm(`⚠️ ${t('cbBulkConfirm')}\n\n${list.length} — ${drv} ${t('cbDrivers')}, ${list.length - drv} ${t('cbConductors')}\n\n${t('cbBulkExplain')}`)) return;
   if ((window.prompt(t('cbBulkType')) || '').trim().toUpperCase() !== 'ARCHIVE') return;
   const now = Date.now();
+  const was = new Map(list.map((d) => [d.id, dutyBusOf(d)]));
   const upd = list.map((d) => Object.assign(d, { status: 'archived', archivedAt: now }));
   await DB.bulkPut('drivers', upd);
+  // Everyone leaves their bus at once; the duty log records each of them.
+  const rows = upd.filter((d) => was.get(d.id)).map((d) => Duty.dutyRow({ crew: d, busId: null, at: now, reason: 'archived', by: S.user.id }));
+  if (rows.length) await DB.bulkPut('dutylog', rows);
   await load(); toast(`${upd.length} ${t('cbBulkDone')}`); rerender();
 }
 
@@ -8342,8 +8465,10 @@ async function rejoinCrew(id) {
   if (!can(S.user.role, 'manageDrivers')) return toast(t('cbNotAllowed'));
   const d = driverById(id); if (!d) return;
   if (d.rehire === 'no' && !confirm(`⚠️ ${d.name} ${t('cbNoRehireWarn')}\n\n${t('cbDupReason')}: ${crewLeftReason(d) || t('cbNotRecorded')}\n\n${t('cbBringBack')}`)) return;
+  const was = dutyBusOf(d);
   d.status = 'active'; d.rejoinedAt = Date.now();
-  await DB.put('drivers', d);
+  await _takeSeat(d, d.busId, d.driverSlot);
+  await putCrew(d, was, 'rejoined');
   await load(); toast(`${d.name} ${t('cbRejoined')}`); rerender();
 }
 
@@ -8508,7 +8633,8 @@ async function saveDriver() {
   // Save the driver record FIRST — the optional app login is a bonus, not a
   // gate. A server hiccup must never lose the driver the user just entered.
   const driver = { id: uid('d-'), name, phone: $('#f-dphone').value.trim(), license: $('#f-dlic').value.trim(), busId, userId: null, tripsLogged: 0, joinedAt: Date.now(), photo: '' };
-  await DB.put('drivers', driver);
+  await _takeSeat(driver, busId);
+  await putCrew(driver, null, 'joined');
   let loginMsg = '';
   if (pin) {
     try {
@@ -8520,38 +8646,50 @@ async function saveDriver() {
   }
   await load(); closeSheet(); toast('Driver added' + loginMsg); rerender();
 }
+// The seat picker shown when placing a driver. `auto` adds "first free seat".
+function driverSlotField(busId, slot, auto) {
+  const seats = busId ? driverSeatsOf(busId) : [null, null];
+  const opt = (n) => `<option value="${n}" ${slot === n ? 'selected' : ''}>${t('asDriverN')} ${n}${n === 2 ? ' — ' + t('asSeat2Hint') : ''}${seats[n - 1] ? ' · ' + esc(seats[n - 1].name) : ''}</option>`;
+  return `<label class="field"><span class="lbl">${t('asSeat')}</span><select id="f-aslot">${auto ? `<option value="">${t('asFirstFree')}</option>` : ''}${opt(1)}${opt(2)}</select></label>`;
+}
 function sheetAssignBus(driverId) {
   const d = driverById(driverId), buses = S.cache.buses;
   openSheet('Assign bus', `<label class="field"><span class="lbl">Bus for ${esc(d.name)}</span>
     <select id="f-abus"><option value="">— unassigned —</option>${buses.map((b) => `<option value="${b.id}" ${b.id === d.busId ? 'selected' : ''}>${esc(b.regNo)}</option>`).join('')}</select></label>
+    ${crewRoleOf(d) === 'driver' ? driverSlotField(null, null, true) : ''}
     <button class="btn primary" data-act="saveAssignBus" data-driver="${esc(driverId)}">Save</button>`);
 }
 async function saveAssignBus(driverId) {
   const d = driverById(driverId); const busId = $('#f-abus').value || null;
-  const seat = crewRoleOf(d);   // a bus has one driver AND one conductor — clear only the same seat
-  if (busId) for (const o of activeCrew()) {
-    if (o.id !== driverId && o.busId === busId && crewRoleOf(o) === seat) { o.busId = null; await DB.put('drivers', o); }
-  }
-  d.busId = busId; await DB.put('drivers', d);
+  const slot = Number(($('#f-aslot') || {}).value) || null;   // blank = first free seat
+  const was = dutyBusOf(d);
+  await _takeSeat(d, busId, slot);
+  await putCrew(d, was, 'assign');
   await load(); closeSheet(); toast('Updated'); rerender();
 }
-function sheetAssignDriverToBus(busId, role) {
+function sheetAssignDriverToBus(busId, role, slot) {
   const seat = role === 'conductor' ? 'conductor' : 'driver';
+  const n = slot === 2 ? 2 : 1;
   const ds = activeCrew().filter((d) => crewRoleOf(d) === seat).sort((a, b) => a.name.localeCompare(b.name));
-  const cur = seat === 'conductor' ? conductorOfBus(busId) : driverOfBus(busId);
-  openSheet(t(seat === 'conductor' ? 'asAssignConductor' : 'asAssignDriver'), `<label class="field"><span class="lbl">${esc(crewRoleLabel(seat))} — ${t('asForThisBus')}</span>
+  const cur = seat === 'conductor' ? conductorOfBus(busId) : driverSeatsOf(busId)[n - 1];
+  const title = seat === 'conductor' ? t('asAssignConductor') : `${t('asAssignDriver')} · ${t('asSeat')} ${n}`;
+  openSheet(title, `<label class="field"><span class="lbl">${esc(crewRoleLabel(seat))} — ${t('asForThisBus')}</span>
     <select id="f-adrv"><option value="">${esc(t('asNone'))}</option>${ds.map((d) => `<option value="${d.id}" ${cur && cur.id === d.id ? 'selected' : ''}>${esc(d.name)}</option>`).join('')}</select></label>
-    <button class="btn primary" data-act="saveAssignDriver" data-bus="${esc(busId)}" data-role="${esc(seat)}">${t('save')}</button>`);
+    <button class="btn primary" data-act="saveAssignDriver" data-bus="${esc(busId)}" data-role="${esc(seat)}" data-slot="${seat === 'driver' ? n : ''}">${t('save')}</button>`);
 }
-async function saveAssignDriver(busId, role) {
+async function saveAssignDriver(busId, role, slot) {
   const seat = role === 'conductor' ? 'conductor' : 'driver';
+  const n = slot === 2 ? 2 : 1;
   const id = $('#f-adrv').value;
-  // Only the same seat is cleared — filling the conductor's chair must not
-  // silently take the driver off the bus.
-  for (const d of activeCrew()) {
-    if (d.busId === busId && d.id !== id && crewRoleOf(d) === seat) { d.busId = null; await DB.put('drivers', d); }
+  if (id) {
+    const d = driverById(id); const was = dutyBusOf(d);
+    await _takeSeat(d, busId, seat === 'driver' ? n : null);
+    await putCrew(d, was, 'assign');
+  } else {
+    // "— none —": empty just this seat.
+    const cur = seat === 'conductor' ? conductorOfBus(busId) : driverSeatsOf(busId)[n - 1];
+    if (cur) { const w = dutyBusOf(cur); cur.busId = null; cur.driverSlot = null; await putCrew(cur, w, 'seat-taken'); }
   }
-  if (id) { const d = driverById(id); d.busId = busId; await DB.put('drivers', d); }
   await load(); closeSheet(); toast(t(seat === 'conductor' ? 'asConductorAssigned' : 'asDriverAssigned')); rerender();
 }
 let _incPhoto = '';
@@ -9609,9 +9747,10 @@ const _dispatchClick = async (e) => {
       case 'saveDriver': return saveDriver();
       case 'assignBus': return sheetAssignBus(el.getAttribute('data-driver'));
       case 'saveAssignBus': return saveAssignBus(el.getAttribute('data-driver'));
-      case 'assignDriver': return sheetAssignDriverToBus(el.getAttribute('data-bus'), el.getAttribute('data-role'));
+      case 'assignDriver': return sheetAssignDriverToBus(el.getAttribute('data-bus'), el.getAttribute('data-role'), Number(el.getAttribute('data-slot')) || null);
       case 'asRole': _asRole = el.getAttribute('data-v'); return rerender();
-      case 'saveAssignDriver': return saveAssignDriver(el.getAttribute('data-bus'), el.getAttribute('data-role'));
+      case 'asLookup': _asLookup = { date: ($('#as-date') || {}).value || '', busId: ($('#as-bus') || {}).value || '' }; return rerender();
+      case 'saveAssignDriver': return saveAssignDriver(el.getAttribute('data-bus'), el.getAttribute('data-role'), Number(el.getAttribute('data-slot')) || null);
       case 'addIncident': return can(S.user.role, 'logIncident') ? sheetIncident(el.getAttribute('data-driver')) : toast(t('cbNotAllowed'));
       case 'saveIncident': return saveIncident(el.getAttribute('data-driver'));
       case 'incidentPhoto': { const d = await capturePhoto(); if (d) { _incPhoto = await Sync.uploadPhoto(d) || d; $('#f-iphoto').innerHTML = `<img class="thumb" src="${_incPhoto}">`; } return; }
@@ -10227,7 +10366,7 @@ function userPhoto(u) { const d = crewForUser(u.id); return (d && d.photo) || nu
   // Start live sync with the shared server. Local-first: the app is fully usable
   // even if the server is unreachable (status shows "Offline", changes queue).
   Sync.start({
-    onStatus: (s) => { SYNC_STATUS = s; announceSyncStatus(s); updateSyncChip(); },
+    onStatus: (s) => { SYNC_STATUS = s; announceSyncStatus(s); updateSyncChip(); if (s === 'synced') ensureDutyBaselines().catch(() => {}); },
     onApplied: async (n) => {
       // Remote changes arrived — refresh the cache either way, but do not
       // re-render over somebody who is typing.

@@ -5,7 +5,7 @@
   ],
   "functions": {
     "api/index.py": {
-      "includeFiles": "{sync_server.py,wa_client.py,index.html,export.html,app.js,db.js,sync.js,seed-data.js,seed-docs.js,sw.js,styles.css,manifest.webmanifest,icons/**,assets/**}",
+      "includeFiles": "{sync_server.py,wa_client.py,index.html,export.html,app.js,db.js,sync.js,duty.js,seed-data.js,seed-docs.js,sw.js,styles.css,manifest.webmanifest,icons/**,assets/**}",
       "maxDuration": 60
     }
   },

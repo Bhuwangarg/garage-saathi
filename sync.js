@@ -37,7 +37,11 @@ const Sync = (function () {
                   // Server-written record of every change to a part's quantity.
                   // Pulled so the owner can see unexplained ones; never pushed —
                   // the whole point is that the people it watches cannot touch it.
-                  'stockmoves'];
+                  'stockmoves',
+                  // Who sat on which bus, and from when. Written by managers on the
+                  // duty board, append-only on the server. Synced from day one so a
+                  // review can be traced to a crew whichever phone made the change.
+                  'dutylog'];
 
   const ls = window.localStorage;
   // Default sync backend: a device's explicit setting always wins. Otherwise, on

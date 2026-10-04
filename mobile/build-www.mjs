@@ -27,6 +27,7 @@ const FILES = [
   'seed-docs.js',
   'db.js',
   'sync.js',
+  'duty.js',
   'app.js',
   'manifest.webmanifest',
 ];
