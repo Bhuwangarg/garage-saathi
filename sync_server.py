@@ -1228,6 +1228,15 @@ def _guard_write(store, rid, data, actor, existing, c=None):
                     if new_lines.get(k, 0) < (l.get("qty") or 0):
                         return "parts on a verified job cannot be removed or reduced — re-open it first"
 
+        # A verified card is what a bill was paid against, and its bus is what
+        # the repair's cost is charged to for good — both buses' cost per km
+        # move with it. A supervisor correcting their own mis-pick would be
+        # moving money after sign-off, so it is the owner's, and re-opening the
+        # card (which unpicks the two-person check) is not needed for it.
+        if prev == "verified" and status == "verified" and data.get("busId") != old.get("busId"):
+            if actor["role"] != "owner":
+                return "only an owner may move a verified job card to another bus"
+
         # Parts already issued stay on the card, whatever the incoming write
         # says. See _merge_parts_used: the write that drops one is a stale
         # device, not a correction, and the part is already out of the store.

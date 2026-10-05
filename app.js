@@ -28,6 +28,11 @@ const I18N = {
     isPart: 'Part', isSearch: 'Type a part name, code or category…', isToJob: 'Issue to job card',
     isPickFirst: 'Search and pick a part first',
     isInStock: 'in stock', isOutOfStock: 'none left', isNoMatch: 'No part matches that.',
+    jbBusWord: 'Bus', jbChangeBus: 'Change the bus', jbChangeBusTitle: 'Correct the bus on this job card',
+    jbMoveWarn: 'Everything on this card — parts, labour, outside work — moves to the bus you pick. Nothing else on a verified card changes.',
+    jbReason: 'Why (optional)', jbReasonPh: 'e.g. logged against the wrong bus',
+    jbSameBus: 'That is already the bus on this card', jbMoved: 'Moved to', jbOwnerOnly: 'Only the owner can move a verified job card',
+    jbCorrected: 'Bus corrected from {bus}',
     isPickBoth: 'Pick a part and a job', isChooseJob: 'Choose the job card', isPickJob: 'Choose which job card this part is for',
     jpRestored: 'Put back on the job card from the stock ledger:', isGate: 'Parts can only be issued against a job card. This stops untracked pilferage.',
     isReused: 'Reused / second-hand part', isReusedShort: 'reused', isReusedCost: 'What it is worth',
@@ -265,6 +270,11 @@ const I18N = {
     isPart: 'पुर्जा', isSearch: 'पुर्जे का नाम, कोड या श्रेणी लिखिए…', isToJob: 'किस जॉब कार्ड पर',
     isPickFirst: 'पहले पुर्जा खोजकर चुनिए',
     isInStock: 'स्टॉक में', isOutOfStock: 'स्टॉक खत्म', isNoMatch: 'कोई पुर्जा नहीं मिला।',
+    jbBusWord: 'बस', jbChangeBus: 'बस बदलें', jbChangeBusTitle: 'इस जॉब कार्ड की बस ठीक कीजिए',
+    jbMoveWarn: 'इस कार्ड का सब कुछ — पुर्जे, मज़दूरी, बाहर का काम — उसी बस पर चला जाएगा जो आप चुनेंगे। जाँचे हुए कार्ड में और कुछ नहीं बदलता।',
+    jbReason: 'वजह (ज़रूरी नहीं)', jbReasonPh: 'जैसे ग़लत बस पर लिख दिया था',
+    jbSameBus: 'इस कार्ड पर यही बस पहले से है', jbMoved: 'भेजा गया', jbOwnerOnly: 'जाँचा हुआ जॉब कार्ड सिर्फ़ मालिक बदल सकते हैं',
+    jbCorrected: 'बस ठीक की गई — {bus} से',
     isPickBoth: 'पुर्जा और काम दोनों चुनिए', isChooseJob: 'जॉब कार्ड चुनिए', isPickJob: 'यह पुर्जा किस जॉब कार्ड का है, चुनिए',
     jpRestored: 'स्टॉक लेजर से जॉब कार्ड पर वापस लगाया:', isGate: 'पुर्जा सिर्फ़ जॉब कार्ड पर ही जारी होगा। इसी से बिना हिसाब चोरी रुकती है।',
     isReused: 'पुराना / सेकंड-हैंड पुर्जा', isReusedShort: 'पुराना', isReusedCost: 'इसकी असली कीमत',
@@ -2888,6 +2898,7 @@ function viewJobDetail(id) {
       <span class="small muted">👷 ${esc(crewLabel(j, true))}</span>
       <span class="small muted">· ${fmtDate(j.createdAt)}</span></div>
     ${j.notes ? `<div class="small muted" style="margin-top:8px">📝 ${esc(j.notes)}</div>` : ''}
+    ${(j.busMoves || []).map((m) => `<div class="tiny muted" style="margin-top:6px">🚌 ${t('jbCorrected').replace('{bus}', () => esc(busName(m.from) || m.from || '—'))} · ${esc(userName(m.by))} · ${fmtDate(m.at)}${m.reason ? ' · ' + esc(m.reason) : ''}</div>`).join('')}
   </div>`;
 
   body += serviceRecordCard(j, canEdit);
@@ -2973,6 +2984,14 @@ function actionsForJob(j, editable) {
   }
   if (j.status === 'verified') {
     actions += `<div class="banner" style="background:var(--green-wash);color:var(--green)">✓ Verified by ${esc(userName(j.verifiedBy))} on ${fmtDate(j.verifiedAt)}</div>`;
+    // The one correction a signed-off card still needs. A card billed to the
+    // wrong bus puts its parts and labour on that bus's cost per km for good,
+    // and re-opening the card to fix it unpicks the two-person sign-off — so
+    // the bus moves on its own, it is the owner's to do, and the card keeps a
+    // record of the move. Everything else on a verified card stays frozen.
+    if (S.user.role === 'owner') {
+      actions += `<button class="btn" data-act="changeJobBus" data-job="${esc(j.id)}">🚌 ${t('jbChangeBus')}</button>`;
+    }
   }
   return actions;
 }
@@ -3035,6 +3054,41 @@ async function saveEditJob(jobId) {
   j.notes = ($('#fe-notes') ? $('#fe-notes').value.trim() : '');
   await DB.put('jobcards', j);
   await load(); closeSheet(); toast(t('jobUpdated')); rerender();
+}
+
+// Correcting the bus on a job card that is already signed off. Owner only, and
+// deliberately not the full edit sheet: the hours and costs a verified card was
+// paid against must not be editable through the back door.
+function sheetChangeJobBus(jobId) {
+  const j = byId(S.cache.jobs, jobId);
+  if (!j) return;
+  if (S.user.role !== 'owner') return toast(t('jbOwnerOnly'));
+  const buses = S.cache.buses;
+  openSheet(t('jbChangeBusTitle'), `
+    <div class="banner warn">⚠️ ${esc(t('jbMoveWarn'))}</div>
+    <label class="field"><span class="lbl">🚌 ${t('jbBusWord')}</span><select id="jb-bus">${
+      byId(buses, j.busId) ? '' : `<option value="" selected>⚠️ ${esc(j.busId || '')}</option>`
+    }${buses.map((b) => `<option value="${esc(b.id)}" ${b.id === j.busId ? 'selected' : ''}>${esc(b.regNo)}${b.company ? ' — ' + esc(b.company) : ''}</option>`).join('')}</select></label>
+    <label class="field"><span class="lbl">📝 ${t('jbReason')}</span><input id="jb-why" placeholder="${esc(t('jbReasonPh'))}"></label>
+    <button class="btn primary" data-act="saveJobBus" data-job="${esc(j.id)}">${t('save')}</button>`);
+}
+async function saveJobBus(jobId) {
+  const j = byId(S.cache.jobs, jobId);
+  if (!j) return;
+  // The button is owner-only and so is the server rule; this is the third lock,
+  // for anyone who reaches the action some other way.
+  if (S.user.role !== 'owner') return toast(t('jbOwnerOnly'));
+  const to = ($('#jb-bus') || {}).value;
+  if (!to) return toast(t('isPickBoth'));
+  if (to === j.busId) return toast(t('jbSameBus'));
+  const from = j.busId;
+  // What the card used to say is kept on the card itself: a repair that moves
+  // between buses changes both buses' cost per km, and a figure that changed
+  // with no visible reason is the kind of thing nobody can answer a year later.
+  j.busMoves = [...(j.busMoves || []), { from, to, by: S.user.id, at: Date.now(), reason: ($('#jb-why') || {}).value.trim() }];
+  j.busId = to;
+  await DB.put('jobcards', j);
+  await load(); closeSheet(); toast(`🚌 ${t('jbMoved')} ${busName(to)}`); rerender();
 }
 
 /* ===== Anti-pilferage #1 — old-part return ("core return") ================
@@ -9845,6 +9899,8 @@ const _dispatchClick = async (e) => {
       case 'addJob': return sheetAddJob();
       case 'saveJob': return saveJob();
       case 'editJob': return sheetEditJob(el.getAttribute('data-job'));
+      case 'changeJobBus': return sheetChangeJobBus(el.getAttribute('data-job'));
+      case 'saveJobBus': return saveJobBus(el.getAttribute('data-job'));
       case 'saveEditJob': return saveEditJob(el.getAttribute('data-job'));
       case 'requestPart': return sheetRequestPart(el.getAttribute('data-job'));
       case 'saveRequestPart': return saveRequestPart(el.getAttribute('data-job'));

@@ -87,5 +87,32 @@ print("Deleting a card is still the manager's to do")
 push(SUP, "jobcards", "j1", dict(CARD, _deleted=True))
 check("a deleted card is not resurrected with parts", stored("jobcards", "j1").get("_deleted") is True)
 
+print("Correcting the bus on a verified card is the owner's alone")
+OWNER = {"id": "u-own", "role": "owner"}
+VERIFIED = dict(CARD, status="verified", busId="b1", partsUsed=[{"partId": "p-clutch", "qty": 2, "cost": 900}])
+push(SUP, "jobcards", "j2", dict(CARD, busId="b1"))
+push(SUP, "jobcards", "j2", VERIFIED)
+check("the card is verified on b1", stored("jobcards", "j2")["busId"] == "b1")
+
+r = push(SUP, "jobcards", "j2", dict(VERIFIED, busId="b9"))
+check("a supervisor may not move it", r["rejected"] == 1 and "owner" in r["refused"][0]["reason"])
+check("the bus is unchanged", stored("jobcards", "j2")["busId"] == "b1")
+r = push(STORE, "jobcards", "j2", dict(VERIFIED, busId="b9"))
+check("nor the store", r["rejected"] == 1)
+r = push(MECH, "jobcards", "j2", dict(VERIFIED, busId="b9"))
+check("nor a mechanic on the job", r["rejected"] == 1)
+
+r = push(OWNER, "jobcards", "j2", dict(VERIFIED, busId="b9",
+                                       busMoves=[{"from": "b1", "to": "b9", "by": "u-own", "at": S.now_ms()}]))
+card = stored("jobcards", "j2")
+check("the owner may", r["applied"] == 1 and card["busId"] == "b9")
+check("the move is recorded on the card", card["busMoves"][0]["from"] == "b1")
+check("the parts went with it", lines("j2") == {("p-clutch", False): 2})
+check("the hours a verified card was paid against are untouched", card["labourHours"] == VERIFIED["labourHours"])
+
+r = push(SUP, "jobcards", "j3", dict(CARD, busId="b1"))
+r = push(SUP, "jobcards", "j3", dict(CARD, busId="b7"))
+check("an open card can still be reassigned by a supervisor", stored("jobcards", "j3")["busId"] == "b7")
+
 print("\nRESULT: " + ("ALL PASS" if not fails else "%d FAILED -> %s" % (len(fails), fails)))
 sys.exit(1 if fails else 0)
