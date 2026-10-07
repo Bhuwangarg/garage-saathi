@@ -1531,6 +1531,9 @@ function bottomnav() {
   // The crew manager's nav has its own crewbank tab; everyone else reaches the
   // bank under People, which is what TAB_OF maps it to.
   if (S.user.role === 'crewmanager' && (S.route.name === 'crewbank' || S.route.name === 'drivers' || S.route.name === 'driverdocs')) active = 'crewbank';
+  // The duty board is this login's other half of the job, so it is a tab of its
+  // own rather than TAB_OF's 'people', which the crew manager's nav does not have.
+  if (S.user.role === 'crewmanager' && S.route.name === 'assignments') active = 'assignments';
   // Each role gets a focused nav matching what they actually do. Owner is
   // money/fleet/people (the real work); supervisor is jobs/fleet/store (the floor).
   const NAVS = {
@@ -1538,7 +1541,9 @@ function bottomnav() {
     supervisor: [['home', '🏠', t('today')], ['jobs', '🛠️', t('jobs')], ['fleet', '🚌', t('fleet')], ['store', '📦', t('store')], ['me', '👤', t('me')]],
     store:      [['home', '📦', t('store')], ['bills', '🧾', t('bills')], ['jobs', '🛠️', t('jobs')], ['me', '👤', t('me')]],
     mechanic:   [['home', '🛠️', t('myWork')], ['store', '📦', t('store')], ['me', '👤', t('me')]],
-    crewmanager:[['home', '🔁', t('today')], ['crewbank', '🗂️', t('cbTitle')], ['me', '👤', t('me')]],
+    // Putting people on buses is half of what this login is for, and it was two
+    // taps down inside Today. It gets a tab.
+    crewmanager:[['home', '🔁', t('today')], ['assignments', '🚌', t('asTitle')], ['crewbank', '🗂️', t('cbTitle')], ['me', '👤', t('me')]],
     driver:     [['home', '🚌', t('myBus')], ['me', '👤', t('me')]],
     conductor:  [['home', '🚌', t('myDuty')], ['me', '👤', t('me')]],
   };
