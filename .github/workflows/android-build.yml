@@ -21,6 +21,7 @@ on:
       - "sync.js"
       - "duty.js"
       - "gate.js"
+      - "trace.js"
       - "seed-data.js"
       - "seed-docs.js"
       - "manifest.webmanifest"
@@ -77,7 +78,7 @@ jobs:
           # rewrites app.js too and it is expected to differ. It is checked
           # below by what the rewrite must have done, which is the stronger
           # assertion anyway — equality only ever proved the file was copied.
-          for f in styles.css db.js sync.js duty.js gate.js seed-data.js seed-docs.js; do
+          for f in styles.css db.js sync.js duty.js gate.js trace.js seed-data.js seed-docs.js; do
             if ! diff -q "$f" "$pub/$f" >/dev/null; then
               echo "::error::$f in the APK differs from the repo copy — cap sync did not take"
               exit 1

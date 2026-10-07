@@ -232,6 +232,15 @@ const I18N = {
     gcStartedAt: 'started', gcNotFound: 'This gate check is not on this phone yet.', gcNoLocation: 'no location', gcFaceNo: 'face not verified', gcNotOnBoardShort: 'not on duty board',
     gcOffice: 'Gate checks', gcWaiting: 'Waiting for you', gcNoneWaiting: 'No bus is waiting at the gate.', gcToday: 'Today', gcNoneToday: 'No checks yet today.', gcNoCheck: 'Buses with no check today',
     gcGo: 'Go', gcHold: 'Hold', gcReason: 'Reason (required)', gcReasonGoPh: 'e.g. AC will be fixed at the Mathura stop', gcReasonHoldPh: 'e.g. Fix the AC before leaving', gcReasonNeeded: 'Write a reason first', gcDecided: 'Decision sent to the driver',
+    gcService: 'Service', gcServicePick: 'Which service is this bus leaving on?', gcPickServiceFirst: 'Pick the service first', gcSuggested: 'Suggested for this bus', gcAllServices: 'All services', gcSearchSvc: 'Search a city or a time', gcChange: 'Change', gcPick: 'Pick',
+    rvTitle: 'redBus reviews', rvHomeTitle: 'redBus reviews (7 days)', rvLast7: 'Last 7 days', rvAvg: 'average', rvTraced: 'traced to a bus', rvConflicts: 'sources disagree',
+    rvNone: 'No redBus reviews yet — they arrive once the office collector is running.', rvNoneHere: 'Nothing here.', rvNoComplaints: 'No complaints yet.',
+    rvTabReviews: 'Reviews', rvTabComplaints: 'Complaints', rvLow: '1–3★', rvSafety: 'Safety', rvConflict: 'Disagree', rvUnresolved: 'Not traced', rvAll: 'All',
+    rvHigh: 'Gate check', rvMedium: 'redBus / ITS', rvConflictChip: 'Sources disagree', rvNoneChip: 'Not traced',
+    rvWhyService: 'This service is not in the list yet', rvWhyNoSource: 'No gate check or redBus assignment for that trip', rvCrewNotRecorded: 'crew not on the duty log for that time',
+    rvSources: 'Where this came from', rvSrcGate: 'Gate check', rvSrcRedpro: 'redBus assignment', rvSrcIts: 'ITS booking', rvAsTyped: 'as typed in redBus', rvSwapped: 'bus changed that day',
+    rvCrew: 'Crew on that trip', rvSafetyK: 'Safety', rvGenuine: 'Service', rvFaq: 'Question', rvPraise: 'Praise', rvBoarded: 'Boarded',
+    rvBusCard: 'redBus reviews (30 days)', rvCrewReviews: 'redBus reviews on their trips (30 days)', rvMinSample: 'fewer than 10 rated trips, too few to judge', cmpNotes: 'redBus agent notes',
     gcHomeTitle: 'Gate checks today', gcNoCheckShort: 'no check yet', gcHistory: 'Earlier decisions', hmGateWaiting: 'Bus waiting at the gate', hmGateWaitingSub: 'A check failed — go or hold?', asGateLine: 'Gate check',
     gi_ac: 'AC cooling', gi_blankets: 'Blanket and pillow on every berth', gi_cabin: 'Berths, floor and washroom clean', gi_charging: 'Charging points work', gi_water: 'Water bottles loaded',
     gi_tyres: 'Tyres and lights OK', gi_fuel: 'Enough fuel for the first leg', gi_papers: 'RC, permit, insurance, PUC on board', gi_safety: 'First-aid box, extinguisher, emergency hammer', gi_uniform: 'Crew in uniform',
@@ -476,6 +485,15 @@ const I18N = {
     gcStartedAt: 'शुरू', gcNotFound: 'यह गेट चेक अभी इस फ़ोन पर नहीं आया।', gcNoLocation: 'लोकेशन नहीं', gcFaceNo: 'चेहरा पक्का नहीं', gcNotOnBoardShort: 'ड्यूटी में नाम नहीं',
     gcOffice: 'गेट चेक', gcWaiting: 'आपका इंतज़ार', gcNoneWaiting: 'कोई बस गेट पर इंतज़ार में नहीं।', gcToday: 'आज', gcNoneToday: 'आज अभी कोई चेक नहीं।', gcNoCheck: 'आज बिना चेक वाली बसें',
     gcGo: 'चलो', gcHold: 'रुको', gcReason: 'वजह (ज़रूरी)', gcReasonGoPh: 'जैसे मथुरा स्टॉप पर AC ठीक होगा', gcReasonHoldPh: 'जैसे निकलने से पहले AC ठीक करें', gcReasonNeeded: 'पहले वजह लिखें', gcDecided: 'फ़ैसला ड्राइवर को भेजा',
+    gcService: 'सर्विस', gcServicePick: 'यह बस किस सर्विस पर जा रही है?', gcPickServiceFirst: 'पहले सर्विस चुनें', gcSuggested: 'इस बस के लिए सुझाव', gcAllServices: 'सभी सर्विस', gcSearchSvc: 'शहर या समय खोजें', gcChange: 'बदलें', gcPick: 'चुनें',
+    rvTitle: 'redBus रिव्यू', rvHomeTitle: 'redBus रिव्यू (7 दिन)', rvLast7: 'पिछले 7 दिन', rvAvg: 'औसत', rvTraced: 'बस तक पहुँचे', rvConflicts: 'स्रोतों में फ़र्क',
+    rvNone: 'अभी कोई redBus रिव्यू नहीं — ऑफिस कलेक्टर चालू होने पर आएँगे।', rvNoneHere: 'यहाँ कुछ नहीं।', rvNoComplaints: 'अभी कोई शिकायत नहीं।',
+    rvTabReviews: 'रिव्यू', rvTabComplaints: 'शिकायतें', rvLow: '1–3★', rvSafety: 'सुरक्षा', rvConflict: 'फ़र्क', rvUnresolved: 'बस पता नहीं', rvAll: 'सभी',
+    rvHigh: 'गेट चेक', rvMedium: 'redBus / ITS', rvConflictChip: 'स्रोतों में फ़र्क', rvNoneChip: 'बस पता नहीं',
+    rvWhyService: 'यह सर्विस अभी सूची में नहीं है', rvWhyNoSource: 'उस यात्रा का न गेट चेक है न redBus असाइनमेंट', rvCrewNotRecorded: 'उस समय का स्टाफ़ ड्यूटी लॉग में नहीं',
+    rvSources: 'यह जानकारी कहाँ से', rvSrcGate: 'गेट चेक', rvSrcRedpro: 'redBus असाइनमेंट', rvSrcIts: 'ITS बुकिंग', rvAsTyped: 'जैसा redBus में लिखा', rvSwapped: 'उस दिन बस बदली',
+    rvCrew: 'उस यात्रा का स्टाफ़', rvSafetyK: 'सुरक्षा', rvGenuine: 'सेवा', rvFaq: 'सवाल', rvPraise: 'तारीफ़', rvBoarded: 'चढ़े',
+    rvBusCard: 'redBus रिव्यू (30 दिन)', rvCrewReviews: 'इनकी यात्राओं के redBus रिव्यू (30 दिन)', rvMinSample: '10 से कम रेटिंग, अभी फ़ैसला नहीं', cmpNotes: 'redBus एजेंट नोट',
     gcHomeTitle: 'आज के गेट चेक', gcNoCheckShort: 'बिना चेक', gcHistory: 'पहले के फ़ैसले', hmGateWaiting: 'बस गेट पर इंतज़ार में', hmGateWaitingSub: 'जाँच में दिक्कत — चलो या रुको?', asGateLine: 'गेट चेक',
     gi_ac: 'AC ठंडा कर रहा है', gi_blankets: 'हर बर्थ पर कंबल और तकिया', gi_cabin: 'बर्थ, फ़र्श और वॉशरूम साफ़', gi_charging: 'चार्जिंग पॉइंट चालू', gi_water: 'पानी की बोतलें रखीं',
     gi_tyres: 'टायर और लाइट ठीक', gi_fuel: 'पहले हिस्से के लिए पूरा डीज़ल', gi_papers: 'RC, परमिट, बीमा, PUC बस में', gi_safety: 'फ़र्स्ट-एड, फ़ायर एक्सटिंग्विशर, इमरजेंसी हथौड़ा', gi_uniform: 'स्टाफ़ वर्दी में',
@@ -1053,7 +1071,8 @@ async function load() {
   const gatepasses = await DB.all('gatepasses').catch(() => []);
   const dutylog = await DB.all('dutylog').catch(() => []);
   const gatechecks = await DB.all('gatechecks').catch(() => []);
-  S.cache = { users, buses, parts, jobs, ledger, att, purchases, drivers, incidents, driverreports, routes, triplog, fuel, gpsevents, audits, components, def, vendors, trips, challans, usage, stockmoves, breakdowns, gatepasses, dutylog, gatechecks, garage };
+  const [rbservices, rbreviews, rbcomplaints, rbassign] = await Promise.all(['rbservices', 'rbreviews', 'rbcomplaints', 'rbassign'].map((n) => DB.all(n).catch(() => [])));
+  S.cache = { users, buses, parts, jobs, ledger, att, purchases, drivers, incidents, driverreports, routes, triplog, fuel, gpsevents, audits, components, def, vendors, trips, challans, usage, stockmoves, breakdowns, gatepasses, dutylog, gatechecks, rbservices, rbreviews, rbcomplaints, rbassign, garage };
   refreshBiz();   // keep the displayed business name in sync with garage config
 }
 const byId = (arr, id) => arr.find((x) => x.id === id);
@@ -2099,6 +2118,7 @@ function viewOwnerHome() {
   if (owed) rows.push(triageRow('warn', '🧾', t('hmOwed'), t('hmOwedSub'), 'data-act="openPurchases"', money(owed)));
   body += triageCard(rows);
   body += gateHomeSummaryCard();
+  body += reviewsHomeCard();
 
   body += inShopCard(inShopJobs(), 3, true);
 
@@ -2149,6 +2169,7 @@ function viewSupervisorHome() {
   if (low.length) rows.push(triageRow('warn', '📦', t('hmLowStock'), t('hmLowStockSub'), 'data-nav="store"', low.length));
   body += triageCard(rows);
   body += gateHomeSummaryCard();
+  body += reviewsHomeCard();
 
   // Work they have closed that is not theirs to sign off. Not a task — the
   // point is that it is off their plate, and who it is waiting on.
@@ -2751,6 +2772,8 @@ function viewBusDetail(id) {
   body += (seats.overflow || []).map((o) => `<div class="li" ${canDrivers ? `data-driver="${esc(o.id)}"` : ''}><div class="ava">⚠️</div>
       <div class="main"><div class="t">${esc(o.name)}</div><div class="s">${t('asExtraDriver')}</div></div></div>`).join('');
   body += `</div>`;
+
+  body += rvBusCard(b.id);
 
   if (openReps.length) {
     body += `<div class="card"><div class="row between"><h3>Driver-reported issues</h3><span class="badge b-amber">${openReps.length}</span></div>
@@ -7568,6 +7591,7 @@ function viewDriverDetail(id) {
 
   // Document vault summary (tap to manage)
   const ds = driverDocStatus(d);
+  body += rvCrewCard(d.id);
   body += `<div class="card" data-act="openDriverDocs" data-driver="${esc(d.id)}" style="cursor:pointer"><div class="row between">
     <div class="row" style="gap:12px;align-items:center">${progressRing(ds.pct)}
       <div><div style="font-weight:800">📂 ${t('documents')}</div>
@@ -7770,6 +7794,15 @@ function viewGate(id) {
     const who = c.decision.by ? userName(c.decision.by) : '';
     body += `<div class="banner ${c.status === 'held' ? 'bad' : 'warn'}" style="display:block"><b>${t(c.status === 'held' ? 'gcHeld' : 'gcApproved')}</b>: ${esc(c.decision.reason)}${who && who !== '—' ? ` <span class="muted">— ${esc(who)}</span>` : ''}</div>`;
   }
+  // Which redBus service — the link from a review to this check (trace.js).
+  const svcs = S.cache.rbservices || [];
+  const svc = c.serviceId ? svcs.find((s) => String(s.id) === String(c.serviceId)) : null;
+  const svcText = c.serviceId ? (svc ? svcLabel(svc) : (c.serviceLabel || c.serviceNo || c.serviceId)) : '';
+  if (svcs.length || c.serviceId) {
+    body += `<div class="card"><div class="li" ${editable ? `data-act="gateService" data-id="${esc(c.id)}" style="cursor:pointer"` : ''}><div class="ava">🧭</div>
+      <div class="main"><div class="t">${t('gcService')}</div><div class="s">${svcText ? esc(svcText) : t('gcServicePick')}</div></div>
+      ${editable ? `<span class="badge ${c.serviceId ? 'b-low' : 'b-amber'}">${t(c.serviceId ? 'gcChange' : 'gcPick')}</span>` : ''}</div></div>`;
+  }
   body += `<div class="card gc-list">` + Gate.GATE_ITEMS.map((spec) => {
     const it = (c.items || {})[spec.k] || {};
     const state = it.ok === true ? 'ok' : it.ok === false ? 'bad' : '';
@@ -7782,8 +7815,10 @@ function viewGate(id) {
         ${before.has(spec.k) && it.ok !== false ? `<div class="tiny" style="color:var(--amber)">${t('gcFailedEarlier')}</div>` : ''}</div>${thumb}${right}</div>`;
   }).join('') + `</div>`;
   if (editable) {
-    const mode = o.verdict === 'pass' ? 'release' : o.verdict === 'fail' ? 'send' : '';
-    const label = mode === 'release' ? t('gcHoldRelease') : mode === 'send' ? t('gcHoldSend') : `${o.missing.length} ${t('gcItemsLeft')}`;
+    // Once the service list exists, a check must say which service it is for.
+    const needSvc = !!(S.cache.rbservices || []).length && !c.serviceId;
+    const mode = needSvc ? '' : o.verdict === 'pass' ? 'release' : o.verdict === 'fail' ? 'send' : '';
+    const label = needSvc ? t('gcPickServiceFirst') : mode === 'release' ? t('gcHoldRelease') : mode === 'send' ? t('gcHoldSend') : `${o.missing.length} ${t('gcItemsLeft')}`;
     body += `<button class="gc-hold ${mode}" id="gc-hold" type="button" data-id="${esc(c.id)}" ${mode ? '' : 'disabled'}><span class="fill"></span><span class="lbl">${label}</span></button>
       <div class="tiny muted" style="text-align:center;margin-top:8px">${mode ? t('gcHoldHint') : t('gcFinishHint')}</div>`;
   }
@@ -7955,6 +7990,214 @@ function gateHomeSummaryCard() {
       ${g.open ? chip(g.open, 'gcOpen', 'mute') : ''}
       ${chip(g.none.length, 'gcNoCheckShort', g.none.length ? 'warn' : 'ok')}
     </div></div>`;
+}
+
+/* ===== redBus reviews → bus → crew (trace.js) ==============================
+ * The office collector reads redPro and the server keeps reviews, complaints,
+ * redBus's daily bus/driver assignment and the service list (no passenger
+ * names or phones). Each review is traced here, on the phone, from three
+ * sources kept apart: the gate check (selfie at the bus), redBus's own
+ * assignment, and later the ITS booking. Crew come only from our records —
+ * the gate check's driver and the dated duty log — never from a name typed
+ * into redPro. A disagreement between sources is shown, not averaged away. */
+let _traceMemo = { key: null, ctx: null, map: new Map() };
+const itsLookups = () => ({});   // step 3: the ITS PNR fallback fills this
+function traceCtx() {
+  if (_traceMemo.key === S.cache && _traceMemo.ctx) return _traceMemo.ctx;
+  const log = S.cache.dutylog || [];
+  const crewAt = (busId, at) => ['driver', 'conductor'].flatMap((role) => Duty.seatHoldersDuring(log, busId, role, at, at + 1)
+    .map((w) => ({ crewId: w.crewId, name: (driverById(w.crewId) || {}).name || w.crewName, role })));
+  const ctx = {
+    services: S.cache.rbservices || [], routeIx: Trace.routeIndex(S.cache.rbservices || []), gatechecks: gateChecks(),
+    assign: S.cache.rbassign || [], buses: S.cache.buses || [], crewAt, its: itsLookups(),
+  };
+  _traceMemo = { key: S.cache, ctx, map: new Map() };
+  return ctx;
+}
+// A complaint carries no route id; borrow it from the same PNR's review if there is one.
+function traceOf(item) {
+  const ctx = traceCtx();
+  if (_traceMemo.map.has(item.id)) return _traceMemo.map.get(item.id);
+  let routeId = item.routeId;
+  if (!routeId && item.pnr) { const rv = (S.cache.rbreviews || []).find((x) => x.pnr === item.pnr && x.routeId); if (rv) routeId = rv.routeId; }
+  const r = Trace.resolve({ pnr: item.pnr, routeId, boardAt: Trace.parseLocal(item.boardAt || item.doj) }, ctx);
+  r.crew = r.crew.map((c) => Object.assign({}, c, { name: c.name || (driverById(c.crewId) || {}).name || '' }));
+  _traceMemo.map.set(item.id, r);
+  return r;
+}
+const RV_CONF = {   // confidence → [schip class, i18n key]
+  high: ['ok', 'rvHigh'], medium: ['warn', 'rvMedium'], conflict: ['crit', 'rvConflictChip'], none: ['mute', 'rvNoneChip'],
+};
+const rvChip = (tr) => { const m = RV_CONF[tr.confidence] || RV_CONF.none; return `<span class="schip ${m[0]}"><i></i>${t(m[1])}</span>`; };
+const rvClassOf = (r) => Trace.classify({ stars: r.stars, comment: r.comment, tags: r.tags, issue: r.issue });
+const RV_CLASS = { safety: ['b-red', 'rvSafetyK'], genuine: ['b-amber', 'rvGenuine'], faq: ['b-low', 'rvFaq'], praise: ['b-green', 'rvPraise'] };
+const rvClassBadge = (k) => { const m = RV_CLASS[k] || RV_CLASS.genuine; return `<span class="badge ${m[0]}">${t(m[1])}</span>`; };
+const rvBoard = (r) => Trace.parseLocal(r.boardAt || r.doj) || 0;
+const rvStarsAva = (n) => `<div class="ava rv-st s${n || 0}">${n ? n + '★' : '—'}</div>`;
+function rvTraceLine(tr) {
+  if (!tr.bus) return `<div class="tiny muted">${t(tr.why === 'service-unknown' ? 'rvWhyService' : 'rvWhyNoSource')}</div>`;
+  const crew = tr.crew.length ? tr.crew.map((c) => esc(c.name || '?')).join(', ') : t('rvCrewNotRecorded');
+  return `<div class="tiny">🚌 <b>${esc(tr.bus.regNo || '')}</b> · ${crew}</div>`;
+}
+
+// Reviews within [from, to) of boarding time; optional bus / crew filter.
+function rvStats(list) {
+  const rated = list.filter((r) => r.stars);
+  const n = rated.length, sum = rated.reduce((s, r) => s + r.stars, 0);
+  return { n, avg: n ? sum / n : null, one: n ? rated.filter((r) => r.stars === 1).length / n : null };
+}
+function rvForBus(busId, since) { return (S.cache.rbreviews || []).filter((r) => rvBoard(r) >= since && traceOf(r).bus && traceOf(r).bus.busId === busId); }
+function rvForCrew(crewId, since) { return (S.cache.rbreviews || []).filter((r) => rvBoard(r) >= since && traceOf(r).crew.some((c) => c.crewId === crewId)); }
+
+function reviewsHomeCard() {
+  if (!can(S.user.role, 'dashboard')) return '';
+  const since = Date.now() - 7 * day;
+  const week = (S.cache.rbreviews || []).filter((r) => rvBoard(r) >= since);
+  if (!(S.cache.rbreviews || []).length) {
+    return `<div class="card" data-act="openReviews" style="cursor:pointer"><div class="row between"><h3>⭐ ${t('rvHomeTitle')}</h3><span class="tc muted">›</span></div>
+      <div class="tiny muted" style="margin-top:6px">${t('rvNone')}</div></div>`;
+  }
+  const st = rvStats(week);
+  const conflicts = week.filter((r) => traceOf(r).confidence === 'conflict').length;
+  const traced = week.filter((r) => traceOf(r).bus).length;
+  return `<div class="card" data-act="openReviews" style="cursor:pointer"><div class="row between"><h3>⭐ ${t('rvHomeTitle')}</h3><span class="tc muted">›</span></div>
+    <div class="row" style="gap:6px;flex-wrap:wrap;margin-top:8px">
+      <span class="schip ${st.avg != null && st.avg < 3.5 ? 'crit' : 'ok'}"><i></i>★${st.avg == null ? '—' : st.avg.toFixed(1)} · ${st.n}</span>
+      <span class="schip ${st.one > 0.15 ? 'crit' : 'mute'}"><i></i>1★ ${st.one == null ? '—' : Math.round(st.one * 100) + '%'}</span>
+      <span class="schip mute"><i></i>${traced}/${week.length} ${t('rvTraced')}</span>
+      ${conflicts ? `<span class="schip crit"><i></i>${conflicts} ${t('rvConflicts')}</span>` : ''}
+    </div></div>`;
+}
+
+let _rvTab = 'reviews', _rvFilter = 'low', _rvBus = null, _rvCrew = null;
+function viewReviews() {
+  const all = (S.cache.rbreviews || []).slice().sort((a, b) => rvBoard(b) - rvBoard(a));
+  const tabs = `<div class="chiprow">${[['reviews', 'rvTabReviews'], ['complaints', 'rvTabComplaints']].map(([k, key]) =>
+    `<button class="chip ${_rvTab === k ? 'active' : ''}" data-act="rvTab" data-v="${k}">${t(key)}</button>`).join('')}</div>`;
+  let body = tabs;
+  const scope = _rvBus ? `🚌 ${esc(busName(_rvBus))}` : _rvCrew ? `🧑‍✈️ ${esc((driverById(_rvCrew) || {}).name || '')}` : '';
+  if (scope) body += `<div class="banner" style="display:flex;justify-content:space-between">${scope}<button class="btn sm ghost" data-act="rvClearScope">✕</button></div>`;
+  if (_rvTab === 'complaints') return viewComplaintsTab(body);
+  if (!all.length) return shell(t('rvTitle'), body + `<div class="card"><div class="empty">${t('rvNone')}</div></div>`, null, NARROW);
+
+  const since = Date.now() - 7 * day, st = rvStats(all.filter((r) => rvBoard(r) >= since));
+  body += `<div class="card"><div class="row between"><h3>${t('rvLast7')}</h3><span class="muted small">${st.n}</span></div>
+    <div class="row" style="gap:18px;margin-top:6px"><div><div class="stat">★${st.avg == null ? '—' : st.avg.toFixed(2)}</div><div class="tiny muted">${t('rvAvg')}</div></div>
+    <div><div class="stat">${st.one == null ? '—' : Math.round(st.one * 100) + '%'}</div><div class="tiny muted">1★</div></div></div></div>`;
+  const pass = (r) => {
+    const tr = traceOf(r);
+    if (_rvBus && !(tr.bus && tr.bus.busId === _rvBus)) return false;
+    if (_rvCrew && !tr.crew.some((c) => c.crewId === _rvCrew)) return false;
+    if (_rvFilter === 'low') return r.stars && r.stars <= 3;
+    if (_rvFilter === 'conflict') return tr.confidence === 'conflict';
+    if (_rvFilter === 'unresolved') return !tr.bus && r.stars && r.stars <= 3;
+    if (_rvFilter === 'safety') return rvClassOf(r) === 'safety';
+    return true;
+  };
+  const shown = all.filter(pass);
+  body += `<div class="chiprow">${[['low', 'rvLow'], ['safety', 'rvSafety'], ['conflict', 'rvConflict'], ['unresolved', 'rvUnresolved'], ['all', 'rvAll']].map(([k, key]) =>
+    `<button class="chip ${_rvFilter === k ? 'active' : ''}" data-act="rvFilter" data-v="${k}">${t(key)}</button>`).join('')}</div>`;
+  body += `<div class="card">` + (shown.length ? shown.slice(0, 150).map((r) => {
+    const tr = traceOf(r);
+    return `<div class="li" data-act="openReview" data-id="${esc(r.id)}" style="cursor:pointer;align-items:flex-start">${rvStarsAva(r.stars)}
+      <div class="main"><div class="t">${esc(r.source)} → ${esc(r.dest)}</div>
+        <div class="s">${fmtDateTime(rvBoard(r))}${r.comment ? ' · ' + esc(r.comment.slice(0, 90)) + (r.comment.length > 90 ? '…' : '') : ''}</div>
+        ${rvTraceLine(tr)}
+        <div class="row" style="gap:6px;flex-wrap:wrap;margin-top:5px">${rvChip(tr)}${r.stars && r.stars <= 3 ? rvClassBadge(rvClassOf(r)) : ''}</div></div></div>`;
+  }).join('') : `<div class="muted small">${t('rvNoneHere')}</div>`) + `</div>`;
+  shell(t('rvTitle'), body, null, NARROW);
+}
+
+function viewComplaintsTab(body) {
+  const list = (S.cache.rbcomplaints || []).slice().sort((a, b) => rvBoard(b) - rvBoard(a));
+  body += `<div class="card">` + (list.length ? list.slice(0, 150).map((c) => {
+    const tr = traceOf(c);
+    if (_rvBus && !(tr.bus && tr.bus.busId === _rvBus)) return '';
+    const open = !/closed|resolved/i.test(c.status || '');
+    return `<div class="li" data-act="openComplaint" data-id="${esc(c.id)}" style="cursor:pointer;align-items:flex-start"><div class="ava">${open ? '🟠' : '✅'}</div>
+      <div class="main"><div class="t">${esc(c.issue || '—')}</div><div class="s">${esc(c.source)} → ${esc(c.dest)} · ${fmtDateTime(rvBoard(c))} · ${esc(c.status || '')}</div>${rvTraceLine(tr)}
+        <div class="row" style="gap:6px;flex-wrap:wrap;margin-top:5px">${rvChip(tr)}${rvClassBadge(rvClassOf({ stars: 1, issue: c.issue, comment: (c.notes || []).map((n) => n.text).join(' ') }))}</div></div></div>`;
+  }).join('') : `<div class="muted small">${t('rvNoComplaints')}</div>`) + `</div>`;
+  shell(t('rvTitle'), body, null, NARROW);
+}
+
+function rvSourcesBlock(tr) {
+  const row = (label, val) => `<div class="row between small" style="padding:4px 0;gap:10px"><span class="muted">${label}</span><span style="text-align:right">${val}</span></div>`;
+  const g = tr.sources.gate, r = tr.sources.redpro, i = tr.sources.its;
+  let h = `<h3 style="margin-top:12px">${t('rvSources')}</h3>`;
+  h += row(t('rvSrcGate'), g ? `<b>${esc(g.regNo)}</b> · ${esc((driverById(g.driverId) || {}).name || '')} · ${hhmm(g.at)} <a href="#" data-act="rvOpenGate" data-id="${esc(g.checkId)}">›</a>` : '—');
+  h += row(t('rvSrcRedpro'), r ? `<b>${esc(r.regNo)}</b>${r.driver1 ? ` · ${esc(r.driver1)} <span class="tiny muted">(${t('rvAsTyped')})</span>` : ''}${r.changed ? ` · <span class="tiny" style="color:var(--amber)">${t('rvSwapped')}</span>` : ''}` : '—');
+  h += row(t('rvSrcIts'), i ? `<b>${esc(i.regNo)}</b>` : '—');
+  h += `<h3 style="margin-top:12px">${t('rvCrew')}</h3>`;
+  h += tr.crew.length ? tr.crew.map((c) => `<div class="li" data-act="rvOpenCrew" data-id="${esc(c.crewId)}" style="cursor:pointer"><div class="ava">${CREW_ROLE_META[c.role === 'conductor' ? 'conductor' : 'driver'][0]}</div>
+      <div class="main"><div class="t">${esc(c.name || '?')}</div><div class="s">${esc(crewRoleLabel(c.role))}${c.via === 'gate' ? ' · ' + t('rvSrcGate') : ''}</div></div></div>`).join('')
+    : `<div class="tiny muted">${t(tr.bus ? 'rvCrewNotRecorded' : 'rvWhyNoSource')}</div>`;
+  return h;
+}
+function openReview(id) {
+  const r = (S.cache.rbreviews || []).find((x) => x.id === id); if (!r) return;
+  const tr = traceOf(r);
+  openSheet(`${r.stars ? r.stars + '★ · ' : ''}${r.source} → ${r.dest}`, `
+    <div class="row" style="gap:6px;flex-wrap:wrap">${rvChip(tr)}${rvClassBadge(rvClassOf(r))}</div>
+    <div class="small muted" style="margin-top:8px">${t('rvBoarded')} ${fmtDateTime(rvBoard(r))} · PNR ${esc(r.pnr)}${r.seats && r.seats.length ? ' · ' + esc(r.seats.join(', ')) : ''}</div>
+    ${r.comment ? `<p style="margin:10px 0;font-size:15px;line-height:1.45">“${esc(r.comment)}”</p>` : ''}
+    ${(r.tags || []).length ? `<div class="row" style="gap:6px;flex-wrap:wrap">${r.tags.map((x) => `<span class="badge b-low">${esc(x)}</span>`).join('')}</div>` : ''}
+    ${rvSourcesBlock(tr)}`);
+}
+function openComplaint(id) {
+  const c = (S.cache.rbcomplaints || []).find((x) => x.id === id); if (!c) return;
+  const tr = traceOf(c);
+  openSheet(c.issue || t('rvTabComplaints'), `
+    <div class="row" style="gap:6px;flex-wrap:wrap">${rvChip(tr)}<span class="badge b-low">${esc(c.status || '')}</span></div>
+    <div class="small muted" style="margin-top:8px">${esc(c.source)} → ${esc(c.dest)} · ${fmtDateTime(rvBoard(c))} · PNR ${esc(c.pnr)} · ${esc(c.amount || '')}</div>
+    ${c.resolution || c.refundStatus ? `<div class="small" style="margin-top:6px">${esc([c.resolution, c.refundStatus].filter(Boolean).join(' · '))}</div>` : ''}
+    ${(c.notes || []).length ? `<h3 style="margin-top:12px">${t('cmpNotes')}</h3>` + c.notes.map((n) => `<div class="tiny" style="padding:3px 0"><span class="muted">${esc(n.at)}</span> ${esc(n.text)}</div>`).join('') : ''}
+    ${rvSourcesBlock(tr)}`);
+}
+
+// Bus page and crew page: the last 30 days, linked through to the list.
+function rvBusCard(busId) {
+  if (!can(S.user.role, 'dashboard') || !(S.cache.rbreviews || []).length) return '';
+  const list = rvForBus(busId, Date.now() - 30 * day), st = rvStats(list);
+  const low = list.filter((r) => r.stars && r.stars <= 3).length;
+  return `<div class="card" data-act="rvScopeBus" data-bus-id="${esc(busId)}" style="cursor:pointer"><div class="row between"><h3>⭐ ${t('rvBusCard')}</h3><span class="tc muted">›</span></div>
+    <div class="small" style="margin-top:4px">${st.n ? `★${st.avg.toFixed(1)} · ${st.n} · ${low} ≤3★` : t('rvNoneHere')}</div></div>`;
+}
+const RV_MIN_SAMPLE = 10;
+function rvCrewCard(crewId) {
+  if (!can(S.user.role, 'dashboard') || !(S.cache.rbreviews || []).length) return '';
+  const list = rvForCrew(crewId, Date.now() - 30 * day), st = rvStats(list);
+  const low = list.filter((r) => r.stars && r.stars <= 3).length;
+  // Too few rated trips to judge anyone: show the count, not an average.
+  const line = !st.n ? t('rvNoneHere') : st.n < RV_MIN_SAMPLE ? `${st.n} · ${low} ≤3★ — ${t('rvMinSample')}` : `★${st.avg.toFixed(1)} · ${st.n} · ${low} ≤3★`;
+  return `<div class="card" data-act="rvScopeCrew" data-crew-id="${esc(crewId)}" style="cursor:pointer"><div class="row between"><h3>⭐ ${t('rvCrewReviews')}</h3><span class="tc muted">›</span></div>
+    <div class="small" style="margin-top:4px">${line}</div></div>`;
+}
+
+// Gate check: which redBus service is this bus leaving on?
+const svcLabel = (s) => (s ? `${(s.startTime || '').slice(0, 5)} ${s.origin && s.dest ? s.origin + ' → ' + s.dest : s.serviceNo || s.id}`.trim() : '');
+function gateServiceSheet(id) {
+  const c = _gateEditable(id); if (!c) return;
+  const svcs = S.cache.rbservices || [];
+  const mine = Trace.normReg(c.regNo);
+  const before = new Set(gateChecks().filter((x) => x.busId === c.busId && x.serviceId).map((x) => String(x.serviceId)));
+  const suggested = svcs.filter((s) => Trace.normReg(s.lastVehicle) === mine || before.has(String(s.id)));
+  const now = new Date(), nowMin = now.getHours() * 60 + now.getMinutes();
+  const away = (s) => { const m = /^(\d{1,2}):(\d{2})/.exec(s.startTime || ''); if (!m) return 9999; const d = (+m[1] * 60 + +m[2] - nowMin + 1440) % 1440; return d > 1260 ? d - 1440 : d; };
+  const rest = svcs.filter((s) => !suggested.includes(s)).sort((a, b) => Math.abs(away(a)) - Math.abs(away(b)));
+  const btn = (s) => `<button class="li gc-svc" data-act="gateServiceSet" data-id="${esc(id)}" data-svc="${esc(s.id)}" data-q="${esc((svcLabel(s) + ' ' + (s.serviceNo || '')).toLowerCase())}" style="width:100%;text-align:left;cursor:pointer;background:none;border:0"><div class="ava">🧭</div><div class="main"><div class="t">${esc(svcLabel(s))}</div><div class="s">${esc(s.serviceNo || '')}</div></div></button>`;
+  openSheet(t('gcServicePick'), `<input id="gc-svcq" placeholder="${esc(t('gcSearchSvc'))}" style="width:100%;margin-bottom:8px">
+    ${suggested.length ? `<div class="tiny muted">${t('gcSuggested')}</div>${suggested.map(btn).join('')}<div class="hr"></div>` : ''}
+    <div class="tiny muted">${t('gcAllServices')}</div><div id="gc-svclist">${rest.map(btn).join('')}</div>`, () => {
+    const q = document.getElementById('gc-svcq');
+    if (q) q.addEventListener('input', () => { const v = q.value.trim().toLowerCase(); document.querySelectorAll('.gc-svc').forEach((b) => { b.hidden = !!v && !b.getAttribute('data-q').includes(v); }); });
+  });
+}
+async function gateServiceSet(id, svcId) {
+  const c = _gateEditable(id); if (!c) return closeSheet();
+  const s = (S.cache.rbservices || []).find((x) => String(x.id) === String(svcId)); if (!s) return closeSheet();
+  c.serviceId = String(s.id); c.serviceNo = s.serviceNo || ''; c.serviceLabel = svcLabel(s);
+  closeSheet(); await _gateSave(c);
 }
 
 /* ===== Trip cash & expenses → per-bus accounting ==========================
@@ -9759,7 +10002,7 @@ const current = () => S.stack[S.stack.length - 1];
 const ROUTE_PERM = { money: 'money', fleet: 'fleet', people: 'people', bills: 'bills', insights: 'insights', drivers: 'manageDrivers', assignments: 'assignDriver', routes: 'manageRoutes', reports: 'dashboard', busreport: 'dashboard', livemap: 'dashboard', track: 'dashboard', fuel: 'addFuel', safety: 'dashboard', breakdowns: 'logIncident', warranty: 'addFuel', storehealth: 'issuePart', linkgps: 'addBus', newjob: 'addJob', forecast: 'dashboard', pilferage: 'insights', components: 'issuePart', def: 'addFuel', vendors: 'addPurchase', import: 'addPurchase', crewpins: 'manageCrewLogins', crewbank: 'manageDrivers', usage: 'dashboard', accounting: 'dashboard', busacct: 'dashboard',
   // `purchases` renders the same view as `bills`; without its own entry the
   // `bills` permission was bypassable just by using the other route name.
-  purchases: 'bills', alerts: 'dashboard', buses: 'fleet', gate: 'gateCheck', gatechecks: 'gateDecide',
+  purchases: 'bills', alerts: 'dashboard', buses: 'fleet', gate: 'gateCheck', gatechecks: 'gateDecide', reviews: 'dashboard',
   store: 'viewStore', jobs: 'viewJobs', scoreboard: 'viewScoreboard',
   challans: 'challans', buschallans: 'challans',
   // Company billing and another person's scorecard rendered for any role because
@@ -9784,6 +10027,7 @@ function render(r) {
     case 'buses': return r.id ? viewBusDetail(r.id) : viewBuses();
     case 'gate': return viewGate(r.id);
     case 'gatechecks': return viewGateChecks();
+    case 'reviews': return viewReviews();
     case 'jobs': return r.id ? viewJobDetail(r.id) : viewJobs();
     case 'store': return r.id ? viewPartDetail(r.id) : viewStore();
     case 'me': return viewMe();
@@ -10201,6 +10445,18 @@ const _dispatchClick = async (e) => {
       case 'assignDriver': return sheetAssignDriverToBus(el.getAttribute('data-bus'), el.getAttribute('data-role'), Number(el.getAttribute('data-slot')) || null);
       case 'asRole': _asRole = el.getAttribute('data-v'); return rerender();
       case 'gateStart': return gateStart();
+      case 'gateService': return gateServiceSheet(el.getAttribute('data-id'));
+      case 'gateServiceSet': return gateServiceSet(el.getAttribute('data-id'), el.getAttribute('data-svc'));
+      case 'openReviews': _rvBus = null; _rvCrew = null; return push({ name: 'reviews' });
+      case 'rvTab': _rvTab = el.getAttribute('data-v'); return rerender();
+      case 'rvFilter': _rvFilter = el.getAttribute('data-v'); return rerender();
+      case 'rvClearScope': _rvBus = null; _rvCrew = null; return rerender();
+      case 'rvScopeBus': _rvBus = el.getAttribute('data-bus-id'); _rvCrew = null; _rvFilter = 'all'; return push({ name: 'reviews' });
+      case 'rvScopeCrew': _rvCrew = el.getAttribute('data-crew-id'); _rvBus = null; _rvFilter = 'all'; return push({ name: 'reviews' });
+      case 'openReview': return openReview(el.getAttribute('data-id'));
+      case 'openComplaint': return openComplaint(el.getAttribute('data-id'));
+      case 'rvOpenCrew': closeSheet(); return push({ name: 'drivers', id: el.getAttribute('data-id') });
+      case 'rvOpenGate': if (e && e.preventDefault) e.preventDefault(); closeSheet(); return push({ name: 'gate', id: el.getAttribute('data-id') });
       case 'openGate': return push({ name: 'gate', id: el.getAttribute('data-id') });
       case 'openGateChecks': return push({ name: 'gatechecks' });
       case 'gateOk': return gateOk(el.getAttribute('data-id'), el.getAttribute('data-k'));

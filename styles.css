@@ -983,3 +983,9 @@ body.printing-gp .gp-screen{display:none !important}
   .gc-hold.pressing .fill{clip-path:inset(0 100% 0 0)}
   .gc-hold:active:not([disabled]){transform:none}
 }
+
+/* redBus reviews: the star count as the row's avatar, coloured by how bad it is. */
+.ava.rv-st{font:800 13px var(--font);letter-spacing:-.02em}
+.ava.rv-st.s1,.ava.rv-st.s2{background:var(--red-wash);color:var(--red)}
+.ava.rv-st.s3{background:var(--amber-wash);color:var(--amber)}
+.ava.rv-st.s4,.ava.rv-st.s5{background:var(--green-wash);color:var(--green)}

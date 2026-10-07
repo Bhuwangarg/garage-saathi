@@ -44,7 +44,10 @@ const Sync = (function () {
                   'dutylog',
                   // The departure checklist: filled on the driver's phone, decided
                   // on the owner's. Synced so both see the same bus at the gate.
-                  'gatechecks'];
+                  'gatechecks',
+                  // redPro data, written only by the server from the office collector.
+                  // Pulled, never pushed (the server refuses any client write).
+                  'rbservices', 'rbreviews', 'rbcomplaints', 'rbassign'];
 
   const ls = window.localStorage;
   // Default sync backend: a device's explicit setting always wins. Otherwise, on

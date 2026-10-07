@@ -83,6 +83,9 @@ check("userId is stamped from the token", stored("gc-1")["userId"] == "u-drvA")
 cur = dict(stored("gc-1"))
 half = dict(cur, items={"ac": {"ok": True, "photo": "u/ac.jpg"}})
 check("the driver saves progress", push(DRV, "gatechecks", half)["applied"] == 1)
+check("a driver can name the service", push(DRV, "gatechecks", dict(half, serviceId="125291", serviceNo="MHLMEERUT-JAIPUR-0930PM"))["applied"] == 1)
+half = dict(stored("gc-1"))
+check("a service id with markup is refused", push(DRV, "gatechecks", dict(half, serviceId='"><x'))["rejected"] == 1)
 check("cannot release an incomplete check", push(DRV, "gatechecks", dict(half, status="released"))["rejected"] == 1)
 noPhoto = all_pass(); noPhoto["ac"] = {"ok": True}
 check("cannot release with a photo item missing its photo",

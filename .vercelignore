@@ -30,6 +30,7 @@ crew-backup-*.json
 .env*
 .vercel
 .gps_ingest_token
+.redpro_ingest_token
 .public_url
 .DS_Store
 

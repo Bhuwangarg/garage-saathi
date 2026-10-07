@@ -17,3 +17,6 @@ mobile/ios/build-device/
 crew-backup-*.json
 .vercel
 .env*
+
+# redPro collector ingest token
+.redpro_ingest_token

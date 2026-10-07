@@ -973,7 +973,9 @@ WRITE_ROLES = {
 # change to a part's quantity, so the people it watches must not be able to add
 # to it or delete from it.
 SERVER_INGEST_ONLY = {"gpsevents", "gpslive", "challans", "odometerlogs", "waconv",
-                      "stockmoves"}
+                      "stockmoves",
+                      # redPro data, written only by /redpro/ingest from the office collector.
+                      "rbservices", "rbreviews", "rbcomplaints", "rbassign"}
 
 # A phone with a wrong clock is normal; a record dated 2100 is not. Without a
 # bound, last-write-wins makes a far-future write permanent — the owner's
@@ -1414,6 +1416,9 @@ def _guard_gatecheck(data, actor, old, manager, c):
             if data != old and (status != was or data.get("items") != old.get("items")):
                 return "this check is already with the office or released"
             return None
+        sid = data.get("serviceId")
+        if sid is not None and (not isinstance(sid, str) or len(sid) > 30 or _UNSAFE_ID.search(sid)):
+            return "invalid service"
         if status == "open":
             return None
         verdict = _gate_outcome(data.get("items"))
@@ -1452,6 +1457,200 @@ def _guard_gatecheck(data, actor, old, manager, c):
         past.append(old["decision"])
     data["pastDecisions"] = past
     return None
+
+
+# ----------------------------- redPro ingest --------------------------------
+# The office collector reads redPro (redBus's operator portal) with the office's
+# own login and posts what it read here: reviews, complaints, redBus's vehicle/
+# driver assignment for today, and the list of services. Garage Saathi then
+# traces a review to a bus and a crew (trace.js). Only the collector writes
+# these stores (SERVER_INGEST_ONLY); every phone just reads them.
+#
+# Passengers' names, phones and e-mails never reach this server: the collector
+# drops them, and every row is rebuilt here from an allow-list of fields, so a
+# collector that ever sent them would still have them thrown away.
+def _read_secret(env_name, filename):
+    t = os.environ.get(env_name, "").strip()
+    if t:
+        return t
+    for p in (os.path.join(os.path.dirname(os.path.abspath(__file__)), filename),
+              "/etc/secrets/" + env_name):
+        try:
+            with open(p) as f:
+                v = f.read().strip()
+                if v:
+                    return v
+        except Exception:
+            pass
+    return ""
+
+
+REDPRO_INGEST_TOKEN = _read_secret("REDPRO_INGEST_TOKEN", ".redpro_ingest_token")
+_REDPRO_TOKEN_OK = len(REDPRO_INGEST_TOKEN) >= 24
+REDPRO_STORES = ("rbservices", "rbreviews", "rbcomplaints", "rbassign")
+_REDPRO_MAX_ROWS = 2000           # one request; the collector pages bigger pulls
+
+
+def _s(v, n=200):
+    return v.strip()[:n] if isinstance(v, str) else ("" if v is None else str(v)[:n])
+
+
+def _ist_day(ms):
+    return time.strftime("%Y-%m-%d", time.gmtime(ms / 1000 + 5.5 * 3600))
+
+
+def _clean_review(r):
+    rid = _s(r.get("reviewId") or r.get("tin"), 60)
+    if not rid or _UNSAFE_ID.search(rid):
+        return None
+    stars = r.get("stars")
+    return {"id": "rv-" + rid, "reviewId": rid, "tin": _s(r.get("tin"), 40), "pnr": _s(r.get("pnr"), 30),
+            "routeId": _s(r.get("routeId"), 30), "source": _s(r.get("source"), 80), "dest": _s(r.get("dest"), 80),
+            "boardAt": _s(r.get("boardAt"), 25), "fare": _s(r.get("fare"), 20),
+            "seats": [_s(x, 10) for x in (r.get("seats") or [])][:12],
+            "stars": stars if isinstance(stars, (int, float)) and 1 <= stars <= 5 else None,
+            "submittedOn": _s(r.get("submittedOn"), 25), "comment": _s(r.get("comment"), 2000),
+            "tags": [_s(x, 60) for x in (r.get("tags") or [])][:12],
+            "reviewStatus": _s(r.get("reviewStatus"), 30), "replied": bool(r.get("replied"))}
+
+
+def _clean_complaint(r):
+    cn = _s(r.get("caseNumber"), 40)
+    if not cn or _UNSAFE_ID.search(cn):
+        return None
+    return {"id": "cs-" + cn, "caseNumber": cn, "pnr": _s(r.get("pnr"), 30), "doj": _s(r.get("doj"), 25),
+            "createdAt": _s(r.get("createdAt"), 25), "status": _s(r.get("status"), 40),
+            "issue": _s(r.get("issue"), 200), "source": _s(r.get("source"), 80), "dest": _s(r.get("dest"), 80),
+            "amount": _s(r.get("amount"), 30), "seats": r.get("seats") if isinstance(r.get("seats"), int) else None,
+            "resolution": _s(r.get("resolution"), 200), "refundStatus": _s(r.get("refundStatus"), 80),
+            # Agent notes only: who wrote them is dropped (agents are people too).
+            "notes": [{"at": _s(n.get("at"), 25), "text": _s(n.get("text"), 1000)}
+                      for n in (r.get("notes") or []) if isinstance(n, dict)][:30]}
+
+
+def _clean_assign(r):
+    sid = _s(r.get("serviceId"), 30)
+    if not sid or _UNSAFE_ID.search(sid):
+        return None
+    return {"serviceId": sid, "serviceNo": _s(r.get("serviceNo"), 80), "origin": _s(r.get("origin"), 80),
+            "dest": _s(r.get("dest"), 80), "startTime": _s(r.get("startTime"), 8),
+            "vehicleNo": _s(r.get("vehicleNo"), 20).upper(), "driver1": _s(r.get("driver1"), 60),
+            "driver2": _s(r.get("driver2"), 60), "cro": _s(r.get("cro"), 60),
+            "isRunning": bool(r.get("isRunning", True))}
+
+
+def _clean_service(r):
+    sid = _s(r.get("serviceId"), 30)
+    if not sid or _UNSAFE_ID.search(sid):
+        return None
+    out = {"serviceNo": _s(r.get("serviceNo"), 80), "origin": _s(r.get("origin"), 80), "dest": _s(r.get("dest"), 80),
+           "startTime": _s(r.get("startTime"), 8), "label": _s(r.get("label"), 120)}
+    out = {k: v for k, v in out.items() if v}
+    rids = [_s(x, 30) for x in (r.get("routeIds") or []) if _s(x, 30)]
+    if rids:
+        out["routeIds"] = rids[:200]
+    return sid, out
+
+
+def ingest_redpro(body, now=None):
+    """Apply one collector post. Returns counts. Records are written with a
+    fresh rev so every device pulls them like any other change."""
+    now = now or now_ms()
+    kind = (body or {}).get("kind")
+    rows = (body or {}).get("rows")
+    if kind not in ("reviews", "complaints", "assignments", "services") or not isinstance(rows, list):
+        return {"ok": False, "error": "expected {kind: reviews|complaints|assignments|services, rows: [...]}"}
+    if len(rows) > _REDPRO_MAX_ROWS:
+        return {"ok": False, "error": "too many rows in one post (max %d)" % _REDPRO_MAX_ROWS}
+    cap = body.get("capturedAt")
+    cap = int(cap) if isinstance(cap, (int, float)) and now - 7 * 86400000 < cap <= now + MAX_FUTURE_SKEW_MS else now
+    written = skipped = 0
+    with _lock:
+        c = db()
+        rev = c.execute("SELECT COALESCE(MAX(rev),0) FROM records").fetchone()[0]
+
+        def get(store, rid):
+            row = c.execute("SELECT data FROM records WHERE store=? AND id=?", (store, rid)).fetchone()
+            try:
+                return json.loads(row[0]) if row else None
+            except Exception:
+                return None
+
+        def put(store, rec):
+            nonlocal rev, written
+            rec["updatedAt"] = now
+            rec["_by"] = "redpro-collector"
+            rec["_org"] = "mahalaxmi"
+            rev = _upsert_record(c, store, rec["id"], rec, now, rev)
+            written += 1
+
+        for r in rows:
+            if not isinstance(r, dict):
+                skipped += 1
+                continue
+            if kind == "reviews":
+                rec = _clean_review(r)
+                if not rec:
+                    skipped += 1
+                    continue
+                old = get("rbreviews", rec["id"])
+                rec["firstSeen"] = (old or {}).get("firstSeen") or cap
+                if old and all(old.get(k) == rec.get(k) for k in rec if k != "firstSeen"):
+                    continue                     # unchanged: no new rev, no re-download on every phone
+                put("rbreviews", rec)
+            elif kind == "complaints":
+                rec = _clean_complaint(r)
+                if not rec:
+                    skipped += 1
+                    continue
+                old = get("rbcomplaints", rec["id"])
+                rec["firstSeen"] = (old or {}).get("firstSeen") or cap
+                if old and all(old.get(k) == rec.get(k) for k in rec if k != "firstSeen"):
+                    continue
+                put("rbcomplaints", rec)
+            elif kind == "assignments":
+                a = _clean_assign(r)
+                if not a:
+                    skipped += 1
+                    continue
+                day = _ist_day(cap)
+                rid = "as-%s-%s" % (a["serviceId"], day)
+                old = get("rbassign", rid) or {"id": rid, "serviceId": a["serviceId"], "date": day, "obs": []}
+                obs = list(old.get("obs") or [])
+                cur = {k: a[k] for k in ("vehicleNo", "driver1", "driver2", "cro")}
+                last = obs[-1] if obs else None
+                # One observation per change, not per snapshot: a day of 30-minute
+                # snapshots of an unchanged row stays one entry.
+                if not last or any(last.get(k) != v for k, v in cur.items()):
+                    obs.append(dict(cur, at=cap))
+                    old["obs"] = obs[-48:]
+                    old["serviceNo"], old["startTime"] = a["serviceNo"], a["startTime"]
+                    put("rbassign", old)
+                # The assignment list is also the freshest description of the service.
+                svc = get("rbservices", a["serviceId"]) or {"id": a["serviceId"]}
+                upd = {"serviceNo": a["serviceNo"], "origin": a["origin"], "dest": a["dest"], "startTime": a["startTime"],
+                       # Lets the gate check suggest this service first to the driver of that bus.
+                       "lastVehicle": a["vehicleNo"]}
+                upd = {k: v for k, v in upd.items() if v and svc.get(k) != v}
+                if upd:
+                    svc.update(upd)
+                    put("rbservices", svc)
+            else:
+                got = _clean_service(r)
+                if not got:
+                    skipped += 1
+                    continue
+                sid, fields = got
+                svc = get("rbservices", sid) or {"id": sid}
+                if "routeIds" in fields:
+                    fields["routeIds"] = sorted(set(svc.get("routeIds") or []) | set(fields["routeIds"]))
+                upd = {k: v for k, v in fields.items() if svc.get(k) != v}
+                if upd:
+                    svc.update(upd)
+                    put("rbservices", svc)
+        c.commit()
+        c.close()
+    return {"ok": True, "kind": kind, "written": written, "skipped": skipped, "maxRev": rev}
 
 
 def may_write(role, store):
@@ -1898,6 +2097,12 @@ def redact_for(actor, rec):
     if not isinstance(d, dict):
         return rec
     if st == "waconv":                    # keyed by a crew member's phone number
+        return None
+    if st in ("rbreviews", "rbcomplaints", "rbassign"):
+        # Reviews, complaints and redBus's driver names are for the people who act
+        # on them. A driver's phone does not need every passenger's comment about
+        # every colleague. (rbservices holds no names: drivers need it to pick the
+        # service on the gate check.)
         return None
     if st == "drivers" and d.get("userId") != actor.get("id"):
         drop = _DRIVER_PRIVATE
@@ -3585,6 +3790,15 @@ class Handler(BaseHTTPRequestHandler):
             # subscription on the server.
             n = send_push("Garage Saathi", "✅ Test alert — phone notifications are working.", "/", roles=(me["role"],))
             return self._send(200, {"ok": True, "sent": n, "webpush": _WEBPUSH})
+
+        if u.path == "/redpro/ingest":               # the office collector posts redPro data here
+            if not _REDPRO_TOKEN_OK:
+                return self._send(503, {"error": "redpro ingest disabled — set REDPRO_INGEST_TOKEN"})
+            h = self.headers.get("Authorization") or ""
+            if not hmac.compare_digest(h, "Bearer " + REDPRO_INGEST_TOKEN):
+                return self._send(401, {"error": "unauthorized"})
+            res = ingest_redpro(self._body())
+            return self._send(200 if res.get("ok") else 400, res)
 
         if u.path == "/gps/ingest":                  # GPS provider pushes telemetry here
             if not _GPS_TOKEN_OK:                     # no real token configured → ingest disabled
