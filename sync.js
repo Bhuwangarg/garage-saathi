@@ -107,6 +107,7 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
   let quarantine = JSON.parse(ls.getItem('quarantine') || '{}');
   let token = ls.getItem('token') || '';
   let lastError = ls.getItem('lastSyncError') || '';
+  let lastErrorAt = Number(ls.getItem('lastSyncErrorAt') || 0) || 0;
   let status = 'init';            // init | syncing | synced | offline
   let busy = false, kickTimer = null, pollTimer = null;
   let cbStatus = null, cbApplied = null, cbConflict = null;
@@ -438,13 +439,21 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
       else { await push(); await pull(); }
       lastSyncAt = Date.now(); ls.setItem('lastSyncAt', String(lastSyncAt));
       setStatus('synced');
-      lastError = '';
+      // Clear the STORED copy too, not just this one in memory. It was only
+      // cleared in memory, and the next time the app started it read the old
+      // message back out of storage — so "session expired — sign in again" sat
+      // in Me → Sync for ever, through every successful sync and every fresh
+      // sign-in, telling someone to fix a problem that was already fixed.
+      lastError = ''; lastErrorAt = 0;
+      ls.removeItem('lastSyncError'); ls.removeItem('lastSyncErrorAt');
     } catch (e) {
       // "Offline" was shown for a refused token, a 500, a broken cursor and a
       // flat tyre alike, so a device that had been failing for days looked the
       // same as one in a tunnel. Keep the reason; Me → Sync shows it.
       lastError = (e && e.message) ? String(e.message) : 'sync failed';
+      lastErrorAt = Date.now();
       ls.setItem('lastSyncError', lastError);
+      ls.setItem('lastSyncErrorAt', String(lastErrorAt));
       setStatus(e && e.sessionExpired ? 'signedout' : 'offline');
     } finally {
       busy = false;
@@ -739,7 +748,7 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
     } catch (e) { /* the 4s tick carries on regardless */ }
   }
   const info = () => ({ deviceId, lastRev, pending: outbox.size,
-    heldForOthers: [...outbox].filter((k) => outboxBy[k] && outboxBy[k] !== actor).length, url: baseUrl(), status, authed: !!token, lastSyncAt, lastError,
+    heldForOthers: [...outbox].filter((k) => outboxBy[k] && outboxBy[k] !== actor).length, url: baseUrl(), status, authed: !!token, lastSyncAt, lastError, lastErrorAt,
                         photosPending: Object.keys(photoQ).length, quarantined: Object.keys(quarantine).length });
 
   // Sync-safe delete used by feature code: tombstone + dirty so the deletion

@@ -18,6 +18,7 @@ const I18N = {
     purchases: 'Purchases / Bills', serviceHistory: 'Service history', documents: 'Documents',
     addPhotoNote: 'Before AND after photos required to close a job (outside repairs: a bill photo)', noJobs: 'No jobs yet', expired: 'EXPIRED',
     // Login
+    sessionEnded: 'Signed out — open Me → Log out, then sign in again to keep syncing',
     tagline: 'Garage maintenance, Jaipur', enterPin: 'Enter PIN', wrongPin: 'Wrong PIN', serverWaking: 'Signing in… the server is starting up, this can take a few seconds', loginOff: 'This login has been switched off — speak to the office', pinRetired: 'That PIN no longer works — ask the office for your new PIN',
     recentHere: 'Recent on this phone', whoAreYou: 'Who are you?', selectName: 'Select your name', searchName: 'Search name…',
     cantReach: "Can't reach the server — check internet and try again",
@@ -236,6 +237,7 @@ const I18N = {
     gi_tyres: 'Tyres and lights OK', gi_fuel: 'Enough fuel for the first leg', gi_papers: 'RC, permit, insurance, PUC on board', gi_safety: 'First-aid box, extinguisher, emergency hammer', gi_uniform: 'Crew in uniform',
     asWhoWas: 'Who was on a bus that day', asWhoWasHint: 'For a review, complaint or challan: pick the date of travel and the bus.', asLookUp: 'Look up', asPickBus: 'Pick a bus',
     asNotRecorded: 'Not recorded — the duty log starts on', asNobodySeat: 'Nobody in this seat that day', asAllDay: 'all day', asFromT: 'from', asUntilT: 'until',
+    asByBus: 'By bus', asBusSeats: 'Every bus, with both seats — tap a seat to fill it', noMatch: 'Nothing matches that', drvSearch: 'Search name, bus number or phone…', asSearch: 'Search bus number or name…',
     asTitle: 'Duty board', asHint: 'Tap a name to change their bus, or tap a bus to fill the empty seat.',
     asNoBus: 'no bus assigned', asAssigned: 'assigned', asUnassigned: 'unassigned',
     asBusesNoDriver: 'Buses without a driver', asBusesNoConductor: 'Buses without a conductor',
@@ -260,6 +262,7 @@ const I18N = {
     purchases: 'खरीद / बिल', serviceHistory: 'सेवा इतिहास', documents: 'कागज़ात',
     addPhotoNote: 'काम बंद करने के लिए पहले और बाद दोनों की फोटो ज़रूरी हैं (बाहर मरम्मत: बिल की फोटो)', noJobs: 'अभी कोई काम नहीं', expired: 'समाप्त',
     // Login
+    sessionEnded: 'साइन-आउट हो गया — मैं → लॉग आउट करके दोबारा लॉगिन कीजिए, तभी डेटा चलता रहेगा',
     tagline: 'गैराज मरम्मत, जयपुर', enterPin: 'पिन डालें', wrongPin: 'गलत पिन', serverWaking: 'लॉगिन हो रहा है… सर्वर चालू हो रहा है, कुछ सेकंड लग सकते हैं', loginOff: 'यह लॉगिन बंद कर दिया गया है — दफ़्तर से बात करें', pinRetired: 'यह पिन अब नहीं चलेगा — ऑफिस से अपना नया पिन लें',
     recentHere: 'इस फ़ोन पर हाल के', whoAreYou: 'आप कौन हैं?', selectName: 'अपना नाम चुनें', searchName: 'नाम खोजें…',
     cantReach: 'सर्वर से संपर्क नहीं — इंटरनेट जाँचें और फिर कोशिश करें',
@@ -478,6 +481,7 @@ const I18N = {
     gi_tyres: 'टायर और लाइट ठीक', gi_fuel: 'पहले हिस्से के लिए पूरा डीज़ल', gi_papers: 'RC, परमिट, बीमा, PUC बस में', gi_safety: 'फ़र्स्ट-एड, फ़ायर एक्सटिंग्विशर, इमरजेंसी हथौड़ा', gi_uniform: 'स्टाफ़ वर्दी में',
     asWhoWas: 'उस दिन बस पर कौन था', asWhoWasHint: 'रिव्यू, शिकायत या चालान के लिए: यात्रा की तारीख और बस चुनें।', asLookUp: 'देखें', asPickBus: 'बस चुनें',
     asNotRecorded: 'रिकॉर्ड नहीं — ड्यूटी लॉग शुरू हुआ', asNobodySeat: 'उस दिन इस सीट पर कोई नहीं', asAllDay: 'पूरा दिन', asFromT: 'से', asUntilT: 'तक',
+    asByBus: 'बस के हिसाब से', asBusSeats: 'हर बस, दोनों सीटों के साथ — सीट भरने के लिए उस पर दबाइए', noMatch: 'इससे कुछ नहीं मिला', drvSearch: 'नाम, बस नंबर या फ़ोन खोजें…', asSearch: 'बस नंबर या नाम खोजें…',
     asTitle: 'ड्यूटी', asHint: 'बस बदलने के लिए नाम दबाएं, या खाली सीट भरने के लिए बस दबाएं।',
     asNoBus: 'कोई बस नहीं', asAssigned: 'दी गई', asUnassigned: 'नहीं दी',
     asBusesNoDriver: 'बिना ड्राइवर की बसें', asBusesNoConductor: 'बिना कंडक्टर की बसें',
@@ -583,7 +587,15 @@ function announceSyncStatus(s) {
   // invented by the token, repeated on every status change, in the middle of
   // signing in. The device already holds the PIN it logged in with (that is how
   // offline login works), so it can get a new token on its own.
-  if (s === 'signedout') renewSession();
+  if (s === 'signedout') {
+    // Drivers and conductors keep their PIN on the phone, so renewSession() gets
+    // a new token without anybody noticing. Owner, supervisor and crew-manager
+    // PINs are deliberately not kept, so for them there is nothing to renew
+    // with: their device simply stops syncing, and until now said nothing. Said
+    // once, on the transition — and only when it is actually true.
+    if (S.user && !credGet(S.user.id)) toast(t('sessionEnded'));
+    renewSession();
+  }
 }
 
 /* ------------------------------ Helpers ----------------------------------- */
@@ -2414,14 +2426,40 @@ function staggerRows(box) {
   box.querySelectorAll('.li, .jobcard').forEach((li, i) => { li.classList.add('row-anim'); li.style.animationDelay = Math.min(i, 12) * 0.028 + 's'; });
 }
 // Reusable: live-filter a rendered list's .li rows by text, with re-animation.
+// Letters and digits only. A registration is written "RJ14 PA 1023" and typed
+// "rj14pa1023", "RJ14PA1023" or "rj 14 pa 1023" — all the same bus, and before
+// this only the spelling on the screen matched.
+const _searchKey = (x) => String(x || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+// `listId` may be one element id or several: the duty board filters two lists
+// (who has a bus, and which buses have an empty seat) from one box.
 function attachSearch(inputId, listId) {
-  const inp = document.getElementById(inputId), box = document.getElementById(listId);
-  if (!inp || !box) return;
+  const inp = document.getElementById(inputId);
+  const boxes = (Array.isArray(listId) ? listId : [listId]).map((id) => document.getElementById(id)).filter(Boolean);
+  if (!inp || !boxes.length) return;
   inp.oninput = () => {
-    const ql = inp.value.trim().toLowerCase();
-    let shown = 0;
-    box.querySelectorAll('.li, .jobcard').forEach((li) => { const ok = !ql || li.textContent.toLowerCase().includes(ql); li.style.display = ok ? '' : 'none'; if (ok) shown++; });
-    box.querySelectorAll('.li:not([style*="none"]), .jobcard:not([style*="none"])').forEach((li, i) => { li.classList.remove('row-anim'); void li.offsetWidth; li.classList.add('row-anim'); li.style.animationDelay = Math.min(i, 12) * 0.028 + 's'; });
+    const ql = inp.value.trim().toLowerCase(), qk = _searchKey(ql);
+    boxes.forEach((box) => {
+      let shown = 0;
+      box.querySelectorAll('.li, .jobcard').forEach((li) => {
+        const txt = li.textContent.toLowerCase();
+        const ok = !ql || txt.includes(ql) || (qk.length > 1 && _searchKey(txt).includes(qk));
+        li.style.display = ok ? '' : 'none';
+        if (ok) shown++;
+      });
+      // The count beside the heading is the list's total. While a search is on
+      // it has to be the number of rows actually showing, or a filtered list
+      // reads as "110 drivers" above two rows — or above none at all, which
+      // looks like a broken screen rather than like nothing matched.
+      const badge = box.querySelector('.row.between .badge');
+      if (badge) {
+        if (badge.dataset.total == null) badge.dataset.total = badge.textContent;
+        badge.textContent = ql ? String(shown) : badge.dataset.total;
+      }
+      const none = box.querySelector('.nomatch');
+      if (none) none.remove();
+      if (ql && !shown) box.insertAdjacentHTML('beforeend', `<div class="muted small nomatch" style="padding:6px 2px">${esc(t('noMatch'))}</div>`);
+      box.querySelectorAll('.li:not([style*="none"]), .jobcard:not([style*="none"])').forEach((li, i) => { li.classList.remove('row-anim'); void li.offsetWidth; li.classList.add('row-anim'); li.style.animationDelay = Math.min(i, 12) * 0.028 + 's'; });
+    });
   };
 }
 // Pull the fleet AirFi is tracking and create a bus for any registration we
@@ -5481,7 +5519,7 @@ function sheetSync() {
       <div class="tiny muted">Changes someone else made on this phone. They are sent when that person signs in here again.</div>` : ''}
       <div class="row between small"><span class="muted">Last reached server</span><b>${i.lastSyncAt ? timeAgo(i.lastSyncAt) : 'never'}</b></div>
       <div class="row between small"><span class="muted">Sync cursor</span><b>rev ${i.lastRev}</b></div>
-      ${i.lastError ? `<div class="row between small"><span class="muted">Last failure</span><b style="color:#ef4444">${esc(i.lastError)}</b></div>` : ''}
+      ${i.lastError ? `<div class="row between small"><span class="muted">Last failure${i.lastErrorAt ? ' · ' + timeAgo(i.lastErrorAt) : ''}</span><b style="color:#ef4444">${esc(i.lastError)}</b></div>` : ''}
     </div>
     ${canSetServer() ? `<label class="field"><span class="lbl">Server URL</span><input id="f-syncurl" value="${esc(i.url)}"></label>
     <div class="tiny muted" style="margin-bottom:10px">On a phone, set this to your computer's address, e.g. http://192.168.29.219:8766. Leave empty for the normal server.</div>
@@ -7345,7 +7383,7 @@ function viewDrivers() {
   if (can(S.user.role, 'assignDriver')) {
     body += `<button class="btn" data-act="openAssignments" style="margin-bottom:12px">🔁 Driver ↔ Bus assignments</button>`;
   }
-  body += `<input id="drv-search" class="searchbox" placeholder="Search name, bus or phone…" autocomplete="off">`;
+  body += `<input id="drv-search" class="searchbox" placeholder="${esc(t('drvSearch'))}" autocomplete="off">`;
   body += `<div class="card listwrap" id="drv-list">${list.length ? list.map(driverLi).join('') : '<div class="empty">No drivers yet</div>'}</div>`;
   shell('Drivers', body, can(S.user.role, 'addBus') ? { act: 'addDriver', icon: '+' } : null);
   attachSearch('drv-search', 'drv-list');
@@ -7399,16 +7437,54 @@ function dutyLookupCard() {
   return h + `</div>`;
 }
 
+/* One row per bus, with its three seats on it: driver 1, driver 2, conductor.
+ *
+ * The board was built around a person — pick a driver, give them a bus — with a
+ * chip to switch to conductors. Filling a bus meant doing it twice, from two
+ * lists, and the question on the floor is the other way round: this bus goes out
+ * tonight, who is on it? Each seat is a button that opens the same picker the
+ * person-first lists use, so nothing about assigning changes. */
+function dutyBusRow(b) {
+  const seats = driverSeatsOf(b.id), con = conductorOfBus(b.id);
+  const seatChip = (label, person, role, slot) =>
+    `<button class="chip" style="${person ? '' : 'border-style:dashed;color:var(--muted)'}" data-act="assignDriver"
+      data-bus="${esc(b.id)}" data-role="${esc(role)}"${slot ? ` data-slot="${slot}"` : ''}>${
+      esc(label)}: <b>${person ? esc(person.name) : esc(t('asSeatEmpty'))}</b></button>`;
+  return `<div class="li" style="align-items:flex-start"><div class="ava">🚌</div>
+    <div class="main"><div class="t">${esc(b.regNo)}</div>
+      ${b.company ? `<div class="s">${esc(b.company)}</div>` : ''}
+      <div class="seatrow">
+        ${seatChip(t('asDriverN') + ' 1', seats[0], 'driver', 1)}
+        ${seatChip(t('asDriverN') + ' 2', seats[1], 'driver', 2)}
+        ${seatChip(crewRoleLabel('conductor'), con, 'conductor', null)}
+      </div></div></div>`;
+}
+
 function viewAssignments() {
   const role = _asRole === 'conductor' ? 'conductor' : 'driver';
   const crew = activeCrew().filter((d) => crewRoleOf(d) === role).sort((a, b) => a.name.localeCompare(b.name));
   const buses = S.cache.buses;
   const seatOf = (busId) => (role === 'conductor' ? conductorOfBus(busId) : driverOfBus(busId));
+  const byBus = _asRole === 'bus';
   let body = `<div class="chiprow">${['driver', 'conductor'].map((r) =>
-    `<button class="chip ${role === r ? 'active' : ''}" data-act="asRole" data-v="${esc(r)}">${CREW_ROLE_META[r][0]} ${esc(crewRoleLabel(r))}</button>`).join('')}</div>`;
-  body += `<div class="card"><div class="tiny muted">${t('asHint')}</div></div>`;
+    `<button class="chip ${!byBus && role === r ? 'active' : ''}" data-act="asRole" data-v="${esc(r)}">${CREW_ROLE_META[r][0]} ${esc(crewRoleLabel(r))}</button>`).join('')}
+    <button class="chip ${byBus ? 'active' : ''}" data-act="asRole" data-v="bus">🚌 ${esc(t('asByBus'))}</button></div>`;
+  body += `<div class="card"><div class="tiny muted">${byBus ? t('asBusSeats') : t('asHint')}</div></div>`;
   if (typeof Duty !== 'undefined') body += dutyLookupCard();
-  body += `<div class="card"><div class="row between"><h3>${esc(crewRoleLabel(role))}</h3><span class="badge b-low">${crew.length}</span></div>`;
+  // One box over both lists below: ~90 buses and ~170 crew is a long scroll to
+  // answer "who is on 1023?". Matches the bus number however it is written, the
+  // person's name, and the company.
+  body += `<input id="as-search" class="searchbox" placeholder="${esc(t('asSearch'))}" autocomplete="off">`;
+  if (byBus) {
+    const fleet = [...buses].sort((a, b) => String(a.regNo).localeCompare(String(b.regNo), undefined, { numeric: true }));
+    body += `<div class="card" id="as-bybus"><div class="row between"><h3>🚌 ${esc(t('buses'))}</h3><span class="badge b-low">${fleet.length}</span></div>`;
+    body += fleet.length ? fleet.map(dutyBusRow).join('') : `<div class="empty">${t('asNobodyYet')}</div>`;
+    body += `</div>`;
+    shell(t('asTitle'), body);
+    attachSearch('as-search', ['as-bybus']);
+    return;
+  }
+  body += `<div class="card" id="as-crew"><div class="row between"><h3>${esc(crewRoleLabel(role))}</h3><span class="badge b-low">${crew.length}</span></div>`;
   body += crew.length ? crew.map((d) => {
     const bus = byId(buses, d.busId);
     return `<div class="li" data-act="assignBus" data-driver="${esc(d.id)}" style="cursor:pointer"><div class="ava">${CREW_ROLE_META[role][0]}</div>
@@ -7417,12 +7493,13 @@ function viewAssignments() {
   }).join('') : `<div class="empty">${t('asNobodyYet')}</div>`;
   body += `</div>`;
   const empty = buses.filter((b) => !seatOf(b.id));
-  body += `<div class="card"><div class="row between"><h3>${t(role === 'conductor' ? 'asBusesNoConductor' : 'asBusesNoDriver')}</h3><span class="badge ${empty.length ? 'b-amber' : 'b-green'}">${empty.length}</span></div>`;
+  body += `<div class="card" id="as-buses"><div class="row between"><h3>${t(role === 'conductor' ? 'asBusesNoConductor' : 'asBusesNoDriver')}</h3><span class="badge ${empty.length ? 'b-amber' : 'b-green'}">${empty.length}</span></div>`;
   body += empty.length ? empty.map((b) => `<div class="li" data-act="assignDriver" data-bus="${esc(b.id)}" data-role="${esc(role)}" style="cursor:pointer"><div class="ava">🚌</div>
     <div class="main"><div class="t">${esc(b.regNo)}</div><div class="s">${esc(b.company || '')} · ${esc(b.model || '')}</div></div>
     <span class="badge b-amber">${t('asAssignWord')} →</span></div>`).join('') : `<div class="muted small">${t(role === 'conductor' ? 'asAllHaveConductor' : 'asAllHaveDriver')}</div>`;
   body += `</div>`;
   shell(t('asTitle'), body);
+  attachSearch('as-search', ['as-crew', 'as-buses']);
 }
 
 function viewDriverDetail(id) {

@@ -284,6 +284,11 @@ img.ava{object-fit:cover}
   font-weight:700;font-size:13px;color:var(--muted,#8b91a0);cursor:pointer;white-space:nowrap;
   transition:background .16s ease,border-color .16s ease,color .16s ease,transform .1s ease}
 .chip:active{transform:scale(.94)}
+/* The duty board's by-bus rows: three seats per bus. A .chiprow scrolls
+ * sideways, which hides the conductor off the right edge of a phone — these
+ * wrap instead, and each seat gets the width its name needs. */
+.seatrow{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.seatrow .chip{flex:0 1 auto;max-width:100%;padding:6px 11px;font-size:12px;white-space:normal;text-align:left}
 .chip.active{border-color:var(--accent);color:var(--accent);background:var(--accent-wash)}
 /* List filter/search animation — staggered fade-up of rows */
 @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
