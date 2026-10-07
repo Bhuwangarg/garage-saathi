@@ -15,3 +15,5 @@ mobile/ios/build-device/
 
 # Crew backups: real Aadhaar and licence numbers. Never commit these.
 crew-backup-*.json
+.vercel
+.env*

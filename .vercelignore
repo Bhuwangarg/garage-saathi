@@ -24,6 +24,11 @@ __pycache__/
 sync.db
 uploads/
 .vapid_private.pem
+# Crew-removal backups: real Aadhaar and licence numbers (scripts/remove-crew.py).
+crew-backup-*.json
+.contact_salt
+.env*
+.vercel
 .gps_ingest_token
 .public_url
 .DS_Store

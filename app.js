@@ -232,7 +232,7 @@ const I18N = {
     gcStartedAt: 'started', gcNotFound: 'This gate check is not on this phone yet.', gcNoLocation: 'no location', gcFaceNo: 'face not verified', gcNotOnBoardShort: 'not on duty board',
     gcOffice: 'Gate checks', gcWaiting: 'Waiting for you', gcNoneWaiting: 'No bus is waiting at the gate.', gcToday: 'Today', gcNoneToday: 'No checks yet today.', gcNoCheck: 'Buses with no check today',
     gcGo: 'Go', gcHold: 'Hold', gcReason: 'Reason (required)', gcReasonGoPh: 'e.g. AC will be fixed at the Mathura stop', gcReasonHoldPh: 'e.g. Fix the AC before leaving', gcReasonNeeded: 'Write a reason first', gcDecided: 'Decision sent to the driver',
-    gcHistory: 'Earlier decisions', hmGateWaiting: 'Bus waiting at the gate', hmGateWaitingSub: 'A check failed — go or hold?', asGateLine: 'Gate check',
+    gcHomeTitle: 'Gate checks today', gcNoCheckShort: 'no check yet', gcHistory: 'Earlier decisions', hmGateWaiting: 'Bus waiting at the gate', hmGateWaitingSub: 'A check failed — go or hold?', asGateLine: 'Gate check',
     gi_ac: 'AC cooling', gi_blankets: 'Blanket and pillow on every berth', gi_cabin: 'Berths, floor and washroom clean', gi_charging: 'Charging points work', gi_water: 'Water bottles loaded',
     gi_tyres: 'Tyres and lights OK', gi_fuel: 'Enough fuel for the first leg', gi_papers: 'RC, permit, insurance, PUC on board', gi_safety: 'First-aid box, extinguisher, emergency hammer', gi_uniform: 'Crew in uniform',
     asWhoWas: 'Who was on a bus that day', asWhoWasHint: 'For a review, complaint or challan: pick the date of travel and the bus.', asLookUp: 'Look up', asPickBus: 'Pick a bus',
@@ -476,7 +476,7 @@ const I18N = {
     gcStartedAt: 'शुरू', gcNotFound: 'यह गेट चेक अभी इस फ़ोन पर नहीं आया।', gcNoLocation: 'लोकेशन नहीं', gcFaceNo: 'चेहरा पक्का नहीं', gcNotOnBoardShort: 'ड्यूटी में नाम नहीं',
     gcOffice: 'गेट चेक', gcWaiting: 'आपका इंतज़ार', gcNoneWaiting: 'कोई बस गेट पर इंतज़ार में नहीं।', gcToday: 'आज', gcNoneToday: 'आज अभी कोई चेक नहीं।', gcNoCheck: 'आज बिना चेक वाली बसें',
     gcGo: 'चलो', gcHold: 'रुको', gcReason: 'वजह (ज़रूरी)', gcReasonGoPh: 'जैसे मथुरा स्टॉप पर AC ठीक होगा', gcReasonHoldPh: 'जैसे निकलने से पहले AC ठीक करें', gcReasonNeeded: 'पहले वजह लिखें', gcDecided: 'फ़ैसला ड्राइवर को भेजा',
-    gcHistory: 'पहले के फ़ैसले', hmGateWaiting: 'बस गेट पर इंतज़ार में', hmGateWaitingSub: 'जाँच में दिक्कत — चलो या रुको?', asGateLine: 'गेट चेक',
+    gcHomeTitle: 'आज के गेट चेक', gcNoCheckShort: 'बिना चेक', gcHistory: 'पहले के फ़ैसले', hmGateWaiting: 'बस गेट पर इंतज़ार में', hmGateWaitingSub: 'जाँच में दिक्कत — चलो या रुको?', asGateLine: 'गेट चेक',
     gi_ac: 'AC ठंडा कर रहा है', gi_blankets: 'हर बर्थ पर कंबल और तकिया', gi_cabin: 'बर्थ, फ़र्श और वॉशरूम साफ़', gi_charging: 'चार्जिंग पॉइंट चालू', gi_water: 'पानी की बोतलें रखीं',
     gi_tyres: 'टायर और लाइट ठीक', gi_fuel: 'पहले हिस्से के लिए पूरा डीज़ल', gi_papers: 'RC, परमिट, बीमा, PUC बस में', gi_safety: 'फ़र्स्ट-एड, फ़ायर एक्सटिंग्विशर, इमरजेंसी हथौड़ा', gi_uniform: 'स्टाफ़ वर्दी में',
     asWhoWas: 'उस दिन बस पर कौन था', asWhoWasHint: 'रिव्यू, शिकायत या चालान के लिए: यात्रा की तारीख और बस चुनें।', asLookUp: 'देखें', asPickBus: 'बस चुनें',
@@ -2098,6 +2098,7 @@ function viewOwnerHome() {
   else if (alerts.length) rows.push(triageRow('warn', '📄', t('hmDocsSoon'), t('hmDocsSoonSub'), 'data-act="openAlerts"', alerts.length));
   if (owed) rows.push(triageRow('warn', '🧾', t('hmOwed'), t('hmOwedSub'), 'data-act="openPurchases"', money(owed)));
   body += triageCard(rows);
+  body += gateHomeSummaryCard();
 
   body += inShopCard(inShopJobs(), 3, true);
 
@@ -2147,6 +2148,7 @@ function viewSupervisorHome() {
   if (alerts.length) rows.push(triageRow(alerts.some((a) => a.st.dl <= 0) ? 'crit' : 'warn', '📄', t('hmDocsSoon'), t('hmDocsSoonSub'), 'data-act="openAlerts"', alerts.length));
   if (low.length) rows.push(triageRow('warn', '📦', t('hmLowStock'), t('hmLowStockSub'), 'data-nav="store"', low.length));
   body += triageCard(rows);
+  body += gateHomeSummaryCard();
 
   // Work they have closed that is not theirs to sign off. Not a task — the
   // point is that it is off their plate, and who it is waiting on.
@@ -7904,8 +7906,7 @@ async function gateDecideSave(id, v) {
 }
 
 function viewGateChecks() {
-  const now = Date.now();
-  const recent = gateChecks().filter((c) => now - (c.startedAt || 0) < Gate.WINDOW_MS);
+  const g = gateToday(), recent = g.recent;
   const waiting = recent.filter((c) => c.status === 'awaiting').sort((a, b) => (a.sentAt || a.updatedAt) - (b.sentAt || b.updatedAt));
   const row = (c) => {
     const o = Gate.outcome(c.items);
@@ -7922,13 +7923,39 @@ function viewGateChecks() {
   body += `<div class="card"><div class="row between"><h3>${t('gcToday')}</h3><span class="badge b-low">${rest.length}</span></div>`;
   body += rest.length ? rest.map(row).join('') : `<div class="muted small">${t('gcNoneToday')}</div>`;
   body += `</div>`;
-  const started = new Set(recent.map((c) => c.busId));
-  const none = (S.cache.buses || []).filter((b) => driverOfBus(b.id) && !started.has(b.id));
+  const none = g.none;
   body += `<details class="card"><summary class="row between" style="cursor:pointer"><h3>${t('gcNoCheck')}</h3><span class="badge b-amber">${none.length}</span></summary>
     ${none.map((b) => `<div class="li" data-bus="${esc(b.id)}" style="cursor:pointer"><div class="ava">🚌</div><div class="main"><div class="t">${esc(b.regNo)}</div><div class="s">${esc((driverOfBus(b.id) || {}).name || '')}</div></div></div>`).join('')}</details>`;
   shell(t('gcOffice'), body, null, NARROW);
 }
 const gateWaitingCount = () => gateChecks().filter((c) => c.status === 'awaiting' && Date.now() - (c.startedAt || 0) < Gate.WINDOW_MS).length;
+
+// Today's gate checks, counted once for both the home card and the list, so the
+// two never disagree. "No check" = a bus with a driver and no current check.
+function gateToday() {
+  const now = Date.now();
+  const recent = gateChecks().filter((c) => now - (c.startedAt || 0) < Gate.WINDOW_MS);
+  const by = (st) => recent.filter((c) => st.includes(c.status)).length;
+  const started = new Set(recent.map((c) => c.busId));
+  const none = (S.cache.buses || []).filter((b) => driverOfBus(b.id) && !started.has(b.id));
+  return { recent, none, released: by(['released', 'approved']), waiting: by(['awaiting']), held: by(['held']), open: by(['open']) };
+}
+// Always on the owner's and supervisor's Today screen — the list is reachable
+// whether or not a bus is waiting. Waiting buses also get the red triage row.
+function gateHomeSummaryCard() {
+  if (!can(S.user.role, 'gateDecide')) return '';
+  const g = gateToday();
+  const chip = (n, key, cls) => `<span class="schip ${cls}"><i></i>${n} ${t(key)}</span>`;
+  return `<div class="card" data-act="openGateChecks" style="cursor:pointer">
+    <div class="row between"><h3>🚦 ${t('gcHomeTitle')}</h3><span class="tc muted">›</span></div>
+    <div class="row" style="gap:6px;flex-wrap:wrap;margin-top:8px">
+      ${chip(g.released, 'gcReleased', 'ok')}
+      ${g.waiting ? chip(g.waiting, 'gcAwaiting', 'crit') : ''}
+      ${g.held ? chip(g.held, 'gcHeld', 'crit') : ''}
+      ${g.open ? chip(g.open, 'gcOpen', 'mute') : ''}
+      ${chip(g.none.length, 'gcNoCheckShort', g.none.length ? 'warn' : 'ok')}
+    </div></div>`;
+}
 
 /* ===== Trip cash & expenses → per-bus accounting ==========================
  * A driver starts a TRIP (a cash session) for their bus with a ₹ allowance

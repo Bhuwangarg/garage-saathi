@@ -390,6 +390,7 @@ img.ava{object-fit:cover}
 .schip.crit{background:var(--red-wash);color:var(--red)} .schip.crit i{background:var(--red)}
 .schip.warn{background:var(--amber-wash);color:var(--amber)} .schip.warn i{background:var(--amber)}
 .schip.ok{background:var(--green-wash);color:var(--green)} .schip.ok i{background:var(--green)}
+.schip.mute{background:var(--surface2);color:var(--text2)} .schip.mute i{background:var(--muted)}
 
 /* number-plate chip — render EVERY bus id like its real plate */
 .plate{display:inline-flex;align-items:center;gap:6px;background:var(--plate);color:var(--plate-ink);
