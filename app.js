@@ -22,6 +22,11 @@ const I18N = {
     notStored: 'This phone could not save {n} record(s) others can see — free up space, then Me → Device & server → Re-download everything',
     notStoredRow: 'Records this phone could not save',
     photoKept: 'Photo kept on this phone — it will upload when the connection is back',
+    tidyTitle: 'Pictures kept inside records', tidyFound: 'photo(s) waiting to be uploaded',
+    tidyBtn: 'Upload them now', tidyWorking: 'Uploading', tidyDone: 'Done — uploaded',
+    tidyNone: 'Nothing to upload — every picture is on the server',
+    tidyStopped: 'Stopped — the server would not take the next picture. Try again later.',
+    tidyHint: 'Older photos were saved inside the records themselves, so every phone carries them. This uploads each one and leaves a link behind.',
     photoNoStore: 'The server cannot store photos right now — the picture stays on this phone. Tell whoever runs the app.',
     photoSignedOut: 'Signed out, so the photo could not be uploaded — sign in again',
     tagline: 'Garage maintenance, Jaipur', enterPin: 'Enter PIN', wrongPin: 'Wrong PIN', serverWaking: 'Signing in… the server is starting up, this can take a few seconds', loginOff: 'This login has been switched off — speak to the office', pinRetired: 'That PIN no longer works — ask the office for your new PIN',
@@ -280,6 +285,11 @@ const I18N = {
     notStored: 'यह फ़ोन {n} रिकॉर्ड सेव नहीं कर पाया जो दूसरों को दिख रहे हैं — जगह खाली कीजिए, फिर मैं → डिवाइस और सर्वर → सब दोबारा डाउनलोड करें',
     notStoredRow: 'जो रिकॉर्ड यह फ़ोन सेव नहीं कर पाया',
     photoKept: 'फोटो इसी फ़ोन में रखी है — नेट आते ही अपने आप चढ़ जाएगी',
+    tidyTitle: 'रिकॉर्ड के अंदर पड़ी तस्वीरें', tidyFound: 'फोटो चढ़नी बाकी हैं',
+    tidyBtn: 'अभी चढ़ाएँ', tidyWorking: 'चढ़ाई जा रही हैं', tidyDone: 'हो गया — चढ़ गईं',
+    tidyNone: 'कुछ बाकी नहीं — सारी तस्वीरें सर्वर पर हैं',
+    tidyStopped: 'रुक गया — सर्वर अगली तस्वीर नहीं ले रहा। बाद में दोबारा कीजिए।',
+    tidyHint: 'पुरानी फोटो रिकॉर्ड के अंदर ही सेव हुई थीं, इसलिए हर फ़ोन उन्हें ढोता है। यह हर फोटो को सर्वर पर चढ़ाकर उसकी जगह लिंक रख देता है।',
     photoNoStore: 'सर्वर अभी फोटो नहीं रख पा रहा — तस्वीर इसी फ़ोन में रहेगी। ऐप संभालने वाले को बताइए।',
     photoSignedOut: 'साइन-आउट होने से फोटो नहीं चढ़ी — दोबारा लॉगिन कीजिए',
     tagline: 'गैराज मरम्मत, जयपुर', enterPin: 'पिन डालें', wrongPin: 'गलत पिन', serverWaking: 'लॉगिन हो रहा है… सर्वर चालू हो रहा है, कुछ सेकंड लग सकते हैं', loginOff: 'यह लॉगिन बंद कर दिया गया है — दफ़्तर से बात करें', pinRetired: 'यह पिन अब नहीं चलेगा — ऑफिस से अपना नया पिन लें',
@@ -1181,6 +1191,96 @@ async function issuePart({ partId, qty, jobId, reused = false, reusedCost = null
   await DB.put('jobcards', job);
   await load();
   toast(`${reused ? '♻️ ' : ''}Issued ${qty} ${part.unit} → ${busName(job.busId)}`);
+}
+
+/* ===== Pictures kept inside records ======================================
+ * Until R2 was reachable, every failed upload left the picture itself inside
+ * the record as a data: URL — 21 MB of them, pushed to the server and pulled
+ * down by every phone, which is what made a phone fail to store crew at all.
+ *
+ * The walk is generic rather than a list of fields per store: a photo lives in
+ * `photo`, `photoBack`, `selfie`, `beforePhotos[]`, `docs.licence.photo` and
+ * several more, and that list would drift. Anything that looks like inline
+ * media gets uploaded and replaced by its link. */
+const INLINE_MEDIA = /^data:(image\/|application\/pdf)/i;
+// Stores that can hold a picture. Ledger, usage and gpsevents never do.
+const MEDIA_STORES = ['drivers', 'jobcards', 'attendance', 'purchases', 'incidents',
+  'driverreports', 'buses', 'components', 'def', 'fuel', 'gatepasses', 'breakdowns', 'audits'];
+
+// Every inline value in one record, as [path, dataUrl] pairs.
+function inlineMediaIn(value, path, out, depth) {
+  out = out || []; path = path || []; depth = depth || 0;
+  if (depth > 6) return out;
+  if (typeof value === 'string') { if (INLINE_MEDIA.test(value)) out.push([path, value]); return out; }
+  if (Array.isArray(value)) { value.forEach((v, i) => inlineMediaIn(v, path.concat(i), out, depth + 1)); return out; }
+  if (value && typeof value === 'object') {
+    Object.keys(value).forEach((k) => { if (k !== '_redacted') inlineMediaIn(value[k], path.concat(k), out, depth + 1); });
+  }
+  return out;
+}
+function setAtPath(rec, path, val) {
+  let node = rec;
+  for (let i = 0; i < path.length - 1; i++) node = node[path[i]];
+  node[path[path.length - 1]] = val;
+}
+// What is still inline on this device, by store.
+async function inlineMediaScan() {
+  const found = [];
+  for (const store of MEDIA_STORES) {
+    let rows = [];
+    try { rows = await (DB._rawAll ? DB._rawAll(store) : DB.all(store)); } catch (e) { continue; }
+    for (const rec of rows || []) {
+      if (!rec || rec._deleted || rec._redacted) continue;
+      const hits = inlineMediaIn(rec);
+      if (hits.length) found.push({ store, id: rec.id, hits: hits.length });
+    }
+  }
+  return found;
+}
+
+/* Upload each one and leave a link in its place. Sequential on purpose: this
+ * runs on a phone, often on mobile data, and a burst of 4 MB posts is how you
+ * get a stalled screen and a part-finished job. Stops after three refusals in
+ * a row so a server that cannot store photos is not hammered. */
+async function repairInlineMedia(onProgress) {
+  const todo = await inlineMediaScan();
+  const total = todo.reduce((n, x) => n + x.hits, 0);
+  let done = 0, failed = 0, misses = 0;
+  for (const item of todo) {
+    const rec = await (DB._rawGet ? DB._rawGet(item.store, item.id) : DB.get(item.store, item.id));
+    if (!rec) continue;
+    let changed = false;
+    for (const [path, dataUrl] of inlineMediaIn(rec)) {
+      const url = await Sync.uploadPhoto(dataUrl);
+      if (!url) {
+        failed++; misses++;
+        if (misses >= 3) { if (changed) await DB.put(item.store, rec); return { total, done, failed, stopped: true }; }
+        continue;
+      }
+      misses = 0; done++; changed = true;
+      setAtPath(rec, path, url);
+      if (onProgress) onProgress(done, total);
+    }
+    // Written once per record, so one push carries the whole card rather than
+    // one per picture.
+    if (changed) await DB.put(item.store, rec);
+  }
+  return { total, done, failed, stopped: false };
+}
+
+async function tidyPhotos() {
+  if (!['owner', 'supervisor'].includes(S.user.role)) return toast(t('cbNotAllowed'));
+  const btn = document.getElementById('tidy-btn');
+  const out = document.getElementById('tidy-state');
+  if (btn) { btn.disabled = true; btn.textContent = t('tidyWorking') + '…'; }
+  const r = await repairInlineMedia((n, total) => {
+    if (btn) btn.textContent = `${t('tidyWorking')} ${n}/${total}…`;
+  });
+  if (out) out.textContent = r.stopped ? t('tidyStopped') : `${t('tidyDone')} ${r.done}`;
+  if (btn) { btn.disabled = false; btn.textContent = t('tidyBtn'); }
+  await load();
+  toast(r.stopped ? t('tidyStopped') : `${t('tidyDone')} ${r.done}`);
+  if (!r.stopped && !r.failed) { const row = document.getElementById('tidy-row'); if (row) row.remove(); }
 }
 
 // Say why a picture is still sitting on this phone. Called wherever an upload
@@ -5577,9 +5677,27 @@ function sheetSync() {
     <label class="field"><span class="lbl">Anthropic API key — for AI Insights (optional)</span><input id="f-aikey" type="password" value="${esc(localStorage.getItem('aiKey') || '')}" placeholder="sk-ant-..."></label>
     <div class="tiny muted" style="margin-bottom:10px">Stored only on this device. Enables the "Ask the advisor" box on AI Insights.</div>
     <button class="btn primary" data-act="saveSyncUrl">${t('saveWord')}</button>` : `<div class="tiny muted">${esc(i.url)}</div>`}
+    ${['owner', 'supervisor'].includes(S.user.role) ? `<div class="card" id="tidy-row" style="margin-top:10px">
+      <div class="row between"><b>🖼️ ${esc(t('tidyTitle'))}</b><span class="badge b-low" id="tidy-count">…</span></div>
+      <div class="tiny muted" style="margin:6px 0 10px">${esc(t('tidyHint'))}</div>
+      <button class="btn" id="tidy-btn" data-act="tidyPhotos">${esc(t('tidyBtn'))}</button>
+      <div class="tiny muted" id="tidy-state" style="margin-top:6px"></div>
+    </div>` : ''}
     <div class="spacer"></div>
     <button class="btn ghost" data-act="syncRedownload">⤓ Re-download everything</button>
-    <div class="tiny muted" style="margin-top:6px">Use this if this device is missing people or records that other devices can see. It re-reads the whole server; nothing you have entered here is lost.</div>`);
+    <div class="tiny muted" style="margin-top:6px">Use this if this device is missing people or records that other devices can see. It re-reads the whole server; nothing you have entered here is lost.</div>`,
+    (wrap) => {
+      // Counting walks every record, so it happens after the sheet is up.
+      const badge = wrap.querySelector('#tidy-count');
+      if (!badge) return;
+      inlineMediaScan().then((found) => {
+        const n = found.reduce((x, f) => x + f.hits, 0);
+        badge.textContent = String(n);
+        const state = wrap.querySelector('#tidy-state');
+        if (!n) { const b = wrap.querySelector('#tidy-btn'); if (b) b.disabled = true; if (state) state.textContent = t('tidyNone'); }
+        else if (state) state.textContent = `${n} ${t('tidyFound')}`;
+      }).catch(() => { badge.textContent = '?'; });
+    });
 }
 
 function sheetStaff() {
@@ -10510,6 +10628,7 @@ const _dispatchClick = async (e) => {
       case 'reportToJob': return createJobFromReport(el.getAttribute('data-report'));
       case 'openUsage': return push({ name: 'usage' });
       case 'openSync': return sheetSync();
+      case 'tidyPhotos': return tidyPhotos();
       case 'syncRedownload': {
         const stop = showBusyOverlay('Re-downloading…');
         try { await Sync.reset(); await load(); } finally { if (stop) stop(); }
