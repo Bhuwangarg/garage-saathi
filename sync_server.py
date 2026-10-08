@@ -108,11 +108,21 @@ def _r2_client():
     global _r2
     if _r2 is None:
         import boto3  # lazy — only needed when R2 is configured
+        # Verify against certifi's bundle when it is installed. Every upload in
+        # production failed with an SSLError while Postgres TLS worked fine,
+        # which is what a runtime with no CA bundle where botocore expects one
+        # looks like. Falls back to the default when certifi is absent.
+        verify = True
+        try:
+            import certifi
+            verify = certifi.where()
+        except Exception:
+            pass
         _r2 = boto3.client(
             "s3",
             endpoint_url=f"https://{R2_ACCOUNT_ID}.r2.cloudflarestorage.com",
             aws_access_key_id=R2_ACCESS_KEY, aws_secret_access_key=R2_SECRET_KEY,
-            region_name="auto",
+            region_name="auto", verify=verify,
         )
     return _r2
 # eChallan.app — traffic-violation lookup by registration number. Server-side only:
@@ -522,7 +532,7 @@ def _session_secret():
     return _SECRET
 
 
-_R2_PROBE = {"at": 0.0, "ok": None, "err": None}
+_R2_PROBE = {"at": 0.0, "ok": None, "err": None, "detail": None}
 
 
 def r2_probe(ttl=300):
@@ -538,8 +548,9 @@ def r2_probe(ttl=300):
         return {"configured": False}
     now = time.time()
     if _R2_PROBE["at"] and now - _R2_PROBE["at"] < ttl:
-        return {"configured": True, "ok": _R2_PROBE["ok"], "error": _R2_PROBE["err"]}
-    ok, err = False, None
+        return {"configured": True, "ok": _R2_PROBE["ok"], "error": _R2_PROBE["err"],
+                "detail": _R2_PROBE.get("detail")}
+    ok, err, detail = False, None, None
     try:
         _r2_client().head_bucket(Bucket=R2_BUCKET)
         ok = True
@@ -551,8 +562,12 @@ def r2_probe(ttl=300):
                 err += ":" + str(code)[:40]
         except Exception:
             pass
-    _R2_PROBE.update(at=now, ok=ok, err=err)
-    return {"configured": True, "ok": ok, "error": err}
+        # The class alone said "SSLError" and no more. The message names the
+        # actual cause (a missing CA bundle reads very differently from a wrong
+        # endpoint); _redact strips anything credential-shaped.
+        detail = _redact(e)[:200]
+    _R2_PROBE.update(at=now, ok=ok, err=err, detail=detail)
+    return {"configured": True, "ok": ok, "error": err, "detail": detail}
 
 
 def hash_pin(salt, pin):

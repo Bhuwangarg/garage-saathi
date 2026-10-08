@@ -11,6 +11,9 @@ libsql-experimental>=0.0.41
 # Optional: Cloudflare R2 (S3-compatible) for free, persistent photo storage.
 # Only imported when the R2_* env vars are set; else photos go to local disk.
 boto3>=1.34.0
+# boto3 verifies TLS against a CA bundle it expects to find on disk; the
+# serverless runtime has none, which failed every upload with an SSLError.
+certifi>=2024.2.2
 
 # Postgres (Supabase) — the durable store, set via DATABASE_URL. The only option
 # here that survives a redeploy on a serverless host with no persistent disk.
