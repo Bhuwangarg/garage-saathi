@@ -110,10 +110,18 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
   let quarantine = JSON.parse(ls.getItem('quarantine') || '{}');
   let token = ls.getItem('token') || '';
   let lastError = ls.getItem('lastSyncError') || '';
+  // Records this device could not write to IndexedDB, by store|id, with how many
+  // times it has failed. A record is retried on the next pulls and only given up
+  // on after PULL_STORE_TRIES, so one unstorable row cannot stall every later
+  // record for ever — but it is never forgotten silently either.
+  let pullSkips = {};
+  try { pullSkips = JSON.parse(ls.getItem('pullSkips') || '{}') || {}; } catch (e) { pullSkips = {}; }
+  const savePullSkips = () => { try { ls.setItem('pullSkips', JSON.stringify(pullSkips)); } catch (e) { /* ignore */ } };
+  const PULL_STORE_TRIES = 5;
   let lastErrorAt = Number(ls.getItem('lastSyncErrorAt') || 0) || 0;
   let status = 'init';            // init | syncing | synced | offline
   let busy = false, kickTimer = null, pollTimer = null;
-  let cbStatus = null, cbApplied = null, cbConflict = null;
+  let cbStatus = null, cbApplied = null, cbConflict = null, cbStoreFail = null;
 
   const saveOutbox = () => {
     ls.setItem('outbox', JSON.stringify([...outbox]));
@@ -640,7 +648,7 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
     if (!res.ok) throw new Error('pull ' + res.status);
     const j = await res.json();
     if (typeof j.serverTime === 'number') { clockOffset = j.serverTime - Date.now(); ls.setItem('clockOffset', String(clockOffset)); }
-    let applied = 0; let conflicts = 0;
+    let applied = 0; let conflicts = 0; let holdRev = 0;
     for (const r of (j.records || [])) {
       if (!STORES.includes(r.store) || !r.data) continue;
       // A record is stored under its own key, so that key must be the one the
@@ -669,11 +677,32 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
         try {
           await DB.putRaw(r.store, r.data);   // keep server timestamp, no echo
           applied++;
-        } catch (e) { console.warn('pull: could not store', key, e); }
+          if (pullSkips[key]) { delete pullSkips[key]; savePullSkips(); }
+        } catch (e) {
+          // A record that will not store must not be walked past. The cursor
+          // used to advance to the page's maxRev regardless, so the server
+          // never offered that record again and the device was quietly missing
+          // something every other device had — 22 crew added on one phone,
+          // five of them showing on another.
+          const prev = pullSkips[key] || { tries: 0 };
+          pullSkips[key] = { tries: prev.tries + 1, rev: r.rev || 0, at: Date.now(), why: String((e && e.name) || e) };
+          savePullSkips();
+          if (pullSkips[key].tries < PULL_STORE_TRIES && r.rev) {
+            // Hold the cursor just before it so the next pull brings it back.
+            if (!holdRev || r.rev < holdRev) holdRev = r.rev;
+          }
+          console.warn('pull: could not store', key, e);
+        }
       }
     }
     const before = lastRev;
-    if (typeof j.maxRev === 'number') { lastRev = j.maxRev; ls.setItem('lastRev', String(lastRev)); }
+    if (typeof j.maxRev === 'number') {
+      // Never past a record this device still owes itself.
+      const next = holdRev ? Math.min(j.maxRev, holdRev - 1) : j.maxRev;
+      if (next > lastRev) { lastRev = next; ls.setItem('lastRev', String(lastRev)); }
+    }
+    const stuck = Object.keys(pullSkips).length;
+    if (stuck && cbStoreFail) cbStoreFail(stuck, pullSkips);
     if (applied && cbApplied) await cbApplied(applied);
     if (conflicts && cbConflict) await cbConflict(conflicts);
     // Only keep going while the cursor is actually moving, so a server that
@@ -702,6 +731,7 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
 
   function start(opts = {}) {
     cbStatus = opts.onStatus; cbApplied = opts.onApplied; cbConflict = opts.onConflict;
+    cbStoreFail = opts.onStoreFail || null;
     DB.onChange = markDirty;                 // wire the outbox to local writes
     window.addEventListener('online', tick);
     clearInterval(pollTimer);
@@ -751,7 +781,7 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
     } catch (e) { /* the 4s tick carries on regardless */ }
   }
   const info = () => ({ deviceId, lastRev, pending: outbox.size,
-    heldForOthers: [...outbox].filter((k) => outboxBy[k] && outboxBy[k] !== actor).length, url: baseUrl(), status, authed: !!token, lastSyncAt, lastError, lastErrorAt,
+    heldForOthers: [...outbox].filter((k) => outboxBy[k] && outboxBy[k] !== actor).length, url: baseUrl(), status, authed: !!token, lastSyncAt, lastError, lastErrorAt, notStored: Object.keys(pullSkips).length,
                         photosPending: Object.keys(photoQ).length, quarantined: Object.keys(quarantine).length });
 
   // Sync-safe delete used by feature code: tombstone + dirty so the deletion

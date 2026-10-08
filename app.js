@@ -19,6 +19,8 @@ const I18N = {
     addPhotoNote: 'Before AND after photos required to close a job (outside repairs: a bill photo)', noJobs: 'No jobs yet', expired: 'EXPIRED',
     // Login
     sessionEnded: 'Signed out — open Me → Log out, then sign in again to keep syncing',
+    notStored: 'This phone could not save {n} record(s) others can see — free up space, then Me → Device & server → Re-download everything',
+    notStoredRow: 'Records this phone could not save',
     tagline: 'Garage maintenance, Jaipur', enterPin: 'Enter PIN', wrongPin: 'Wrong PIN', serverWaking: 'Signing in… the server is starting up, this can take a few seconds', loginOff: 'This login has been switched off — speak to the office', pinRetired: 'That PIN no longer works — ask the office for your new PIN',
     recentHere: 'Recent on this phone', whoAreYou: 'Who are you?', selectName: 'Select your name', searchName: 'Search name…',
     cantReach: "Can't reach the server — check internet and try again",
@@ -272,6 +274,8 @@ const I18N = {
     addPhotoNote: 'काम बंद करने के लिए पहले और बाद दोनों की फोटो ज़रूरी हैं (बाहर मरम्मत: बिल की फोटो)', noJobs: 'अभी कोई काम नहीं', expired: 'समाप्त',
     // Login
     sessionEnded: 'साइन-आउट हो गया — मैं → लॉग आउट करके दोबारा लॉगिन कीजिए, तभी डेटा चलता रहेगा',
+    notStored: 'यह फ़ोन {n} रिकॉर्ड सेव नहीं कर पाया जो दूसरों को दिख रहे हैं — जगह खाली कीजिए, फिर मैं → डिवाइस और सर्वर → सब दोबारा डाउनलोड करें',
+    notStoredRow: 'जो रिकॉर्ड यह फ़ोन सेव नहीं कर पाया',
     tagline: 'गैराज मरम्मत, जयपुर', enterPin: 'पिन डालें', wrongPin: 'गलत पिन', serverWaking: 'लॉगिन हो रहा है… सर्वर चालू हो रहा है, कुछ सेकंड लग सकते हैं', loginOff: 'यह लॉगिन बंद कर दिया गया है — दफ़्तर से बात करें', pinRetired: 'यह पिन अब नहीं चलेगा — ऑफिस से अपना नया पिन लें',
     recentHere: 'इस फ़ोन पर हाल के', whoAreYou: 'आप कौन हैं?', selectName: 'अपना नाम चुनें', searchName: 'नाम खोजें…',
     cantReach: 'सर्वर से संपर्क नहीं — इंटरनेट जाँचें और फिर कोशिश करें',
@@ -596,6 +600,7 @@ function updateSyncChip() {
  * nothing. Announced on the transition only — a banner that returns every four
  * seconds is the nagging the chip was already guilty of. */
 let _lastSyncStatus = 'init';
+let _storeFailSaid = false;
 function announceSyncStatus(s) {
   if (s === _lastSyncStatus) return;
   const was = _lastSyncStatus;
@@ -5549,6 +5554,7 @@ function sheetSync() {
       <div class="tiny muted">Changes someone else made on this phone. They are sent when that person signs in here again.</div>` : ''}
       <div class="row between small"><span class="muted">Last reached server</span><b>${i.lastSyncAt ? timeAgo(i.lastSyncAt) : 'never'}</b></div>
       <div class="row between small"><span class="muted">Sync cursor</span><b>rev ${i.lastRev}</b></div>
+      ${i.notStored ? `<div class="row between small"><span class="muted">${esc(t('notStoredRow'))}</span><b style="color:#ef4444">${i.notStored}</b></div>` : ''}
       ${i.lastError ? `<div class="row between small"><span class="muted">Last failure${i.lastErrorAt ? ' · ' + timeAgo(i.lastErrorAt) : ''}</span><b style="color:#ef4444">${esc(i.lastError)}</b></div>` : ''}
     </div>
     ${canSetServer() ? `<label class="field"><span class="lbl">Server URL</span><input id="f-syncurl" value="${esc(i.url)}"></label>
@@ -8817,6 +8823,11 @@ function sheetAddCrew(role) {
 
 async function captureCrewPhoto(fromFile) {
   const s = fromFile ? await uploadDocFile(false) : await capturePhoto(); if (!s) return;
+  // Offline, uploadPhoto returns null and the picture is kept inline so nothing
+  // is lost — but it then rides along in the crew record on every sync, to every
+  // device, for ever. Sync.queuePhoto re-uploads it once there is a connection
+  // and swaps the record over to the hosted URL; it is called in commitNewCrew,
+  // where the record finally has an id.
   _crewShot = await Sync.uploadPhoto(s) || s;
   const p = document.getElementById('crew-prev'); if (p) p.innerHTML = `<img class="thumb" src="${_crewShot}">`;
 }
@@ -8916,6 +8927,11 @@ async function commitNewCrew({ fields, docs }) {
   }, fields);
   await _takeSeat(rec, rec.busId);
   await putCrew(rec, null, 'joined');
+  // A photo taken offline is inline in this record. Hand it to the queue so it
+  // becomes a hosted URL on the next connection: a few hundred KB per crew
+  // member, multiplied by the roster and by every device, is what fills a phone
+  // — and a phone that cannot store a record stops seeing it at all.
+  if (rec.photo && /^data:/i.test(rec.photo) && Sync.queuePhoto) Sync.queuePhoto('drivers', rec.id, 'photo', rec.photo);
   await load(); closeSheet();
   toast(`${rec.name} ${t('cbAdded')}`);
   push({ name: 'drivers', id: rec.id });
@@ -11099,6 +11115,13 @@ function userPhoto(u) { const d = crewForUser(u.id); return (d && d.photo) || nu
       await reconcileJobParts();
       if (S.user && !userIsEditing()) rerender();
       else _renderPending = true;
+    },
+    // A record the phone cannot write is the one sync failure that looks like
+    // nothing at all: the screen is simply missing people other phones can see.
+    onStoreFail: (n) => {
+      if (!n || _storeFailSaid) return;
+      _storeFailSaid = true;
+      if (S.user) toast(t('notStored').replace('{n}', String(n)));
     },
     onConflict: (n) => {
       // Another device changed the same record concurrently (last-write-wins
