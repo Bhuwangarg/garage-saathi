@@ -75,7 +75,10 @@ check("the message names the problem", "storage unavailable" in r.get("error", "
 S._USE_R2 = False
 check("the probe says when R2 is not configured", S.r2_probe() == {"configured": False})
 S._USE_R2 = True
-S._R2_PROBE.update(at=0, ok=None, err=None)
+# Well-formed settings, so the probe gets as far as the network.
+S.R2_ACCOUNT_ID = "a" * 32
+S.R2_BUCKET = "garage-saathi-photos"
+S._R2_PROBE.update(at=0, ok=None, err=None, detail=None)
 
 
 def boom(*a, **k):
@@ -87,6 +90,22 @@ probe = S.r2_probe()
 check("a failing bucket is reported, with the error class only",
       probe.get("configured") is True and probe.get("ok") is False and probe.get("error") == "RuntimeError")
 check("the result is cached", S.r2_probe()["error"] == "RuntimeError")
+S._USE_R2 = False
+
+# A truncated account id is a config mistake, not a network failure.
+S._USE_R2 = True
+S.R2_ACCOUNT_ID = "d5bb2c74d5b53e74e93f19d241327bc"   # 31 chars: one short
+S.R2_BUCKET = "garage-saathi-photos"
+S._R2_PROBE.update(at=0, ok=None, err=None, detail=None)
+p2 = S.r2_probe()
+check("a 31-character account id is named as the problem",
+      p2.get("error") == "config" and "32 hex" in (p2.get("hint") or "") and "31 characters" in p2.get("hint"))
+S.R2_ACCOUNT_ID = "0" * 32
+S._R2_PROBE.update(at=0, ok=None, err=None, detail=None)
+check("a well-formed id is left to the network to judge", S.r2_probe().get("error") != "config")
+S.R2_ACCOUNT_ID = ""
+S._R2_PROBE.update(at=0, ok=None, err=None, detail=None)
+check("a missing account id is named too", "not set" in (S.r2_probe().get("hint") or ""))
 S._USE_R2 = False
 
 print("\nRESULT: " + ("ALL PASS" if not fails else "%d FAILED -> %s" % (len(fails), fails)))

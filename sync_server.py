@@ -535,6 +535,27 @@ def _session_secret():
 _R2_PROBE = {"at": 0.0, "ok": None, "err": None, "detail": None}
 
 
+def r2_config_hint():
+    """Config mistakes that cannot be told apart from a network failure.
+
+    A Cloudflare account id is 32 hex characters and forms the endpoint
+    hostname. One character short — a copy-paste that dropped a digit — points
+    at a host that does not exist, and the TLS handshake is refused: every
+    upload fails with an SSLError that reads like a runtime problem, and did,
+    for months, while /health happily reported the variable as SET."""
+    acct = (R2_ACCOUNT_ID or "").strip()
+    if not acct:
+        return "R2_ACCOUNT_ID is not set"
+    if not re.fullmatch(r"[0-9a-fA-F]{32}", acct):
+        return ("R2_ACCOUNT_ID is %d characters; a Cloudflare account id is 32 hex characters"
+                % len(acct))
+    if not (R2_BUCKET or "").strip():
+        return "R2_BUCKET is not set"
+    if R2_PUBLIC_URL and not R2_PUBLIC_URL.startswith("http"):
+        return "R2_PUBLIC_URL should start with https://"
+    return None
+
+
 def r2_probe(ttl=300):
     """Does the configured bucket actually answer? Cached, and metadata only.
 
@@ -546,6 +567,10 @@ def r2_probe(ttl=300):
     AccessDenied or NoSuchBucket), never a credential."""
     if not _USE_R2:
         return {"configured": False}
+    hint = r2_config_hint()
+    if hint:
+        # No point in a network round trip when the settings cannot work.
+        return {"configured": True, "ok": False, "error": "config", "hint": hint}
     now = time.time()
     if _R2_PROBE["at"] and now - _R2_PROBE["at"] < ttl:
         return {"configured": True, "ok": _R2_PROBE["ok"], "error": _R2_PROBE["err"],
