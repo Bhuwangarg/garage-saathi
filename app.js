@@ -21,6 +21,9 @@ const I18N = {
     sessionEnded: 'Signed out — open Me → Log out, then sign in again to keep syncing',
     notStored: 'This phone could not save {n} record(s) others can see — free up space, then Me → Device & server → Re-download everything',
     notStoredRow: 'Records this phone could not save',
+    photoKept: 'Photo kept on this phone — it will upload when the connection is back',
+    photoNoStore: 'The server cannot store photos right now — the picture stays on this phone. Tell whoever runs the app.',
+    photoSignedOut: 'Signed out, so the photo could not be uploaded — sign in again',
     tagline: 'Garage maintenance, Jaipur', enterPin: 'Enter PIN', wrongPin: 'Wrong PIN', serverWaking: 'Signing in… the server is starting up, this can take a few seconds', loginOff: 'This login has been switched off — speak to the office', pinRetired: 'That PIN no longer works — ask the office for your new PIN',
     recentHere: 'Recent on this phone', whoAreYou: 'Who are you?', selectName: 'Select your name', searchName: 'Search name…',
     cantReach: "Can't reach the server — check internet and try again",
@@ -276,6 +279,9 @@ const I18N = {
     sessionEnded: 'साइन-आउट हो गया — मैं → लॉग आउट करके दोबारा लॉगिन कीजिए, तभी डेटा चलता रहेगा',
     notStored: 'यह फ़ोन {n} रिकॉर्ड सेव नहीं कर पाया जो दूसरों को दिख रहे हैं — जगह खाली कीजिए, फिर मैं → डिवाइस और सर्वर → सब दोबारा डाउनलोड करें',
     notStoredRow: 'जो रिकॉर्ड यह फ़ोन सेव नहीं कर पाया',
+    photoKept: 'फोटो इसी फ़ोन में रखी है — नेट आते ही अपने आप चढ़ जाएगी',
+    photoNoStore: 'सर्वर अभी फोटो नहीं रख पा रहा — तस्वीर इसी फ़ोन में रहेगी। ऐप संभालने वाले को बताइए।',
+    photoSignedOut: 'साइन-आउट होने से फोटो नहीं चढ़ी — दोबारा लॉगिन कीजिए',
     tagline: 'गैराज मरम्मत, जयपुर', enterPin: 'पिन डालें', wrongPin: 'गलत पिन', serverWaking: 'लॉगिन हो रहा है… सर्वर चालू हो रहा है, कुछ सेकंड लग सकते हैं', loginOff: 'यह लॉगिन बंद कर दिया गया है — दफ़्तर से बात करें', pinRetired: 'यह पिन अब नहीं चलेगा — ऑफिस से अपना नया पिन लें',
     recentHere: 'इस फ़ोन पर हाल के', whoAreYou: 'आप कौन हैं?', selectName: 'अपना नाम चुनें', searchName: 'नाम खोजें…',
     cantReach: 'सर्वर से संपर्क नहीं — इंटरनेट जाँचें और फिर कोशिश करें',
@@ -1175,6 +1181,15 @@ async function issuePart({ partId, qty, jobId, reused = false, reusedCost = null
   await DB.put('jobcards', job);
   await load();
   toast(`${reused ? '♻️ ' : ''}Issued ${qty} ${part.unit} → ${busName(job.busId)}`);
+}
+
+// Say why a picture is still sitting on this phone. Called wherever an upload
+// has just returned null, which until now was silent.
+function warnPhotoNotUploaded() {
+  const why = Sync.uploadError ? Sync.uploadError() : '';
+  if (why === 'storage') return toast(t('photoNoStore'));
+  if (why === 'signedout') return toast(t('photoSignedOut'));
+  if (why) return toast(t('photoKept'));
 }
 
 /* The stock ledger is what a job card's parts list is a copy of.
@@ -8655,6 +8670,7 @@ async function saveDriverDoc(driverId, key) {
   // every sync of the crew register. It has to reach the server first.
   const put = async (src) => { const url = await Sync.uploadPhoto(src); return url || (isPdfSrc(src) && /^data:/i.test(src) ? null : src); };
   const photo = await put(_docShot);
+  if (photo && /^data:/i.test(photo)) warnPhotoNotUploaded();
   if (!photo) return toast(t('cbPdfNeedsNet'));
   const entry = { photo, at: Date.now(), by: S.user.id };
   if (_docShotBack) { entry.photoBack = await put(_docShotBack); if (!entry.photoBack) return toast(t('cbPdfNeedsNet')); }
@@ -8828,7 +8844,9 @@ async function captureCrewPhoto(fromFile) {
   // device, for ever. Sync.queuePhoto re-uploads it once there is a connection
   // and swaps the record over to the hosted URL; it is called in commitNewCrew,
   // where the record finally has an id.
-  _crewShot = await Sync.uploadPhoto(s) || s;
+  const up = await Sync.uploadPhoto(s);
+  if (!up) warnPhotoNotUploaded();
+  _crewShot = up || s;
   const p = document.getElementById('crew-prev'); if (p) p.innerHTML = `<img class="thumb" src="${_crewShot}">`;
 }
 

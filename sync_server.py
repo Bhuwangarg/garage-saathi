@@ -522,6 +522,39 @@ def _session_secret():
     return _SECRET
 
 
+_R2_PROBE = {"at": 0.0, "ok": None, "err": None}
+
+
+def r2_probe(ttl=300):
+    """Does the configured bucket actually answer? Cached, and metadata only.
+
+    `r2Vars` on /health only ever said the env vars were SET. Every photo in the
+    system was stored inline as a data URL, which means no upload ever returned
+    a link — and nothing anywhere said why, because the failure is a print()
+    into logs this plan cannot read. One HeadBucket per five minutes answers it
+    from the outside. The error is reported as its class and S3 code (such as
+    AccessDenied or NoSuchBucket), never a credential."""
+    if not _USE_R2:
+        return {"configured": False}
+    now = time.time()
+    if _R2_PROBE["at"] and now - _R2_PROBE["at"] < ttl:
+        return {"configured": True, "ok": _R2_PROBE["ok"], "error": _R2_PROBE["err"]}
+    ok, err = False, None
+    try:
+        _r2_client().head_bucket(Bucket=R2_BUCKET)
+        ok = True
+    except Exception as e:
+        err = type(e).__name__
+        try:
+            code = (getattr(e, "response", None) or {}).get("Error", {}).get("Code")
+            if code:
+                err += ":" + str(code)[:40]
+        except Exception:
+            pass
+    _R2_PROBE.update(at=now, ok=ok, err=err)
+    return {"configured": True, "ok": ok, "error": err}
+
+
 def hash_pin(salt, pin):
     return hashlib.sha256((salt + str(pin)).encode()).hexdigest()
 
@@ -2541,10 +2574,19 @@ def save_upload(data_url, host, proto="http"):
             _r2_client().put_object(Bucket=R2_BUCKET, Key=name, Body=raw, ContentType=ctype)
             return {"url": f"{R2_PUBLIC_URL}/{name}"}
         except Exception as e:
-            print("R2 upload failed, falling back to local disk:", e)
-    os.makedirs(UPLOADS, exist_ok=True)
-    with open(os.path.join(UPLOADS, name), "wb") as f:
-        f.write(raw)
+            print("R2 upload failed:", _redact(e))
+            _R2_PROBE.update(at=time.time(), ok=False, err=type(e).__name__)
+    # Local disk is the fallback, and on a serverless host there is no writable
+    # one: os.makedirs raised OSError, the request became a 500, and the app
+    # quietly kept the picture inside the record instead. Say so rather than
+    # crashing, so the client can tell somebody.
+    try:
+        os.makedirs(UPLOADS, exist_ok=True)
+        with open(os.path.join(UPLOADS, name), "wb") as f:
+            f.write(raw)
+    except OSError as e:
+        print("upload fallback failed:", _redact(e))
+        return {"error": "photo storage unavailable on the server", "storage": True}
     # Must be HTTPS in production: the PWA is served over HTTPS (GitHub Pages), so
     # an http:// image URL is blocked as mixed content and the photo never shows.
     return {"url": f"{proto}://{host}/uploads/{name}"}
@@ -3271,6 +3313,8 @@ class Handler(BaseHTTPRequestHandler):
                                      "r2Vars": {"R2_ACCOUNT_ID": bool(R2_ACCOUNT_ID), "R2_ACCESS_KEY_ID": bool(R2_ACCESS_KEY),
                                                 "R2_SECRET_ACCESS_KEY": bool(R2_SECRET_KEY), "R2_BUCKET": bool(R2_BUCKET),
                                                 "R2_PUBLIC_URL": bool(R2_PUBLIC_URL)},
+                                     # Whether the bucket answers, not just whether it is configured.
+                                     "r2": r2_probe(),
                                      "gpsIngest": _GPS_TOKEN_OK, "gpsLiveRegs": len(LIVE_GPS)})
         if u.path.startswith("/uploads/"):
             name = os.path.basename(u.path)
@@ -3705,7 +3749,8 @@ class Handler(BaseHTTPRequestHandler):
             _proto = (self.headers.get("X-Forwarded-Proto")
                       or ("http" if _host.startswith(("localhost", "127.")) else "https"))
             saved = save_upload(data, _host, _proto)
-            return self._send(400 if "error" in saved else 200, saved)
+            code = 200 if "error" not in saved else (503 if saved.get("storage") else 400)
+            return self._send(code, saved)
 
         if u.path == "/ai":          # server-side Anthropic proxy — keeps the API key OFF devices
             me = self._auth_user()

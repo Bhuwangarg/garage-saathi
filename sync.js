@@ -414,16 +414,30 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
 
   // Upload a captured photo to object storage; returns a URL, or null on failure
   // (caller keeps the inline data URL as an offline fallback).
+  // Why the last upload failed, for the caller to show. Every photo in the
+  // system was stored inline because this returned a bare null: offline, a dead
+  // session and a server that cannot store photos at all were indistinguishable,
+  // so nobody knew there was anything to fix.
+  let lastUploadError = '';
   async function uploadPhoto(dataUrl) {
     try {
       const res = await fetch(baseUrl() + '/upload', {
         method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ data: dataUrl }),
       });
-      if (!res.ok) return null;
+      if (!res.ok) {
+        let j = {}; try { j = await res.json(); } catch (e) { /* ignore */ }
+        lastUploadError = res.status === 401 ? 'signedout'
+          : res.status === 503 ? 'storage'
+          : res.status === 413 ? 'toobig'
+          : (j.error || ('http ' + res.status));
+        return null;
+      }
+      lastUploadError = '';
       return (await res.json()).url || null;
-    } catch (e) { return null; }
+    } catch (e) { lastUploadError = 'offline'; return null; }
   }
+  const uploadError = () => lastUploadError;
 
   // Called by db.js on every LOCAL write.
   function markDirty(store, id) {
@@ -815,6 +829,6 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
   }
 
   return { start, tick, kick, setUrl, reset, info, login, logout, warmUp, roster, pendingIds, addStaff, deleteStaff, renameStaff, registerRoster, setPin, gps, validSyncUrl, backfillContacts, setActor, tokenUser, now, deleteUploads, ai, aiVision, challans, fleet, latest, uploadPhoto,
-           queuePhoto, remove, clearQuarantine, subscribePush, pushTest,
+           queuePhoto, uploadError, remove, clearQuarantine, subscribePush, pushTest,
            get status() { return status; } };
 })();

@@ -65,5 +65,29 @@ check("names outside the generated pattern are never deleted",
       S.delete_uploads(["https://host/uploads/" + "a" * 32 + ".html"]) == 0)
 check("every stored kind has a content type", S.UPLOAD_CTYPES == {"jpg": "image/jpeg", "png": "image/png", "pdf": "application/pdf"})
 
+# A server that cannot store a photo must say so, not crash the request.
+S.UPLOADS = "/proc/nowhere-read-only/uploads"
+r = S.save_upload(durl("image/jpeg", JPEG), "host", "https")
+check("an unwritable store returns an error, not an exception", "error" in r and r.get("storage") is True)
+check("the message names the problem", "storage unavailable" in r.get("error", ""))
+
+# The R2 probe reports configuration without touching credentials.
+S._USE_R2 = False
+check("the probe says when R2 is not configured", S.r2_probe() == {"configured": False})
+S._USE_R2 = True
+S._R2_PROBE.update(at=0, ok=None, err=None)
+
+
+def boom(*a, **k):
+    raise RuntimeError("no network")
+
+
+S._r2_client = boom
+probe = S.r2_probe()
+check("a failing bucket is reported, with the error class only",
+      probe.get("configured") is True and probe.get("ok") is False and probe.get("error") == "RuntimeError")
+check("the result is cached", S.r2_probe()["error"] == "RuntimeError")
+S._USE_R2 = False
+
 print("\nRESULT: " + ("ALL PASS" if not fails else "%d FAILED -> %s" % (len(fails), fails)))
 sys.exit(1 if fails else 0)
