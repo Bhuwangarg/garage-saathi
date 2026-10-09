@@ -3712,6 +3712,32 @@ GPS_INGEST_TOKEN = _read_gps_token()
 _GPS_TOKEN_OK = bool(GPS_INGEST_TOKEN) and "demo" not in GPS_INGEST_TOKEN.lower() and "change-me" not in GPS_INGEST_TOKEN.lower()
 
 
+# Read-only agent keys (operator-agents' passenger agent reads where a bus is).
+# AGENT_KEYS="name:sha256hex,name2:sha256hex" holds only digests; the key itself
+# lives with the agent. Revoke a key by deleting its entry. Read on every request,
+# so a serverless instance sees a change without a redeploy of the code.
+def agent_keys():
+    keys = {}
+    for item in os.environ.get("AGENT_KEYS", "").split(","):
+        name, _, digest = item.strip().partition(":")
+        digest = digest.strip().lower()
+        if name and len(digest) == 64 and all(ch in "0123456789abcdef" for ch in digest):
+            keys[name.strip()] = digest
+    return keys
+
+
+def agent_for(header):
+    """The agent's name for `Authorization: Agent <key>`, or None. Only /gps/latest
+    and /gps/fleet ever ask; no other route knows this principal."""
+    if not header or not header.startswith("Agent "):
+        return None
+    digest = hashlib.sha256(header[6:].strip().encode()).hexdigest()
+    for name, expected in agent_keys().items():
+        if hmac.compare_digest(digest, expected):
+            return name
+    return None
+
+
 _REG_RX = re.compile(r"^([A-Z]{2})(\d{1,2})([A-Z]{1,3})(\d{1,4})$")
 
 
@@ -4943,15 +4969,21 @@ class Handler(BaseHTTPRequestHandler):
             # app uses a session. Anyone else gets nothing.
             prov = _GPS_TOKEN_OK and hmac.compare_digest(
                 self.headers.get("Authorization", ""), "Bearer " + GPS_INGEST_TOKEN)
-            if not prov and not self._auth_user():
+            agent = agent_for(self.headers.get("Authorization", ""))
+            if not prov and not agent and not self._auth_user():
                 return self._send(401, {"error": "unauthorized"})
+            if agent:
+                print("[gps] agent:%s %s" % (agent, u.path), flush=True)
             reg = (parse_qs(u.query).get("reg") or [""])[0]
             _gps_hydrate()
             data = LIVE_GPS.get(norm_reg(reg))
             return self._send(200 if data else 404, data or {"error": "no telemetry for reg"})
         if u.path == "/gps/fleet":                    # every registration AirFi has pushed
-            if not self._auth_user():
+            agent = agent_for(self.headers.get("Authorization", ""))
+            if not agent and not self._auth_user():
                 return self._send(401, {"error": "unauthorized"})
+            if agent:
+                print("[gps] agent:%s %s" % (agent, u.path), flush=True)
             _gps_hydrate()
             buses = [{"reg": v.get("reg") or k, "odometer": v.get("odometer"), "lastPing": v.get("lastPing"),
                       "lat": v.get("lat"), "lng": v.get("lng"), "speedKph": v.get("speedKph"), "ignition": v.get("ignition")}

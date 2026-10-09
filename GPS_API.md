@@ -100,6 +100,25 @@ just send a sample response and we'll map it — no change needed on your side.
 - Push uses a dedicated **Bearer token** (separate from app user auth); rotated on request.
 - We can also IP-allowlist your egress addresses — send us the ranges.
 
+## Read-only agent keys (for Mahalaxmi's own agents, not for AirFi)
+
+The passenger agent (operator-agents) reads where a bus is with its own key. An agent key works on exactly two
+endpoints, `GET /gps/latest?reg=…` and `GET /gps/fleet`. It never signs anyone in, never appears in `/roster`, and
+cannot use `/pull`, `/push`, `/upload` or `/auth/*`. Each agent request is logged as `agent:<name>`.
+
+**Mint a key** (on any computer with Python):
+
+```bash
+python3 -c "import secrets, hashlib; k = secrets.token_urlsafe(32); print(k); print(hashlib.sha256(k.encode()).hexdigest())"
+```
+
+The first line is the key; the second is its digest.
+
+1. In Vercel (garage-saathi-sync → Settings → Environment Variables), set `AGENT_KEYS` to `operator-agents:<digest>`.
+   Several agents are comma-separated: `name1:<digest1>,name2:<digest2>`. Only digests are stored here.
+2. Give the key itself to operator-agents as `GS_AGENT_KEY`. It sends `Authorization: Agent <key>`.
+3. To revoke a key, delete its entry from `AGENT_KEYS`. It stops working on the next request.
+
 ## What we need from you to finalise
 1. Which mode you prefer — **Push** or **Pull**.
 2. A **sample telemetry payload** from one live tracker (so we confirm field mapping).
