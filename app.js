@@ -21,6 +21,9 @@ const I18N = {
     sessionEnded: 'Signed out — open Me → Log out, then sign in again to keep syncing',
     notStored: 'This phone could not save {n} record(s) others can see — free up space, then Me → Device & server → Re-download everything',
     notStoredRow: 'Records this phone could not save',
+    aiInsights: 'AI Insights', aiInsightsSub: 'Pilferage radar, cost savings & the advisor',
+    aiFooter: 'Answered by Claude, through your own server — ask about costs, a bus, a mechanic or a month.',
+    aiAsk60: '60 questions a day each.',
     aiServerOn: 'AI advisor: set up on the server — everyone signed in can use it',
     aiServerOff: 'AI advisor: not set up on the server. Set ANTHROPIC_API_KEY in the hosting settings and it works for everybody, on every phone.',
     aiDeviceKey: 'Key for this phone only (testing)', aiDeviceKeyHint: 'A key typed here is stored on this phone and used only here. The server key above is the one that serves everybody.',
@@ -306,6 +309,9 @@ const I18N = {
     sessionEnded: 'साइन-आउट हो गया — मैं → लॉग आउट करके दोबारा लॉगिन कीजिए, तभी डेटा चलता रहेगा',
     notStored: 'यह फ़ोन {n} रिकॉर्ड सेव नहीं कर पाया जो दूसरों को दिख रहे हैं — जगह खाली कीजिए, फिर मैं → डिवाइस और सर्वर → सब दोबारा डाउनलोड करें',
     notStoredRow: 'जो रिकॉर्ड यह फ़ोन सेव नहीं कर पाया',
+    aiInsights: 'AI विश्लेषण', aiInsightsSub: 'चोरी की पकड़, खर्च की बचत, और सलाहकार',
+    aiFooter: 'जवाब क्लॉड देता है, आपके अपने सर्वर से — खर्च, किसी बस, किसी मैकेनिक या किसी महीने के बारे में पूछिए।',
+    aiAsk60: 'हर आदमी को रोज़ 60 सवाल।',
     aiServerOn: 'AI सलाहकार: सर्वर पर लगा है — जो भी लॉगिन करेगा उसे मिलेगा',
     aiServerOff: 'AI सलाहकार: सर्वर पर नहीं लगा। होस्टिंग सेटिंग में ANTHROPIC_API_KEY डालिए, फिर हर फ़ोन पर सबके लिए चलेगा।',
     aiDeviceKey: 'सिर्फ़ इसी फ़ोन की कुंजी (टेस्टिंग)', aiDeviceKeyHint: 'यहाँ डाली कुंजी इसी फ़ोन में रहती है और यहीं चलती है। सबके लिए सर्वर वाली कुंजी ही काम आती है।',
@@ -2340,6 +2346,23 @@ function inShopCard(inShop, limit, allLink) {
   return card + `</div>`;
 }
 
+/* The way in to AI Insights and the advisor.
+ *
+ * This card existed only in the fallback branch of viewHome(), which no role
+ * reaches: owner and supervisor both return to their own home screens several
+ * lines earlier. So the whole screen — the pilferage radar, the cost findings,
+ * and "Ask the advisor" — had no entry point anywhere in the app from the day
+ * the two home screens were split, and the only way in was a saved link. */
+function aiInsightsCard() {
+  const n = computeInsights().length;
+  return `<div class="card aibanner" data-act="openInsights">
+    <div class="ai-ic">✨</div>
+    <div style="flex:1"><div class="t" style="font-weight:800">${esc(t('aiInsights'))}</div>
+      <div class="tiny" style="opacity:.85">${esc(t('aiInsightsSub'))}</div></div>
+    <span class="badge ${n ? 'b-red' : 'b-green'}">${n}</span>
+  </div>`;
+}
+
 function viewOwnerHome() {
   const cost30 = costLast30();
   const prev30 = (() => {
@@ -2381,6 +2404,8 @@ function viewOwnerHome() {
   body += triageCard(rows);
   body += gateHomeSummaryCard();
   body += reviewsHomeCard();
+
+  body += aiInsightsCard();
 
   body += inShopCard(inShopJobs(), 3, true);
 
@@ -2452,6 +2477,8 @@ function viewSupervisorHome() {
         <span>${esc(u.name)}</span><b style="color:${n > 4 ? 'var(--red)' : 'var(--text)'}">${n}</b></div>`).join('');
     body += `</div>`;
   }
+
+  body += aiInsightsCard();
 
   shell(t('today'), body);
 }
@@ -10575,7 +10602,10 @@ function viewInsights() {
     <div class="row" style="gap:8px"><input id="ai-q" placeholder="e.g. How do I cut my brake costs?">
       <button class="btn sm primary" data-act="askAi" style="width:auto">Ask</button></div>
     <div id="ai-ans" class="small" style="margin-top:11px"></div>
-    <div class="tiny muted" style="margin-top:6px">Powered by Claude (Haiku). Add your API key in Me → Sync.</div></div>`;
+    <!-- This used to tell every reader to put an API key on their phone. The
+         key belongs on the server, where one of them serves everybody; the
+         device box is testing only. -->
+    <div class="tiny muted" style="margin-top:6px" id="ai-foot">${esc(t('aiFooter'))}</div></div>`;
 
   body += items.length ? items.map(insightCard).join('') : `<div class="empty">✅ No issues found — running clean.</div>`;
   shell('AI Insights', body);
