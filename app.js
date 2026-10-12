@@ -9029,7 +9029,12 @@ function viewDriverDocs(driverId) {
       : numOnly ? `${numMask}<br><span style="color:#f59e0b">${t('cbPhotoNeeded')}</span>` : (mand ? t('cbRequired') : t('cbAddWord'));
     return `<div class="doccard ${cls}" data-act="driverDoc" data-driver="${esc(d.id)}" data-key="${esc(doc.key)}" style="animation-delay:${Math.min(i, 8) * 0.05}s">
       ${has ? '<div class="dtick">✅</div>' : ''}
-      <div class="dicon">${doc.icon}</div>
+      ${has && !isPdfSrc(cur.photo)
+        // The card said "on file" and showed the same grey icon as an empty one,
+        // so the only way to see what had been photographed was to open all six.
+        // The picture is the most useful thing the card can show.
+        ? `<img class="dthumb" src="${esc(cur.photo)}" alt="" loading="lazy">`
+        : `<div class="dicon">${has ? '📄' : doc.icon}</div>`}
       <div class="dname">${esc(docLabel(doc))}</div>
       <div class="dstat" style="${has ? 'color:var(--muted,#8b91a0)' : 'color:' + (mand ? '#ef4444' : '#8b91a0')}">${stat}</div>
       ${mand && !has ? `<div class="mand">${t('cbMandTag')}</div>` : ''}</div>`;
@@ -9747,18 +9752,23 @@ async function reconcileStaffNames(user) {
   try {
     const server = await Sync.roster();
     if (!server.length) return;
-    const mine = new Map((await DB.all('users')).map((u) => [u.id, u]));
+    const mine = new Map((await DB._rawAll('users')).map((u) => [u.id, u]));
     for (const s of server) {
       const u = mine.get(s.id);
-      if (!u || u._deleted) continue;             // deleted accounts are not renamed
-      const want = String(u.name || '').trim();
-      if (!want || want === s.name) continue;
-      await Sync.renameStaff(s.id, want);
-      console.info('name reconciled on server: ' + s.name + ' -> ' + want);
+      if (!u || u._deleted) continue;             // deleted accounts are left alone
+      const want = String(s.name || '').trim();
+      if (!want || want === String(u.name || '').trim()) continue;
+      // The server's name wins. This used to push the LOCAL name up instead,
+      // which meant any device still holding the old one could quietly undo a
+      // rename made on another phone. Written raw — no dirty flag, no push —
+      // because the authoritative record arrives through the next pull; this
+      // only stops the login screen showing yesterday's name until it does.
+      await DB.putRaw('users', Object.assign({}, u, { name: want }));
+      console.info('name taken from the server: ' + u.name + ' -> ' + want);
     }
   } catch (e) {
-    // Offline, or this account may not rename. Neither is worth a message:
-    // the name on screen is already right, and this only tidies the server.
+    // Offline, or the roster is unavailable. The name on screen is whatever
+    // this device last synced, which is the right fallback.
   }
 }
 

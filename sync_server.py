@@ -604,8 +604,19 @@ def now_ms():
 
 
 def _upsert_record(c, store, rid, data, updated, base_rev):
-    """Insert/update a record with a fresh rev. Returns the new rev."""
+    """Insert/update a record with a fresh rev. Returns the new rev.
+
+    The payload carries the timestamp too, because that is the one devices
+    compare: pullPage() applies a record only when `data.updatedAt` beats the
+    copy it already holds. Server-side writes built their payload by hand and
+    mostly forgot it — so a rename, a lastLoginAt or a tombstone bumped the
+    envelope, the device judged the record "not newer", and the change was
+    invisible on every phone that already had the record. One rename went
+    through to the server and stayed hidden on the floor for a day. Stamped
+    here rather than at each call site, so the next one cannot forget."""
     rev = base_rev + 1
+    if isinstance(data, dict) and (data.get("updatedAt") or 0) < updated:
+        data["updatedAt"] = updated
     c.execute("""INSERT INTO records(store,id,data,updatedAt,rev) VALUES(?,?,?,?,?)
                  ON CONFLICT(store,id) DO UPDATE SET
                    data=excluded.data, updatedAt=excluded.updatedAt, rev=excluded.rev""",

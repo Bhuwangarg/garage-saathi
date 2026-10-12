@@ -251,7 +251,26 @@ textarea{min-height:76px;resize:vertical}
 .li:last-child{border-bottom:none}
 .li .ava{width:46px;height:46px;border-radius:14px;background:var(--tile);display:grid;place-items:center;
   font-size:21px;flex:none}
+/* Every avatar, not only the ones in a list row.
+ *
+ * The size lived on `.li .ava`, so an avatar anywhere else had none: the login
+ * screen's "recent on this phone" tile renders <img class="ava"> and a crew
+ * photo came out at its natural 1200x500, bursting the tile and scrolling the
+ * login screen sideways. The crew profile's avatar sits outside a row too, and
+ * without a positioned ancestor the photo stretched to 390x1176 — one portrait
+ * picture taking a whole screen apart. A default size and a positioning
+ * context here; the places that want another size still set their own. */
+.ava{width:46px;height:46px;border-radius:14px;flex:none;position:relative;overflow:hidden}
 img.ava{object-fit:cover}
+/* A photo inside an avatar box.
+ *
+ * The markup sets width/height:100% inline (in some eighty places). On a
+ * CENTRED grid item a percentage height has nothing definite to resolve
+ * against, so it fell back to the image's own proportions: a portrait crew
+ * photo rendered 46x69, spilled out of its rounded frame and pushed its whole
+ * row out of line with the rows above and below. Anchoring the image to the
+ * box's edges needs no percentage at all, and works at both avatar sizes. */
+.ava > img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:inherit;display:block}
 .li .main{flex:1;min-width:0}
 .li .main .t{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:-.2px}
 .li .main .s{font-size:12.5px;color:var(--muted);margin-top:1px}
@@ -332,6 +351,10 @@ img.ava{object-fit:cover}
 .doccard.missing{border-style:dashed;border-color:#ef4444}
 .doccard .dicon{width:54px;height:54px;border-radius:16px;display:grid;place-items:center;font-size:27px;margin:0 auto 8px;background:var(--tile,#f1f3f8)}
 .doccard.done .dicon{background:rgba(22,165,113,.14)}
+/* The document itself, in the same box the icon used: same size, same rhythm,
+ * so a grid of six cards stays a grid whether or not they have been filled. */
+.doccard .dthumb{width:54px;height:54px;border-radius:16px;object-fit:cover;display:block;margin:0 auto 8px;
+  background:var(--tile,#f1f3f8);border:1px solid var(--line2)}
 .doccard .dname{font-weight:700;font-size:13px;line-height:1.2}
 .doccard .dstat{font-size:11px;margin-top:4px}
 .doccard .dtick{position:absolute;top:8px;right:9px;font-size:15px;animation:tickpop .4s cubic-bezier(.22,1.4,.4,1) both}
