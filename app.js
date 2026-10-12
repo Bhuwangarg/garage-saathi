@@ -22,6 +22,8 @@ const I18N = {
     notStored: 'This phone could not save {n} record(s) others can see — free up space, then Me → Device & server → Re-download everything',
     notStoredRow: 'Records this phone could not save',
     photoKept: 'Photo kept on this phone — it will upload when the connection is back',
+    noBusesHere: 'No buses on this phone yet', noBusesFix: 'Me → Device & server → Re-download everything',
+    onThisPhone: 'On this phone', busesWord: 'buses', crewWord: 'crew',
     tidyTitle: 'Pictures kept inside records', tidyFound: 'photo(s) waiting to be uploaded',
     tidyBtn: 'Upload them now', tidyWorking: 'Uploading', tidyDone: 'Done — uploaded',
     tidyNone: 'Nothing to upload — every picture is on the server',
@@ -285,6 +287,8 @@ const I18N = {
     notStored: 'यह फ़ोन {n} रिकॉर्ड सेव नहीं कर पाया जो दूसरों को दिख रहे हैं — जगह खाली कीजिए, फिर मैं → डिवाइस और सर्वर → सब दोबारा डाउनलोड करें',
     notStoredRow: 'जो रिकॉर्ड यह फ़ोन सेव नहीं कर पाया',
     photoKept: 'फोटो इसी फ़ोन में रखी है — नेट आते ही अपने आप चढ़ जाएगी',
+    noBusesHere: 'इस फ़ोन पर अभी कोई बस नहीं है', noBusesFix: 'मैं → डिवाइस और सर्वर → सब दोबारा डाउनलोड करें',
+    onThisPhone: 'इस फ़ोन पर', busesWord: 'बसें', crewWord: 'स्टाफ़',
     tidyTitle: 'रिकॉर्ड के अंदर पड़ी तस्वीरें', tidyFound: 'फोटो चढ़नी बाकी हैं',
     tidyBtn: 'अभी चढ़ाएँ', tidyWorking: 'चढ़ाई जा रही हैं', tidyDone: 'हो गया — चढ़ गईं',
     tidyNone: 'कुछ बाकी नहीं — सारी तस्वीरें सर्वर पर हैं',
@@ -5669,6 +5673,9 @@ function sheetSync() {
       <div class="tiny muted">Changes someone else made on this phone. They are sent when that person signs in here again.</div>` : ''}
       <div class="row between small"><span class="muted">Last reached server</span><b>${i.lastSyncAt ? timeAgo(i.lastSyncAt) : 'never'}</b></div>
       <div class="row between small"><span class="muted">Sync cursor</span><b>rev ${i.lastRev}</b></div>
+      <!-- Two numbers answer "is this phone missing things other phones have?"
+           without anyone having to describe a screen over the telephone. -->
+      <div class="row between small"><span class="muted">${esc(t('onThisPhone'))}</span><b>${(S.cache.buses || []).length} ${esc(t('busesWord'))} · ${(S.cache.drivers || []).length} ${esc(t('crewWord'))}</b></div>
       ${i.notStored ? `<div class="row between small"><span class="muted">${esc(t('notStoredRow'))}</span><b style="color:#ef4444">${i.notStored}</b></div>` : ''}
       ${i.lastError ? `<div class="row between small"><span class="muted">Last failure${i.lastErrorAt ? ' · ' + timeAgo(i.lastErrorAt) : ''}</span><b style="color:#ef4444">${esc(i.lastError)}</b></div>` : ''}
     </div>
@@ -7647,7 +7654,8 @@ function viewAssignments() {
   if (byBus) {
     const fleet = [...buses].sort((a, b) => String(a.regNo).localeCompare(String(b.regNo), undefined, { numeric: true }));
     body += `<div class="card" id="as-bybus"><div class="row between"><h3>🚌 ${esc(t('buses'))}</h3><span class="badge b-low">${fleet.length}</span></div>`;
-    body += fleet.length ? fleet.map(dutyBusRow).join('') : `<div class="empty">${t('asNobodyYet')}</div>`;
+    body += fleet.length ? fleet.map(dutyBusRow).join('')
+      : `<div class="empty">🚌 ${esc(t('noBusesHere'))}<div class="tiny muted" style="margin-top:6px">${esc(t('noBusesFix'))}</div></div>`;
     body += `</div>`;
     shell(t('asTitle'), body);
     attachSearch('as-search', ['as-bybus']);
@@ -7663,7 +7671,8 @@ function viewAssignments() {
   body += `</div>`;
   const empty = buses.filter((b) => !seatOf(b.id));
   body += `<div class="card" id="as-buses"><div class="row between"><h3>${t(role === 'conductor' ? 'asBusesNoConductor' : 'asBusesNoDriver')}</h3><span class="badge ${empty.length ? 'b-amber' : 'b-green'}">${empty.length}</span></div>`;
-  body += empty.length ? empty.map((b) => `<div class="li" data-act="assignDriver" data-bus="${esc(b.id)}" data-role="${esc(role)}" style="cursor:pointer"><div class="ava">🚌</div>
+  if (!buses.length) body += `<div class="empty">🚌 ${esc(t('noBusesHere'))}<div class="tiny muted" style="margin-top:6px">${esc(t('noBusesFix'))}</div></div>`;
+  else body += empty.length ? empty.map((b) => `<div class="li" data-act="assignDriver" data-bus="${esc(b.id)}" data-role="${esc(role)}" style="cursor:pointer"><div class="ava">🚌</div>
     <div class="main"><div class="t">${esc(b.regNo)}</div><div class="s">${esc(b.company || '')} · ${esc(b.model || '')}</div></div>
     <span class="badge b-amber">${t('asAssignWord')} →</span></div>`).join('') : `<div class="muted small">${t(role === 'conductor' ? 'asAllHaveConductor' : 'asAllHaveDriver')}</div>`;
   body += `</div>`;
@@ -9495,6 +9504,13 @@ function driverSlotField(busId, slot, auto) {
 }
 function sheetAssignBus(driverId) {
   const d = driverById(driverId), buses = S.cache.buses;
+  // An empty dropdown is indistinguishable from "this garage has no buses". It
+  // means this phone never received the bus records — the usual cause is a full
+  // phone, which stops records being stored at all.
+  if (!buses.length) {
+    return openSheet('Assign bus', `<div class="banner warn">🚌 ${esc(t('noBusesHere'))}</div>
+      <div class="small muted">${esc(t('noBusesFix'))}</div>`);
+  }
   openSheet('Assign bus', `<label class="field"><span class="lbl">Bus for ${esc(d.name)}</span>
     <select id="f-abus"><option value="">— unassigned —</option>${buses.map((b) => `<option value="${b.id}" ${b.id === d.busId ? 'selected' : ''}>${esc(b.regNo)}</option>`).join('')}</select></label>
     ${crewRoleOf(d) === 'driver' ? driverSlotField(null, null, true) : ''}
