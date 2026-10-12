@@ -40,7 +40,7 @@ const I18N = {
     onThisPhone: 'On this phone', busesWord: 'buses', crewWord: 'crew',
     tidyTitle: 'Pictures kept inside records', tidyFound: 'photo(s) waiting to be uploaded',
     tidyBtn: 'Upload them now', tidyWorking: 'Uploading', tidyDone: 'Done — uploaded',
-    tidyNone: 'Nothing to upload — every picture is on the server',
+    tidyNone: 'Nothing to upload — every picture is on the server', tidyLeft: 'still to go — run it again',
     tidyStopped: 'Stopped — the server would not take the next picture. Try again later.',
     tidyHint: 'Older photos were saved inside the records themselves, so every phone carries them. This uploads each one and leaves a link behind.',
     photoNoStore: 'The server cannot store photos right now — the picture stays on this phone. Tell whoever runs the app.',
@@ -319,7 +319,7 @@ const I18N = {
     onThisPhone: 'इस फ़ोन पर', busesWord: 'बसें', crewWord: 'स्टाफ़',
     tidyTitle: 'रिकॉर्ड के अंदर पड़ी तस्वीरें', tidyFound: 'फोटो चढ़नी बाकी हैं',
     tidyBtn: 'अभी चढ़ाएँ', tidyWorking: 'चढ़ाई जा रही हैं', tidyDone: 'हो गया — चढ़ गईं',
-    tidyNone: 'कुछ बाकी नहीं — सारी तस्वीरें सर्वर पर हैं',
+    tidyNone: 'कुछ बाकी नहीं — सारी तस्वीरें सर्वर पर हैं', tidyLeft: 'अभी बाकी — दोबारा चलाइए',
     tidyStopped: 'रुक गया — सर्वर अगली तस्वीर नहीं ले रहा। बाद में दोबारा कीजिए।',
     tidyHint: 'पुरानी फोटो रिकॉर्ड के अंदर ही सेव हुई थीं, इसलिए हर फ़ोन उन्हें ढोता है। यह हर फोटो को सर्वर पर चढ़ाकर उसकी जगह लिंक रख देता है।',
     photoNoStore: 'सर्वर अभी फोटो नहीं रख पा रहा — तस्वीर इसी फ़ोन में रहेगी। ऐप संभालने वाले को बताइए।',
@@ -1285,21 +1285,35 @@ async function inlineMediaScan() {
 
 /* Upload each one and leave a link in its place. Sequential on purpose: this
  * runs on a phone, often on mobile data, and a burst of 4 MB posts is how you
- * get a stalled screen and a part-finished job. Stops after three refusals in
- * a row so a server that cannot store photos is not hammered. */
+ * get a stalled screen and a part-finished job.
+ *
+ * A single refusal is not a reason to stop: on the first real run it gave up
+ * after three in a row, with 39 pictures moved and 78 left behind, and nothing
+ * on screen said there was anything left to do. Each upload is retried once,
+ * a failure moves on to the next picture, and only a long run of refusals (the
+ * server is down, or the connection is gone) ends the job early. */
+const REPAIR_GIVE_UP = 8;            // consecutive refusals that mean "not now"
+const REPAIR_MAX_BYTES = 3.6 * 1024 * 1024;   // beyond the server's upload cap
 async function repairInlineMedia(onProgress) {
   const todo = await inlineMediaScan();
   const total = todo.reduce((n, x) => n + x.hits, 0);
-  let done = 0, failed = 0, misses = 0;
+  let done = 0, failed = 0, tooBig = 0, misses = 0;
   for (const item of todo) {
     const rec = await (DB._rawGet ? DB._rawGet(item.store, item.id) : DB.get(item.store, item.id));
     if (!rec) continue;
     let changed = false;
     for (const [path, dataUrl] of inlineMediaIn(rec)) {
-      const url = await Sync.uploadPhoto(dataUrl);
+      // One the server will refuse anyway: counted and left alone rather than
+      // spent out of the retry budget.
+      if (dataUrl.length * 0.75 > REPAIR_MAX_BYTES) { tooBig++; continue; }
+      let url = await Sync.uploadPhoto(dataUrl);
+      if (!url) {
+        await new Promise((r) => setTimeout(r, 800));
+        url = await Sync.uploadPhoto(dataUrl);     // one retry: phone networks blink
+      }
       if (!url) {
         failed++; misses++;
-        if (misses >= 3) { if (changed) await DB.put(item.store, rec); return { total, done, failed, stopped: true }; }
+        if (misses >= REPAIR_GIVE_UP) { if (changed) await DB.put(item.store, rec); return { total, done, failed, tooBig, stopped: true }; }
         continue;
       }
       misses = 0; done++; changed = true;
@@ -1310,7 +1324,7 @@ async function repairInlineMedia(onProgress) {
     // one per picture.
     if (changed) await DB.put(item.store, rec);
   }
-  return { total, done, failed, stopped: false };
+  return { total, done, failed, tooBig, stopped: false };
 }
 
 async function tidyPhotos() {
@@ -1321,11 +1335,18 @@ async function tidyPhotos() {
   const r = await repairInlineMedia((n, total) => {
     if (btn) btn.textContent = `${t('tidyWorking')} ${n}/${total}…`;
   });
-  if (out) out.textContent = r.stopped ? t('tidyStopped') : `${t('tidyDone')} ${r.done}`;
-  if (btn) { btn.disabled = false; btn.textContent = t('tidyBtn'); }
   await load();
-  toast(r.stopped ? t('tidyStopped') : `${t('tidyDone')} ${r.done}`);
-  if (!r.stopped && !r.failed) { const row = document.getElementById('tidy-row'); if (row) row.remove(); }
+  // What is LEFT is the number worth showing: the first run moved 39 and left
+  // 78, said "Done — uploaded 39", and looked finished.
+  const left = (await inlineMediaScan()).reduce((n, f) => n + f.hits, 0);
+  const msg = left
+    ? `${t('tidyDone')} ${r.done} · ${left} ${t('tidyLeft')}`
+    : `${t('tidyDone')} ${r.done}`;
+  if (out) out.textContent = r.stopped ? `${t('tidyStopped')} · ${left} ${t('tidyLeft')}` : msg;
+  const badge = document.getElementById('tidy-count'); if (badge) badge.textContent = String(left);
+  if (btn) { btn.disabled = false; btn.textContent = t('tidyBtn'); }
+  toast(r.stopped ? t('tidyStopped') : msg);
+  if (!left) { const row = document.getElementById('tidy-row'); if (row) row.remove(); }
 }
 
 // Say why a picture is still sitting on this phone. Called wherever an upload
