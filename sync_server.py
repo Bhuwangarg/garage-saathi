@@ -2163,15 +2163,35 @@ _DRIVER_PRIVATE = ("phone", "altPhone", "address", "dob", "bloodGroup", "license
                    "docs", "salaryMonthly")
 
 
+# Live-GPS history. Every screen that reads it looks back 7 days at most (the
+# safety screen, the insight cards, a bus's recent events) and only owner and
+# supervisor can open any of them — but the table had grown past 42,000 rows and
+# /pull handed every one to every device. A phone re-downloading the fleet spent
+# its evening on telemetry nobody would ever look at, which is most of what
+# "it keeps loading" was.
+GPS_HISTORY_ROLES = ("owner", "supervisor")
+GPS_HISTORY_MS = int(os.environ.get("GPS_HISTORY_DAYS", "30")) * 86400000
+
+
 def redact_for(actor, rec):
     """The copy of a record this actor is allowed to receive, or None to omit it.
 
     /pull used to hand every authenticated role the whole table, so a conductor's
     login could download every colleague's Aadhaar and licence numbers, document
     photos, phone numbers and salary. The client hid them; the server did not."""
+    st, d = rec["store"], rec["data"]
+    # Checked before the PII_ROLES shortcut: this is about volume, and it
+    # applies to the owner's phone as much as anyone's. Omitted records still
+    # count as sent — pull() takes its cursor before redaction — so the client
+    # does not ask for them again.
+    if st == "gpsevents":
+        if (actor or {}).get("role") not in GPS_HISTORY_ROLES:
+            return None
+        if isinstance(d, dict) and (d.get("at") or 0) < now_ms() - GPS_HISTORY_MS:
+            return None
+        return rec
     if not actor or actor.get("role") in PII_ROLES:
         return rec
-    st, d = rec["store"], rec["data"]
     if not isinstance(d, dict):
         return rec
     if st == "waconv":                    # keyed by a crew member's phone number
