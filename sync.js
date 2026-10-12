@@ -29,6 +29,14 @@ const Sync = (function () {
                   // the way back. Synced because the pass is issued on the
                   // supervisor's phone and often closed on somebody else's.
                   'gatepasses',
+                  // The garage's own settings: labour rate, late cutoff and its
+                  // penalty, the geofence, the business name. They decide what a
+                  // job COSTS, and they lived on one phone — every other device
+                  // fell back to the built-in ₹250/hr and showed a different
+                  // labour cost, job total and ₹/km for the same card. Only the
+                  // `garage` row travels; `seeded` is this device's own business
+                  // (see markDirty).
+                  'meta',
                   // Server-ingest only, like gpsevents: written by the /challans
                   // proxy, pulled by every device, never pushed. Without it here the
                   // same mistake as the four above repeats — one phone sweeps the
@@ -440,8 +448,15 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
   const uploadError = () => lastUploadError;
 
   // Called by db.js on every LOCAL write.
+  // A record's own key path. Nearly every store is keyed by `id`; `meta` is
+  // keyed by `key` and `challans` by the registration.
+  const keyField = (store) => (store === 'meta' ? 'key' : store === 'challans' ? 'rc' : 'id');
   function markDirty(store, id) {
     if (!STORES.includes(store)) return;
+    // The seed flag records that THIS device has loaded the bundled data. It
+    // means nothing anywhere else, and syncing it would tell a fresh phone it
+    // had already seeded.
+    if (store === 'meta' && id !== 'garage') return;
     const key = store + '|' + id;
     outbox.add(key);
     if (actor) outboxBy[key] = actor;
@@ -678,7 +693,7 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
       // server authorised. A mismatch would overwrite some OTHER record; a
       // non-object cannot be stored at all and would stall the cursor forever.
       if (typeof r.data !== 'object' || Array.isArray(r.data)) continue;
-      const kp = r.store === 'challans' ? 'rc' : 'id';
+      const kp = keyField(r.store);
       if (String(r.data[kp]) !== String(r.id)) continue;
       const key = r.store + '|' + r.id;
       const local = (DB._rawGet ? await DB._rawGet(r.store, r.id) : await DB.get(r.store, r.id));

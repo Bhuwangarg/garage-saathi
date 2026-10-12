@@ -58,5 +58,30 @@ check("a driver still gets one, redacted", (S.redact_for(DRIVER, crew) or {}).ge
 bus = {"store": "buses", "id": "b1", "data": {"id": "b1", "regNo": "RJ14 PA 1023"}}
 check("a crew manager still gets buses", S.redact_for(CREWMGR, bus) is not None)
 
+print("The same rule now covers the other trails that grow for ever")
+
+
+def row(store, age_days, extra=None):
+    d = {"id": "x-%s" % age_days, "at": S.now_ms() - int(age_days * 86400000)}
+    if extra:
+        d.update(extra)
+    return {"store": store, "id": d["id"], "data": d}
+
+
+check("a stop arrival from last week is sent", S.redact_for(OWNER, row("triplog", 7)) is not None)
+check("one from two years ago is not", S.redact_for(OWNER, row("triplog", 730)) is None)
+check("a driver still gets recent stop arrivals", S.redact_for(DRIVER, row("triplog", 7)) is not None)
+check("a stock move from last month is sent to the store", S.redact_for(STORE, row("stockmoves", 30)) is not None)
+check("a driver's phone no longer downloads the stock ledger", S.redact_for(DRIVER, row("stockmoves", 30)) is None)
+check("usage rows are for the owner only", S.redact_for(OWNER, row("usage", 10)) is not None
+      and S.redact_for(STORE, row("usage", 10)) is None)
+check("a usage row is dated by lastAt when it has no `at`",
+      S.redact_for(OWNER, {"store": "usage", "id": "u1", "data": {"id": "u1", "lastAt": S.now_ms()}}) is not None)
+check("a seat change from last year is still sent (duty history is looked up by date)",
+      S.redact_for(OWNER, row("dutylog", 300)) is not None)
+check("one from three years ago is not", S.redact_for(OWNER, row("dutylog", 1100)) is None)
+check("a job card is never trimmed by age", S.redact_for(OWNER, row("jobcards", 2000)) is not None)
+check("nor a crew record", S.redact_for(OWNER, row("drivers", 2000)) is not None)
+
 print("\nRESULT: " + ("ALL PASS" if not fails else "%d FAILED -> %s" % (len(fails), fails)))
 sys.exit(1 if fails else 0)

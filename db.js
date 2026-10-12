@@ -121,7 +121,11 @@ const DB = {
   async put(store, obj) {
     obj.updatedAt = Date.now();
     await this._write(store, obj);
-    if (typeof DB.onChange === 'function') DB.onChange(store, obj.id);
+    // By the store's OWN key path. This said obj.id, which is right for nearly
+    // every store and silently wrong for the two that are not keyed that way:
+    // a `meta` row (keyed by `key`) reported an id of undefined, so the garage
+    // settings could never enter the outbox even once the store was synced.
+    if (typeof DB.onChange === 'function') DB.onChange(store, obj[STORES[store] || 'id']);
     return obj;
   },
   // Bulk insert/update in ONE transaction — for Excel/master imports (thousands
@@ -142,7 +146,7 @@ const DB = {
     });
     // notify=false for bundled-seed loads: every device gets the data from the
     // bundle, so we must NOT re-broadcast thousands of rows into the sync outbox.
-    if (notify && typeof DB.onChange === 'function') arr.forEach((o) => DB.onChange(store, o.id));
+    if (notify && typeof DB.onChange === 'function') arr.forEach((o) => DB.onChange(store, o[STORES[store] || 'id']));
     return arr.length;
   },
   // Remote write: applies a record from the server AS-IS (keeps its updatedAt,

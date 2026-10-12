@@ -1256,6 +1256,38 @@ async function issuePart({ partId, qty, jobId, reused = false, reusedCost = null
   toast(`${reused ? '♻️ ' : ''}Issued ${qty} ${part.unit} → ${busName(job.busId)}`);
 }
 
+/* Old rows a phone no longer needs.
+ *
+ * The server stopped SENDING history beyond these windows, which keeps new and
+ * re-downloaded devices small — but a phone that has been in the yard for a
+ * year still holds every row it ever pulled, and load() re-reads all of them on
+ * every sync tick. This drops them locally.
+ *
+ * Deleted with DB.del, which writes no tombstone and marks nothing dirty: these
+ * rows are not being deleted from the garage's records, they are being dropped
+ * from THIS phone's copy. The server keeps them; nothing is pushed.
+ *
+ * The windows sit a month beyond the server's so the two can never fight: a row
+ * the server would still send is never pruned here. */
+const LOCAL_HISTORY_DAYS = { gpsevents: 60, triplog: 150, stockmoves: 210, usage: 120, audits: 395, dutylog: 395 };
+async function pruneOldHistory() {
+  let dropped = 0;
+  for (const [store, days] of Object.entries(LOCAL_HISTORY_DAYS)) {
+    const cutoff = Date.now() - days * day;
+    let rows = [];
+    try { rows = await (DB._rawAll ? DB._rawAll(store) : DB.all(store)); } catch (e) { continue; }
+    for (const r of rows || []) {
+      const at = Number(r.at || r.lastAt || r.updatedAt || 0);
+      if (!at || at >= cutoff) continue;
+      const id = store === 'challans' ? r.rc : r.id;
+      if (!id) continue;
+      try { await DB.del(store, id); dropped++; } catch (e) { /* leave it */ }
+    }
+  }
+  if (dropped) console.info(`pruned ${dropped} old history row(s) from this device`);
+  return dropped;
+}
+
 /* ===== Pictures kept inside records ======================================
  * Until R2 was reachable, every failed upload left the picture itself inside
  * the record as a data: URL — 21 MB of them, pushed to the server and pulled
@@ -11706,6 +11738,10 @@ function userPhoto(u) { return crewFace(crewForUser(u.id)) || null; }
     for (const x of rseed) await DB.put('driverreports', x);
     await load();
   }
+
+  // Shed history this device no longer needs before sync starts, so the first
+  // load() of the session is already working on the smaller set.
+  try { await pruneOldHistory(); } catch (e) { /* never block the boot */ }
 
   // Start live sync with the shared server. Local-first: the app is fully usable
   // even if the server is unreachable (status shows "Offline", changes queue).

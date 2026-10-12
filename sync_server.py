@@ -1023,6 +1023,10 @@ WRITE_ROLES = {
     "parts":         {"owner", "supervisor", "store"},
     "audits":        {"owner", "supervisor", "store"},
     "buses":         {"owner", "supervisor"},
+    # The garage's own settings — labour rate, late cutoff and penalty, the
+    # geofence. They decide what a job costs, so they are the owner's and the
+    # supervisor's, and they are the same on every phone or the money is not.
+    "meta":          {"owner", "supervisor"},
     "routes":        {"owner", "supervisor"},
     # crewmanager is a single-job login: the duty board and the crew bank. It
     # writes `drivers` (bus assignment, details, documents) and nothing else.
@@ -1286,6 +1290,14 @@ def _guard_write(store, rid, data, actor, existing, c=None):
                 if (isinstance(t, dict) and not t.get("_deleted") and t.get("busId") == data.get("busId")
                         and t.get("stopId") == data.get("stopId") and t.get("day") == data.get("day")):
                     return "this stop is already logged for today"
+        return None
+
+    if store == "meta":
+        # `garage` is the shared settings row. Anything else in this store is a
+        # device's own bookkeeping (the seed flag) and has no business travelling
+        # between phones.
+        if rid != "garage":
+            return "only the garage settings are shared"
         return None
 
     if store == "ledger":
@@ -1949,7 +1961,7 @@ def push(records, actor=None):
                 elif not isinstance(data, dict):
                     why = "record data must be an object"
                 else:
-                    kp = "rc" if store == "challans" else "id"
+                    kp = "key" if store == "meta" else "rc" if store == "challans" else "id"
                     if kp not in data:
                         data[kp] = rid
                     elif str(data[kp]) != str(rid):
@@ -2202,6 +2214,44 @@ _DRIVER_PRIVATE = ("phone", "altPhone", "address", "dob", "bloodGroup", "license
 GPS_HISTORY_ROLES = ("owner", "supervisor")
 GPS_HISTORY_MS = int(os.environ.get("GPS_HISTORY_DAYS", "30")) * 86400000
 
+# How much history a phone actually needs, per store.
+#
+# These are append-only trails — telemetry, stop arrivals, seat changes, stock
+# moves, counts, usage. They grow for ever (gpsevents reached 42,000 rows and
+# triplog adds stops x buses x days, roughly 55,000 a year), every device
+# downloaded all of it, and load() re-reads the lot on every sync tick. The
+# windows are set from what the screens actually look back over, with room to
+# spare: learned stop times use 21 days, unexplained stock moves 90, the usage
+# dashboard 30. A record older than its window is simply not sent.
+HISTORY_DAYS = {
+    "gpsevents":  int(os.environ.get("GPS_HISTORY_DAYS", "30")),
+    "triplog":    int(os.environ.get("TRIPLOG_HISTORY_DAYS", "120")),
+    "stockmoves": int(os.environ.get("STOCKMOVES_HISTORY_DAYS", "180")),
+    "usage":      int(os.environ.get("USAGE_HISTORY_DAYS", "90")),
+    "audits":     int(os.environ.get("AUDITS_HISTORY_DAYS", "365")),
+    "dutylog":    int(os.environ.get("DUTYLOG_HISTORY_DAYS", "365")),
+}
+# And who has a screen for it at all. A driver's phone was downloading the
+# complete stock-movement ledger of the garage.
+HISTORY_ROLES = {
+    "gpsevents":  GPS_HISTORY_ROLES,
+    "stockmoves": ("owner", "supervisor", "store"),
+    "usage":      ("owner", "supervisor"),
+    "audits":     ("owner", "supervisor", "store"),
+}
+
+
+def _record_at(d):
+    """When a record happened. `at` on the trails, `lastAt` on a usage row, and
+    `updatedAt` for anything else — every record carries that one."""
+    if not isinstance(d, dict):
+        return 0
+    for f in ("at", "lastAt", "updatedAt"):
+        v = d.get(f)
+        if isinstance(v, (int, float)) and v > 0:
+            return int(v)
+    return 0
+
 
 def redact_for(actor, rec):
     """The copy of a record this actor is allowed to receive, or None to omit it.
@@ -2214,10 +2264,11 @@ def redact_for(actor, rec):
     # applies to the owner's phone as much as anyone's. Omitted records still
     # count as sent — pull() takes its cursor before redaction — so the client
     # does not ask for them again.
-    if st == "gpsevents":
-        if (actor or {}).get("role") not in GPS_HISTORY_ROLES:
+    if st in HISTORY_DAYS:
+        roles = HISTORY_ROLES.get(st)
+        if roles and (actor or {}).get("role") not in roles:
             return None
-        if isinstance(d, dict) and (d.get("at") or 0) < now_ms() - GPS_HISTORY_MS:
+        if _record_at(d) < now_ms() - HISTORY_DAYS[st] * 86400000:
             return None
         return rec
     if not actor or actor.get("role") in PII_ROLES:
