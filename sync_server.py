@@ -995,9 +995,14 @@ WRITE_ROLES = {
     "ledger":        {"owner", "supervisor", "store"},
     "purchases":     {"owner", "supervisor", "store"},
     "vendors":       {"owner", "supervisor", "store"},
-    "components":    {"owner", "supervisor", "store"},
-    "def":           {"owner", "supervisor", "store"},
-    "fuel":          {"owner", "supervisor", "store"},
+    # The crew manager also books diesel, AdBlue and tyres: the person who runs
+    # the duty board is the one at the pump and at the tyre shop. They stay out
+    # of the stock ledger, bills and job cards — and `fuel`/`def` are
+    # append-only for everyone but a manager (below), so an entry that shows a
+    # mileage drop cannot be edited away by whoever made it.
+    "components":    {"owner", "supervisor", "store", "crewmanager"},
+    "def":           {"owner", "supervisor", "store", "crewmanager"},
+    "fuel":          {"owner", "supervisor", "store", "crewmanager"},
     "parts":         {"owner", "supervisor", "store"},
     "audits":        {"owner", "supervisor", "store"},
     "buses":         {"owner", "supervisor"},

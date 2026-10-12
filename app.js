@@ -26,6 +26,7 @@ const I18N = {
     renameSame: 'That is already the name', renameNeed: 'Type a name',
     renamePinNote: 'The PIN does not change. If this is a different person, give them a New PIN as well.',
     cmLiveMap: 'Live map', cmLiveMapSub: 'where the buses are right now',
+    cmFuel: 'Fuel & mileage', cmFuelSub: 'log a diesel fill, with the pump', cmDef: 'AdBlue / DEF', cmTyres: 'Tyres & components',
     fuPump: 'Pump / filling station', fuPumpPh: 'e.g. Jio-bp, Ajmer Road',
     fuWhere: 'Where (optional)', fuWherePh: 'paste a Google Maps link, or 26.9124, 75.7873',
     fuHere: 'Use my location', fuLocGot: 'Location captured', fuLocFail: 'Could not get the location — check GPS permission',
@@ -299,6 +300,7 @@ const I18N = {
     renameSame: 'यही नाम पहले से है', renameNeed: 'नाम लिखिए',
     renamePinNote: 'पिन नहीं बदलता। अगर आदमी बदला है तो नया पिन भी दीजिए।',
     cmLiveMap: 'लाइव नक्शा', cmLiveMapSub: 'अभी बसें कहाँ हैं',
+    cmFuel: 'ईंधन और माइलेज', cmFuelSub: 'डीज़ल भरना दर्ज कीजिए, पंप के साथ', cmDef: 'AdBlue / DEF', cmTyres: 'टायर और पुर्जे',
     fuPump: 'पंप / फ़िलिंग स्टेशन', fuPumpPh: 'जैसे जियो-बीपी, अजमेर रोड',
     fuWhere: 'कहाँ (ज़रूरी नहीं)', fuWherePh: 'गूगल मैप्स लिंक चिपकाइए, या 26.9124, 75.7873',
     fuHere: 'मेरी लोकेशन लीजिए', fuLocGot: 'लोकेशन ले ली', fuLocFail: 'लोकेशन नहीं मिली — GPS की अनुमति देखिए',
@@ -1054,7 +1056,15 @@ const PERMS = {
   outsideJob: ['owner', 'supervisor'],
   logService: ['owner', 'supervisor'],       // resets service + writes a verified job
   manageRoutes: ['owner', 'supervisor'],     // routes, stops, go-times, punctuality
-  addFuel: ['owner', 'supervisor', 'store'], // log fuel fills; view mileage
+  // Diesel, AdBlue and tyres are the crew manager's too: the person who runs
+  // the duty board is the one standing at the pump. Deliberately NOT a wider
+  // `issuePart` (that is stock leaving the store) and not `dashboard`.
+  addFuel: ['owner', 'supervisor', 'store', 'crewmanager'], // log fuel fills; view mileage
+  // Tyres and other rotables: fitting, removing and tracking a piece.
+  manageComponents: ['owner', 'supervisor', 'store', 'crewmanager'],
+  // The warranty screen rode on addFuel and is parts-and-supplier money, so it
+  // keeps the old set rather than following the crew manager in.
+  viewWarranty: ['owner', 'supervisor', 'store'],
   requestPart: ['supervisor', 'owner'],      // ask the store to issue a part against a job
   money: ['owner', 'supervisor'],            // Money tab (owner-weighted)
   fleet: ['owner', 'supervisor'],            // Fleet tab
@@ -2043,6 +2053,10 @@ function viewCrewManagerHome() {
 
   body += `<div class="card">
     <div class="trow" data-act="asOpen" data-v="driver"><div class="ti">🔁</div><div class="tm"><div class="tt">${t('cmOpenBoard')}</div></div><div class="tc">›</div></div>
+    <div class="trow" data-nav="fuel"><div class="ti">⛽</div><div class="tm"><div class="tt">${t('cmFuel')}</div>
+      <div class="tiny muted">${t('cmFuelSub')}</div></div><div class="tc">›</div></div>
+    <div class="trow" data-nav="def"><div class="ti">🧪</div><div class="tm"><div class="tt">${t('cmDef')}</div></div><div class="tc">›</div></div>
+    <div class="trow" data-nav="components"><div class="ti">🛞</div><div class="tm"><div class="tt">${t('cmTyres')}</div></div><div class="tc">›</div></div>
     <div class="trow" data-nav="livemap"><div class="ti">🗺️</div><div class="tm"><div class="tt">${t('cmLiveMap')}</div>
       <div class="tiny muted">${t('cmLiveMapSub')}</div></div><div class="tc">›</div></div>
     <div class="trow" data-act="openCrewBank"><div class="ti">🗂️</div><div class="tm"><div class="tt">${t('cbTitle')}</div>
@@ -4106,14 +4120,14 @@ function viewComponents() {
     .sort((a, b) => (COMP_RANK[a.state] - COMP_RANK[b.state]) || (componentLife(b).pct - componentLife(a).pct));
   body += `<input id="cmp-search" class="searchbox" placeholder="Search serial, bus or kind…" autocomplete="off">`;
   body += list.length ? `<div class="card listwrap" id="cmp-list" style="padding:6px 12px">${list.map(compLi).join('')}</div>` : `<div class="empty">No components yet — tap + to add a tyre or a part you refurbish.</div>`;
-  shell('Tyres & components', body, can(S.user.role, 'issuePart') ? { act: 'addComponent', icon: '+' } : null);
+  shell('Tyres & components', body, can(S.user.role, 'manageComponents') ? { act: 'addComponent', icon: '+' } : null);
   attachSearch('cmp-search', 'cmp-list');
 }
 const HIST_ICON = { install: '🔧', remove: '📤', 'send-out': '🚚', return: '📥', scrap: '🗑️' };
 function viewComponentDetail(id) {
   const c = byId(S.cache.components, id); if (!c) return viewComponents();
   const km = compKind(c), st = COMP_STATE[c.state] || COMP_STATE['in-service'], lf = componentLife(c), v = compVerb(c);
-  const canEdit = can(S.user.role, 'issuePart');
+  const canEdit = can(S.user.role, 'manageComponents');
   const atMax = c.refurbCount >= (c.maxRefurb || 0);
   const srcPart = c.partId ? byId(S.cache.parts, c.partId) : null;
   let body = `<div class="card"><div class="row between"><div class="row" style="gap:10px"><div class="ava" style="font-size:24px">${km[0]}</div>
@@ -10313,7 +10327,7 @@ async function askAi() {
  */
 const current = () => S.stack[S.stack.length - 1];
 // Role guard: routes restricted to certain roles fall back to home for others.
-const ROUTE_PERM = { money: 'money', fleet: 'fleet', people: 'people', bills: 'bills', insights: 'insights', drivers: 'manageDrivers', assignments: 'assignDriver', routes: 'manageRoutes', reports: 'dashboard', busreport: 'dashboard', livemap: 'liveMap', track: 'liveMap', fuel: 'addFuel', safety: 'dashboard', breakdowns: 'logIncident', warranty: 'addFuel', storehealth: 'issuePart', linkgps: 'addBus', newjob: 'addJob', forecast: 'dashboard', pilferage: 'insights', components: 'issuePart', def: 'addFuel', vendors: 'addPurchase', import: 'addPurchase', crewpins: 'manageCrewLogins', crewbank: 'manageDrivers', usage: 'dashboard', accounting: 'dashboard', busacct: 'dashboard',
+const ROUTE_PERM = { money: 'money', fleet: 'fleet', people: 'people', bills: 'bills', insights: 'insights', drivers: 'manageDrivers', assignments: 'assignDriver', routes: 'manageRoutes', reports: 'dashboard', busreport: 'dashboard', livemap: 'liveMap', track: 'liveMap', fuel: 'addFuel', safety: 'dashboard', breakdowns: 'logIncident', warranty: 'viewWarranty', storehealth: 'issuePart', linkgps: 'addBus', newjob: 'addJob', forecast: 'dashboard', pilferage: 'insights', components: 'manageComponents', def: 'addFuel', vendors: 'addPurchase', import: 'addPurchase', crewpins: 'manageCrewLogins', crewbank: 'manageDrivers', usage: 'dashboard', accounting: 'dashboard', busacct: 'dashboard',
   // `purchases` renders the same view as `bills`; without its own entry the
   // `bills` permission was bypassable just by using the other route name.
   purchases: 'bills', alerts: 'dashboard', buses: 'fleet', gate: 'gateCheck', gatechecks: 'gateDecide', reviews: 'dashboard',

@@ -172,6 +172,25 @@ check("body-supplied _by was OVERWRITTEN", rec.get("_by") != "u-owner")
 check("_byRole stamped from token", rec.get("_byRole") == "driver")
 check("_org tenant stamped", rec.get("_org") == "mahalaxmi")
 
+# The crew manager books diesel, AdBlue and tyres (12 Oct 2026) — and nothing
+# that belongs to the store, the money or the workshop.
+CREWMGR = {"id": "u-cm", "role": "crewmanager"}
+check("crew manager CAN log fuel",
+      push_one(CREWMGR, "fuel", "fu-cm1", {"id": "fu-cm1", "busId": "b1", "litres": 60, "cost": 5700, "odometer": 120000})["applied"] == 1)
+check("crew manager CAN log AdBlue/DEF",
+      push_one(CREWMGR, "def", "def-cm1", {"id": "def-cm1", "busId": "b1", "litres": 10, "cost": 900, "odometer": 120000})["applied"] == 1)
+check("crew manager CAN track a tyre",
+      push_one(CREWMGR, "components", "cmp-cm1", {"id": "cmp-cm1", "kind": "tyre", "serial": "T-9001"})["applied"] == 1)
+check("crew manager CANNOT write the stock ledger", push_one(CREWMGR, "ledger", "l-cm")["rejected"] == 1)
+check("crew manager CANNOT write parts", push_one(CREWMGR, "parts", "p-cm")["rejected"] == 1)
+check("crew manager CANNOT write purchases", push_one(CREWMGR, "purchases", "pu-cm")["rejected"] == 1)
+check("crew manager CANNOT write job cards", push_one(CREWMGR, "jobcards", "j-cm")["rejected"] == 1)
+check("crew manager CANNOT write buses", push_one(CREWMGR, "buses", "b-cm")["rejected"] == 1)
+# A fuel entry is evidence of a mileage drop: its author cannot go back and edit it.
+check("crew manager CANNOT edit a fuel entry afterwards",
+      push_one(CREWMGR, "fuel", "fu-cm1", {"id": "fu-cm1", "busId": "b1", "litres": 20, "cost": 1900, "odometer": 120000})["rejected"] == 1)
+check("a supervisor still can", push_one(SUPER, "fuel", "fu-cm1", {"id": "fu-cm1", "busId": "b1", "litres": 61, "cost": 5800, "odometer": 120000})["applied"] == 1)
+
 print()
 if fails:
     print(f"RESULT: {len(fails)} FAILED -> {fails}")
