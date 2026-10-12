@@ -26,6 +26,11 @@ const I18N = {
     renameSame: 'That is already the name', renameNeed: 'Type a name',
     renamePinNote: 'The PIN does not change. If this is a different person, give them a New PIN as well.',
     cmLiveMap: 'Live map', cmLiveMapSub: 'where the buses are right now',
+    tyFit: 'Fit tyres to a bus', tyRow: 'Tyre', tyNew: 'New tyre number', tyOld: 'Old tyre coming off',
+    tyOldNone: '— none / first fitting —', tyOldOther: 'Not tracked — type the number', tyOldTyped: 'Old tyre number',
+    tyPos: 'Position', tyCost: 'Price (optional)', tyAddRow: '+ Add another tyre', tyRemoveRow: 'Remove',
+    tyNeedBus: 'Pick a bus', tyNeedOne: 'Fill in at least one tyre number', tyFitted: 'tyre(s) fitted',
+    tyOldStored: 'old tyre(s) moved to the store',
     cmFuel: 'Fuel & mileage', cmFuelSub: 'log a diesel fill, with the pump', cmDef: 'AdBlue / DEF', cmTyres: 'Tyres & components',
     fuPump: 'Pump / filling station', fuPumpPh: 'e.g. Jio-bp, Ajmer Road',
     fuWhere: 'Where (optional)', fuWherePh: 'paste a Google Maps link, or 26.9124, 75.7873',
@@ -300,6 +305,11 @@ const I18N = {
     renameSame: 'यही नाम पहले से है', renameNeed: 'नाम लिखिए',
     renamePinNote: 'पिन नहीं बदलता। अगर आदमी बदला है तो नया पिन भी दीजिए।',
     cmLiveMap: 'लाइव नक्शा', cmLiveMapSub: 'अभी बसें कहाँ हैं',
+    tyFit: 'बस पर टायर लगाएँ', tyRow: 'टायर', tyNew: 'नए टायर का नंबर', tyOld: 'जो पुराना टायर उतरा',
+    tyOldNone: '— कोई नहीं / पहली बार —', tyOldOther: 'दर्ज नहीं है — नंबर लिखिए', tyOldTyped: 'पुराने टायर का नंबर',
+    tyPos: 'जगह', tyCost: 'दाम (ज़रूरी नहीं)', tyAddRow: '+ एक और टायर', tyRemoveRow: 'हटाएँ',
+    tyNeedBus: 'बस चुनिए', tyNeedOne: 'कम से कम एक टायर नंबर भरिए', tyFitted: 'टायर लगे',
+    tyOldStored: 'पुराने टायर स्टोर में गए',
     cmFuel: 'ईंधन और माइलेज', cmFuelSub: 'डीज़ल भरना दर्ज कीजिए, पंप के साथ', cmDef: 'AdBlue / DEF', cmTyres: 'टायर और पुर्जे',
     fuPump: 'पंप / फ़िलिंग स्टेशन', fuPumpPh: 'जैसे जियो-बीपी, अजमेर रोड',
     fuWhere: 'कहाँ (ज़रूरी नहीं)', fuWherePh: 'गूगल मैप्स लिंक चिपकाइए, या 26.9124, 75.7873',
@@ -2903,7 +2913,9 @@ function viewBusDetail(id) {
   // Fitted tyres & rotable components + their life
   const comps = componentsOfBus(b.id);
   if (comps.length || can(S.user.role, 'issuePart')) {
-    body += `<div class="card"><div class="row between"><h3>🛞 Tyres &amp; components</h3>${can(S.user.role, 'issuePart') ? `<button class="btn sm" data-act="openComponents">All</button>` : ''}</div>`;
+    body += `<div class="card"><div class="row between"><h3>🛞 Tyres &amp; components</h3><span>${
+      can(S.user.role, 'manageComponents') ? `<button class="btn sm" data-act="fitTyres" data-bus="${esc(b.id)}">+ ${esc(t('tyRow'))}s</button> ` : ''
+    }${can(S.user.role, 'issuePart') ? `<button class="btn sm" data-act="openComponents">All</button>` : ''}</span></div>`;
     body += comps.length ? comps.sort((a, c) => componentLife(c).pct - componentLife(a).pct).map((c) => { const lf = componentLife(c), km = compKind(c);
       return `<div class="li" data-act="openComp" data-id="${esc(c.id)}"><div class="ava">${km[0]}</div>
         <div class="main"><div class="t">${esc(c.label || km[1])}${c.position ? ` <span class="tiny muted">${esc(c.position)}</span>` : ''}</div>
@@ -4115,6 +4127,7 @@ function viewComponents() {
   if (alerts.length) body += `<div class="card" style="border:1.5px solid var(--amber)"><div class="row between"><h3>⚠️ Needs attention</h3><span class="badge b-amber">${alerts.length}</span></div>
     ${alerts.map((a) => `<div class="li" data-act="openComp" data-id="${esc(a.c.id)}" style="border:none;padding:6px 0"><div class="ava">${compKind(a.c)[0]}</div><div class="main"><div class="s">${a.msg}</div></div></div>`).join('')}</div>`;
   const kinds = ['all', ...Object.keys(COMP_KINDS).filter((k) => comps.some((c) => c.kind === k))];
+  if (can(S.user.role, 'manageComponents')) body += `<button class="btn primary" data-act="fitTyres" style="margin-bottom:12px">🛞 ${esc(t('tyFit'))}</button>`;
   body += `<div class="chiprow">${kinds.map((k) => `<button class="chip ${_compFilter === k ? 'active' : ''}" data-act="compFilter" data-v="${esc(k)}">${k === 'all' ? 'All' : COMP_KINDS[k][0] + ' ' + COMP_KINDS[k][1]}</button>`).join('')}</div>`;
   const list = comps.filter((c) => _compFilter === 'all' || c.kind === _compFilter)
     .sort((a, b) => (COMP_RANK[a.state] - COMP_RANK[b.state]) || (componentLife(b).pct - componentLife(a).pct));
@@ -4191,6 +4204,165 @@ const OIL_GRADE_RE = /\b\d{1,2}\s?w[-\s]?\d{2}\b/i;
 const isTrackablePart = (p) => { const s = (p ? (p.name || '') + ' ' + (p.category || '') : ''); return !!(p && TRACKABLE_PART_RE.test(s) && !PART_ACCESSORY_RE.test(s) && !OIL_GRADE_RE.test(s)); };
 const componentsOfPart = (partId) => (S.cache.components || []).filter((c) => c.partId === partId);
 // partId (optional): create a tracked component FROM a reusable catalogue part — prefills kind/label/life.
+/* Fitting tyres, the way it happens in the yard.
+ *
+ * Tyres are changed in sets, each new one replacing a known old one, and the
+ * number on the old casing is the thing worth keeping — it is what a remould
+ * claim, a warranty argument and a theft question all turn on. Adding them one
+ * at a time through "Add component" lost that link and took four passes.
+ *
+ * Four rows to start, because a change is usually an axle or a set; rows can be
+ * added or removed. Price is optional: a tyre fitted off an existing stock is
+ * not a purchase, and making the field compulsory only produces invented
+ * numbers. */
+const TYRE_POSITIONS = ['FR', 'FL', 'RR-outer', 'RR-inner', 'RL-outer', 'RL-inner', 'Spare'];
+let _tyreRows = 0;
+
+function tyreRowHtml(i, busId) {
+  const onBus = (S.cache.components || []).filter((c) => c.busId === busId && c.kind === 'tyre' && c.state === 'in-service');
+  return `<div class="card tyrow row-anim" id="ty-row-${i}" style="padding:10px;margin-bottom:8px">
+    <div class="row between" style="margin-bottom:6px"><b class="small tyno">${esc(t('tyRow'))} ${i + 1}</b>
+      <button class="btn sm ghost" data-act="tyreRowDrop" data-i="${i}" style="width:auto;padding:4px 9px">${esc(t('tyRemoveRow'))}</button></div>
+    <div class="grid2">
+      <label class="field"><span class="lbl">${esc(t('tyNew'))}</span><input id="ty-new-${i}" autocomplete="off" placeholder="e.g. MRF 1123"></label>
+      <label class="field"><span class="lbl">${esc(t('tyPos'))}</span><input id="ty-pos-${i}" list="ty-positions" autocomplete="off" placeholder="FR"></label>
+    </div>
+    <label class="field"><span class="lbl">${esc(t('tyOld'))}</span>
+      <select id="ty-old-${i}">
+        <option value="">${esc(t('tyOldNone'))}</option>
+        ${onBus.map((c) => `<option value="${esc(c.id)}">${esc(c.serial || c.label)}${c.position ? ' · ' + esc(c.position) : ''}</option>`).join('')}
+        <option value="__other__">${esc(t('tyOldOther'))}</option>
+      </select></label>
+    <label class="field" id="ty-oldtxt-wrap-${i}" style="display:none"><span class="lbl">${esc(t('tyOldTyped'))}</span>
+      <input id="ty-oldtxt-${i}" autocomplete="off" placeholder="e.g. MRF 0917"></label>
+    <label class="field"><span class="lbl">${esc(t('tyCost'))}</span><input id="ty-cost-${i}" type="number" inputmode="numeric" placeholder="₹"></label>
+  </div>`;
+}
+
+function sheetFitTyres(busId) {
+  const buses = S.cache.buses || [];
+  if (!buses.length) return openSheet(t('tyFit'), `<div class="banner warn">🚌 ${esc(t('noBusesHere'))}</div>`);
+  const pre = busId && byId(buses, busId) ? busId : buses[0].id;
+  _tyreRows = 4;
+  openSheet(t('tyFit'), `
+    <label class="field"><span class="lbl">🚌 ${esc(t('jbBusWord'))}</span>
+      <select id="ty-bus">${buses.map((b) => `<option value="${esc(b.id)}" ${b.id === pre ? 'selected' : ''}>${esc(b.regNo)}</option>`).join('')}</select></label>
+    <datalist id="ty-positions">${TYRE_POSITIONS.map((p) => `<option value="${p}"></option>`).join('')}</datalist>
+    <div id="ty-rows">${Array.from({ length: _tyreRows }, (_, i) => tyreRowHtml(i, pre)).join('')}</div>
+    <button class="btn ghost" data-act="tyreRowAdd">${esc(t('tyAddRow'))}</button>
+    <div class="spacer"></div>
+    <button class="btn primary" data-act="saveFitTyres">${t('save')}</button>`, (wrap) => mountTyreRows(wrap));
+}
+
+// Re-reads the bus, because the "old tyre" lists belong to whichever bus is picked.
+function mountTyreRows(scope) {
+  const root = scope || document;
+  const busSel = root.querySelector('#ty-bus');
+  const rowsBox = root.querySelector('#ty-rows');
+  if (!busSel || !rowsBox) return;
+  const redraw = () => {
+    const keep = [];
+    for (let i = 0; i < _tyreRows; i++) {
+      const g = (id) => (document.getElementById(id) || {}).value || '';
+      keep.push({ nw: g('ty-new-' + i), pos: g('ty-pos-' + i), cost: g('ty-cost-' + i) });
+    }
+    rowsBox.innerHTML = Array.from({ length: _tyreRows }, (_, i) => tyreRowHtml(i, busSel.value)).join('');
+    keep.forEach((v, i) => {
+      const set = (id, val) => { const el = document.getElementById(id); if (el && val) el.value = val; };
+      set('ty-new-' + i, v.nw); set('ty-pos-' + i, v.pos); set('ty-cost-' + i, v.cost);
+    });
+    wireOldPickers();
+    renumberTyreRows();
+  };
+  busSel.onchange = redraw;
+  rowsBox._redraw = redraw;
+  wireOldPickers();
+}
+// "Not tracked" reveals a box for the number written on the casing.
+function wireOldPickers() {
+  for (let i = 0; i < _tyreRows; i++) {
+    const sel = document.getElementById('ty-old-' + i);
+    const box = document.getElementById('ty-oldtxt-wrap-' + i);
+    if (!sel || !box) continue;
+    sel.onchange = () => { box.style.display = sel.value === '__other__' ? '' : 'none'; };
+    box.style.display = sel.value === '__other__' ? '' : 'none';
+  }
+}
+function tyreRowAdd() {
+  const busSel = document.getElementById('ty-bus'), box = document.getElementById('ty-rows');
+  if (!busSel || !box) return;
+  box.insertAdjacentHTML('beforeend', tyreRowHtml(_tyreRows, busSel.value));
+  _tyreRows += 1;
+  wireOldPickers();
+  renumberTyreRows();
+}
+function tyreRowDrop(i) {
+  const row = document.getElementById('ty-row-' + i);
+  if (!row) return;
+  // Emptied rather than spliced out: the ids carry the row number, and
+  // renumbering them underneath somebody mid-entry loses what they typed.
+  ['ty-new-', 'ty-pos-', 'ty-cost-', 'ty-oldtxt-'].forEach((p) => { const el = document.getElementById(p + i); if (el) el.value = ''; });
+  const sel = document.getElementById('ty-old-' + i); if (sel) sel.value = '';
+  row.remove();
+  renumberTyreRows();
+}
+// The ids keep their original number so nothing typed moves; the headings count
+// what is actually on screen, or removing the second row leaves "1, 3".
+function renumberTyreRows() {
+  document.querySelectorAll('#ty-rows .tyrow .tyno').forEach((el, n) => { el.textContent = `${t('tyRow')} ${n + 1}`; });
+}
+
+async function saveFitTyres() {
+  const busId = (document.getElementById('ty-bus') || {}).value;
+  if (!busId) return toast(t('tyNeedBus'));
+  const bus = byId(S.cache.buses, busId);
+  const now = Date.now(), odo = bus ? (bus.odometer || 0) : 0;
+  let fitted = 0, stored = 0;
+  for (let i = 0; i < _tyreRows; i++) {
+    const g = (id) => ((document.getElementById(id) || {}).value || '').trim();
+    const serial = g('ty-new-' + i);
+    if (!serial) continue;                       // an empty row is not a tyre
+    const position = g('ty-pos-' + i);
+    const oldPick = g('ty-old-' + i);
+    const oldTyped = g('ty-oldtxt-' + i);
+    const cost = Number(g('ty-cost-' + i)) || 0;
+    const c = {
+      id: uid('cmp-'), kind: 'tyre', label: 'Tyre' + (position ? ' ' + position : ''), serial,
+      partId: null, partExtId: '', busId, position,
+      state: 'in-service', installedAt: now, installedOdo: odo,
+      lifeKm: COMP_KINDS.tyre[3], maxRefurb: COMP_KINDS.tyre[4], refurbCount: 0, cost,
+      history: [{ type: 'install', at: now, odo, busId, position, note: 'Fitted' }],
+      createdAt: now, updatedAt: now,
+    };
+    // What came off, so the new tyre's record answers "what did this replace?"
+    let oldLabel = '';
+    if (oldPick && oldPick !== '__other__') {
+      const old = byId(S.cache.components, oldPick);
+      if (old) {
+        oldLabel = old.serial || old.label || '';
+        c.replacedId = old.id;
+        old.history = [...(old.history || []), { type: 'remove', at: now, odo, busId: old.busId, note: 'Replaced by ' + serial }];
+        old.state = 'removed'; old.busId = null; old.position = ''; old.installedAt = null; old.installedOdo = 0;
+        old.replacedById = c.id; old.updatedAt = now;
+        await DB.put('components', old);
+        stored += 1;
+      }
+    } else if (oldPick === '__other__' && oldTyped) {
+      oldLabel = oldTyped;
+    }
+    if (oldLabel) {
+      c.replacedSerial = oldLabel;
+      c.history[0].note = 'Fitted, replacing ' + oldLabel;
+    }
+    await DB.put('components', c);
+    fitted += 1;
+  }
+  if (!fitted) return toast(t('tyNeedOne'));
+  await load(); closeSheet();
+  toast(`🛞 ${fitted} ${t('tyFitted')}${stored ? ` · ${stored} ${t('tyOldStored')}` : ''}`);
+  rerender();
+}
+
 function sheetAddComponent(partId) {
   const buses = S.cache.buses || [];
   const part = partId ? byId(S.cache.parts, partId) : null;
@@ -4206,7 +4378,7 @@ function sheetAddComponent(partId) {
     <div class="grid2">
       <label class="field"><span class="lbl">Life (km, 0 = n/a)</span><input id="cp-life" type="number" inputmode="numeric" value="${COMP_KINDS[initKind][3] || ''}" placeholder="e.g. 60000"></label>
       <label class="field"><span class="lbl">Max ${'remoulds/repairs'}</span><input id="cp-max" type="number" inputmode="numeric" value="${COMP_KINDS[initKind][4] || ''}" placeholder="e.g. 2"></label></div>
-    <label class="field"><span class="lbl">Cost (₹)</span><input id="cp-cost" type="number" inputmode="numeric" placeholder="purchase cost"></label>
+    <label class="field"><span class="lbl">${esc(t('tyCost'))}</span><input id="cp-cost" type="number" inputmode="numeric" placeholder="₹"></label>
     <label class="field"><span class="lbl">Fit to bus now? (optional)</span><select id="cp-bus"><option value="">— keep in store —</option>${buses.map((b) => `<option value="${b.id}">${esc(b.regNo)}</option>`).join('')}</select></label>
     <label class="field"><span class="lbl">Position (optional)</span><input id="cp-pos" placeholder="e.g. FR, FL, RR-outer"></label>
     <button class="btn primary" data-act="saveComponent">Save</button>`);
@@ -10681,6 +10853,10 @@ const _dispatchClick = async (e) => {
       case 'saveComponent': return saveComponent();
       case 'fitComp': return sheetFitComp(el.getAttribute('data-id'));
       case 'saveFitComp': return saveFitComp(el.getAttribute('data-id'));
+      case 'fitTyres': return sheetFitTyres(el.getAttribute('data-bus') || null);
+      case 'tyreRowAdd': return tyreRowAdd();
+      case 'tyreRowDrop': return tyreRowDrop(Number(el.getAttribute('data-i')));
+      case 'saveFitTyres': return saveFitTyres();
       case 'removeComp': return removeComp(el.getAttribute('data-id'));
       case 'sendOutComp': return sheetSendOut(el.getAttribute('data-id'));
       case 'saveSendOut': return saveSendOut(el.getAttribute('data-id'));
