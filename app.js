@@ -22,6 +22,10 @@ const I18N = {
     notStored: 'This phone could not save {n} record(s) others can see — free up space, then Me → Device & server → Re-download everything',
     notStoredRow: 'Records this phone could not save',
     photoKept: 'Photo kept on this phone — it will upload when the connection is back',
+    renameBtn: 'Rename', renamePrompt: 'New name for this login', renamedOk: 'Renamed to',
+    renameSame: 'That is already the name', renameNeed: 'Type a name',
+    renamePinNote: 'The PIN does not change. If this is a different person, give them a New PIN as well.',
+    cmLiveMap: 'Live map', cmLiveMapSub: 'where the buses are right now',
     fuPump: 'Pump / filling station', fuPumpPh: 'e.g. Jio-bp, Ajmer Road',
     fuWhere: 'Where (optional)', fuWherePh: 'paste a Google Maps link, or 26.9124, 75.7873',
     fuHere: 'Use my location', fuLocGot: 'Location captured', fuLocFail: 'Could not get the location — check GPS permission',
@@ -291,6 +295,10 @@ const I18N = {
     notStored: 'यह फ़ोन {n} रिकॉर्ड सेव नहीं कर पाया जो दूसरों को दिख रहे हैं — जगह खाली कीजिए, फिर मैं → डिवाइस और सर्वर → सब दोबारा डाउनलोड करें',
     notStoredRow: 'जो रिकॉर्ड यह फ़ोन सेव नहीं कर पाया',
     photoKept: 'फोटो इसी फ़ोन में रखी है — नेट आते ही अपने आप चढ़ जाएगी',
+    renameBtn: 'नाम बदलें', renamePrompt: 'इस लॉगिन का नया नाम', renamedOk: 'नाम बदला:',
+    renameSame: 'यही नाम पहले से है', renameNeed: 'नाम लिखिए',
+    renamePinNote: 'पिन नहीं बदलता। अगर आदमी बदला है तो नया पिन भी दीजिए।',
+    cmLiveMap: 'लाइव नक्शा', cmLiveMapSub: 'अभी बसें कहाँ हैं',
     fuPump: 'पंप / फ़िलिंग स्टेशन', fuPumpPh: 'जैसे जियो-बीपी, अजमेर रोड',
     fuWhere: 'कहाँ (ज़रूरी नहीं)', fuWherePh: 'गूगल मैप्स लिंक चिपकाइए, या 26.9124, 75.7873',
     fuHere: 'मेरी लोकेशन लीजिए', fuLocGot: 'लोकेशन ले ली', fuLocFail: 'लोकेशन नहीं मिली — GPS की अनुमति देखिए',
@@ -1063,6 +1071,11 @@ const PERMS = {
   // Outstanding fines and court referrals are finance data, and each lookup
   // spends a billable credit — same gate the server applies.
   challans: ['owner', 'supervisor'],
+  // Where the buses are is duty information, not money: the crew manager puts
+  // people on those buses and needs to know which one is where. Its own
+  // permission rather than widening `dashboard`, which also opens reports,
+  // accounting, usage and the money screens.
+  liveMap: ['owner', 'supervisor', 'crewmanager'],
   viewStore: ['owner', 'supervisor', 'store'],
   viewJobs: ['owner', 'supervisor', 'store'],
   viewScoreboard: ['owner', 'supervisor', 'store'],
@@ -2030,6 +2043,8 @@ function viewCrewManagerHome() {
 
   body += `<div class="card">
     <div class="trow" data-act="asOpen" data-v="driver"><div class="ti">🔁</div><div class="tm"><div class="tt">${t('cmOpenBoard')}</div></div><div class="tc">›</div></div>
+    <div class="trow" data-nav="livemap"><div class="ti">🗺️</div><div class="tm"><div class="tt">${t('cmLiveMap')}</div>
+      <div class="tiny muted">${t('cmLiveMapSub')}</div></div><div class="tc">›</div></div>
     <div class="trow" data-act="openCrewBank"><div class="ti">🗂️</div><div class="tm"><div class="tt">${t('cbTitle')}</div>
       <div class="tiny muted">${activeCrew().length} ${t('cbOnRoll')}</div></div><div class="tc">›</div></div></div>`;
   shell(t('today'), body);
@@ -5734,7 +5749,8 @@ function sheetStaff() {
         <div class="main"><div class="t">${esc(u.name)}${dupe ? ' <span class="badge b-amber">duplicate</span>' : ''}${newest ? ' <span class="badge b-green">in use</span>' : ''}</div>
           <div class="s">${esc(u.role)} · <span class="tiny muted">${esc(u.id)}</span>${self ? ' · you' : ''}</div>
           <div class="tiny muted">${seen ? 'last signed in ' + timeAgo(seen) : 'never signed in'}</div></div>
-        ${canResetStaffPin(u) || canRemoveStaff(u) ? `<div style="display:flex;flex-direction:column;gap:4px;flex:none;align-items:stretch">
+        ${canRenameStaff(u) || canResetStaffPin(u) || canRemoveStaff(u) ? `<div style="display:flex;flex-direction:column;gap:4px;flex:none;align-items:stretch">
+          ${canRenameStaff(u) ? `<button class="btn sm ghost" data-act="renameStaff" data-id="${esc(u.id)}" style="width:auto;padding:6px 10px">${esc(t('renameBtn'))}</button>` : ''}
           ${canResetStaffPin(u) ? `<button class="btn sm ghost" data-act="resetStaffPin" data-id="${esc(u.id)}" style="width:auto;padding:6px 10px">New PIN</button>` : ''}
           ${canRemoveStaff(u) ? `<button class="btn sm ghost" data-act="removeStaff" data-id="${esc(u.id)}" style="width:auto;padding:6px 10px">Remove</button>` : ''}</div>` : ''}</div>`;
       }).join('')}
@@ -5858,6 +5874,36 @@ async function resetStaffPin(id) {
   if (u.role === 'driver' || u.role === 'conductor') credSet(id, pin); else credClear(id);
   alert(`New PIN for ${u.name}: ${pin}\n\nGive it to ${u.name} now — it is not saved on this phone. Their old PIN no longer works.`);
   sheetStaff();
+}
+
+/* Correcting the name on a login. The post outlives the person: a crew manager
+ * leaves, somebody else takes the job, and every screen should carry the new
+ * name rather than the old one. /auth/users/rename is owner-and-supervisor and
+ * renames the login row AND the synced record together, so a device that has
+ * never synced stops showing the old name too. The PIN is deliberately
+ * untouched: a different person needs a New PIN, which is the button beside
+ * this one, and the prompt says so. */
+function canRenameStaff(u) {
+  return !!(u && can(S.user.role, 'manageStaff') && ['owner', 'supervisor'].includes(S.user.role));
+}
+
+async function renameStaff(id) {
+  const u = (S.cache.users || []).find((x) => x.id === id);
+  if (!u || !canRenameStaff(u)) return toast(t('cbNotAllowed'));
+  const typed = prompt(`${t('renamePrompt')}\n\n${t('renamePinNote')}`, u.name || '');
+  if (typed == null) return;                         // cancelled
+  const want = _titleCase(String(typed).trim()).replace(/\s+/g, ' ');
+  if (!want) return toast(t('renameNeed'));
+  if (want === String(u.name || '').trim()) return toast(t('renameSame'));
+  if (!Sync.info().authed) return toast('Sign in online first (needs a live connection)');
+  try {
+    await Sync.renameStaff(id, want);
+  } catch (e) {
+    return toast(String((e && e.message) || 'Could not rename'));
+  }
+  u.name = want;
+  await DB.put('users', u);
+  await load(); closeSheet(); toast(`${t('renamedOk')} ${want}`); sheetStaff();
 }
 
 function canRemoveStaff(u) {
@@ -10267,7 +10313,7 @@ async function askAi() {
  */
 const current = () => S.stack[S.stack.length - 1];
 // Role guard: routes restricted to certain roles fall back to home for others.
-const ROUTE_PERM = { money: 'money', fleet: 'fleet', people: 'people', bills: 'bills', insights: 'insights', drivers: 'manageDrivers', assignments: 'assignDriver', routes: 'manageRoutes', reports: 'dashboard', busreport: 'dashboard', livemap: 'dashboard', track: 'dashboard', fuel: 'addFuel', safety: 'dashboard', breakdowns: 'logIncident', warranty: 'addFuel', storehealth: 'issuePart', linkgps: 'addBus', newjob: 'addJob', forecast: 'dashboard', pilferage: 'insights', components: 'issuePart', def: 'addFuel', vendors: 'addPurchase', import: 'addPurchase', crewpins: 'manageCrewLogins', crewbank: 'manageDrivers', usage: 'dashboard', accounting: 'dashboard', busacct: 'dashboard',
+const ROUTE_PERM = { money: 'money', fleet: 'fleet', people: 'people', bills: 'bills', insights: 'insights', drivers: 'manageDrivers', assignments: 'assignDriver', routes: 'manageRoutes', reports: 'dashboard', busreport: 'dashboard', livemap: 'liveMap', track: 'liveMap', fuel: 'addFuel', safety: 'dashboard', breakdowns: 'logIncident', warranty: 'addFuel', storehealth: 'issuePart', linkgps: 'addBus', newjob: 'addJob', forecast: 'dashboard', pilferage: 'insights', components: 'issuePart', def: 'addFuel', vendors: 'addPurchase', import: 'addPurchase', crewpins: 'manageCrewLogins', crewbank: 'manageDrivers', usage: 'dashboard', accounting: 'dashboard', busacct: 'dashboard',
   // `purchases` renders the same view as `bills`; without its own entry the
   // `bills` permission was bypassable just by using the other route name.
   purchases: 'bills', alerts: 'dashboard', buses: 'fleet', gate: 'gateCheck', gatechecks: 'gateDecide', reviews: 'dashboard',
@@ -10705,6 +10751,7 @@ const _dispatchClick = async (e) => {
       case 'openStaff': return sheetStaff();
       case 'saveStaff': return saveStaff();
       case 'removeStaff': return removeStaff(el.getAttribute('data-id'));
+      case 'renameStaff': return renameStaff(el.getAttribute('data-id'));
       case 'resetStaffPin': return resetStaffPin(el.getAttribute('data-id'));
       case 'openDrivers': return push({ name: 'drivers' });
       case 'addDriver': return sheetAddDriver();
