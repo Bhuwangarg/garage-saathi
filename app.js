@@ -22,6 +22,10 @@ const I18N = {
     notStored: 'This phone could not save {n} record(s) others can see — free up space, then Me → Device & server → Re-download everything',
     notStoredRow: 'Records this phone could not save',
     photoKept: 'Photo kept on this phone — it will upload when the connection is back',
+    fuPump: 'Pump / filling station', fuPumpPh: 'e.g. Jio-bp, Ajmer Road',
+    fuWhere: 'Where (optional)', fuWherePh: 'paste a Google Maps link, or 26.9124, 75.7873',
+    fuHere: 'Use my location', fuLocGot: 'Location captured', fuLocFail: 'Could not get the location — check GPS permission',
+    fuByPump: 'Price by pump', fuPerL: 'per litre', fuFills: 'fill(s)', fuNoPump: 'Pump not recorded', fuOpenMap: 'Map',
     noBusesHere: 'No buses on this phone yet', noBusesFix: 'Me → Device & server → Re-download everything',
     onThisPhone: 'On this phone', busesWord: 'buses', crewWord: 'crew',
     tidyTitle: 'Pictures kept inside records', tidyFound: 'photo(s) waiting to be uploaded',
@@ -287,6 +291,10 @@ const I18N = {
     notStored: 'यह फ़ोन {n} रिकॉर्ड सेव नहीं कर पाया जो दूसरों को दिख रहे हैं — जगह खाली कीजिए, फिर मैं → डिवाइस और सर्वर → सब दोबारा डाउनलोड करें',
     notStoredRow: 'जो रिकॉर्ड यह फ़ोन सेव नहीं कर पाया',
     photoKept: 'फोटो इसी फ़ोन में रखी है — नेट आते ही अपने आप चढ़ जाएगी',
+    fuPump: 'पंप / फ़िलिंग स्टेशन', fuPumpPh: 'जैसे जियो-बीपी, अजमेर रोड',
+    fuWhere: 'कहाँ (ज़रूरी नहीं)', fuWherePh: 'गूगल मैप्स लिंक चिपकाइए, या 26.9124, 75.7873',
+    fuHere: 'मेरी लोकेशन लीजिए', fuLocGot: 'लोकेशन ले ली', fuLocFail: 'लोकेशन नहीं मिली — GPS की अनुमति देखिए',
+    fuByPump: 'पंप के हिसाब से दाम', fuPerL: 'प्रति लीटर', fuFills: 'बार भरा', fuNoPump: 'पंप दर्ज नहीं', fuOpenMap: 'नक्शा',
     noBusesHere: 'इस फ़ोन पर अभी कोई बस नहीं है', noBusesFix: 'मैं → डिवाइस और सर्वर → सब दोबारा डाउनलोड करें',
     onThisPhone: 'इस फ़ोन पर', busesWord: 'बसें', crewWord: 'स्टाफ़',
     tidyTitle: 'रिकॉर्ड के अंदर पड़ी तस्वीरें', tidyFound: 'फोटो चढ़नी बाकी हैं',
@@ -6594,6 +6602,52 @@ function busMileage(busId) {
   const fuelPerKm = spanKm > 0 ? totalCost / spanKm : null;
   return { fills: fills.length, avgKmpl, lastKmpl, totalCost, fuelPerKm, drop };
 }
+/* A pasted Google Maps link, or plain coordinates, reduced to a point.
+ *
+ * Diesel is bought wherever the bus happens to be, and the price differs by
+ * city — so where it was bought is worth keeping, not just what it cost. The
+ * link is stored as typed AND parsed when it can be, because a link is only
+ * good for opening while coordinates can be grouped, measured and mapped. */
+function parseLatLng(text) {
+  const str = String(text || '');
+  const pairs = [
+    /[?&](?:q|ll|daddr|center)=(-?\d{1,3}\.\d+)[,%2C\s]+(-?\d{1,3}\.\d+)/i,  // ?q=lat,lng
+    /@(-?\d{1,3}\.\d+),(-?\d{1,3}\.\d+)/,                                     // /maps/@lat,lng,17z
+    /!3d(-?\d{1,3}\.\d+)!4d(-?\d{1,3}\.\d+)/,                                 // place links
+    /^\s*(-?\d{1,3}\.\d+)\s*,\s*(-?\d{1,3}\.\d+)\s*$/,                      // typed "lat, lng"
+  ];
+  for (const re of pairs) {
+    const m = str.match(re);
+    if (m) {
+      const lat = Number(m[1]), lng = Number(m[2]);
+      if (Math.abs(lat) <= 90 && Math.abs(lng) <= 180) return { lat, lng };
+    }
+  }
+  return null;
+}
+const mapsUrl = (lat, lng) => `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+// Pumps already used, newest first — diesel is bought from the same few places,
+// so the second visit should be a tap rather than typing the name again.
+function knownPumps() {
+  const seen = new Map();
+  [...(S.cache.fuel || [])].sort((a, b) => (b.at || 0) - (a.at || 0)).forEach((f) => {
+    const n = (f.pump || '').trim();
+    if (n && !seen.has(n.toLowerCase())) seen.set(n.toLowerCase(), n);
+  });
+  return [...seen.values()].slice(0, 40);
+}
+let _fuelLat = null, _fuelLng = null;
+async function captureFuelLocation() {
+  toast('Getting location…');
+  try {
+    const pos = await new Promise((res, rej) => navigator.geolocation.getCurrentPosition(res, rej, { enableHighAccuracy: true, timeout: 8000 }));
+    _fuelLat = pos.coords.latitude; _fuelLng = pos.coords.longitude;
+    const el = $('#f-floc');
+    if (el) el.value = `${_fuelLat.toFixed(5)}, ${_fuelLng.toFixed(5)}`;
+    toast(t('fuLocGot') + ' ✓');
+  } catch (e) { toast(t('fuLocFail')); }
+}
+
 function sheetAddFuel(busId) {
   const buses = S.cache.buses;
   if (!buses.length) return openSheet('Log fuel', `<div class="banner warn">Add a bus first.</div>`);
@@ -6609,8 +6663,15 @@ function sheetAddFuel(busId) {
     <label class="row" style="gap:9px;margin:6px 0 2px;cursor:pointer">
       <input type="checkbox" id="f-fodobroken" ${b && b.odoBroken ? 'checked' : ''} style="width:18px;height:18px;flex:none">
       <span class="small">🚫 ${t('odoBroken')}</span></label>
+    <label class="field"><span class="lbl">⛽ ${t('fuPump')}</span>
+      <input id="f-fpump" list="fuel-pumps" autocomplete="off" placeholder="${esc(t('fuPumpPh'))}">
+      <datalist id="fuel-pumps">${knownPumps().map((n) => `<option value="${esc(n)}"></option>`).join('')}</datalist></label>
+    <label class="field"><span class="lbl">📍 ${t('fuWhere')}</span>
+      <input id="f-floc" autocomplete="off" placeholder="${esc(t('fuWherePh'))}"></label>
+    <button class="btn sm ghost" data-act="fuelHere" style="margin:-4px 0 10px">📍 ${t('fuHere')}</button>
     <label class="repcheck"><input type="checkbox" id="f-ffull" checked> <span>Filled to full (needed for accurate km/l)</span></label>
     <button class="btn primary" data-act="saveFuel">${t('save')}</button>`);
+  _fuelLat = null; _fuelLng = null;
 }
 async function saveFuel() {
   const busId = $('#f-fbus').value;
@@ -6618,12 +6679,41 @@ async function saveFuel() {
   if (!busId) return toast('Pick a bus');
   if (litres <= 0) return toast('Enter litres');
   if (odo <= 0) return toast('Enter the odometer reading');
-  await DB.put('fuel', { id: uid('fu-'), busId, litres, cost, odometer: odo, full: $('#f-ffull').checked, at: Date.now(), by: S.user.id });
+  const pump = (($('#f-fpump') || {}).value || '').trim().replace(/\s+/g, ' ');
+  const whereTyped = (($('#f-floc') || {}).value || '').trim();
+  // Coordinates if we can get them (from the capture button, a pasted link or a
+  // typed pair); the text is kept either way, so nothing a person wrote is lost.
+  const point = parseLatLng(whereTyped) || (_fuelLat != null ? { lat: _fuelLat, lng: _fuelLng } : null);
+  const rec = { id: uid('fu-'), busId, litres, cost, odometer: odo, full: $('#f-ffull').checked, at: Date.now(), by: S.user.id };
+  if (pump) rec.pump = pump;
+  if (whereTyped) rec.place = whereTyped.slice(0, 500);
+  if (point) { rec.lat = point.lat; rec.lng = point.lng; }
+  await DB.put('fuel', rec);
   // Keep the bus odometer fresh from the fill reading if it's higher.
   const b = byId(S.cache.buses, busId);
   if (b && odo > (b.odometer || 0)) { b.odometer = odo; await DB.put('buses', b); }
+  _fuelLat = null; _fuelLng = null;
   await load(); closeSheet(); toast('Fuel logged ✓'); rerender();
 }
+
+/* What a litre costs at each pump. The reason the field exists: diesel is
+ * bought in several cities at several prices, and until now a fill was just a
+ * number with no idea where it came from. */
+function pumpPrices() {
+  const by = new Map();
+  for (const f of (S.cache.fuel || [])) {
+    const key = (f.pump || '').trim() || '';
+    const cur = by.get(key) || { pump: key, litres: 0, cost: 0, fills: 0, last: 0, lat: null, lng: null };
+    cur.litres += Number(f.litres) || 0;
+    cur.cost += Number(f.cost) || 0;
+    cur.fills += 1;
+    if ((f.at || 0) > cur.last) { cur.last = f.at || 0; if (f.lat != null) { cur.lat = f.lat; cur.lng = f.lng; } }
+    by.set(key, cur);
+  }
+  return [...by.values()].map((x) => Object.assign(x, { perL: x.litres > 0 ? x.cost / x.litres : null }))
+    .sort((a, b) => b.cost - a.cost);
+}
+
 function viewFuel() {
   const rows = [...S.cache.buses].map((b) => ({ b, m: busMileage(b.id) })).sort((a, b) => b.m.totalCost - a.m.totalCost);
   const fleetCost = rows.reduce((s, x) => s + x.m.totalCost, 0);
@@ -6631,6 +6721,16 @@ function viewFuel() {
   if (can(S.user.role, 'addFuel')) body += `<button class="btn primary" data-act="addFuel" style="margin-bottom:12px">⛽ Log fuel</button>`;
   body += `<div class="card"><div class="muted small">Total fuel spend (logged)</div><div class="stat" style="color:var(--brand2)">${money(fleetCost)}</div>
     <div class="tiny muted">Log full-tank fills for accurate km/l.</div></div>`;
+  const pumps = pumpPrices();
+  if (pumps.length) {
+    body += `<div class="card"><div class="row between"><h3>⛽ ${esc(t('fuByPump'))}</h3><span class="badge b-low">${pumps.length}</span></div>`;
+    body += pumps.map((p) => `<div class="li">
+      <div class="ava">${p.lat != null ? '📍' : '⛽'}</div>
+      <div class="main"><div class="t">${esc(p.pump || t('fuNoPump'))}</div>
+        <div class="s">${p.fills} ${esc(t('fuFills'))} · ${money(p.cost)}${p.lat != null ? ` · <a href="${esc(mapsUrl(p.lat, p.lng))}" target="_blank" rel="noopener">${esc(t('fuOpenMap'))}</a>` : ''}</div></div>
+      ${p.perL != null ? `<b>₹${p.perL.toFixed(2)}<span class="tiny muted">/L</span></b>` : ''}</div>`).join('');
+    body += `</div>`;
+  }
   body += `<div class="card"><h3>Mileage by bus</h3>`;
   body += rows.length ? rows.map(({ b, m }) => `<div class="li" data-act="busReport" data-bus="${esc(b.id)}" style="cursor:pointer">${avatar(busImg(b), '🚌')}
     <div class="main"><div class="t">${esc(b.regNo)}${m.drop ? ' <span class="badge b-red">mileage ↓</span>' : ''}</div>
@@ -10581,6 +10681,7 @@ const _dispatchClick = async (e) => {
       case 'disableNotif': return disableNotifications();
       case 'testNotif': return testNotification();
       case 'addFuel': return sheetAddFuel(el.getAttribute('data-bus'));
+      case 'fuelHere': return captureFuelLocation();
       case 'saveFuel': return saveFuel();
       case 'openDef': return push({ name: 'def' });
       case 'addDef': return sheetAddDef(el.getAttribute('data-bus'));
