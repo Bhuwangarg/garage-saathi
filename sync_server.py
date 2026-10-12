@@ -704,7 +704,13 @@ def purge_demo_users():
                 continue
             if hash_pin(row[0], pin) == row[1]:
                 c.execute("DELETE FROM users WHERE id=?", (uid,))
-                c.execute("DELETE FROM records WHERE store='users' AND id=?", (uid,))
+                # A tombstone, not a hard delete: /pull can only tell a device
+                # about a record it can still see. Deleting the row outright
+                # left the demo tile on every phone that had already synced —
+                # visible on the login screen, with a PIN that may still be
+                # cached on it.
+                rev0 = c.execute("SELECT COALESCE(MAX(rev),0) FROM records").fetchone()[0]
+                _upsert_record(c, "users", uid, {"id": uid, "_deleted": True}, now_ms(), rev0)
                 removed.append(uid)
         c.commit()
         c.close()
@@ -1991,12 +1997,25 @@ def push(records, actor=None):
                     data.pop("_createdBy", None)
                     data.pop("_createdRole", None)
             if actor:
+                before_guard = json.dumps(data, sort_keys=True)
                 reason = _guard_write(store, rid, data, actor, existing, c)
                 if reason:
                     rejected += 1
                     refused.append({"store": store, "id": rid, "reason": reason})
                     print("push refused: %s/%s by %s — %s" % (store, rid, actor["id"], reason))
                     continue
+                # _guard_write does not only accept or refuse: it CORRECTS. It
+                # merges back a parts line a stale device dropped, marks an
+                # attendance time unverified, carries a job's crew over. The
+                # device that pushed decides whether a pulled record is newer by
+                # data.updatedAt, which was stamped above and therefore equals
+                # what it already holds — so the correction was pulled by every
+                # OTHER phone and never by the one that needed it, which went on
+                # showing the job card without the part. A changed payload gets
+                # a later timestamp so its author sees it too.
+                if json.dumps(data, sort_keys=True) != before_guard:
+                    upd = max(upd + 1, now_ms())
+                    data["updatedAt"] = upd
             if row is None or upd > (row[0] or 0):
                 # A part's quantity is money. Record every change of it in a store
                 # no client can write or delete, with who did it and whether a

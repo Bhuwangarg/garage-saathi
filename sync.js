@@ -121,7 +121,7 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
   let lastErrorAt = Number(ls.getItem('lastSyncErrorAt') || 0) || 0;
   let status = 'init';            // init | syncing | synced | offline
   let busy = false, kickTimer = null, pollTimer = null;
-  let cbStatus = null, cbApplied = null, cbConflict = null, cbStoreFail = null;
+  let cbStatus = null, cbApplied = null, cbConflict = null, cbStoreFail = null, cbRefused = null;
 
   const saveOutbox = () => {
     ls.setItem('outbox', JSON.stringify([...outbox]));
@@ -555,13 +555,19 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
 
     if (res.ok && Array.isArray(body.refused)) {
       // The server took what it could and named what it would not.
+      const refusals = [];
       for (const r of body.refused) {
         const key = byKey.get(r.store + '|' + r.id);
         if (!key) continue;
         quarantine[key] = { at: Date.now(), status: 403, reason: r.reason || '' };
+        refusals.push(r.reason || 'refused');
         byKey.delete(r.store + '|' + r.id);
       }
       saveQuarantine();
+      // A refused write is the quietest way to lose work: the change sits in
+      // this phone's database, "Waiting to send" drops to zero, and the server
+      // never has it. The server says WHY — pass it on.
+      if (refusals.length && cbRefused) cbRefused(refusals.length, refusals);
       for (const key of byKey.values()) outbox.delete(key);   // everything else landed
       saveOutbox();
       return;
@@ -592,9 +598,12 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
       if (one.ok) { outbox.delete(key); saveOutbox(); continue; }
       if (one.status === 401) throw sessionDead('push');
       if (one.status >= 400 && one.status < 500 && one.status !== 429) {
-        quarantine[key] = { at: Date.now(), status: one.status };
+        let why = '';
+        try { why = ((await one.json()) || {}).error || ''; } catch (e) { /* no body */ }
+        quarantine[key] = { at: Date.now(), status: one.status, reason: why };
         saveQuarantine();
         outbox.delete(key); saveOutbox();
+        if (cbRefused) cbRefused(1, [why || ('server said ' + one.status)]);
         continue;
       }
       throw new Error('push ' + one.status);    // lock/5xx → stop, retry later
@@ -746,6 +755,7 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
   function start(opts = {}) {
     cbStatus = opts.onStatus; cbApplied = opts.onApplied; cbConflict = opts.onConflict;
     cbStoreFail = opts.onStoreFail || null;
+    cbRefused = opts.onRefused || null;
     DB.onChange = markDirty;                 // wire the outbox to local writes
     window.addEventListener('online', tick);
     clearInterval(pollTimer);

@@ -115,9 +115,18 @@ login mechanic u-m1 0 0 0 1; ck "mechanic login" "$(j "S.user?S.user.role:'none'
 # mechanic's jobs, and of the whole board to somebody with no business on it.
 ck "mechanic sees only their own jobs" \
   "$(j "(function(){var n=(S.cache.jobs||[]).filter(function(x){return !isOnJob(x,S.user.id)});var shown=[].slice.call(document.querySelectorAll('[data-job]')).map(function(e){return e.getAttribute('data-job')});return n.filter(function(x){return shown.indexOf(x.id)>=0}).length})()")" "0"
+# A mechanic must actually REACH their own card. This went unnoticed for a
+# while because the close-button check below passed vacuously: viewJobs was not
+# in the mechanic's permissions, every tap bounced to home, and home has no
+# close button either. Assert the screen first, then what is on it.
+ck "mechanic can open their own job card" \
+  "$(j "(function(){var j=(S.cache.jobs||[]).filter(function(x){return isOnJob(x,S.user.id)})[0];if(!j)return 'nojob';route({name:'jobs',id:j.id});return S.route.name+':'+(S.route.id||'')})()")" \
+  "$(j "(function(){var j=(S.cache.jobs||[]).filter(function(x){return isOnJob(x,S.user.id)})[0];return j?'jobs:'+j.id:'nojob'})()")"
+ck "mechanic can open the store" \
+  "$(j "(function(){route({name:'store'});return S.route.name})()")" "store"
 # Closing is the supervisor's and the owner's. The button must not be there...
 ck "mechanic has no close button" \
-  "$(j "(function(){var j=(S.cache.jobs||[]).filter(function(x){return x.assignedTo===S.user.id&&(x.status==='open'||x.status==='in-progress')})[0];if(!j)return 'nojob';route({name:'jobs',id:j.id});return document.querySelector('[data-act=markDone]')?'yes':'no'})()")" "no"
+  "$(j "(function(){var j=(S.cache.jobs||[]).filter(function(x){return x.assignedTo===S.user.id&&(x.status==='open'||x.status==='in-progress')})[0];if(!j)return 'nojob';route({name:'jobs',id:j.id});if(S.route.name!=='jobs')return 'bounced';return document.querySelector('[data-act=markDone]')?'yes':'no'})()")" "no"
 # ...and they are still assignable people: the scorecard and pilferage radar are
 # built on knowing who did the work.
 ck "mechanics still on the roster" \

@@ -21,6 +21,12 @@ const I18N = {
     sessionEnded: 'Signed out — open Me → Log out, then sign in again to keep syncing',
     notStored: 'This phone could not save {n} record(s) others can see — free up space, then Me → Device & server → Re-download everything',
     notStoredRow: 'Records this phone could not save',
+    aiServerOn: 'AI advisor: set up on the server — everyone signed in can use it',
+    aiServerOff: 'AI advisor: not set up on the server. Set ANTHROPIC_API_KEY in the hosting settings and it works for everybody, on every phone.',
+    aiDeviceKey: 'Key for this phone only (testing)', aiDeviceKeyHint: 'A key typed here is stored on this phone and used only here. The server key above is the one that serves everybody.',
+    aiClearKey: 'Remove the key from this phone', aiCleared: 'Key removed from this phone',
+    refusedRow: 'Changes the server would not accept', refusedToast: 'The server would not accept a change:',
+    refusedRetry: 'Try sending them again',
     photoKept: 'Photo kept on this phone — it will upload when the connection is back',
     renameBtn: 'Rename', renamePrompt: 'New name for this login', renamedOk: 'Renamed to',
     renameSame: 'That is already the name', renameNeed: 'Type a name',
@@ -300,6 +306,12 @@ const I18N = {
     sessionEnded: 'साइन-आउट हो गया — मैं → लॉग आउट करके दोबारा लॉगिन कीजिए, तभी डेटा चलता रहेगा',
     notStored: 'यह फ़ोन {n} रिकॉर्ड सेव नहीं कर पाया जो दूसरों को दिख रहे हैं — जगह खाली कीजिए, फिर मैं → डिवाइस और सर्वर → सब दोबारा डाउनलोड करें',
     notStoredRow: 'जो रिकॉर्ड यह फ़ोन सेव नहीं कर पाया',
+    aiServerOn: 'AI सलाहकार: सर्वर पर लगा है — जो भी लॉगिन करेगा उसे मिलेगा',
+    aiServerOff: 'AI सलाहकार: सर्वर पर नहीं लगा। होस्टिंग सेटिंग में ANTHROPIC_API_KEY डालिए, फिर हर फ़ोन पर सबके लिए चलेगा।',
+    aiDeviceKey: 'सिर्फ़ इसी फ़ोन की कुंजी (टेस्टिंग)', aiDeviceKeyHint: 'यहाँ डाली कुंजी इसी फ़ोन में रहती है और यहीं चलती है। सबके लिए सर्वर वाली कुंजी ही काम आती है।',
+    aiClearKey: 'इस फ़ोन से कुंजी हटाएँ', aiCleared: 'कुंजी इस फ़ोन से हटा दी',
+    refusedRow: 'जो बदलाव सर्वर ने नहीं लिए', refusedToast: 'सर्वर ने यह बदलाव नहीं लिया:',
+    refusedRetry: 'दोबारा भेजकर देखिए',
     photoKept: 'फोटो इसी फ़ोन में रखी है — नेट आते ही अपने आप चढ़ जाएगी',
     renameBtn: 'नाम बदलें', renamePrompt: 'इस लॉगिन का नया नाम', renamedOk: 'नाम बदला:',
     renameSame: 'यही नाम पहले से है', renameNeed: 'नाम लिखिए',
@@ -1096,9 +1108,15 @@ const PERMS = {
   // permission rather than widening `dashboard`, which also opens reports,
   // accounting, usage and the money screens.
   liveMap: ['owner', 'supervisor', 'crewmanager'],
-  viewStore: ['owner', 'supervisor', 'store'],
-  viewJobs: ['owner', 'supervisor', 'store'],
-  viewScoreboard: ['owner', 'supervisor', 'store'],
+  // 'mechanic' belongs in all three, and its absence made that login useless:
+  // their nav carries a Store tab, their home screen lists their jobs and their
+  // score — and every one of those taps bounced them back to the same home
+  // screen, so they could not open a card, log hours or mark work done. What a
+  // mechanic may see INSIDE a card is scoped per record (viewJobDetail's `mine`
+  // check) and again on the server, which is where that belongs.
+  viewStore: ['owner', 'supervisor', 'store', 'mechanic'],
+  viewJobs: ['owner', 'supervisor', 'store', 'mechanic'],
+  viewScoreboard: ['owner', 'supervisor', 'store', 'mechanic'],
 };
 
 /* ------------------------------ Sheets ------------------------------------ */
@@ -1498,9 +1516,15 @@ function costByCompany() {
 function busCostPerKm(b) {
   // Rough lifetime ₹/km: total repair spend on this bus ÷ km it has run.
   // (The old formula subtracted a service window and produced nonsense numbers.)
+  //
+  // null when there is no honest denominator. Dividing by Math.max(1, odometer)
+  // meant a bus added without a reading, carrying ₹45,000 of work, reported
+  // ₹45,000/km: top of the money-pit list and an AI insight sending the owner
+  // to inspect a bus with nothing wrong with it. A bus whose odometer is known
+  // broken is the same case, and the app already promises a blank there.
+  if (b.odoBroken || !(b.odometer > 0)) return null;
   const cost = S.cache.jobs.filter((j) => j.busId === b.id).reduce((s, j) => s + jobCost(j).total, 0);
-  const km = Math.max(1, b.odometer || 0);
-  return cost / km;
+  return cost / b.odometer;
 }
 
 /* ----------------------- Phase 3: GPS provider ----------------------------
@@ -1634,6 +1658,20 @@ async function ensureDutyBaselines() {
 // Identity lookups stay role-agnostic: a conductor opening "my documents" must
 // find his own record.
 const crewForUser = (userId) => allCrew().find((d) => d.userId === userId) || null;
+/* The face to show for a crew member.
+ *
+ * Two photographs of the same person were being kept: the one taken at New
+ * joining (`photo`) and the Photograph DOCUMENT in their file
+ * (`docs.photo.photo`), which is the one the office actually collects — so a
+ * man whose file was complete still appeared as a grey emoji everywhere. Either
+ * will do, the joining snap first because it is framed as a portrait. A PDF
+ * cannot be shown as a face, so it is skipped. */
+function crewFace(d) {
+  if (!d) return '';
+  const doc = ((d.docs || {}).photo || {}).photo || '';
+  const pick = d.photo || doc;
+  return (pick && !isPdfSrc(pick)) ? pick : '';
+}
 const driverForUser = (userId) => allCrew().find((d) => d.userId === userId && crewRoleOf(d) === 'driver') || null;
 
 // Aadhaar is shown masked. The Aadhaar Act forbids publishing the number, and
@@ -1795,7 +1833,7 @@ function qtile(icon, value, label, nav) {
 function viewStoreHome() {
   const parts = S.cache.parts;
   const low = parts.filter(isLow);
-  const stockValue = parts.reduce((s, p) => s + p.qty * p.unitCost, 0);
+  const stockValue = parts.reduce((s, p) => s + (p.qty || 0) * (p.unitCost || 0), 0);
   const pending = S.cache.purchases.filter((p) => p.paymentStatus === 'pending').reduce((s, p) => s + p.amount, 0);
   const openJobs = S.cache.jobs.filter((j) => j.status === 'open' || j.status === 'in-progress');
   let body = `<div class="greet"><div class="greet-av">📦</div>
@@ -3680,7 +3718,7 @@ async function linkGps(busId, reg, odo) {
 /* ----- Store / inventory ----- */
 function viewStore() {
   const parts = [...S.cache.parts].sort((a, b) => (a.qty <= a.reorderLevel ? -1 : 1) - (b.qty <= b.reorderLevel ? -1 : 1));
-  const stockValue = parts.reduce((s, p) => s + p.qty * p.unitCost, 0);
+  const stockValue = parts.reduce((s, p) => s + (p.qty || 0) * (p.unitCost || 0), 0);
 
   let body = `<div class="grid2">
     <div class="card tile"><div class="muted small">Stock value</div><div class="stat">${money(stockValue)}</div></div>
@@ -5907,12 +5945,19 @@ function sheetSync() {
            without anyone having to describe a screen over the telephone. -->
       <div class="row between small"><span class="muted">${esc(t('onThisPhone'))}</span><b>${(S.cache.buses || []).length} ${esc(t('busesWord'))} · ${(S.cache.drivers || []).length} ${esc(t('crewWord'))}</b></div>
       ${i.notStored ? `<div class="row between small"><span class="muted">${esc(t('notStoredRow'))}</span><b style="color:#ef4444">${i.notStored}</b></div>` : ''}
+      ${i.quarantined ? `<div class="row between small"><span class="muted">${esc(t('refusedRow'))}</span><b style="color:#ef4444">${i.quarantined}</b></div>` : ''}
       ${i.lastError ? `<div class="row between small"><span class="muted">Last failure${i.lastErrorAt ? ' · ' + timeAgo(i.lastErrorAt) : ''}</span><b style="color:#ef4444">${esc(i.lastError)}</b></div>` : ''}
     </div>
     ${canSetServer() ? `<label class="field"><span class="lbl">Server URL</span><input id="f-syncurl" value="${esc(i.url)}"></label>
     <div class="tiny muted" style="margin-bottom:10px">On a phone, set this to your computer's address, e.g. http://192.168.29.219:8766. Leave empty for the normal server.</div>
-    <label class="field"><span class="lbl">Anthropic API key — for AI Insights (optional)</span><input id="f-aikey" type="password" value="${esc(localStorage.getItem('aiKey') || '')}" placeholder="sk-ant-..."></label>
-    <div class="tiny muted" style="margin-bottom:10px">Stored only on this device. Enables the "Ask the advisor" box on AI Insights.</div>
+    <!-- Where the AI key belongs is the server: one key, every phone, and it
+         never leaves the server. The box below predates that and is for local
+         testing — a key in a phone's storage is readable by anything with the
+         phone. The line above it reports what the server actually has. -->
+    <div class="tiny" id="ai-state" style="margin:2px 0 10px;color:var(--muted)">…</div>
+    <label class="field"><span class="lbl">🔑 ${esc(t('aiDeviceKey'))}</span><input id="f-aikey" type="password" value="${esc(localStorage.getItem('aiKey') || '')}" placeholder="sk-ant-..." autocomplete="off"></label>
+    <div class="tiny muted" style="margin-bottom:10px">${esc(t('aiDeviceKeyHint'))}</div>
+    ${localStorage.getItem('aiKey') ? `<button class="btn sm ghost" data-act="clearAiKey" style="margin-bottom:10px">🗑️ ${esc(t('aiClearKey'))}</button>` : ''}
     <button class="btn primary" data-act="saveSyncUrl">${t('saveWord')}</button>` : `<div class="tiny muted">${esc(i.url)}</div>`}
     ${['owner', 'supervisor'].includes(S.user.role) ? `<div class="card" id="tidy-row" style="margin-top:10px">
       <div class="row between"><b>🖼️ ${esc(t('tidyTitle'))}</b><span class="badge b-low" id="tidy-count">…</span></div>
@@ -5921,12 +5966,18 @@ function sheetSync() {
       <div class="tiny muted" id="tidy-state" style="margin-top:6px"></div>
     </div>` : ''}
     <div class="spacer"></div>
+    ${i.quarantined ? `<button class="btn ghost" data-act="syncRetryRefused">↻ ${esc(t('refusedRetry'))} (${i.quarantined})</button><div class="spacer"></div>` : ''}
     <button class="btn ghost" data-act="syncRedownload">⤓ Re-download everything</button>
     <div class="tiny muted" style="margin-top:6px">Use this if this device is missing people or records that other devices can see. It re-reads the whole server; nothing you have entered here is lost.</div>`,
     (wrap) => {
       // Counting walks every record, so it happens after the sheet is up.
       const badge = wrap.querySelector('#tidy-count');
       if (!badge) return;
+      // What the SERVER has, which is the only thing that serves everybody.
+      fetch((i.url || '') + '/health').then((r) => r.json()).then((h) => {
+        const el = wrap.querySelector('#ai-state');
+        if (el) { el.textContent = h.aiKeySet ? t('aiServerOn') : t('aiServerOff'); el.style.color = h.aiKeySet ? 'var(--green)' : 'var(--amber)'; }
+      }).catch(() => { const el = wrap.querySelector('#ai-state'); if (el) el.textContent = ''; });
       inlineMediaScan().then((found) => {
         const n = found.reduce((x, f) => x + f.hits, 0);
         badge.textContent = String(n);
@@ -6835,13 +6886,39 @@ function viewPilferage() {
  * Log fills (litres + ₹ + odometer) → km/l (tank-to-tank), fuel ₹/km, total
  * fuel spend, and a mileage-drop alert (engine trouble or fuel pilferage).
  */
-const fuelEntries = (busId) => (S.cache.fuel || []).filter((f) => f.busId === busId).sort((a, b) => (a.odometer || 0) - (b.odometer || 0));
+// In the order they happened. Sorting by odometer looks equivalent and is not:
+// one corrected reading, or a fill entered against the wrong bus and redone,
+// and the sequence is one that never occurred — every km/l drawn from it is
+// then wrong, and the "mileage ↓" badge fires on nothing.
+const fuelEntries = (busId) => (S.cache.fuel || []).filter((f) => f.busId === busId)
+  .sort((a, b) => (a.at || 0) - (b.at || 0));
 function busMileage(busId) {
   const fills = fuelEntries(busId);
+  /* Kilometres per litre is only meaningful tank-to-tank: between one full tank
+   * and the next, the litres put in are exactly the litres burned. The sheet has
+   * said "Filled to full (needed for accurate km/l)" since the beginning and
+   * nothing read it — every consecutive pair was treated as a segment, so a
+   * 20-litre top-up after a full tank produced a whole tank's kilometres over
+   * 20 litres (a wild km/l that became "last"), and the fill after it produced
+   * the mirror image, low enough to raise the "mileage ↓" flag on a healthy
+   * engine. Partial fills now accumulate into the next full-tank segment, which
+   * is what they are: fuel burned within it.
+   *
+   * `full !== false` for the older records written before the flag existed. */
   let litres = 0; const segs = [];
+  let pending = 0, fromOdo = null;
   for (let i = 1; i < fills.length; i++) {
-    const d = (fills[i].odometer || 0) - (fills[i - 1].odometer || 0);
-    if (d > 0 && fills[i].litres > 0) { litres += fills[i].litres; segs.push(d / fills[i].litres); }
+    const f = fills[i];
+    const d = (f.odometer || 0) - (fills[i - 1].odometer || 0);
+    const q = Number(f.litres) || 0;
+    if (!(q > 0)) continue;
+    if (fromOdo == null) fromOdo = fills[i - 1].odometer || 0;     // segment start
+    pending += q;
+    if (d <= 0) continue;                 // a reading that did not move: not a segment
+    if (f.full === false) continue;       // partial: its litres ride into the next full tank
+    const span = (f.odometer || 0) - fromOdo;
+    if (span > 0 && pending > 0) { litres += pending; segs.push(span / pending); }
+    pending = 0; fromOdo = null;
   }
   const totalCost = fills.reduce((s, f) => s + (f.cost || 0), 0);
   const spanKm = fills.length > 1 ? (fills[fills.length - 1].odometer - fills[0].odometer) : 0;
@@ -6931,7 +7008,11 @@ async function saveFuel() {
   const litres = Number($('#f-flitres').value) || 0, cost = Number($('#f-fcost').value) || 0, odo = Number($('#f-fodo').value) || 0;
   if (!busId) return toast('Pick a bus');
   if (litres <= 0) return toast('Enter litres');
-  if (odo <= 0) return toast('Enter the odometer reading');
+  // The tick that says "odometer not working on this bus" was never read here,
+  // and the next line then demanded the reading the crew had just said they
+  // cannot take — so a diesel fill on such a bus could not be recorded at all.
+  const odoBroken = !!(($('#f-fodobroken') || {}).checked);
+  if (!odoBroken && odo <= 0) return toast('Enter the odometer reading');
   const pump = (($('#f-fpump') || {}).value || '').trim().replace(/\s+/g, ' ');
   const whereTyped = (($('#f-floc') || {}).value || '').trim();
   // Coordinates if we can get them (from the capture button, a pasted link or a
@@ -6942,9 +7023,15 @@ async function saveFuel() {
   if (whereTyped) rec.place = whereTyped.slice(0, 500);
   if (point) { rec.lat = point.lat; rec.lng = point.lng; }
   await DB.put('fuel', rec);
-  // Keep the bus odometer fresh from the fill reading if it's higher.
+  // Keep the bus odometer fresh from the fill reading if it's higher, and carry
+  // the broken-odometer answer onto the bus, the way the job card does.
   const b = byId(S.cache.buses, busId);
-  if (b && odo > (b.odometer || 0)) { b.odometer = odo; await DB.put('buses', b); }
+  if (b) {
+    let ch = false;
+    if (!!b.odoBroken !== odoBroken) { b.odoBroken = odoBroken; ch = true; }
+    if (!odoBroken && odo > (b.odometer || 0)) { b.odometer = odo; ch = true; }
+    if (ch) await DB.put('buses', b);
+  }
   _fuelLat = null; _fuelLng = null;
   await load(); closeSheet(); toast('Fuel logged ✓'); rerender();
 }
@@ -8048,7 +8135,7 @@ function viewDriverDetail(id) {
   const canManage = can(S.user.role, 'manageDrivers');
 
   let body = `<div class="card"><div class="row">
-      <div class="ava" style="width:52px;height:52px;font-size:26px">${d.photo ? `<img src="${esc(d.photo)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:16px">` : rmeta[0]}</div>
+      <div class="ava" style="width:52px;height:52px;font-size:26px">${crewFace(d) ? `<img src="${esc(crewFace(d))}" alt="">` : rmeta[0]}</div>
       <div style="flex:1"><div style="font-weight:800;font-size:17px">${esc(d.name)}</div>
         <div class="small muted">${esc(crewRoleLabel(crole))}${d.phone ? ' · ' + esc(d.phone) : ''}${crewLicenceNo(d) ? ' · ' + esc(crewLicenceNo(d)) : ''}</div></div>
       <span class="badge ${scoreClass(score)}">${score}/100</span></div>
@@ -9225,7 +9312,7 @@ function crewLi(d) {
   const hay = `${d.name} ${d.phone || ''} ${crewLicenceNo(d)} ${_digits(crewAadhaarNo(d)).slice(-4)} ${bus} ${crewRoleLabel(role)}`;
   const sub = [d.phone || t('cbNoPhone'), bus || t('cbNoBus'), crewLicenceNo(d)].filter(Boolean).join(' · ');
   return `<div class="li" data-driver="${esc(d.id)}" data-hay="${esc(hay)}" style="${left ? 'opacity:.62' : ''}">
-    <div class="ava">${d.photo ? `<img src="${esc(d.photo)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:14px">` : meta[0]}</div>
+    <div class="ava">${crewFace(d) ? `<img src="${esc(crewFace(d))}" alt="">` : meta[0]}</div>
     <div class="main"><div class="t">${esc(d.name)} <span class="tiny muted">${esc(crewRoleLabel(role))}</span></div>
       <div class="s">${esc(sub)}</div></div>
     ${badge}</div>`;
@@ -9452,7 +9539,7 @@ const CREW_STATUS_KEY = { active: 'cbDupStatusActive', archived: 'cbDupStatusArc
 function sheetCrewDuplicate(dups) {
   const rows = dups.map(({ d, on }) => {
     const st = crewStatusOf(d), why = st === 'left' ? crewLeftReason(d) : '';
-    return `<div class="li"><div class="ava">${d.photo ? `<img src="${esc(d.photo)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:14px">` : CREW_ROLE_META[crewRoleOf(d)][0]}</div>
+    return `<div class="li"><div class="ava">${crewFace(d) ? `<img src="${esc(crewFace(d))}" alt="">` : CREW_ROLE_META[crewRoleOf(d)][0]}</div>
       <div class="main"><div class="t">${esc(d.name)}</div>
         <div class="s">${esc(crewRoleLabel(crewRoleOf(d)))} · ${t(CREW_STATUS_KEY[st])} · ${esc(on.join(', '))}</div>
         ${why ? `<div class="tiny" style="color:#ef4444">${esc(why)}</div>` : ''}
@@ -11014,6 +11101,8 @@ const _dispatchClick = async (e) => {
       case 'openUsage': return push({ name: 'usage' });
       case 'openSync': return sheetSync();
       case 'tidyPhotos': return tidyPhotos();
+      case 'clearAiKey': { localStorage.removeItem('aiKey'); closeSheet(); toast(t('aiCleared')); return; }
+      case 'syncRetryRefused': { if (Sync.clearQuarantine) Sync.clearQuarantine(); closeSheet(); return toast('↻ ' + t('refusedRetry')); }
       case 'syncRedownload': {
         const stop = showBusyOverlay('Re-downloading…');
         try { await Sync.reset(); await load(); } finally { if (stop) stop(); }
@@ -11562,7 +11651,7 @@ function recentIds() { try { return JSON.parse(localStorage.getItem('gs-recent')
 function pushRecent(id) { let a = recentIds().filter((x) => x !== id); a.unshift(id); a = a.slice(0, 4); try { localStorage.setItem('gs-recent', JSON.stringify(a)); } catch (e) { /* ignore */ } }
 function recentUsers() { const users = S.cache.users || []; return recentIds().map((id) => byId(users, id)).filter(Boolean).slice(0, 4); }
 // A user's face photo, if we have one (drivers carry a photo); else null.
-function userPhoto(u) { const d = crewForUser(u.id); return (d && d.photo) || null; }
+function userPhoto(u) { return crewFace(crewForUser(u.id)) || null; }
 
 /* -------------------------------- Boot ------------------------------------ */
 (async function boot() {
@@ -11644,6 +11733,13 @@ function userPhoto(u) { const d = crewForUser(u.id); return (d && d.photo) || nu
       if (!n || _storeFailSaid) return;
       _storeFailSaid = true;
       if (S.user) toast(t('notStored').replace('{n}', String(n)));
+    },
+    // A refused write used to vanish: changed on this phone, never on the
+    // server, with a clean-looking sync screen on top of it.
+    onRefused: (n, reasons) => {
+      if (!n || !S.user) return;
+      const why = (reasons && reasons[0]) || '';
+      toast(`⚠️ ${t('refusedToast')} ${why}`.trim());
     },
     onConflict: (n) => {
       // Another device changed the same record concurrently (last-write-wins
