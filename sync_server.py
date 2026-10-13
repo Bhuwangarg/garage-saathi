@@ -1314,10 +1314,13 @@ def _guard_write(store, rid, data, actor, existing, c=None):
         status = data.get("status")
         prev = old.get("status")
 
-        # A job card is what labour and parts are billed against. Removing one is
-        # the owner's or supervisor's decision; the store login could delete any.
-        if not manager and data.get("_deleted") and not old.get("_deleted"):
-            return "only an owner or supervisor may delete a job card"
+        # A job card is what labour and parts are billed against, and removing
+        # one is the only edit that leaves nothing behind to look at afterwards.
+        # It is the owner's alone — not the supervisor's, who keeps the cards
+        # and would be deleting their own work. The app only ever offers the
+        # button in the owner's login; this is where that actually holds.
+        if actor["role"] != "owner" and data.get("_deleted") and not old.get("_deleted"):
+            return "only the owner may delete a job card"
 
         # Signed off means paid against. Staff may still attach a part the store
         # issued afterwards, but hours, outside cost and parts already on the card

@@ -114,7 +114,9 @@ def main():
     tick()
     check("store cannot delete a job card", not ok(push(STORE, "jobcards", "j-1", {**PROOF, "status": "verified", "_deleted": True})))
     tick()
-    check("a supervisor still can", ok(push(SUP, "jobcards", "j-1", {**PROOF, "status": "verified", "_deleted": True})))
+    check("nor can a supervisor, who keeps the cards", not ok(push(SUP, "jobcards", "j-1", {**PROOF, "status": "verified", "_deleted": True})))
+    tick()
+    check("the owner can", ok(push(OWNER, "jobcards", "j-1", {**PROOF, "status": "verified", "_deleted": True})))
 
     print("B16 — trip cash")
     check("a driver starts their own trip", ok(push(DRV, "trips", "t-1", {"driverId": "d-1", "busId": "b1", "allowance": 5000, "status": "active", "expenses": []})))

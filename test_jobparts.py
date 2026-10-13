@@ -83,12 +83,14 @@ push(STORE, "jobcards", "j1", dict(CARD, partsUsed=[
     {"partId": "p-oil", "qty": 3, "cost": 600}]))
 check("a new part lands", lines("j1").get(("p-oil", False)) == 3)
 
-print("Deleting a card is still the manager's to do")
+print("Deleting a card is the owner's to do")
+OWNER = {"id": "u-own", "role": "owner"}
 push(SUP, "jobcards", "j1", dict(CARD, _deleted=True))
+check("a supervisor cannot delete a card", not stored("jobcards", "j1").get("_deleted"))
+push(OWNER, "jobcards", "j1", dict(CARD, _deleted=True))
 check("a deleted card is not resurrected with parts", stored("jobcards", "j1").get("_deleted") is True)
 
 print("Correcting the bus on a verified card is the owner's alone")
-OWNER = {"id": "u-own", "role": "owner"}
 VERIFIED = dict(CARD, status="verified", busId="b1", partsUsed=[{"partId": "p-clutch", "qty": 2, "cost": 900}])
 push(SUP, "jobcards", "j2", dict(CARD, busId="b1"))
 push(SUP, "jobcards", "j2", VERIFIED)
