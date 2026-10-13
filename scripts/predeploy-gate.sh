@@ -358,6 +358,40 @@ settle "window.__dj||''" "gone/2" 40 >/dev/null
 ck "deleting a card returns its parts to stock" "$(j "window.__dj")" "gone/2"
 ck "and the ledger says where they came from"   "$(j "String((S.cache.ledger||[]).some(function(l){return l.type==='in'&&/deleted job card/i.test(l.reason||'')}))")" "true"
 
+# 2k) The pump is the only moment an odometer reading can still be checked, so
+# the fill form has to show the last one and what this tank is worth — and the
+# per-fill maths must never disagree with the lifetime average on the report.
+login owner u-owner 1 1 1 1
+j "window.__fu='';(async function(){var b=S.cache.buses[0],day=86400000,n=Date.now();
+  var set=[[480000,60,1,28],[480420,60,1,21],[480700,20,0,14],[480840,40,1,7]];
+  for(var i=0;i<set.length;i++){var f=set[i];
+    await DB.put('fuel',{id:'g-fu-'+f[0],busId:b.id,litres:f[1],cost:f[1]*90,odometer:f[0],full:!!f[2],at:n-f[3]*day,pump:'Gate pump',by:'u-owner'});}
+  b.odometer=481260;await DB.put('buses',b);await load();
+  var segs=fillSegments(b.id),m=busMileage(b.id);
+  window.__fu=[segs[3].kmpl.toFixed(1),segs[3].span,segs[2].kmpl===null?'partial':'SEG',m.avgKmpl.toFixed(1)].join('/')
+})().catch(function(e){window.__fu='ERR '+e.message})" >/dev/null
+settle "window.__fu||''" "7.0/420/partial/7.0" 40 >/dev/null
+ck "a part fill rides into the next full tank"  "$(j "window.__fu")" "7.0/420/partial/7.0"
+ck "the last fill is the one with a reading"    "$(j "String(lastFillWithOdo(S.cache.buses[0].id).odometer)")" "480840"
+# The panel is what the person at the pump actually reads.
+ck "the run since the last fill is shown"       "$(j "String(/420 km/.test(fuelOdoPanel(S.cache.buses[0].id,481260,60,false)))")" "true"
+ck "and this tank's km/l"                       "$(j "String(/7\.0 km\/l/.test(fuelOdoPanel(S.cache.buses[0].id,481260,60,false)))")" "true"
+ck "a reading lower than last time is called out" \
+  "$(j "String(/Lower than the last fill/.test(fuelOdoPanel(S.cache.buses[0].id,480100,60,false)))")" "true"
+ck "a broken odometer measures nothing"         "$(j "String(/not working/.test(fuelOdoPanel(S.cache.buses[0].id,481260,60,true)))")" "true"
+# Saving a backwards reading asks once rather than averaging it in silently.
+j "window.__fb='';(async function(){var b=S.cache.buses[0];sheetAddFuel(b.id);
+  await new Promise(function(r){setTimeout(r,150)});
+  document.getElementById('f-flitres').value='50';document.getElementById('f-fcost').value='4500';
+  document.getElementById('f-fodo').value='480100';
+  var n0=(S.cache.fuel||[]).length;await saveFuel();var n1=(S.cache.fuel||[]).length;
+  await saveFuel();await new Promise(function(r){setTimeout(r,300)});
+  window.__fb=[n1===n0?'refused':'SAVED',(S.cache.fuel||[]).length===n0+1?'then saved':'LOST'].join('/')
+})().catch(function(e){window.__fb='ERR '+e.message})" >/dev/null
+settle "window.__fb||''" "refused/then saved" 40 >/dev/null
+ck "a backwards reading asks before it is taken" "$(j "window.__fb")" "refused/then saved"
+j "closeSheet()" >/dev/null
+
 # 3) Invariant sweep: form controls never navigate (owner's main tabs).
 login owner u-owner 1 1 1 1
 for SCREEN in home jobs store me; do

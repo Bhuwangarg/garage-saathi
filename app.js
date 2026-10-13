@@ -45,6 +45,14 @@ const I18N = {
     fuWhere: 'Where (optional)', fuWherePh: 'paste a Google Maps link, or 26.9124, 75.7873',
     fuHere: 'Use my location', fuLocGot: 'Location captured', fuLocFail: 'Could not get the location — check GPS permission',
     fuByPump: 'Price by pump', fuPerL: 'per litre', fuFills: 'fill(s)', fuNoPump: 'Pump not recorded', fuOpenMap: 'Map',
+    // ---- What the last fill said, shown while this one is being typed ----
+    fuLastFill: 'Last fill', fuFirstFill: 'First fill for this bus — km/l starts from the next one.',
+    fuSince: 'Run since that fill', fuThisTank: 'This tank', fuUsual: 'usual', fuTypeOdo: 'type the reading above',
+    fuTypeLitres: 'type the litres above', fuNoOdoYet: 'No odometer on the last fill, so the run cannot be measured.',
+    fuBackwards: 'Lower than the last fill. Check the reading.',
+    fuSaveAnyway: 'Reading is lower than last time — tap Save again to record it',
+    fuTankByTank: 'Tank by tank', fuPartFill: 'part fill', fuPartHint: 'counted in the next full tank',
+    fuOdoOff: 'Odometer marked not working — no run or km/l for this fill.',
     noBusesHere: 'No buses on this phone yet', noBusesFix: 'Me → Device & server → Re-download everything',
     onThisPhone: 'On this phone', busesWord: 'buses', crewWord: 'crew',
     tidyTitle: 'Pictures kept inside records', tidyFound: 'photo(s) waiting to be uploaded',
@@ -350,6 +358,14 @@ const I18N = {
     fuWhere: 'कहाँ (ज़रूरी नहीं)', fuWherePh: 'गूगल मैप्स लिंक चिपकाइए, या 26.9124, 75.7873',
     fuHere: 'मेरी लोकेशन लीजिए', fuLocGot: 'लोकेशन ले ली', fuLocFail: 'लोकेशन नहीं मिली — GPS की अनुमति देखिए',
     fuByPump: 'पंप के हिसाब से दाम', fuPerL: 'प्रति लीटर', fuFills: 'बार भरा', fuNoPump: 'पंप दर्ज नहीं', fuOpenMap: 'नक्शा',
+    // ---- What the last fill said, shown while this one is being typed ----
+    fuLastFill: 'पिछली बार डला', fuFirstFill: 'इस बस का पहला फ़िल — km/l अगली बार से बनेगा।',
+    fuSince: 'उसके बाद की दूरी', fuThisTank: 'इस टंकी पर', fuUsual: 'आमतौर पर', fuTypeOdo: 'ऊपर रीडिंग लिखिए',
+    fuTypeLitres: 'ऊपर लीटर लिखिए', fuNoOdoYet: 'पिछले फ़िल पर रीडिंग नहीं थी, इसलिए दूरी नहीं नाप सकते।',
+    fuBackwards: 'पिछली बार से कम है। रीडिंग जाँचिए।',
+    fuSaveAnyway: 'रीडिंग पिछली बार से कम है — फिर भी दर्ज करना है तो सेव दोबारा दबाइए',
+    fuTankByTank: 'टंकी दर टंकी', fuPartFill: 'आधा भरा', fuPartHint: 'अगली पूरी टंकी में गिना जाएगा',
+    fuOdoOff: 'ओडोमीटर खराब बताया है — इस फ़िल की दूरी या km/l नहीं बनेगी।',
     noBusesHere: 'इस फ़ोन पर अभी कोई बस नहीं है', noBusesFix: 'मैं → डिवाइस और सर्वर → सब दोबारा डाउनलोड करें',
     onThisPhone: 'इस फ़ोन पर', busesWord: 'बसें', crewWord: 'स्टाफ़',
     tidyTitle: 'रिकॉर्ड के अंदर पड़ी तस्वीरें', tidyFound: 'फोटो चढ़नी बाकी हैं',
@@ -6954,6 +6970,26 @@ function viewBusReport(busId) {
       <div><div class="tiny muted">Total fuel</div><b>${money(fm.totalCost)}</b></div>
       <div><div class="tiny muted">Fills</div><b>${fm.fills}</b></div></div>
       ${cpk != null && fm.fuelPerKm != null ? `<div class="hr"></div><div class="row between"><b>True running cost</b><b style="color:var(--brand2)">₹${(cpk + fm.fuelPerKm).toFixed(1)}/km</b></div>` : ''}`;
+    /* The average is one number and hides the thing worth seeing: WHICH tank
+     * was bad. One run at half the usual km/l is a leak, a theft or a dropped
+     * digit, and it is invisible inside a lifetime average. */
+    const segs = fillSegments(b.id).slice(-8).reverse();
+    if (segs.length) {
+      body += `<div class="hr"></div><div class="lbl" style="margin-bottom:4px">⛽ ${t('fuTankByTank')}</div>`;
+      body += segs.map((s) => {
+        const low = s.kmpl != null && fm.avgKmpl != null && s.kmpl < fm.avgKmpl * 0.8;
+        return `<div class="row between small" style="padding:3px 0">
+          <span class="muted">${fmtDate(s.f.at)} · ${(s.f.odometer || 0).toLocaleString('en-IN')} km${s.f.litres ? ' · ' + Number(s.f.litres) + ' L' : ''}</span>
+          <span>${s.km != null && s.km > 0 ? kmText(s.km) : '—'}${
+            s.kmpl != null ? ` · <b style="color:${low ? 'var(--red)' : 'inherit'}">${s.kmpl.toFixed(1)} km/l</b>${
+              // The km/l of a tank that absorbed a part fill covers more ground
+              // than this row's own step, so say which ground it covers rather
+              // than leaving two numbers on one line that do not divide.
+              s.span != null && s.span !== s.km ? ` <span class="tiny muted">(${kmText(s.span)} ÷ ${s.litres} L)</span>` : ''}`
+              : (s.partial ? ` · <span class="tiny muted">${t('fuPartFill')}</span>` : '')}</span></div>`;
+      }).join('');
+      if (segs.some((s) => s.partial)) body += `<div class="tiny muted" style="margin-top:4px">${t('fuPartFill')} — ${t('fuPartHint')}</div>`;
+    }
   } else {
     body += `<div class="muted small">No fuel logged yet.</div>`;
   }
@@ -7254,6 +7290,82 @@ function busMileage(busId) {
   const fuelPerKm = spanKm > 0 ? totalCost / spanKm : null;
   return { fills: fills.length, avgKmpl, lastKmpl, totalCost, fuelPerKm, drop };
 }
+/* ---- The last fill, and what this one is worth ---------------------------
+ *
+ * Mileage used to be something the app worked out weeks later, on a screen the
+ * person holding the diesel receipt never opens. But the only moment anybody
+ * can still check an odometer reading is while standing at the pump looking at
+ * it — so the last fill's reading, the run since it, and the km/l this tank is
+ * about to produce are now shown in the fill form itself, as it is typed.
+ *
+ * It is also the only cheap guard against the reading being wrong: a dropped or
+ * added digit is invisible as a number and obvious as "ran 4,120 km".
+ */
+// The most recent fill that actually carried a reading. A fill logged on a bus
+// with a broken odometer has none, and must not be used as the measuring point.
+const lastFillWithOdo = (busId) => [...fuelEntries(busId)].reverse()
+  .find((f) => (f.odometer || 0) > 0) || null;
+
+/* Every fill with the kilometres it covered and the km/l that follows, worked
+ * out exactly the way busMileage() does so the two can never disagree: a part
+ * fill carries its litres into the next full tank instead of inventing a
+ * segment of its own. Oldest first; callers reverse it to show it. */
+function fillSegments(busId) {
+  const fills = fuelEntries(busId);
+  const out = [];
+  let pending = 0, fromOdo = null;
+  for (let i = 0; i < fills.length; i++) {
+    const f = fills[i];
+    const row = { f, km: null, kmpl: null, litres: null, partial: f.full === false };
+    if (i > 0) {
+      const d = (f.odometer || 0) - (fills[i - 1].odometer || 0);
+      row.km = d;                                  // what the odometer moved since the last fill
+      const q = Number(f.litres) || 0;
+      if (q > 0) {
+        if (fromOdo == null) fromOdo = fills[i - 1].odometer || 0;
+        pending += q;
+        if (d > 0 && f.full !== false) {
+          const span = (f.odometer || 0) - fromOdo;
+          if (span > 0 && pending > 0) { row.kmpl = span / pending; row.litres = pending; row.span = span; }
+          pending = 0; fromOdo = null;
+        }
+      }
+    }
+    out.push(row);
+  }
+  return out;
+}
+
+const kmText = (n) => Math.round(n).toLocaleString('en-IN') + ' km';
+
+/* The live panel under the odometer field. Pure: it is handed what is on the
+ * form and returns what to show, so it can be redrawn on every keystroke. */
+function fuelOdoPanel(busId, odoNow, litres, odoBroken) {
+  const last = lastFillWithOdo(busId);
+  const wrap = (inner) => `<div class="card" style="margin:0 0 10px;padding:10px 12px">${inner}</div>`;
+  if (odoBroken) return wrap(`<div class="tiny muted">🚫 ${esc(t('fuOdoOff'))}</div>`);
+  if (!last) return wrap(`<div class="tiny muted">⛽ ${esc(t('fuFirstFill'))}</div>`);
+  const usual = busMileage(busId).avgKmpl;
+  const km = odoNow > 0 ? odoNow - (last.odometer || 0) : null;
+  const back = km != null && km < 0;
+  const kmpl = (km != null && km > 0 && litres > 0) ? km / litres : null;
+  const low = kmpl != null && usual != null && kmpl < usual * 0.8;
+  const row = (l, r, cls) => `<div class="row between small" style="padding:3px 0">
+    <span class="muted">${l}</span><b ${cls ? `style="color:${cls}"` : ''}>${r}</b></div>`;
+  return wrap(
+    row(`🕒 ${esc(t('fuLastFill'))} · ${fmtDate(last.at)}${last.pump ? ' · ' + esc(last.pump) : ''}`,
+        `${kmText(last.odometer)}${last.litres ? ` · ${Number(last.litres)} L` : ''}`) +
+    row(`🛣️ ${esc(t('fuSince'))}`,
+        km == null ? `<span class="tiny muted">${esc(t('fuTypeOdo'))}</span>`
+                   : (back ? esc(t('fuBackwards')) : kmText(km)),
+        back ? 'var(--red)' : '') +
+    row(`⛽ ${esc(t('fuThisTank'))}`,
+        kmpl != null ? `${kmpl.toFixed(1)} km/l`
+          : (back ? '—' : `<span class="tiny muted">${esc(km != null && km > 0 ? t('fuTypeLitres') : t('fuTypeOdo'))}</span>`),
+        low ? 'var(--red)' : '') +
+    (usual != null ? `<div class="tiny muted" style="margin-top:2px">${esc(t('fuUsual'))} ${usual.toFixed(1)} km/l</div>` : ''));
+}
+
 /* A pasted Google Maps link, or plain coordinates, reduced to a point.
  *
  * Diesel is bought wherever the bus happens to be, and the price differs by
@@ -7289,6 +7401,9 @@ function knownPumps() {
   return [...seen.values()].slice(0, 40);
 }
 let _fuelLat = null, _fuelLng = null;
+// Set once the person has been warned that this reading is lower than the last
+// fill's, so the second tap on Save goes through. Cleared with every sheet.
+let _fuelOdoOk = false;
 async function captureFuelLocation() {
   toast('Getting location…');
   try {
@@ -7312,6 +7427,7 @@ function sheetAddFuel(busId) {
       <label class="field"><span class="lbl">₹ Amount</span><input id="f-fcost" type="number" inputmode="numeric"></label>
     </div>
     <label class="field"><span class="lbl">🛣️ Odometer now (km)</span><input id="f-fodo" type="number" inputmode="numeric" value="${b ? (b.odometer || '') : ''}" placeholder="current reading"></label>
+    <div id="f-fodopanel"></div>
     <label class="row" style="gap:9px;margin:6px 0 2px;cursor:pointer">
       <input type="checkbox" id="f-fodobroken" ${b && b.odoBroken ? 'checked' : ''} style="width:18px;height:18px;flex:none">
       <span class="small">🚫 ${t('odoBroken')}</span></label>
@@ -7322,8 +7438,52 @@ function sheetAddFuel(busId) {
       <input id="f-floc" autocomplete="off" placeholder="${esc(t('fuWherePh'))}"></label>
     <button class="btn sm ghost" data-act="fuelHere" style="margin:-4px 0 10px">📍 ${t('fuHere')}</button>
     <label class="repcheck"><input type="checkbox" id="f-ffull" checked> <span>Filled to full (needed for accurate km/l)</span></label>
-    <button class="btn primary" data-act="saveFuel">${t('save')}</button>`);
+    <button class="btn primary" data-act="saveFuel">${t('save')}</button>`,
+    (wrap) => {
+      const get = (id) => wrap.querySelector('#' + id);
+      const busSel = get('f-fbus'), odoEl = get('f-fodo');
+      // Opened from the Fuel screen there is no bus yet, so the select lands on
+      // the first one and the reading box was left empty — the person then had
+      // nothing to check their typing against. Seed it from whichever bus is
+      // showing, exactly as the per-bus entry point already does.
+      if (odoEl && !odoEl.value && busSel) {
+        odoEl.value = (byId(S.cache.buses, busSel.value) || {}).odometer || '';
+      }
+      drawFuelOdo();
+      // Redraw on every keystroke: the whole point is that the person at the
+      // pump sees the run and the km/l while the reading is still in front of
+      // them, not a week later on a screen they never open.
+      ['f-fodo', 'f-flitres', 'f-fodobroken', 'f-fbus'].forEach((id) => {
+        const el = get(id); if (!el) return;
+        el.addEventListener('input', drawFuelOdo);
+        el.addEventListener('change', drawFuelOdo);
+      });
+      if (odoEl) odoEl.addEventListener('input', () => { odoEl.dataset.touched = '1'; });
+      // Changing the bus has to bring that bus's own reading with it, or the
+      // run is measured from the wrong vehicle. A reading already typed is
+      // never overwritten.
+      if (busSel) busSel.addEventListener('change', () => {
+        _fuelOdoOk = false;
+        const bb = byId(S.cache.buses, busSel.value) || {};
+        if (odoEl && !odoEl.dataset.touched) odoEl.value = bb.odometer || '';
+        const ob = get('f-fodobroken'); if (ob) ob.checked = !!bb.odoBroken;
+        drawFuelOdo();
+      });
+    });
   _fuelLat = null; _fuelLng = null;
+  _fuelOdoOk = false;
+}
+
+// Repaint the last-fill panel from whatever is on the form right now.
+function drawFuelOdo() {
+  const el = document.getElementById('f-fodopanel');
+  if (!el) return;
+  const busId = (($('#f-fbus') || {}).value) || '';
+  if (!busId) { el.innerHTML = ''; return; }
+  el.innerHTML = fuelOdoPanel(busId,
+    Number(($('#f-fodo') || {}).value) || 0,
+    Number(($('#f-flitres') || {}).value) || 0,
+    !!(($('#f-fodobroken') || {}).checked));
 }
 async function saveFuel() {
   const busId = $('#f-fbus').value;
@@ -7335,6 +7495,16 @@ async function saveFuel() {
   // cannot take — so a diesel fill on such a bus could not be recorded at all.
   const odoBroken = !!(($('#f-fodobroken') || {}).checked);
   if (!odoBroken && odo <= 0) return toast('Enter the odometer reading');
+  /* An odometer that went backwards is nearly always a dropped digit, and it
+   * poisons two segments at once: the tank before it reads impossibly long and
+   * this one impossibly short, which is what the "mileage ↓" flag fires on. It
+   * is not forbidden — a replaced instrument cluster really does start again —
+   * so it asks once and then takes the person's word for it. */
+  const prevFill = odoBroken ? null : lastFillWithOdo(busId);
+  if (prevFill && odo < (prevFill.odometer || 0) && !_fuelOdoOk) {
+    _fuelOdoOk = true;
+    return toast(t('fuSaveAnyway'));
+  }
   const pump = (($('#f-fpump') || {}).value || '').trim().replace(/\s+/g, ' ');
   const whereTyped = (($('#f-floc') || {}).value || '').trim();
   // Coordinates if we can get them (from the capture button, a pasted link or a
@@ -7354,7 +7524,7 @@ async function saveFuel() {
     if (!odoBroken && odo > (b.odometer || 0)) { b.odometer = odo; ch = true; }
     if (ch) await DB.put('buses', b);
   }
-  _fuelLat = null; _fuelLng = null;
+  _fuelLat = null; _fuelLng = null; _fuelOdoOk = false;
   await load(); closeSheet(); toast('Fuel logged ✓'); rerender();
 }
 
