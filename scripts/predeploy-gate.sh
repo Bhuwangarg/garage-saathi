@@ -326,6 +326,38 @@ j "window.__sv='';(async function(){var b=S.cache.buses[0],n=Date.now();await DB
 settle "window.__sv||''" "verified/u-sup/u-sup" 30 >/dev/null
 ck "a supervisor's close is verified in the same step" "$(j "window.__sv")" "verified/u-sup/u-sup"
 
+# 2j) A bus away at a workshop in another city is NOT standing in our yard, and
+# a card made by mistake can be removed — but never by losing the parts on it.
+login owner u-owner 1 1 1 1
+j "window.__ow='';(async function(){var b=S.cache.buses[0],n=Date.now();
+  await DB.put('jobcards',{id:'g-out',busId:b.id,problem:'Gate outside job',status:'open',priority:'low',createdAt:n,updatedAt:n,assignees:[],partsUsed:[],beforePhotos:[],afterPhotos:[],outside:true,outsideCity:'Noida'});
+  await load();
+  window.__ow=[inShopJobs().some(function(x){return x.id==='g-out'}),awayJobs().some(function(x){return x.id==='g-out'})].join('/')
+})().catch(function(e){window.__ow='ERR '+e.message})" >/dev/null
+settle "window.__ow||''" "false/true" 30 >/dev/null
+ck "an outside job is not in the shop list"   "$(j "window.__ow")" "false/true"
+ck "and the owner's home shows it as away"    "$(j "String(/Away for repair/.test(awayCard(awayJobs())))")" "true"
+ck "the row says which city"                  "$(j "String(/Noida/.test(jobLi(byId(S.cache.jobs,'g-out'))))")" "true"
+# The delete button is the owner's alone.
+ck "owner sees a delete button"               "$(j "String(/deleteJob\"/.test(actionsForJob(byId(S.cache.jobs,'g-out'),true)))")" "true"
+login supervisor u-sup 2 2 2 2
+ck "the supervisor does not"                   "$(j "String(/deleteJob\"/.test(actionsForJob(byId(S.cache.jobs,'g-out'),true)))")" "false"
+ck "and cannot delete through the action"      "$(j "(function(){var r=canDeleteJob();return String(r)})()")" "false"
+# Deleting a card that had a part issued must put that part back in the store,
+# because jobPartGaps() stops accounting for a card once it is gone.
+login owner u-owner 1 1 1 1
+j "window.__dj='';(async function(){var b=S.cache.buses[0],p=S.cache.parts.filter(function(x){return x.qty>2})[0],n=Date.now();
+  await DB.put('jobcards',{id:'g-del',busId:b.id,problem:'Gate delete me',status:'open',priority:'low',createdAt:n,updatedAt:n,assignees:[],partsUsed:[],beforePhotos:[],afterPhotos:[]});
+  await load();
+  await issuePart({partId:p.id,qty:2,jobId:'g-del'});
+  var mid=byId(S.cache.parts,p.id).qty;
+  await doDeleteJob('g-del');
+  window.__dj=[byId(S.cache.jobs,'g-del')?'STILL':'gone',String(byId(S.cache.parts,p.id).qty-mid)].join('/')
+})().catch(function(e){window.__dj='ERR '+e.message})" >/dev/null
+settle "window.__dj||''" "gone/2" 40 >/dev/null
+ck "deleting a card returns its parts to stock" "$(j "window.__dj")" "gone/2"
+ck "and the ledger says where they came from"   "$(j "String((S.cache.ledger||[]).some(function(l){return l.type==='in'&&/deleted job card/i.test(l.reason||'')}))")" "true"
+
 # 3) Invariant sweep: form controls never navigate (owner's main tabs).
 login owner u-owner 1 1 1 1
 for SCREEN in home jobs store me; do

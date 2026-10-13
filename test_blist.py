@@ -101,6 +101,17 @@ def main():
     tick()
     check("store can still attach a part to it", ok(push(STORE, "jobcards", "j-1", {**PROOF, "status": "verified", "labourHours": 2, "externalCost": 0,
                                                                                     "partsUsed": [{"partId": "p1", "qty": 1, "cost": 100}, {"partId": "p2", "qty": 1, "cost": 50}]})))
+    # Whether a bus is in our yard or away at a workshop in another city is a
+    # statement about a repair that has been signed off and paid.
+    check("store cannot send a verified card outside", not ok(push(STORE, "jobcards", "j-1", {**PROOF, "status": "verified", "labourHours": 2, "externalCost": 0,
+                                                                                             "outside": True, "outsideCity": "Noida",
+                                                                                             "partsUsed": [{"partId": "p1", "qty": 1, "cost": 100}, {"partId": "p2", "qty": 1, "cost": 50}]})))
+    tick()
+    check("a supervisor can", ok(push(SUP, "jobcards", "j-1", {**PROOF, "status": "verified", "labourHours": 2, "externalCost": 0,
+                                                               "outside": True, "outsideCity": "Noida",
+                                                               "partsUsed": [{"partId": "p1", "qty": 1, "cost": 100}, {"partId": "p2", "qty": 1, "cost": 50}]})))
+    check("and the city is kept", stored("jobcards", "j-1").get("outsideCity") == "Noida")
+    tick()
     check("store cannot delete a job card", not ok(push(STORE, "jobcards", "j-1", {**PROOF, "status": "verified", "_deleted": True})))
     tick()
     check("a supervisor still can", ok(push(SUP, "jobcards", "j-1", {**PROOF, "status": "verified", "_deleted": True})))

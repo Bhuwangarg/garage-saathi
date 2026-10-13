@@ -143,6 +143,23 @@ const I18N = {
     crewTitle: 'Mechanics on this job', crewHint: 'Add everyone working on it, and what each is doing — one on the wiring, another on the brakes.',
     crewWho: 'Mechanic', crewTask: 'Doing', crewTaskPh: 'e.g. Electrical', crewAdd: 'Add mechanic',
     crewRemove: 'Remove', crewTwice: 'The same mechanic is on the job twice', crewEveryone: 'Every mechanic is already on this job',
+    // ---- The bus itself is away: work being done outside our garage ----
+    owAsk: 'Is this being done outside our garage?',
+    owHint: 'Turn this on when the bus itself is away — standing at a workshop in another city, not in our yard.',
+    owCity: 'City / town', owCityPh: 'e.g. Noida', owLoc: 'Google location (optional)',
+    owLocPh: 'Paste a Maps link, or 26.91, 75.78', owOpenMap: 'Open in Maps',
+    owBadge: 'Outside', owAway: 'Away for repair', owNoCity: 'Which city is the bus in?',
+    owCrewNote: 'Nobody from our garage has to be on it — remove the mechanic if our people are not working on this bus.',
+    owReached: 'Reached the workshop', owVendNote: 'This is the workshop holding the bus. What it charges goes in Outside cost.',
+    owWhere: 'Where it is', owAwayFor: 'Away for',
+    // ---- Deleting a job card (owner only) ----
+    djTitle: 'Delete this job card', djBtn: 'Delete this job card',
+    djWarn: 'The card disappears from every phone. This cannot be undone.',
+    djKeep: 'If the work really happened, do not delete it — the parts are gone and this card is the only record of where they went.',
+    djParts: 'parts go back into the store', djReports: 'driver report(s) go back to waiting',
+    djReason: 'Why (optional)', djReasonPh: 'e.g. made while testing',
+    djGo: 'Yes, delete it', djDone: 'Job card deleted · पुर्जे स्टोर में वापस',
+    djOwnerOnly: 'Only the owner can delete a job card', djLedger: 'Back from a deleted job card',
     // ---- Outside job / gate pass ----
     closedAndSigned: 'Closed and signed off ✓',
     ojTitle: 'Outside job', ojSub: 'The slip that goes out with a unit, and what it is checked against coming back',
@@ -431,6 +448,23 @@ const I18N = {
     crewTitle: 'इस काम पर मैकेनिक', crewHint: 'जो-जो इस पर काम कर रहा है सबको जोड़िए, और कौन क्या कर रहा है — एक वायरिंग पर, दूसरा ब्रेक पर।',
     crewWho: 'मैकेनिक', crewTask: 'क्या कर रहा है', crewTaskPh: 'जैसे बिजली का काम', crewAdd: 'मैकेनिक जोड़ें',
     crewRemove: 'हटाएँ', crewTwice: 'एक ही मैकेनिक दो बार जुड़ गया है', crewEveryone: 'सारे मैकेनिक पहले से इस काम पर हैं',
+    // ---- The bus itself is away: work being done outside our garage ----
+    owAsk: 'यह काम अपने गैराज के बाहर हो रहा है?',
+    owHint: 'जब बस खुद बाहर खड़ी हो — किसी दूसरे शहर की वर्कशॉप में, अपने यार्ड में नहीं — तब यह चालू कीजिए।',
+    owCity: 'शहर', owCityPh: 'जैसे नोएडा', owLoc: 'गूगल लोकेशन (ज़रूरी नहीं)',
+    owLocPh: 'मैप्स लिंक चिपकाइए, या 26.91, 75.78', owOpenMap: 'मैप्स में खोलें',
+    owBadge: 'बाहर', owAway: 'बाहर मरम्मत पर', owNoCity: 'बस किस शहर में है?',
+    owCrewNote: 'अपने गैराज का कोई इस पर होना ज़रूरी नहीं — अगर अपने लोग इस बस पर काम नहीं कर रहे तो मैकेनिक हटा दीजिए।',
+    owReached: 'वर्कशॉप पहुँचने का समय', owVendNote: 'यही वर्कशॉप बस को रोके हुए है। वह जो लेगी वह “बाहर का खर्च” में डालिए।',
+    owWhere: 'कहाँ है', owAwayFor: 'कितने दिन से बाहर',
+    // ---- Deleting a job card (owner only) ----
+    djTitle: 'यह जॉब कार्ड मिटाएँ', djBtn: 'यह जॉब कार्ड मिटाएँ',
+    djWarn: 'कार्ड हर फ़ोन से हट जाएगा। यह वापस नहीं आएगा।',
+    djKeep: 'अगर काम सच में हुआ है तो मत मिटाइए — पुर्जे जा चुके हैं और यही कार्ड उनका एकमात्र हिसाब है।',
+    djParts: 'पुर्जे स्टोर में वापस चले जाएँगे', djReports: 'ड्राइवर शिकायत फिर से लंबित हो जाएगी',
+    djReason: 'क्यों (ज़रूरी नहीं)', djReasonPh: 'जैसे टेस्टिंग में बना था',
+    djGo: 'हाँ, मिटा दीजिए', djDone: 'जॉब कार्ड मिट गया · पुर्जे स्टोर में वापस',
+    djOwnerOnly: 'जॉब कार्ड सिर्फ़ मालिक मिटा सकते हैं', djLedger: 'मिटाए गए जॉब कार्ड से वापस',
     // ---- Outside job / gate pass ----
     closedAndSigned: 'बंद हुआ और जाँच भी हो गई ✓',
     ojTitle: 'बाहर का काम', ojSub: 'जो पर्ची सामान के साथ बाहर जाती है, और वापसी पर उसी से मिलान होता है',
@@ -1082,6 +1116,11 @@ const PERMS = {
   // Issuing the slip that lets a unit out of the gate, and signing off what
   // comes back against it. The supervisor sends the work out, so it is theirs.
   outsideJob: ['owner', 'supervisor'],
+  // Removing a job card takes a repair, its cost and its parts off the board.
+  // Cards made in testing or opened twice have to go somewhere, but a wrong
+  // delete is the one edit nobody can see afterwards — so it is the owner's
+  // alone, and only from their own login.
+  deleteJob: ['owner'],
   logService: ['owner', 'supervisor'],       // resets service + writes a verified job
   manageRoutes: ['owner', 'supervisor'],     // routes, stops, go-times, punctuality
   // Diesel, AdBlue and tyres are the crew manager's too: the person who runs
@@ -1427,7 +1466,11 @@ function warnPhotoNotUploaded() {
  *
  * So the card is reconciled against the ledger. Nothing is ever taken off a
  * card: the ledger only grows, and no screen in the app removes a part line. */
-function jobPartGaps() {
+/* What the ledger says actually left the store against each card:
+ * jobId -> part -> {qty, cost}. The ledger is the record of stock physically
+ * going out, so it is the truth about what a job consumed — which is why the
+ * gap check below and deleting a card both read it rather than the card. */
+function issuedByJob() {
   const issued = new Map();                 // jobId -> partId|reused -> {qty, cost}
   for (const l of S.cache.ledger || []) {
     if (!l || l._deleted || l.type !== 'out' || !l.jobId) continue;
@@ -1445,6 +1488,15 @@ function jobPartGaps() {
     cur.qty += qty; cur.cost += qty * unit;
     lines.set(key, cur);
   }
+  return issued;
+}
+// One card's issued parts, flattened.
+function jobIssuedParts(jobId) {
+  const lines = issuedByJob().get(jobId);
+  return lines ? [...lines.values()] : [];
+}
+function jobPartGaps() {
+  const issued = issuedByJob();
   const gaps = [];
   issued.forEach((lines, jobId) => {
     const job = byId(S.cache.jobs, jobId);
@@ -2319,12 +2371,53 @@ const notCheckedInBanner = () => {
  * owed, work waiting on a second signature, and the flags that mean somebody
  * should be asked a question. Nothing here is a task they would do themselves.
  */
-// Jobs standing in the workshop, oldest first.
+/* Is the bus itself away — at a workshop in another city rather than in our
+ * yard? `externalVendor` does not answer this: a vendor name is also filled in
+ * when somebody local did one part of a job that happened here. The toggle is
+ * the fact that the bus is NOT on the floor. */
+const isOutside = (j) => !!(j && j.outside);
+
+// Jobs standing in OUR workshop, oldest first. A bus away in another city is
+// not standing in the yard, so it is counted separately — see awayJobs(). Both
+// are downtime; only one is something the floor can walk over to and finish.
 function inShopJobs() {
   return S.cache.jobs
-    .filter((j) => j.status === 'open' || j.status === 'in-progress')
+    .filter((j) => (j.status === 'open' || j.status === 'in-progress') && !isOutside(j))
     .sort((a, b) => (a.enterAt || a.createdAt) - (b.enterAt || b.createdAt));
 }
+// Buses out of the fleet but not in the garage: sent to a workshop elsewhere.
+// Longest away first — that is the one nobody has chased.
+function awayJobs() {
+  return S.cache.jobs
+    .filter((j) => (j.status === 'open' || j.status === 'in-progress') && isOutside(j))
+    .sort((a, b) => (a.enterAt || a.createdAt) - (b.enterAt || b.createdAt));
+}
+// Shown only when something is actually away — an empty card every morning is
+// noise, and the owner's home already has enough of it.
+function awayCard(away) {
+  if (!away.length) return '';
+  return `<div class="card"><div class="row between"><h3>🌍 ${t('owAway')}</h3>
+      <span class="badge b-amber">${away.length}</span></div>` + away.map((j) => {
+    const since = j.enterAt || j.createdAt;
+    const where = j.outsideCity || j.externalVendor || '—';
+    return `<div class="li" data-job="${esc(j.id)}"><div class="ava">🌍</div>
+      <div class="main"><div class="t">${esc(busName(j.busId))} · ${esc(where)}</div>
+        <div class="s">${esc(j.problem)} · ${t('mchSince')} ${timeAgo(since)}</div></div>
+      ${statusBadge(j.status)}</div>`;
+  }).join('') + `</div>`;
+}
+// Cities and workshops a bus has been sent to before, newest first — the second
+// trip to the same place should be a tap rather than typing the name again.
+function knownOutside(field) {
+  const seen = new Map();
+  [...(S.cache.jobs || [])].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).forEach((j) => {
+    const v = String(j[field] || '').trim();
+    if (v && !seen.has(v.toLowerCase())) seen.set(v.toLowerCase(), v);
+  });
+  return [...seen.values()].slice(0, 30);
+}
+const cityDatalist = () => `<datalist id="ow-cities">${
+  knownOutside('outsideCity').map((x) => `<option value="${esc(x)}">`).join('')}</datalist>`;
 // What is standing in the yard, with the clock running. The supervisor gets the
 // long list; the owner, whose nav has no Jobs tab, gets the oldest few and a way
 // into the full board — otherwise the board is only reachable when something is
@@ -2408,6 +2501,7 @@ function viewOwnerHome() {
   body += aiInsightsCard();
 
   body += inShopCard(inShopJobs(), 3, true);
+  body += awayCard(awayJobs());
 
   body += `<div class="card"><h3>${t('hmFleetHealth')}</h3>
     ${triageRow(bd90.length ? 'warn' : 'ok', '🛠️', t('bdTitle'), t('hmBreakdownsSub'), 'data-act="openBreakdowns"', bd90.length)}
@@ -2444,6 +2538,7 @@ function viewSupervisorHome() {
   let body = greetBlock('🧑‍🔧') + notCheckedInBanner();
 
   body += inShopCard(inShop, 8, false);
+  body += awayCard(awayJobs());
 
   const rows = [];
   if (openReports.length) rows.push(triageRow('crit', '🗣️', t('hmComplaints'), esc(busName(openReports[0].busId)) + (openReports.length > 1 ? ' +' + (openReports.length - 1) : ''), `data-bus="${esc(openReports[0].busId)}"`, openReports.length));
@@ -3121,7 +3216,9 @@ function jobLi(j) {
       <span class="pp">${PRIO_PILL[j.priority] || ''}</span>
       <span>· 👷 ${esc(crewLabel(j, false))}</span>
       <span>· ${fmtDate(j.createdAt)}</span>
-      ${j.externalVendor ? '<span>· 🏪 outside</span>' : ''}
+      ${isOutside(j)
+        ? `<span>· 🌍 ${esc(j.outsideCity || t('owBadge'))}</span>`
+        : (j.externalVendor ? `<span>· 🏪 ${t('owBadge')}</span>` : '')}
     </div>
     <div class="jc-foot">
       <span>💰 ${money(c)}</span>
@@ -3256,6 +3353,9 @@ function viewJobDetail(id) {
     <div class="row" style="gap:8px;margin-top:8px">${prioBadge(j.priority)}
       <span class="small muted">👷 ${esc(crewLabel(j, true))}</span>
       <span class="small muted">· ${fmtDate(j.createdAt)}</span></div>
+    ${isOutside(j) ? `<div class="banner" style="margin-top:8px;background:var(--amber-wash,#fff6e5)">🌍 <b>${t('owAway')}</b> · ${esc(j.outsideCity || j.externalVendor || '—')}${
+      j.outsideLat != null && j.outsideLng != null
+        ? ` <a href="${esc(mapsUrl(j.outsideLat, j.outsideLng))}" target="_blank" rel="noopener" style="margin-left:auto">${t('owOpenMap')} ↗</a>` : ''}</div>` : ''}
     ${j.notes ? `<div class="small muted" style="margin-top:8px">📝 ${esc(j.notes)}</div>` : ''}
     ${(j.busMoves || []).map((m) => `<div class="tiny muted" style="margin-top:6px">🚌 ${t('jbCorrected').replace('{bus}', () => esc(busName(m.from) || m.from || '—'))} · ${esc(userName(m.by))} · ${fmtDate(m.at)}${m.reason ? ' · ' + esc(m.reason) : ''}</div>`).join('')}
   </div>`;
@@ -3297,10 +3397,17 @@ function viewJobDetail(id) {
     body += `</div>`;
   }
 
-  // Outside repair
-  if (j.externalVendor) {
-    body += `<div class="card"><h3>Outside repair</h3>
-      <div class="row between small"><span>${esc(j.externalVendor)}</span><b>${money(j.externalCost)}</b></div></div>`;
+  // Outside repair. When the bus itself is away this is the only screen that
+  // says where it is standing and for how long, so it carries both.
+  if (j.externalVendor || isOutside(j)) {
+    const awayD = jobDownDays(j);
+    body += `<div class="card"><h3>${isOutside(j) ? '🌍 ' + t('owAway') : 'Outside repair'}</h3>
+      <div class="row between small"><span>${esc(j.externalVendor || '—')}</span><b>${money(j.externalCost)}</b></div>
+      ${isOutside(j) ? `<div class="row between small" style="margin-top:6px"><span>${t('owWhere')}</span>
+        <b>${esc(j.outsideCity || '—')}</b></div>
+        <div class="row between small"><span>🕒 ${t('owAwayFor')}</span><b>${awayD.toFixed(1)}d</b></div>
+        ${j.outsideLat != null && j.outsideLng != null
+          ? `<a class="btn sm" style="margin-top:8px" href="${esc(mapsUrl(j.outsideLat, j.outsideLng))}" target="_blank" rel="noopener">📍 ${t('owOpenMap')}</a>` : ''}` : ''}</div>`;
   }
 
   // Cost summary — repair cost + the lost-revenue from downtime
@@ -3352,7 +3459,85 @@ function actionsForJob(j, editable) {
       actions += `<button class="btn" data-act="changeJobBus" data-job="${esc(j.id)}">🚌 ${t('jbChangeBus')}</button>`;
     }
   }
+  // Removing the card altogether. Last, and set apart from the buttons that do
+  // the work, because it is the one action here that leaves nothing behind.
+  if (canDeleteJob()) {
+    actions += `<div class="hr"></div>
+      <button class="btn danger" data-act="deleteJob" data-job="${esc(j.id)}">🗑️ ${t('djBtn')}</button>`;
+  }
   return actions;
+}
+
+/* ---- Deleting a job card (owner only) ------------------------------------
+ *
+ * Cards get made by mistake — one opened twice, one typed to try the app out —
+ * and until now there was no way to remove one, so the board and every cost
+ * figure carried it for good.
+ *
+ * The one thing a delete must not do is lose a part. Stock that left the store
+ * against this card is recorded in the ledger, and jobPartGaps() deliberately
+ * ignores a card that is gone — so deleting a card with parts on it would take
+ * that shortfall off the pilferage radar and leave the store quietly short with
+ * nothing to explain it. The parts therefore go back into the store in the same
+ * step, with a ledger row saying why, and the sheet says so before the owner
+ * taps. If the work really happened, the card is the record and should stay.
+ */
+const canDeleteJob = () => can(S.user.role, 'deleteJob');
+
+function sheetDeleteJob(jobId) {
+  const j = byId(S.cache.jobs, jobId);
+  if (!j) return;
+  if (!canDeleteJob()) return toast(t('djOwnerOnly'));
+  const issued = jobIssuedParts(jobId);
+  const qty = issued.reduce((s, l) => s + (l.qty || 0), 0);
+  const val = issued.reduce((s, l) => s + (l.cost || 0), 0);
+  const reps = (S.cache.driverreports || []).filter((r) => r.jobId === jobId);
+  openSheet(t('djTitle'), `
+    <div class="li" style="border:none"><div class="ava">🚌</div>
+      <div class="main"><div class="t">${esc(busName(j.busId))}</div>
+        <div class="s">${esc(j.problem)} · ${fmtDate(j.createdAt)}</div></div>
+      ${statusBadge(j.status)}</div>
+    <div class="banner warn">⚠️ ${esc(t('djWarn'))}</div>
+    ${issued.length ? `<div class="row between small" style="padding:4px 2px">
+      <span>🔩 ${qty} ${t('djParts')}</span><b>${money(val)}</b></div>` : ''}
+    ${reps.length ? `<div class="row between small" style="padding:4px 2px">
+      <span>🗣️ ${reps.length} ${t('djReports')}</span></div>` : ''}
+    <div class="tiny muted" style="margin:8px 2px 12px">${esc(t('djKeep'))}</div>
+    <label class="field"><span class="lbl">📝 ${t('djReason')}</span>
+      <input id="dj-why" placeholder="${esc(t('djReasonPh'))}"></label>
+    <button class="btn danger" data-act="deleteJobGo" data-job="${esc(j.id)}">🗑️ ${t('djGo')}</button>`);
+}
+
+async function doDeleteJob(jobId) {
+  const j = byId(S.cache.jobs, jobId);
+  if (!j) return;
+  // The button is owner-only; this is the second lock, for anyone who reaches
+  // the action another way. The server's own rule is the one that holds.
+  if (!canDeleteJob()) return toast(t('djOwnerOnly'));
+  const why = (($('#dj-why') || {}).value || '').trim();
+  // Stock goes back FIRST. In this order an interruption leaves the card still
+  // standing to account for the parts; the other way round it would leave the
+  // store short with nothing on any screen to say why.
+  for (const l of jobIssuedParts(jobId)) {
+    if (!(l.qty > 0)) continue;
+    await receiveStock({ partId: l.partId, qty: l.qty, cost: 0, silent: true,
+      reason: `${t('djLedger')} · ${busName(j.busId)}` });
+  }
+  // The complaint this card was opened for is waiting again, not answered.
+  for (const r of (S.cache.driverreports || []).filter((x) => x.jobId === jobId)) {
+    r.jobId = null; await DB.put('driverreports', r);
+  }
+  for (const bd of (S.cache.breakdowns || []).filter((x) => x.jobId === jobId)) {
+    bd.jobId = null; await DB.put('breakdowns', bd);
+  }
+  // Who removed it and why, written onto the record before it becomes a
+  // tombstone — softDel copies the row as it stands, so this survives the
+  // delete and syncs with it.
+  j.deletedBy = S.user.id; j.deletedAt = Date.now(); j.deleteReason = why;
+  await DB.put('jobcards', j);
+  await DB.softDel('jobcards', jobId);
+  await load(); closeSheet(); toast(t('djDone'));
+  back();
 }
 
 // Edit / Reassign an existing job. Prefills from the jobcard and DB.puts the
@@ -3384,22 +3569,46 @@ function sheetEditJob(jobId) {
     ${crewEditorHtml('fe-mech', jobCrew(j))}
     <label class="field" style="margin-top:10px"><span class="lbl">Priority</span><select id="fe-prio">${prioOpt('high', 'High')}${prioOpt('medium', 'Medium')}${prioOpt('low', 'Low')}</select></label>
     <label class="field"><span class="lbl">Outside vendor (optional)</span><input id="fe-vendor" value="${esc(j.externalVendor || '')}" placeholder="Leave blank if in-house"></label>
+    <label class="row" style="gap:9px;margin-top:4px;cursor:pointer">
+      <input type="checkbox" id="fe-outside" ${j.outside ? 'checked' : ''} style="width:18px;height:18px;flex:none">
+      <span class="small"><b>🌍 ${t('owAsk')}</b></span></label>
+    <div class="tiny muted" style="margin-top:4px">${t('owHint')}</div>
+    <div id="fe-outwrap" style="display:${j.outside ? '' : 'none'};margin-top:8px">
+      <label class="field"><span class="lbl">🏙️ ${t('owCity')}</span>
+        <input id="fe-outcity" list="ow-cities" value="${esc(j.outsideCity || '')}" placeholder="${esc(t('owCityPh'))}"></label>
+      <label class="field" style="margin-top:8px"><span class="lbl">📍 ${t('owLoc')}</span>
+        <input id="fe-outloc" value="${j.outsideLat != null && j.outsideLng != null ? esc(j.outsideLat + ', ' + j.outsideLng) : ''}" placeholder="${esc(t('owLocPh'))}"></label>
+      ${cityDatalist()}
+    </div>
     <div class="grid2">
       <label class="field"><span class="lbl">Outside cost (₹)</span><input id="fe-extcost" type="number" inputmode="numeric" value="${j.externalCost || ''}"></label>
       <label class="field"><span class="lbl">Labour hours</span><input id="fe-hrs" type="number" inputmode="decimal" value="${esc(Number(j.labourHours) || '')}"></label>
     </div>
     <label class="field"><span class="lbl">Notes (optional)</span><textarea id="fe-notes" placeholder="Any extra detail for the mechanic">${esc(j.notes || '')}</textarea></label>
     <button class="btn primary" data-act="saveEditJob" data-job="${esc(j.id)}">${t('save')}</button>`,
-    (wrap) => mountCrewEditor(wrap, 'fe-mech', assignees));
+    (wrap) => {
+      const out = wrap.querySelector('#fe-outside');
+      mountCrewEditor(wrap, 'fe-mech', assignees, { canEmpty: () => !!(out && out.checked) });
+      if (out) out.addEventListener('change', () => {
+        const w = wrap.querySelector('#fe-outwrap');
+        if (w) w.style.display = out.checked ? '' : 'none';
+        const hid = wrap.querySelector('#fe-mech');
+        if (hid && hid._crewSync) hid._crewSync();
+      });
+    });
 }
 async function saveEditJob(jobId) {
   const j = byId(S.cache.jobs, jobId);
   if (!j) return;
   const prob = $('#fe-prob').value.trim();
   if (!prob) return toast(t('describeProblem'));
-  const crew = readCrewField('fe-mech');
+  const outside = !!($('#fe-outside') || {}).checked;
+  const outCity = outside ? (($('#fe-outcity') || {}).value || '').trim() : '';
+  if (outside && !outCity) return toast(t('owNoCity'));
+  const outLL = outside ? parseLatLng(($('#fe-outloc') || {}).value) : null;
+  const crew = outside ? parseCrew(($('#fe-mech') || {}).value || '') : readCrewField('fe-mech');
   if (!crew) return;
-  const assignedTo = crew[0].userId;
+  const assignedTo = (crew[0] || {}).userId || null;
   // Mutate the SAME record (same id) — reassign/edit, never create a new job.
   const busPick = $('#fe-bus').value;
   if (busPick !== '__keep__') j.busId = busPick;   // '__keep__' = unresolved id, leave it be
@@ -3409,6 +3618,10 @@ async function saveEditJob(jobId) {
   j.priority = $('#fe-prio').value;
   j.externalVendor = $('#fe-vendor').value.trim();
   j.externalCost = Number($('#fe-extcost').value) || 0;
+  j.outside = outside;
+  j.outsideCity = outCity;
+  j.outsideLat = outLL ? outLL.lat : null;
+  j.outsideLng = outLL ? outLL.lng : null;
   j.labourHours = Number($('#fe-hrs').value) || 0;
   j.notes = ($('#fe-notes') ? $('#fe-notes').value.trim() : '');
   await DB.put('jobcards', j);
@@ -4907,7 +5120,12 @@ function crewEditorHtml(fieldId, crew) {
     <datalist id="crew-trades">${CREW_TRADES.map((x) => `<option value="${esc(x)}">`).join('')}</datalist>`;
 }
 
-function mountCrewEditor(scope, fieldId, people) {
+/* `opts.canEmpty` is asked every time the rows are drawn, not once at mount:
+ * the outside-work toggle can be flipped after the form is on screen, and a job
+ * at a workshop in another city has nobody of ours on it. When it answers yes
+ * the editor stops seeding a default mechanic and lets the last row be removed. */
+function mountCrewEditor(scope, fieldId, people, cfg) {
+  const canEmpty = () => !!(cfg && typeof cfg.canEmpty === 'function' && cfg.canEmpty());
   const hid = scope.querySelector('#' + fieldId);
   const rows = scope.querySelector('#' + fieldId + '-rows');
   const add = scope.querySelector('#' + fieldId + '-add');
@@ -4927,13 +5145,13 @@ function mountCrewEditor(scope, fieldId, people) {
   };
   const draw = () => {
     let crew = parseCrew(hid.value);
-    if (!crew.length) crew = [{ userId: (people[0] || {}).id || '', task: '' }];
+    if (!crew.length && !canEmpty()) crew = [{ userId: (people[0] || {}).id || '', task: '' }];
     rows.innerHTML = crew.map((a, i) => `<div class="crew-row row" style="gap:6px;align-items:flex-end;margin-bottom:6px;flex-wrap:wrap">
         <label class="field" style="flex:2 1 150px;margin:0">${i === 0 ? `<span class="lbl tiny">${t('crewWho')}</span>` : ''}
           <select class="crew-who">${opts(a.userId)}</select></label>
         <label class="field" style="flex:2 1 130px;margin:0">${i === 0 ? `<span class="lbl tiny">${t('crewTask')}</span>` : ''}
           <input class="crew-task" list="crew-trades" value="${esc(a.task || '')}" placeholder="${t('crewTaskPh')}"></label>
-        ${crew.length > 1 ? `<button type="button" class="btn sm crew-rm" style="width:auto" title="${t('crewRemove')}">✕</button>` : ''}
+        ${(crew.length > 1 || canEmpty()) ? `<button type="button" class="btn sm crew-rm" style="width:auto" title="${t('crewRemove')}">✕</button>` : ''}
       </div>`).join('');
   };
   rows.addEventListener('change', (e) => { if (e.target.closest('.crew-row')) write(); });
@@ -4952,6 +5170,9 @@ function mountCrewEditor(scope, fieldId, people) {
   });
   // Lets a restored draft repaint the rows from the value it just put back.
   hid._crewRedraw = draw;
+  // Redraw AND write back: when the outside toggle flips, the rules about a
+  // default mechanic change, and the hidden value has to follow the rows.
+  hid._crewSync = () => { draw(); write(); };
   draw(); write();
 }
 
@@ -4966,12 +5187,14 @@ function readCrewField(fieldId) {
 }
 
 const JOB_DRAFT_FIELDS = ['f-reportId', 'f-prio', 'f-bus', 'f-prob', 'f-mech', 'f-jdate',
-                          'f-enter', 'f-start', 'f-odo', 'f-vendor', 'f-extcost', 'f-hrs', 'f-notes'];
+                          'f-enter', 'f-start', 'f-odo', 'f-vendor', 'f-extcost', 'f-hrs', 'f-notes',
+                          'f-outcity', 'f-outloc'];
 function saveJobDraft() {
   if (!document.getElementById('f-prob')) return;      // not on the form
   const d = { at: Date.now(), user: S.user && S.user.id };
   JOB_DRAFT_FIELDS.forEach((id) => { const el = document.getElementById(id); if (el) d[id] = el.value; });
   const ob = document.getElementById('f-odobroken'); if (ob) d['f-odobroken'] = ob.checked ? '1' : '';
+  const os = document.getElementById('f-outside'); if (os) d['f-outside'] = os.checked ? '1' : '';
   // Nothing typed yet is not worth offering back.
   if (!(d['f-prob'] || '').trim() && !(d['f-notes'] || '').trim() && !(d['f-vendor'] || '').trim()) {
     return clearJobDraft();
@@ -5019,6 +5242,17 @@ function viewNewJob(prefill = {}) {
       <div class="card"><label class="field"><span class="lbl">🚌 Bus</span>
         <select id="f-bus">${buses.map((b) => `<option value="${b.id}" ${b.id === sel ? 'selected' : ''}>${esc(b.regNo)}${b.company ? ' — ' + esc(b.company) : ''}</option>`).join('')}</select></label>
         <div id="f-reports" style="margin-top:8px">${reportPicklistRich(sel)}</div></div>
+      <div class="card"><label class="row" style="gap:9px;cursor:pointer">
+          <input type="checkbox" id="f-outside" style="width:18px;height:18px;flex:none">
+          <span class="small"><b>🌍 ${t('owAsk')}</b></span></label>
+        <div class="tiny muted" style="margin-top:6px">${t('owHint')}</div>
+        <div id="f-outwrap" style="display:none;margin-top:10px">
+          <label class="field"><span class="lbl">🏙️ ${t('owCity')}</span>
+            <input id="f-outcity" list="ow-cities" placeholder="${esc(t('owCityPh'))}"></label>
+          <label class="field" style="margin-top:8px"><span class="lbl">📍 ${t('owLoc')}</span>
+            <input id="f-outloc" placeholder="${esc(t('owLocPh'))}"></label>
+          ${cityDatalist()}
+        </div></div>
       <div class="card"><label class="field"><span class="lbl">🔧 Problem reported</span>
         <textarea id="f-prob" placeholder="e.g. Front brakes weak, pulls left">${esc(prefill.problem || '')}</textarea></label></div>
       <div class="card"><div class="lbl" style="margin-bottom:8px">🚩 Priority</div>
@@ -5028,11 +5262,12 @@ function viewNewJob(prefill = {}) {
     <section class="wz-step" data-step="2">
       <div class="card"><div class="lbl" style="margin-bottom:8px">👷 ${t('crewTitle')}</div>
         ${crewEditorHtml('f-mech', [])}
-        <div class="tiny muted" style="margin-top:6px">${t('crewHint')}</div></div>
+        <div class="tiny muted" style="margin-top:6px">${t('crewHint')}</div>
+        <div class="tiny" id="f-crewnote" style="display:none;margin-top:6px;color:var(--brand2)">${t('owCrewNote')}</div></div>
     <div class="card"><div class="lbl" style="margin-bottom:8px">🕒 Workshop clock</div>
       <label class="field"><span class="lbl">📅 Date</span><input id="f-jdate" type="date" value="${msToYMD()}"></label>
       <div class="grid2" style="margin-top:8px">
-        <label class="field"><span class="lbl">⬇️ Enter time</span><input id="f-enter" type="time" value="${msToHHMM(Date.now())}"></label>
+        <label class="field"><span class="lbl" id="f-enterlbl">⬇️ Enter time</span><input id="f-enter" type="time" value="${msToHHMM(Date.now())}"></label>
         <label class="field"><span class="lbl">▶️ Job start time</span><input id="f-start" type="time"></label></div>
       <div class="tiny muted" style="margin-top:6px">Enter time is when the bus reached the garage. Job start is when work actually began — leave it blank if it hasn't.</div>
       <label class="field" style="margin-top:8px"><span class="lbl">🛞 Odometer (km)</span>
@@ -5046,6 +5281,7 @@ function viewNewJob(prefill = {}) {
     <section class="wz-step" data-step="3">
       <div class="card"><label class="field"><span class="lbl">🏪 Outside vendor / workshop (optional)</span>
         <input id="f-vendor" placeholder="e.g. Noida Eicher workshop — blank if done in-house"></label>
+        <div class="tiny" id="f-vendnote" style="display:none;margin-top:6px;color:var(--brand2)">${t('owVendNote')}</div>
         <div class="grid2" style="margin-top:8px">
           <label class="field"><span class="lbl">₹ Outside cost</span><input id="f-extcost" type="number" inputmode="numeric"></label>
           <label class="field"><span class="lbl">⏱️ Labour hours</span><input id="f-hrs" type="number" inputmode="decimal"></label></div></div>
@@ -5078,7 +5314,25 @@ function viewNewJob(prefill = {}) {
     if (obEl.checked) odoEl.value = ''; };
   if (obEl) { obEl.addEventListener('change', syncOdo); syncOdo(); }
 
-  mountCrewEditor(root(), 'f-mech', assignees);
+  /* The toggle changes what three later fields mean, so they follow it rather
+   * than asking the supervisor to remember: the city and location appear, the
+   * crew becomes optional (our mechanics are not in Noida), the enter time
+   * becomes the time it reached that workshop, and the vendor field is named
+   * as what it now is. */
+  const outEl = document.getElementById('f-outside');
+  const syncOutside = () => {
+    const on = !!(outEl && outEl.checked);
+    const show = (id, vis) => { const e = document.getElementById(id); if (e) e.style.display = vis ? '' : 'none'; };
+    show('f-outwrap', on); show('f-crewnote', on); show('f-vendnote', on);
+    const lbl = document.getElementById('f-enterlbl');
+    if (lbl) lbl.textContent = on ? '🌍 ' + t('owReached') : '⬇️ Enter time';
+    const crewHid = document.getElementById('f-mech');
+    if (crewHid && crewHid._crewSync) crewHid._crewSync();
+  };
+  if (outEl) outEl.addEventListener('change', syncOutside);
+
+  mountCrewEditor(root(), 'f-mech', assignees, { canEmpty: () => !!(outEl && outEl.checked) });
+  syncOutside();
 
   // Put an interrupted card back, unless the caller arrived with a prefill (a
   // driver report being turned into a job) — that is a deliberate fresh start.
@@ -5090,6 +5344,7 @@ function viewNewJob(prefill = {}) {
     });
     const ob = document.getElementById('f-odobroken');
     if (ob && draft['f-odobroken']) { ob.checked = true; ob.dispatchEvent(new Event('change', { bubbles: true })); }
+    if (outEl && draft['f-outside']) { outEl.checked = true; syncOutside(); }
     if (draft['f-prio']) setPrio(draft['f-prio']);
     const crewEl = document.getElementById('f-mech');
     if (crewEl && crewEl._crewRedraw) crewEl._crewRedraw();   // rows follow the restored value
@@ -5179,9 +5434,16 @@ function setPrio(v) {
 async function saveJob(prefill = (S.route && S.route.prefill) || {}) {
   const busId = $('#f-bus').value, prob = $('#f-prob').value.trim();
   if (!prob) return toast('Describe the problem');
-  const crew = readCrewField('f-mech');
+  // Where the bus is. A card with no city would put a bus "somewhere outside",
+  // which is the one thing this toggle exists to stop.
+  const outside = !!($('#f-outside') || {}).checked;
+  const outCity = outside ? (($('#f-outcity') || {}).value || '').trim() : '';
+  if (outside && !outCity) return toast(t('owNoCity'));
+  const outLL = outside ? parseLatLng(($('#f-outloc') || {}).value) : null;
+  // An outside job may legitimately have nobody of ours on it.
+  const crew = outside ? parseCrew(($('#f-mech') || {}).value || '') : readCrewField('f-mech');
   if (!crew) return;
-  const assignedTo = crew[0].userId;
+  const assignedTo = (crew[0] || {}).userId || null;
   const linkedReports = [...document.querySelectorAll('.f-rep:checked')].map((c) => c.value);
   const presetId = ($('#f-reportId') || {}).value;
   if (presetId && !linkedReports.includes(presetId)) linkedReports.push(presetId);
@@ -5203,6 +5465,7 @@ async function saveJob(prefill = (S.route && S.route.prefill) || {}) {
     labourHours: Number($('#f-hrs').value) || 0,
     jobDate: ymd, enterAt, startAt, completeAt: null, outAt: null, odometer, remark: '',
     externalVendor: $('#f-vendor').value.trim(), externalCost: Number($('#f-extcost').value) || 0,
+    outside, outsideCity: outCity, outsideLat: outLL ? outLL.lat : null, outsideLng: outLL ? outLL.lng : null,
     reportIds: linkedReports, breakdownId: prefill.breakdownId || null,
     notes: ($('#f-notes') ? $('#f-notes').value.trim() : ''), createdAt: Date.now(), closedAt: null, verifiedBy: null,
   });
@@ -10933,6 +11196,8 @@ const _dispatchClick = async (e) => {
       case 'saveJob': return saveJob();
       case 'editJob': return sheetEditJob(el.getAttribute('data-job'));
       case 'changeJobBus': return sheetChangeJobBus(el.getAttribute('data-job'));
+      case 'deleteJob': return sheetDeleteJob(el.getAttribute('data-job'));
+      case 'deleteJobGo': return doDeleteJob(el.getAttribute('data-job'));
       case 'saveJobBus': return saveJobBus(el.getAttribute('data-job'));
       case 'saveEditJob': return saveEditJob(el.getAttribute('data-job'));
       case 'requestPart': return sheetRequestPart(el.getAttribute('data-job'));

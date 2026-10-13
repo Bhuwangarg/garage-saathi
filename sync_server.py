@@ -1322,8 +1322,12 @@ def _guard_write(store, rid, data, actor, existing, c=None):
         # Signed off means paid against. Staff may still attach a part the store
         # issued afterwards, but hours, outside cost and parts already on the card
         # are fixed until an owner or supervisor re-opens it.
+        # `outside` is in this list because it decides whether a bus counts as
+        # standing in our yard or away in another city. On a signed-off card
+        # that is a statement about a repair that has been paid for, and it is
+        # not the store login's to rewrite.
         if not manager and prev == "verified" and status == "verified":
-            for f in ("labourHours", "externalCost", "externalVendor"):
+            for f in ("labourHours", "externalCost", "externalVendor", "outside", "outsideCity"):
                 if data.get(f) != old.get(f):
                     return "a verified job's hours and costs cannot be changed — re-open it first"
             new_lines = {}
