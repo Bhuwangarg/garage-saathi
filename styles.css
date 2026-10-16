@@ -1012,3 +1012,57 @@ body.printing-gp .gp-screen{display:none !important}
 .ava.rv-st.s1,.ava.rv-st.s2{background:var(--red-wash);color:var(--red)}
 .ava.rv-st.s3{background:var(--amber-wash);color:var(--amber)}
 .ava.rv-st.s4,.ava.rv-st.s5{background:var(--green-wash);color:var(--green)}
+
+/* ===== Vehicle cards (fleet list) =========================================
+ * Photo-led cards instead of list rows: which bus, what state, who is on it,
+ * and how much of its service interval is gone — readable without opening it.
+ * The layout follows the fleet dashboards the owner pointed at; the colours
+ * stay on our own tokens so the dark theme and the plate motif still hold.
+ * One column on a phone, two from 560px, three on a desktop pane.
+ */
+.vgrid{display:grid;grid-template-columns:1fr;gap:12px;margin-top:10px}
+@media (min-width:560px){.vgrid{grid-template-columns:1fr 1fr}}
+@media (min-width:900px){.vgrid{grid-template-columns:repeat(3,1fr)}}
+
+.vcard{background:var(--surface);border:1px solid var(--line2);border-radius:var(--radius);
+  box-shadow:var(--shadow-sm);overflow:hidden;cursor:pointer;
+  transition:transform .16s cubic-bezier(.2,.7,.3,1),box-shadow .16s,border-color .16s}
+.vcard:active{transform:scale(.985)}
+@media (hover:hover){.vcard:hover{box-shadow:var(--shadow);border-color:var(--line)}}
+@media (prefers-reduced-motion:reduce){.vcard{transition:none}.vcard:active{transform:none}}
+
+.vc-top{position:relative;aspect-ratio:16/9;background:var(--surface2);overflow:hidden}
+.vc-top img{width:100%;height:100%;object-fit:cover;display:block}
+/* A photo of a bus in a leafy yard is a poor background for a pale status
+ * pill, and the photos are whatever somebody took on their phone — so the top
+ * of the image is darkened slightly and the pill always reads. */
+.vc-top::after{content:"";position:absolute;inset:0 0 auto;height:56px;pointer-events:none;
+  background:linear-gradient(to bottom,rgba(0,0,0,.28),rgba(0,0,0,0))}
+.vc-pill{position:absolute;top:9px;right:9px;backdrop-filter:blur(6px);
+  box-shadow:0 1px 6px rgba(0,0,0,.18)}
+
+.vc-body{padding:11px 12px 12px}
+.vc-sub{font-size:12px;color:var(--muted);margin-top:5px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+.vc-drv{display:flex;align-items:center;gap:9px;margin-top:10px}
+.vc-face{width:30px;height:30px;border-radius:50%;object-fit:cover;flex:none;
+  background:var(--surface2);border:1px solid var(--line2)}
+.vc-noface{display:flex;align-items:center;justify-content:center;
+  font-weight:700;font-size:13px;color:var(--muted)}
+.vc-dl{font-size:10px;letter-spacing:.04em;text-transform:uppercase;color:var(--faint)}
+.vc-dn{font-size:13px;font-weight:650;color:var(--text);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+.vc-bar{height:5px;background:var(--line2);border-radius:3px;margin-top:11px;overflow:hidden}
+.vc-bar i{display:block;height:100%;border-radius:3px;transition:width .3s ease}
+@media (prefers-reduced-motion:reduce){.vc-bar i{transition:none}}
+.vc-barl{display:flex;justify-content:space-between;gap:8px;margin-top:4px;
+  font-family:var(--mono);font-size:10px;color:var(--faint)}
+
+.vc-foot{display:flex;gap:6px;margin-top:11px;padding-top:10px;border-top:1px solid var(--line2)}
+.vc-m{flex:1;min-width:0}
+.vc-mv{font-family:var(--mono);font-size:13px;font-weight:650;color:var(--text);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vc-ml{font-size:10px;color:var(--faint);margin-top:1px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

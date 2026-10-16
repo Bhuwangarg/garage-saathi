@@ -40,6 +40,16 @@ const I18N = {
     tyPos: 'Position', tyCost: 'Price (optional)', tyAddRow: '+ Add another tyre', tyRemoveRow: 'Remove',
     tyNeedBus: 'Pick a bus', tyNeedOne: 'Fill in at least one tyre number', tyFitted: 'tyre(s) fitted',
     tyOldStored: 'old tyre(s) moved to the store',
+    // ---- Batteries: same flow as tyres, but they die by age, not by km ----
+    btFit: 'Fit batteries to a bus', btRow: 'Battery', btNew: 'New battery number',
+    btOld: 'Old battery coming off', btOldTyped: 'Old battery number',
+    btAddRow: '+ Add another battery', btNeedOne: 'Fill in at least one battery number',
+    btFitted: 'batterie(s) fitted', btOldStored: 'old batterie(s) moved to the store',
+    btWarranty: 'Warranty (months)', btWarrantyPh: 'e.g. 18', btLifeMonths: 'Life (months)',
+    btInWarranty: 'In warranty until', btWarrantyOver: 'Warranty ended',
+    btClaim: 'still in warranty — claim it before buying another',
+    btAgeUsed: 'Age used', btMonths: 'months',
+    vcDriver: 'Driver', vcNoDriver: 'No driver assigned',
     cmFuel: 'Fuel & mileage', cmFuelSub: 'log a diesel fill, with the pump', cmDef: 'AdBlue / DEF', cmTyres: 'Tyres & components',
     fuPump: 'Pump / filling station', fuPumpPh: 'e.g. Jio-bp, Ajmer Road',
     fuWhere: 'Where (optional)', fuWherePh: 'paste a Google Maps link, or 26.9124, 75.7873',
@@ -353,6 +363,16 @@ const I18N = {
     tyPos: 'जगह', tyCost: 'दाम (ज़रूरी नहीं)', tyAddRow: '+ एक और टायर', tyRemoveRow: 'हटाएँ',
     tyNeedBus: 'बस चुनिए', tyNeedOne: 'कम से कम एक टायर नंबर भरिए', tyFitted: 'टायर लगे',
     tyOldStored: 'पुराने टायर स्टोर में गए',
+    // ---- Batteries: same flow as tyres, but they die by age, not by km ----
+    btFit: 'बस पर बैटरी लगाएँ', btRow: 'बैटरी', btNew: 'नई बैटरी का नंबर',
+    btOld: 'जो पुरानी बैटरी उतरी', btOldTyped: 'पुरानी बैटरी का नंबर',
+    btAddRow: '+ एक और बैटरी', btNeedOne: 'कम से कम एक बैटरी नंबर भरिए',
+    btFitted: 'बैटरी लगीं', btOldStored: 'पुरानी बैटरी स्टोर में गईं',
+    btWarranty: 'वारंटी (महीने)', btWarrantyPh: 'जैसे 18', btLifeMonths: 'उम्र (महीने)',
+    btInWarranty: 'वारंटी इस तारीख़ तक', btWarrantyOver: 'वारंटी ख़त्म',
+    btClaim: 'अभी वारंटी में है — नई ख़रीदने से पहले दावा कीजिए',
+    btAgeUsed: 'कितनी पुरानी', btMonths: 'महीने',
+    vcDriver: 'ड्राइवर', vcNoDriver: 'कोई ड्राइवर नहीं',
     cmFuel: 'ईंधन और माइलेज', cmFuelSub: 'डीज़ल भरना दर्ज कीजिए, पंप के साथ', cmDef: 'AdBlue / DEF', cmTyres: 'टायर और पुर्जे',
     fuPump: 'पंप / फ़िलिंग स्टेशन', fuPumpPh: 'जैसे जियो-बीपी, अजमेर रोड',
     fuWhere: 'कहाँ (ज़रूरी नहीं)', fuWherePh: 'गूगल मैप्स लिंक चिपकाइए, या 26.9124, 75.7873',
@@ -2185,17 +2205,9 @@ function viewFleet() {
     <div class="tm"><div class="tt">${t('histTitle')}</div><div class="ts">${t('histSub')}</div></div>
     <div class="tc">›</div></div>`;
 
-  // Searchable bus list on number-plate chips.
+  // Searchable bus list, as vehicle cards.
   body += `<input id="fleet-search" class="searchbox" placeholder="Search plate, company, model…" style="margin-top:12px">`;
-  body += `<div class="card listwrap" id="fleet-list">${buses.map((b) => {
-    const sv = serviceInfo(b);
-    const cls = sv.status === 'overdue' ? 'crit' : sv.status === 'soon' ? 'warn' : 'ok';
-    const word = sv.status === 'overdue' ? 'Service due' : sv.status === 'soon' ? 'Service soon' : 'OK';
-    return `<div class="li" data-bus="${esc(b.id)}"><div style="flex:none">${plateChip(b)}</div>
-      <div class="main"><div class="t">${esc(b.company || 'Unassigned')} · ${esc(b.model || '')}</div>
-      <div class="s">${(b.odometer || 0).toLocaleString('en-IN')} km</div></div>
-      <span class="schip ${cls}"><i></i>${word}</span></div>`;
-  }).join('')}</div>`;
+  body += `<div id="fleet-list" class="vgrid">${buses.map(busCard).join('')}</div>`;
   shell(t('fleet'), body);
   attachSearch('fleet-search', 'fleet-list');
 }
@@ -2751,6 +2763,54 @@ function viewHome() {
 const BUS_STAT = { running: ['🟢', 'Running'], idle: ['🟡', 'Idle'], parked: ['⚪', 'Parked'] };
 let _busFilter = 'all', _busStatus = {};
 const busStatusOf = (b) => _busStatus[_normReg(b.regNo)] || 'parked';
+/* The fleet as vehicle cards rather than list rows.
+ *
+ * A row could hold a plate, a model and an odometer, and that is all it ever
+ * held — to find out who was driving a bus or how close it was to its service
+ * you had to open it, one at a time, for every bus. The card carries the four
+ * things somebody scanning the yard actually wants: which bus, what state it is
+ * in, who is on it, and how much of its service interval is gone.
+ *
+ * It keeps the app's own tokens rather than the reference's palette, so the
+ * dark theme and the number-plate motif still hold.
+ */
+function busCard(b) {
+  const sv = serviceInfo(b);
+  const cls = sv.status === 'overdue' ? 'crit' : sv.status === 'soon' ? 'warn' : 'ok';
+  const word = sv.status === 'overdue' ? 'Service due' : sv.status === 'soon' ? 'Service soon' : 'Running';
+  // How far through this service interval the bus is. Clamped, because an
+  // overdue bus is at 100% and not at 140% of a bar.
+  const used = Math.max(0, Math.min(sv.interval, (b.odometer || 0) - sv.last));
+  const pct = sv.interval > 0 ? Math.round(used / sv.interval * 100) : 0;
+  const drv = driverOfBus(b.id);
+  const face = drv ? crewFace(drv) : '';
+  const openJobs = (S.cache.jobs || []).filter((j) => j.busId === b.id && (j.status === 'open' || j.status === 'in-progress')).length;
+  const km = busMileage(b.id);
+  const foot = (icon, val, label) => `<div class="vc-m"><div class="vc-mv">${icon} ${val}</div><div class="vc-ml">${label}</div></div>`;
+  return `<div class="vcard" data-bus="${esc(b.id)}">
+    <div class="vc-top"><img src="${esc(busImg(b))}" alt="" loading="lazy">
+      <span class="schip ${cls} vc-pill"><i></i>${word}</span></div>
+    <div class="vc-body">
+      <div class="row between" style="align-items:flex-start;gap:8px">
+        <div style="min-width:0">${plateChip(b)}
+          <div class="vc-sub">${esc(b.company || 'Unassigned')}${b.model ? ' · ' + esc(b.model) : ''}</div></div>
+      </div>
+      <div class="vc-drv">${face
+        ? `<img class="vc-face" src="${esc(face)}" alt="">`
+        : `<span class="vc-face vc-noface">${drv ? esc((drv.name || '?').slice(0, 1)) : '–'}</span>`}
+        <div style="min-width:0"><div class="vc-dl">${t('vcDriver')}</div>
+          <div class="vc-dn">${drv ? esc(drv.name) : t('vcNoDriver')}</div></div></div>
+      <div class="vc-bar"><i style="width:${pct}%;background:${lifeColor(sv.status === 'overdue' ? 'overdue' : sv.status === 'soon' ? 'soon' : 'ok')}"></i></div>
+      <div class="vc-barl"><span>${sv.last.toLocaleString('en-IN')}</span>
+        <span>${sv.status === 'overdue' ? 'service overdue' : `${sv.dueIn.toLocaleString('en-IN')} km to service`}</span></div>
+      <div class="vc-foot">
+        ${foot('🛣️', (b.odometer || 0).toLocaleString('en-IN'), 'km on clock')}
+        ${foot('⛽', km.avgKmpl != null ? km.avgKmpl.toFixed(1) : '—', 'km/l')}
+        ${foot('🔧', openJobs || '0', 'open jobs')}
+      </div>
+    </div></div>`;
+}
+
 function busLi(b) {
   const alerts = (b.docs || []).filter((d) => daysLeft(d.expiry) <= 15).length;
   const sd = BUS_STAT[busStatusOf(b)] || BUS_STAT.parked;
@@ -2868,7 +2928,7 @@ function attachSearch(inputId, listId) {
     const ql = inp.value.trim().toLowerCase(), qk = _searchKey(ql);
     boxes.forEach((box) => {
       let shown = 0;
-      box.querySelectorAll('.li, .jobcard').forEach((li) => {
+      box.querySelectorAll('.li, .jobcard, .vcard').forEach((li) => {
         const txt = li.textContent.toLowerCase();
         const ok = !ql || txt.includes(ql) || (qk.length > 1 && _searchKey(txt).includes(qk));
         li.style.display = ok ? '' : 'none';
@@ -2886,7 +2946,7 @@ function attachSearch(inputId, listId) {
       const none = box.querySelector('.nomatch');
       if (none) none.remove();
       if (ql && !shown) box.insertAdjacentHTML('beforeend', `<div class="muted small nomatch" style="padding:6px 2px">${esc(t('noMatch'))}</div>`);
-      box.querySelectorAll('.li:not([style*="none"]), .jobcard:not([style*="none"])').forEach((li, i) => { li.classList.remove('row-anim'); void li.offsetWidth; li.classList.add('row-anim'); li.style.animationDelay = Math.min(i, 12) * 0.028 + 's'; });
+      box.querySelectorAll('.li:not([style*="none"]), .jobcard:not([style*="none"]), .vcard:not([style*="none"])').forEach((li, i) => { li.classList.remove('row-anim'); void li.offsetWidth; li.classList.add('row-anim'); li.style.animationDelay = Math.min(i, 12) * 0.028 + 's'; });
     });
   };
 }
@@ -3143,7 +3203,8 @@ function viewBusDetail(id) {
   const comps = componentsOfBus(b.id);
   if (comps.length || can(S.user.role, 'issuePart')) {
     body += `<div class="card"><div class="row between"><h3>🛞 Tyres &amp; components</h3><span>${
-      can(S.user.role, 'manageComponents') ? `<button class="btn sm" data-act="fitTyres" data-bus="${esc(b.id)}">+ ${esc(t('tyRow'))}s</button> ` : ''
+      can(S.user.role, 'manageComponents') ? `<button class="btn sm" data-act="fitTyres" data-bus="${esc(b.id)}">🛞</button>
+        <button class="btn sm" data-act="fitBatteries" data-bus="${esc(b.id)}">🔋</button> ` : ''
     }${can(S.user.role, 'issuePart') ? `<button class="btn sm" data-act="openComponents">All</button>` : ''}</span></div>`;
     body += comps.length ? comps.sort((a, c) => componentLife(c).pct - componentLife(a).pct).map((c) => { const lf = componentLife(c), km = compKind(c);
       return `<div class="li" data-act="openComp" data-id="${esc(c.id)}"><div class="ava">${km[0]}</div>
@@ -4406,14 +4467,29 @@ async function saveReturnGatePass(id) {
  * remould/rewind (their bill is captured on return) → refit → and finally scrap
  * once refurbished its allowed number of times. This gives true per-unit part-life
  * and captures the outside-repair bills (tyre remould, alternator rewind). */
+/* [icon, name, refurbish verb, life in km, max refurbishments, life in months]
+ *
+ * The sixth number exists because of batteries. A tyre wears out by the
+ * kilometre and a battery does not: it dies by age, whether the bus ran or sat
+ * in the yard all monsoon. With life measured only in km a battery was an
+ * untracked row that never aged, never showed a wear bar and never appeared in
+ * "Needs attention" — so the first anybody heard of it was a bus that would not
+ * start at four in the morning. Both are measured now, and whichever is further
+ * along is the one shown. */
 const COMP_KINDS = {
-  tyre:       ['🛞', 'Tyre',       'remould',     60000, 2],
-  alternator: ['🔌', 'Alternator', 'rewind',      0,     5],
-  starter:    ['🔩', 'Starter',    'repair',      0,     4],
-  battery:    ['🔋', 'Battery',    'recondition', 0,     2],
-  injector:   ['💉', 'Injector',   'recondition', 0,     3],
-  other:      ['⚙️', 'Component',  'repair',      0,     3],
+  tyre:       ['🛞', 'Tyre',       'remould',     60000, 2, 0],
+  alternator: ['🔌', 'Alternator', 'rewind',      0,     5, 0],
+  starter:    ['🔩', 'Starter',    'repair',      0,     4, 0],
+  battery:    ['🔋', 'Battery',    'recondition', 0,     2, 36],
+  injector:   ['💉', 'Injector',   'recondition', 0,     3, 0],
+  other:      ['⚙️', 'Component',  'repair',      0,     3, 0],
 };
+const MONTH_MS = 30.44 * 24 * 3600 * 1000;
+const monthsBetween = (from, to) => Math.max(0, (to - from) / MONTH_MS);
+// When the warranty on this piece runs out, or null if none was recorded.
+const warrantyEnd = (c) => (c && c.warrantyMonths > 0 && (c.boughtAt || c.installedAt))
+  ? (c.boughtAt || c.installedAt) + c.warrantyMonths * MONTH_MS : null;
+const inWarranty = (c) => { const e = warrantyEnd(c); return e != null && Date.now() < e; };
 const COMP_STATE = {
   'in-service':  ['In service', 'b-green'],
   'removed':     ['In store',   'b-low'],
@@ -4422,18 +4498,38 @@ const COMP_STATE = {
   'scrapped':    ['Scrapped',   'b-red'],
 };
 const compKind = (c) => COMP_KINDS[c.kind] || COMP_KINDS.other;
+/* "Tyre" + "FR" reads as "Tyre FR"; "Battery" + "Battery 1" must not read as
+ * "Battery Battery 1". Where the position already names the piece, it is the
+ * whole name. */
+const posLabel = (name, pos) => (!pos ? name
+  : (String(pos).toLowerCase().startsWith(String(name).toLowerCase()) ? pos : name + ' ' + pos));
 const compVerb = (c) => compKind(c)[2];                     // remould / rewind / repair
 const lastHist = (c) => (c.history && c.history.length ? c.history[c.history.length - 1] : {}) || {};
-// Life used from the odometer of the bus it's fitted to (km since last install/refurb).
+/* Life used, by the odometer of the bus it is fitted to AND by the calendar.
+ * Whichever is further along decides, because a piece is finished when either
+ * runs out: a tyre at 60,000 km, a battery at three years even if the bus
+ * barely moved. `basis` says which one is talking, so the screens can say
+ * "42,000 of 60,000 km" or "28 of 36 months" rather than a bare percentage. */
 function componentLife(c) {
-  if (!c.lifeKm) return { tracked: false, pct: 0, kmUsed: 0, kmLeft: 0, status: 'ok' };
+  const lifeMonths = c.lifeMonths || 0;
+  if (!c.lifeKm && !lifeMonths) return { tracked: false, pct: 0, kmUsed: 0, kmLeft: 0, status: 'ok', basis: null };
   const bus = c.busId ? byId(S.cache.buses, c.busId) : null;
   const odo = bus ? (bus.odometer || 0) : 0;
   const kmUsed = c.state === 'in-service' && c.installedOdo != null && odo > c.installedOdo ? odo - c.installedOdo : 0;
-  const kmLeft = Math.max(0, c.lifeKm - kmUsed);
-  const pct = Math.min(100, Math.round(kmUsed / c.lifeKm * 100));
+  const kmLeft = Math.max(0, (c.lifeKm || 0) - kmUsed);
+  const kmPct = c.lifeKm ? Math.min(100, Math.round(kmUsed / c.lifeKm * 100)) : 0;
+  // Age runs from when it was bought if we know, otherwise from first fitting,
+  // and it keeps running while the piece sits in the store — which is the
+  // point: a spare battery on a shelf is going flat too.
+  const since = c.boughtAt || c.installedAt || c.createdAt || 0;
+  const monthsUsed = lifeMonths && since ? monthsBetween(since, Date.now()) : 0;
+  const monthsLeft = Math.max(0, lifeMonths - monthsUsed);
+  const mPct = lifeMonths ? Math.min(100, Math.round(monthsUsed / lifeMonths * 100)) : 0;
+  const pct = Math.max(kmPct, mPct);
   const status = pct >= 100 ? 'overdue' : pct >= 85 ? 'soon' : 'ok';
-  return { tracked: true, pct, kmUsed, kmLeft, status };
+  return { tracked: true, pct, kmUsed, kmLeft, status,
+    basis: mPct > kmPct ? 'months' : 'km',
+    lifeMonths, monthsUsed: Math.round(monthsUsed), monthsLeft: Math.round(monthsLeft) };
 }
 const lifeColor = (s) => (s === 'overdue' ? 'var(--red)' : s === 'soon' ? 'var(--amber)' : 'var(--green)');
 function lifeBar(pct, status) {
@@ -4447,8 +4543,13 @@ function componentAlerts() {
     if (c.state === 'scrapped') return;
     if (c.state === 'sent-out') { out.push({ c, status: 'at-vendor', msg: `${compKind(c)[1]} at ${lastHist(c).vendor || 'vendor'} for ${compVerb(c)}` }); return; }
     const lf = componentLife(c);
-    if (c.state === 'in-service' && lf.tracked && lf.status !== 'ok')
-      out.push({ c, status: lf.status, msg: `${compKind(c)[1]}${c.position ? ' ' + c.position : ''} on ${busName(c.busId)} — ${lf.pct}% worn${lf.status === 'overdue' ? ` · ${compVerb(c)} or replace` : ''}` });
+    // An aged-out piece matters wherever it is. A battery ages on the shelf as
+    // surely as on the bus, and the spare that has quietly died is the one that
+    // gets fitted at four in the morning when the bus will not start.
+    const where = c.busId ? ` on ${busName(c.busId)}` : ' in the store';
+    if ((c.state === 'in-service' || (c.state === 'removed' && lf.basis === 'months')) && lf.tracked && lf.status !== 'ok')
+      out.push({ c, status: lf.status,
+        msg: `${posLabel(compKind(c)[1], c.position)}${where} — ${lf.basis === 'months' ? `${lf.monthsUsed} ${t('btMonths')} old` : `${lf.pct}% worn`}${lf.status === 'overdue' ? ` · ${compVerb(c)} or replace` : ''}${inWarranty(c) ? ` · ${t('btClaim')}` : ''}` });
   });
   return out;
 }
@@ -4470,11 +4571,13 @@ function compLi(c) {
 function viewComponents() {
   const comps = (S.cache.components || []);
   const alerts = componentAlerts();
-  let body = `<div class="card"><div class="tiny muted">Tyres, alternators & other durable units tracked per piece — life in km, and every send-out for remould/rewind with the vendor's bill. Tap one for its history.</div></div>`;
+  let body = `<div class="card"><div class="tiny muted">Tyres, batteries, alternators &amp; other durable units tracked per piece — life in km for what wears, in months for what ages, and every send-out for remould/rewind with the vendor's bill. Tap one for its history.</div></div>`;
   if (alerts.length) body += `<div class="card" style="border:1.5px solid var(--amber)"><div class="row between"><h3>⚠️ Needs attention</h3><span class="badge b-amber">${alerts.length}</span></div>
     ${alerts.map((a) => `<div class="li" data-act="openComp" data-id="${esc(a.c.id)}" style="border:none;padding:6px 0"><div class="ava">${compKind(a.c)[0]}</div><div class="main"><div class="s">${a.msg}</div></div></div>`).join('')}</div>`;
   const kinds = ['all', ...Object.keys(COMP_KINDS).filter((k) => comps.some((c) => c.kind === k))];
-  if (can(S.user.role, 'manageComponents')) body += `<button class="btn primary" data-act="fitTyres" style="margin-bottom:12px">🛞 ${esc(t('tyFit'))}</button>`;
+  if (can(S.user.role, 'manageComponents')) body += `<div class="row" style="gap:8px;margin-bottom:12px">
+    <button class="btn primary" data-act="fitTyres" style="flex:1">🛞 ${esc(t('tyFit'))}</button>
+    <button class="btn" data-act="fitBatteries" style="flex:1">🔋 ${esc(t('btFit'))}</button></div>`;
   body += `<div class="chiprow">${kinds.map((k) => `<button class="chip ${_compFilter === k ? 'active' : ''}" data-act="compFilter" data-v="${esc(k)}">${k === 'all' ? 'All' : COMP_KINDS[k][0] + ' ' + COMP_KINDS[k][1]}</button>`).join('')}</div>`;
   const list = comps.filter((c) => _compFilter === 'all' || c.kind === _compFilter)
     .sort((a, b) => (COMP_RANK[a.state] - COMP_RANK[b.state]) || (componentLife(b).pct - componentLife(a).pct));
@@ -4498,9 +4601,20 @@ function viewComponentDetail(id) {
   body += `<div class="card"><h3>Life & placement</h3><div class="grid2">
     <div><div class="tiny muted">Fitted to</div><b>${c.busId ? esc(busName(c.busId)) : '—'}${c.position ? ' · ' + esc(c.position) : ''}</b></div>
     <div><div class="tiny muted">${v.charAt(0).toUpperCase() + v.slice(1)}s used</div><b>${c.refurbCount || 0} / ${c.maxRefurb || 0}</b></div>`;
-  if (lf.tracked) body += `<div><div class="tiny muted">Life used</div><b>${lf.kmUsed.toLocaleString('en-IN')} / ${c.lifeKm.toLocaleString('en-IN')} km</b></div>
+  if (lf.tracked && c.lifeKm) body += `<div><div class="tiny muted">Life used</div><b>${lf.kmUsed.toLocaleString('en-IN')} / ${c.lifeKm.toLocaleString('en-IN')} km</b></div>
     <div><div class="tiny muted">Left</div><b style="color:${lifeColor(lf.status)}">${c.state === 'in-service' ? lf.kmLeft.toLocaleString('en-IN') + ' km' : '—'}</b></div>`;
-  body += `</div>${lf.tracked && c.state === 'in-service' ? lifeBar(lf.pct, lf.status) + `<div class="tiny muted" style="margin-top:5px">${lf.pct}% worn${lf.status === 'overdue' ? ` — due for ${v} or replacement` : lf.status === 'soon' ? ' — plan the next ' + v : ''}</div>` : ''}</div>`;
+  if (lf.tracked && lf.lifeMonths) body += `<div><div class="tiny muted">${t('btAgeUsed')}</div><b>${lf.monthsUsed} / ${lf.lifeMonths} ${t('btMonths')}</b></div>
+    <div><div class="tiny muted">Left</div><b style="color:${lifeColor(lf.status)}">${lf.monthsLeft} ${t('btMonths')}</b></div>`;
+  body += `</div>${lf.tracked && (c.state === 'in-service' || lf.basis === 'months') ? lifeBar(lf.pct, lf.status) + `<div class="tiny muted" style="margin-top:5px">${lf.pct}% ${lf.basis === 'months' ? 'of its life' : 'worn'}${lf.status === 'overdue' ? ` — due for ${v} or replacement` : lf.status === 'soon' ? ' — plan the next ' + v : ''}</div>` : ''}`;
+  /* Warranty is the single most valuable fact about a dead battery: inside it,
+   * the right move is a claim, not another purchase. Nothing recorded it, so
+   * nobody checked, and claimable batteries were simply replaced. */
+  const wEnd = warrantyEnd(c);
+  if (wEnd) body += `<div class="hr"></div><div class="row between small">
+    <span class="muted">🧾 ${inWarranty(c) ? t('btInWarranty') : t('btWarrantyOver')}</span>
+    <b style="color:${inWarranty(c) ? 'var(--green)' : 'var(--muted,#8b91a0)'}">${fmtDate(wEnd)}</b></div>
+    ${inWarranty(c) && lf.status !== 'ok' ? `<div class="banner warn" style="margin-top:8px">🧾 ${esc(t('btClaim'))}</div>` : ''}`;
+  body += `</div>`;
   // Actions (state-driven)
   if (canEdit && c.state !== 'scrapped') {
     let btns = '';
@@ -4563,40 +4677,67 @@ const componentsOfPart = (partId) => (S.cache.components || []).filter((c) => c.
  * not a purchase, and making the field compulsory only produces invented
  * numbers. */
 const TYRE_POSITIONS = ['FR', 'FL', 'RR-outer', 'RR-inner', 'RL-outer', 'RL-inner', 'Spare'];
+const BATTERY_POSITIONS = ['Battery 1', 'Battery 2', 'Spare'];
+/* Fitting several pieces at once, in one sheet.
+ *
+ * Tyres are changed four at a time and batteries two at a time, each with the
+ * number of the old one coming off — the same form, so it is one form with a
+ * kind rather than two that drift apart. The field ids stay `ty-*`: they are
+ * internal, and renaming them would only risk the flow that works.
+ *
+ * Batteries carry one field tyres do not — the warranty — because that is the
+ * fact that decides whether a dead battery is a claim or a purchase. */
+const FIT_SPECS = {
+  tyre:    { rows: 4, positions: TYRE_POSITIONS,    posPh: 'FR',        warranty: false },
+  battery: { rows: 2, positions: BATTERY_POSITIONS, posPh: 'Battery 1', warranty: true },
+};
+let _fitKind = 'tyre';
+const fitSpec = () => FIT_SPECS[_fitKind] || FIT_SPECS.tyre;
+// The same six labels in both languages, chosen by which piece is being fitted.
+const fitL = (key) => t((_fitKind === 'battery' ? 'bt' : 'ty') + key);
 let _tyreRows = 0;
 
 function tyreRowHtml(i, busId) {
-  const onBus = (S.cache.components || []).filter((c) => c.busId === busId && c.kind === 'tyre' && c.state === 'in-service');
+  const onBus = (S.cache.components || []).filter((c) => c.busId === busId && c.kind === _fitKind && c.state === 'in-service');
   return `<div class="card tyrow row-anim" id="ty-row-${i}" style="padding:10px;margin-bottom:8px">
-    <div class="row between" style="margin-bottom:6px"><b class="small tyno">${esc(t('tyRow'))} ${i + 1}</b>
+    <div class="row between" style="margin-bottom:6px"><b class="small tyno">${esc(fitL('Row'))} ${i + 1}</b>
       <button class="btn sm ghost" data-act="tyreRowDrop" data-i="${i}" style="width:auto;padding:4px 9px">${esc(t('tyRemoveRow'))}</button></div>
     <div class="grid2">
-      <label class="field"><span class="lbl">${esc(t('tyNew'))}</span><input id="ty-new-${i}" autocomplete="off" placeholder="e.g. MRF 1123"></label>
-      <label class="field"><span class="lbl">${esc(t('tyPos'))}</span><input id="ty-pos-${i}" list="ty-positions" autocomplete="off" placeholder="FR"></label>
+      <label class="field"><span class="lbl">${esc(fitL('New'))}</span><input id="ty-new-${i}" autocomplete="off" placeholder="${_fitKind === 'battery' ? 'e.g. Exide 4471' : 'e.g. MRF 1123'}"></label>
+      <label class="field"><span class="lbl">${esc(t('tyPos'))}</span><input id="ty-pos-${i}" list="ty-positions" autocomplete="off" placeholder="${esc(fitSpec().posPh)}"></label>
     </div>
-    <label class="field"><span class="lbl">${esc(t('tyOld'))}</span>
+    <label class="field"><span class="lbl">${esc(fitL('Old'))}</span>
       <select id="ty-old-${i}">
         <option value="">${esc(t('tyOldNone'))}</option>
         ${onBus.map((c) => `<option value="${esc(c.id)}">${esc(c.serial || c.label)}${c.position ? ' · ' + esc(c.position) : ''}</option>`).join('')}
         <option value="__other__">${esc(t('tyOldOther'))}</option>
       </select></label>
-    <label class="field" id="ty-oldtxt-wrap-${i}" style="display:none"><span class="lbl">${esc(t('tyOldTyped'))}</span>
-      <input id="ty-oldtxt-${i}" autocomplete="off" placeholder="e.g. MRF 0917"></label>
-    <label class="field"><span class="lbl">${esc(t('tyCost'))}</span><input id="ty-cost-${i}" type="number" inputmode="numeric" placeholder="₹"></label>
+    <label class="field" id="ty-oldtxt-wrap-${i}" style="display:none"><span class="lbl">${esc(fitL('OldTyped'))}</span>
+      <input id="ty-oldtxt-${i}" autocomplete="off" placeholder="${_fitKind === 'battery' ? 'e.g. Amaron 2208' : 'e.g. MRF 0917'}"></label>
+    <div class="grid2">
+      <label class="field"><span class="lbl">${esc(t('tyCost'))}</span><input id="ty-cost-${i}" type="number" inputmode="numeric" placeholder="₹"></label>
+      ${fitSpec().warranty ? `<label class="field"><span class="lbl">${esc(t('btWarranty'))}</span>
+        <input id="ty-warr-${i}" type="number" inputmode="numeric" placeholder="${esc(t('btWarrantyPh'))}"></label>` : ''}
+    </div>
   </div>`;
 }
 
-function sheetFitTyres(busId) {
+const sheetFitTyres = (busId) => sheetFitPieces('tyre', busId);
+const sheetFitBatteries = (busId) => sheetFitPieces('battery', busId);
+
+function sheetFitPieces(kind, busId) {
+  _fitKind = FIT_SPECS[kind] ? kind : 'tyre';
+  const spec = fitSpec();
   const buses = S.cache.buses || [];
-  if (!buses.length) return openSheet(t('tyFit'), `<div class="banner warn">🚌 ${esc(t('noBusesHere'))}</div>`);
+  if (!buses.length) return openSheet(fitL('Fit'), `<div class="banner warn">🚌 ${esc(t('noBusesHere'))}</div>`);
   const pre = busId && byId(buses, busId) ? busId : buses[0].id;
-  _tyreRows = 4;
-  openSheet(t('tyFit'), `
+  _tyreRows = spec.rows;
+  openSheet(fitL('Fit'), `
     <label class="field"><span class="lbl">🚌 ${esc(t('jbBusWord'))}</span>
       <select id="ty-bus">${buses.map((b) => `<option value="${esc(b.id)}" ${b.id === pre ? 'selected' : ''}>${esc(b.regNo)}</option>`).join('')}</select></label>
-    <datalist id="ty-positions">${TYRE_POSITIONS.map((p) => `<option value="${p}"></option>`).join('')}</datalist>
+    <datalist id="ty-positions">${spec.positions.map((p) => `<option value="${esc(p)}"></option>`).join('')}</datalist>
     <div id="ty-rows">${Array.from({ length: _tyreRows }, (_, i) => tyreRowHtml(i, pre)).join('')}</div>
-    <button class="btn ghost" data-act="tyreRowAdd">${esc(t('tyAddRow'))}</button>
+    <button class="btn ghost" data-act="tyreRowAdd">${esc(fitL('AddRow'))}</button>
     <div class="spacer"></div>
     <button class="btn primary" data-act="saveFitTyres">${t('save')}</button>`, (wrap) => mountTyreRows(wrap));
 }
@@ -4611,12 +4752,12 @@ function mountTyreRows(scope) {
     const keep = [];
     for (let i = 0; i < _tyreRows; i++) {
       const g = (id) => (document.getElementById(id) || {}).value || '';
-      keep.push({ nw: g('ty-new-' + i), pos: g('ty-pos-' + i), cost: g('ty-cost-' + i) });
+      keep.push({ nw: g('ty-new-' + i), pos: g('ty-pos-' + i), cost: g('ty-cost-' + i), warr: g('ty-warr-' + i) });
     }
     rowsBox.innerHTML = Array.from({ length: _tyreRows }, (_, i) => tyreRowHtml(i, busSel.value)).join('');
     keep.forEach((v, i) => {
       const set = (id, val) => { const el = document.getElementById(id); if (el && val) el.value = val; };
-      set('ty-new-' + i, v.nw); set('ty-pos-' + i, v.pos); set('ty-cost-' + i, v.cost);
+      set('ty-new-' + i, v.nw); set('ty-pos-' + i, v.pos); set('ty-cost-' + i, v.cost); set('ty-warr-' + i, v.warr);
     });
     wireOldPickers();
     renumberTyreRows();
@@ -4648,7 +4789,7 @@ function tyreRowDrop(i) {
   if (!row) return;
   // Emptied rather than spliced out: the ids carry the row number, and
   // renumbering them underneath somebody mid-entry loses what they typed.
-  ['ty-new-', 'ty-pos-', 'ty-cost-', 'ty-oldtxt-'].forEach((p) => { const el = document.getElementById(p + i); if (el) el.value = ''; });
+  ['ty-new-', 'ty-pos-', 'ty-cost-', 'ty-oldtxt-', 'ty-warr-'].forEach((p) => { const el = document.getElementById(p + i); if (el) el.value = ''; });
   const sel = document.getElementById('ty-old-' + i); if (sel) sel.value = '';
   row.remove();
   renumberTyreRows();
@@ -4656,7 +4797,7 @@ function tyreRowDrop(i) {
 // The ids keep their original number so nothing typed moves; the headings count
 // what is actually on screen, or removing the second row leaves "1, 3".
 function renumberTyreRows() {
-  document.querySelectorAll('#ty-rows .tyrow .tyno').forEach((el, n) => { el.textContent = `${t('tyRow')} ${n + 1}`; });
+  document.querySelectorAll('#ty-rows .tyrow .tyno').forEach((el, n) => { el.textContent = `${fitL('Row')} ${n + 1}`; });
 }
 
 async function saveFitTyres() {
@@ -4673,11 +4814,15 @@ async function saveFitTyres() {
     const oldPick = g('ty-old-' + i);
     const oldTyped = g('ty-oldtxt-' + i);
     const cost = Number(g('ty-cost-' + i)) || 0;
+    const kind = _fitKind, km = COMP_KINDS[kind] || COMP_KINDS.other;
     const c = {
-      id: uid('cmp-'), kind: 'tyre', label: 'Tyre' + (position ? ' ' + position : ''), serial,
+      id: uid('cmp-'), kind, label: posLabel(km[1], position), serial,
       partId: null, partExtId: '', busId, position,
       state: 'in-service', installedAt: now, installedOdo: odo,
-      lifeKm: COMP_KINDS.tyre[3], maxRefurb: COMP_KINDS.tyre[4], refurbCount: 0, cost,
+      lifeKm: km[3], maxRefurb: km[4], lifeMonths: km[5] || 0, refurbCount: 0, cost,
+      // Age runs from today whether or not the warranty was filled in, so a
+      // battery starts counting down the day it goes on.
+      boughtAt: now, warrantyMonths: Number(g('ty-warr-' + i)) || 0,
       history: [{ type: 'install', at: now, odo, busId, position, note: 'Fitted' }],
       createdAt: now, updatedAt: now,
     };
@@ -4704,9 +4849,9 @@ async function saveFitTyres() {
     await DB.put('components', c);
     fitted += 1;
   }
-  if (!fitted) return toast(t('tyNeedOne'));
+  if (!fitted) return toast(fitL('NeedOne'));
   await load(); closeSheet();
-  toast(`🛞 ${fitted} ${t('tyFitted')}${stored ? ` · ${stored} ${t('tyOldStored')}` : ''}`);
+  toast(`${COMP_KINDS[_fitKind][0]} ${fitted} ${fitL('Fitted')}${stored ? ` · ${stored} ${fitL('OldStored')}` : ''}`);
   rerender();
 }
 
@@ -4725,12 +4870,19 @@ function sheetAddComponent(partId) {
     <div class="grid2">
       <label class="field"><span class="lbl">Life (km, 0 = n/a)</span><input id="cp-life" type="number" inputmode="numeric" value="${COMP_KINDS[initKind][3] || ''}" placeholder="e.g. 60000"></label>
       <label class="field"><span class="lbl">Max ${'remoulds/repairs'}</span><input id="cp-max" type="number" inputmode="numeric" value="${COMP_KINDS[initKind][4] || ''}" placeholder="e.g. 2"></label></div>
+    <div class="grid2">
+      <label class="field"><span class="lbl">${t('btLifeMonths')}</span><input id="cp-months" type="number" inputmode="numeric" value="${COMP_KINDS[initKind][5] || ''}" placeholder="e.g. 36"></label>
+      <label class="field"><span class="lbl">${t('btWarranty')}</span><input id="cp-warr" type="number" inputmode="numeric" placeholder="${esc(t('btWarrantyPh'))}"></label></div>
     <label class="field"><span class="lbl">${esc(t('tyCost'))}</span><input id="cp-cost" type="number" inputmode="numeric" placeholder="₹"></label>
     <label class="field"><span class="lbl">Fit to bus now? (optional)</span><select id="cp-bus"><option value="">— keep in store —</option>${buses.map((b) => `<option value="${b.id}">${esc(b.regNo)}</option>`).join('')}</select></label>
     <label class="field"><span class="lbl">Position (optional)</span><input id="cp-pos" placeholder="e.g. FR, FL, RR-outer"></label>
     <button class="btn primary" data-act="saveComponent">Save</button>`);
   const kindSel = document.getElementById('cp-kind');
-  const applyKind = (k, force) => { const m = COMP_KINDS[k]; const lf = document.getElementById('cp-life'), mx = document.getElementById('cp-max'); if (lf && (force || !lf.value)) lf.value = m[3] || ''; if (mx && (force || !mx.value)) mx.value = m[4] || ''; };
+  const applyKind = (k, force) => { const m = COMP_KINDS[k];
+    const lf = document.getElementById('cp-life'), mx = document.getElementById('cp-max'), mo = document.getElementById('cp-months');
+    if (lf && (force || !lf.value)) lf.value = m[3] || '';
+    if (mx && (force || !mx.value)) mx.value = m[4] || '';
+    if (mo && (force || !mo.value)) mo.value = m[5] || ''; };
   if (kindSel) kindSel.onchange = () => applyKind(kindSel.value, false);
   const fp = document.getElementById('cp-frompart');
   if (fp) fp.onchange = () => {
@@ -4753,6 +4905,8 @@ async function saveComponent() {
     state: busId ? 'in-service' : 'removed',
     installedAt: busId ? now : null, installedOdo: busId && bus ? (bus.odometer || 0) : 0,
     lifeKm: Number(($('#cp-life') || {}).value) || 0, maxRefurb: Number(($('#cp-max') || {}).value) || 0,
+    lifeMonths: Number(($('#cp-months') || {}).value) || 0,
+    warrantyMonths: Number(($('#cp-warr') || {}).value) || 0, boughtAt: now,
     refurbCount: 0, cost: Number(($('#cp-cost') || {}).value) || 0,
     history: busId ? [{ type: 'install', at: now, odo: bus ? (bus.odometer || 0) : 0, busId, position: (($('#cp-pos') || {}).value || '').trim(), note: 'Added & fitted' }] : [{ type: 'install', at: now, note: 'Added to store' }],
     createdAt: now, updatedAt: now };
@@ -11469,6 +11623,7 @@ const _dispatchClick = async (e) => {
       case 'fitComp': return sheetFitComp(el.getAttribute('data-id'));
       case 'saveFitComp': return saveFitComp(el.getAttribute('data-id'));
       case 'fitTyres': return sheetFitTyres(el.getAttribute('data-bus') || null);
+      case 'fitBatteries': return sheetFitBatteries(el.getAttribute('data-bus') || null);
       case 'tyreRowAdd': return tyreRowAdd();
       case 'tyreRowDrop': return tyreRowDrop(Number(el.getAttribute('data-i')));
       case 'saveFitTyres': return saveFitTyres();

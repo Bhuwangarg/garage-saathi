@@ -392,6 +392,42 @@ settle "window.__fb||''" "refused/then saved" 40 >/dev/null
 ck "a backwards reading asks before it is taken" "$(j "window.__fb")" "refused/then saved"
 j "closeSheet()" >/dev/null
 
+# 2l) Batteries die by age, not by kilometres — and a dead one inside warranty
+# is a claim, not a purchase. Both have to be true for the alert to be any use.
+login owner u-owner 1 1 1 1
+j "window.__bt='';(async function(){var b=S.cache.buses[0],n=Date.now(),M=30.44*24*3600*1000;
+  await DB.put('components',{id:'g-bat',kind:'battery',label:'Battery 1',serial:'GATE-4471',busId:b.id,position:'Battery 1',
+    state:'in-service',installedAt:n-40*M,installedOdo:0,lifeKm:0,lifeMonths:36,maxRefurb:2,refurbCount:0,
+    boughtAt:n-40*M,warrantyMonths:48,history:[],createdAt:n-40*M,updatedAt:n});
+  await load();
+  var c=byId(S.cache.components,'g-bat'),lf=componentLife(c),a=componentAlerts().find(function(x){return x.c.id==='g-bat'});
+  window.__bt=[lf.basis,lf.status,String(lf.monthsUsed),inWarranty(c)?'claim':'expired',a?'alerted':'SILENT'].join('/')
+})().catch(function(e){window.__bt='ERR '+e.message})" >/dev/null
+settle "window.__bt||''" "months/overdue/40/claim/alerted" 40 >/dev/null
+ck "an aged battery is overdue on months"     "$(j "window.__bt")" "months/overdue/40/claim/alerted"
+ck "and the alert says to claim the warranty" "$(j "String(/claim it before buying another/.test((componentAlerts().find(function(x){return x.c.id==='g-bat'})||{}).msg||''))")" "true"
+ck "a tyre still measures in kilometres"      "$(j "componentLife({kind:'tyre',state:'in-service',lifeKm:60000,installedOdo:0,busId:S.cache.buses[0].id}).basis")" "km"
+ck "the battery name is not doubled"          "$(j "posLabel('Battery','Battery 1')")" "Battery 1"
+ck "a tyre position still reads as one"       "$(j "posLabel('Tyre','FR')")" "Tyre FR"
+# The fit sheet is the same form with a different piece in it.
+j "sheetFitBatteries(S.cache.buses[0].id)" >/dev/null
+settle "document.getElementById('ty-warr-0')?'yes':'no'" "yes" 20 >/dev/null
+ck "fitting batteries asks for the warranty"  "$(j "document.getElementById('ty-warr-0')?'yes':'no'")" "yes"
+ck "and opens two rows, not four"             "$(j "String(document.querySelectorAll('#ty-rows .tyrow').length)")" "2"
+j "closeSheet();sheetFitTyres(S.cache.buses[0].id)" >/dev/null
+settle "String(document.querySelectorAll('#ty-rows .tyrow').length)" "4" 20 >/dev/null
+ck "tyres still open four rows and no warranty" \
+  "$(j "[document.querySelectorAll('#ty-rows .tyrow').length,document.getElementById('ty-warr-0')?'warr':'none'].join('/')")" "4/none"
+j "closeSheet()" >/dev/null
+
+# 2m) The fleet reads as vehicle cards, and the search still filters them.
+j "navTab('fleet')" >/dev/null
+settle "S.route.name" "fleet" 20 >/dev/null
+ck "the fleet is vehicle cards"   "$(j "String(document.querySelectorAll('#fleet-list .vcard').length>0)")" "true"
+ck "each card names its driver"   "$(j "String(/DRIVER|ड्राइवर/i.test(document.querySelector('#fleet-list .vcard').innerText))")" "true"
+ck "and search still filters them" \
+  "$(j "(function(){var i=document.getElementById('fleet-search');i.value='zzzznope';i.oninput();var n=[].slice.call(document.querySelectorAll('#fleet-list .vcard')).filter(function(c){return c.style.display!=='none'}).length;i.value='';i.oninput();return String(n)})()")" "0"
+
 # 3) Invariant sweep: form controls never navigate (owner's main tabs).
 login owner u-owner 1 1 1 1
 for SCREEN in home jobs store me; do
