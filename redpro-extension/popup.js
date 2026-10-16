@@ -18,9 +18,6 @@ async function render() {
   const p = $('problem');
   p.hidden = !s.problem && st.hasToken;
   text(p, s.problem || (!st.hasToken ? 'Paste the Garage Saathi token under Settings.' : ''));
-  if (!st.servicewiseKnown && st.hasToken) {
-    $('headline').textContent = 'Tip: open redPro → Ratings & Reviews once, so the service list can be learned.';
-  }
   const jobs = $('jobs');
   jobs.replaceChildren();
   for (const k of ['assignments', 'reviews', 'complaints', 'services']) {

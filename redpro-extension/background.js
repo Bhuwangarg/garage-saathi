@@ -31,21 +31,9 @@ chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
   return false;
 });
 
-// The service list (which redBus route ids belong to which service) is asked for by redPro's
-// Ratings & Reviews page. Its request body was never seen, so this listens for the page sending it
-// and keeps the body to repeat the same request daily. Observe only: it never changes the request.
-chrome.webRequest.onBeforeRequest.addListener((d) => {
-  try {
-    if (d.method !== 'POST' || !d.requestBody || !d.requestBody.raw || !d.requestBody.raw[0]) return;
-    const body = new TextDecoder().decode(d.requestBody.raw[0].bytes);
-    JSON.parse(body);
-    set({ servicewiseBody: body, servicewiseSeen: Date.now() });
-  } catch (e) { /* not JSON: ignore */ }
-}, { urls: ['https://www.redbus.pro/win/api/ratingsReviews/getServiceWise*'] }, ['requestBody']);
-
 async function status() {
-  const { state = {}, settings = {}, servicewiseBody } = await get(['state', 'settings', 'servicewiseBody']);
-  return { state, hasToken: !!settings.token, gsUrl: settings.gsUrl || DEFAULTS.gsUrl, servicewiseKnown: !!servicewiseBody, running: !!running, progress: running ? progress : '' };
+  const { state = {}, settings = {} } = await get(['state', 'settings']);
+  return { state, hasToken: !!settings.token, gsUrl: settings.gsUrl || DEFAULTS.gsUrl, running: !!running, progress: running ? progress : '' };
 }
 
 async function paint(state) {
@@ -78,6 +66,8 @@ async function call(tabId, path, body = null) {
   if (!r) throw new Error('the redPro tab did not answer (was it closed or reloading?)');
   if (r.status === 401 || r.status === 403 || /^\s*</.test(r.text)) throw new SignedOut('redPro has signed this tab out — sign in again in the redPro tab');
   if (r.status >= 400) throw new Error(`redPro ${path} answered ${r.status}`);
+  // redPro answers some requests with an empty 200 (a service with ~200+ via-routes): no data, not an error.
+  if (!r.text.trim()) return null;
   return JSON.parse(r.text);
 }
 
@@ -132,13 +122,37 @@ async function runJob(job, tabId, settings, state, cap) {
     return `${rows.length} complaints, ${n} new or changed`;
   }
   if (job === 'services') {
-    const { servicewiseBody } = await get('servicewiseBody');
-    if (!servicewiseBody) throw new Error('open redPro → Ratings & Reviews once in this Chrome, so the service list can be learned');
-    const j = await call(tabId, '/win/api/ratingsReviews/getServiceWise', servicewiseBody);
-    const rows = RP.parseServicewise(j);
-    if (!rows.length) throw new Error('the service list came back in a shape this version cannot read');
-    const n = await post(settings, 'services', rows, cap);
-    return `${rows.length} services, ${rows.reduce((a, r) => a + r.routeIds.length, 0)} route ids, ${n} changes`;
+    // Every service, 10 a page, then each one's via-routes: a review carries the passenger's own route.
+    const svcs = [];
+    let total = null;
+    for (let page = 1; page <= 60; page++) {
+      const j = await call(tabId, '/win/api/ratingsReviews/getServiceWise', RP.servicePageBody(page));
+      if (typeof j.count === 'number') total = j.count;
+      const rows = RP.parseServicePage(j);
+      svcs.push(...rows);
+      step(`Service list: ${svcs.length}${total != null ? ' of ' + total : ''} services`);
+      if (rows.length < RP.SERVICE_PAGE_SIZE || (total != null && svcs.length >= total)) break;
+    }
+    if (!svcs.length) throw new Error('redPro returned no services');
+    const out = [];
+    let unlisted = 0;
+    for (const [i, svc] of svcs.entries()) {
+      let via = [];
+      if (svc.viaCount > 1) {
+        step(`Service list: routes of ${i + 1} of ${svcs.length}`);
+        try {
+          via = RP.parseViaRoutes(await call(tabId, '/win/api/ratingsReviews/getServiceWiseViaRoute', RP.viaRouteBody(svc.mainRouteId)));
+        } catch (e) {
+          if (e instanceof SignedOut) throw e;
+          via = [];
+        }
+        // redPro does not list the via-routes of its biggest services (an empty answer); keep the main route.
+        if (!via.length) unlisted++;
+      }
+      out.push(RP.serviceRow(svc, via));
+    }
+    const n = await post(settings, 'services', out, cap);
+    return `${out.length} services, ${out.reduce((a, r) => a + r.routeIds.length, 0)} routes${unlisted ? `, ${unlisted} too big for redPro to list` : ''}, ${n} changes`;
   }
   throw new Error('unknown job ' + job);
 }

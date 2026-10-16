@@ -1753,7 +1753,8 @@ def _clean_service(r):
     out = {k: v for k, v in out.items() if v}
     rids = [_s(x, 30) for x in (r.get("routeIds") or []) if _s(x, 30)]
     if rids:
-        out["routeIds"] = rids[:200]
+        # The biggest services carry ~400 via-routes (16 Oct 2026); leave room.
+        out["routeIds"] = rids[:1000]
     return sid, out
 
 

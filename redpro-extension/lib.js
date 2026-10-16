@@ -44,42 +44,34 @@
     };
   }
 
-  // redPro's ratings-by-service answer → [{serviceId, routeIds, label, startTime}]. Its exact shape was
-  // not seen yet, so it walks the JSON for any object with a service id and route ids under it.
-  const SID = /^(service_?id|serviceid|sid)$/i, RID = /^(route_?id|routeid|rid)$/i;
-  const ROUTE_LISTS = ['routeids', 'route_ids', 'routes', 'routelist', 'route_list'];
-  const TIME_LABEL = /^\s*(\d{1,2}):(\d{2})\s*,/;
-  const digits = (v) => (typeof v === 'number' || typeof v === 'string') && /^\d+$/.test(String(v));
-  function parseServicewise(resp) {
-    const out = new Map();
-    const routeIds = (o, acc) => {
-      if (Array.isArray(o)) { o.forEach((x) => routeIds(x, acc)); return; }
-      if (!o || typeof o !== 'object') return;
-      for (const [k, v] of Object.entries(o)) {
-        if (RID.test(k) && digits(v)) acc.add(String(v));
-        else if (ROUTE_LISTS.includes(k.toLowerCase()) && Array.isArray(v)) v.forEach((x) => (digits(x) ? acc.add(String(x)) : routeIds(x, acc)));
-        else routeIds(v, acc);
-      }
-    };
-    const walk = (o) => {
-      if (Array.isArray(o)) { o.forEach(walk); return; }
-      if (!o || typeof o !== 'object') return;
-      const sidEntry = Object.entries(o).find(([k, v]) => SID.test(k) && digits(v));
-      if (sidEntry) {
-        const sid = String(sidEntry[1]);
-        const acc = new Set();
-        routeIds(Object.fromEntries(Object.entries(o).filter(([k]) => !SID.test(k))), acc);
-        const label = (Object.values(o).find((v) => typeof v === 'string' && TIME_LABEL.test(v)) || '').slice(0, 120);
-        const m = TIME_LABEL.exec(label);
-        const row = out.get(sid) || { serviceId: sid, routeIds: new Set(), label, startTime: m ? `${m[1].padStart(2, '0')}:${m[2]}` : '' };
-        acc.forEach((x) => row.routeIds.add(x));
-        out.set(sid, row);
-      }
-      Object.values(o).forEach(walk);
-    };
-    walk(resp);
-    return [...out.values()].map((r) => Object.assign({}, r, { routeIds: [...r.routeIds].sort() })).filter((r) => r.routeIds.length || r.label);
+  // The service list comes in two calls, both seen on redPro's Ratings page on 16 Oct 2026:
+  //   POST getServiceWise        {page: 1.., sortColumn, sortOrder, sid: 0, did: 0} → {count, data: [10 services]}
+  //   POST getServiceWiseViaRoute {routeId: <main route>, sortColumn, sortOrder}   → {"0": route, "1": route, …}
+  // Every row: serviceid, RtId (this route), mainRouteId, viaRouteCnt, DepTMnt ["minutes after midnight"],
+  // ServiceDetails {SrcNm, DestNm}. A review carries the passenger's RtId, often a via-route (Delhi or
+  // Gurugram on the Meerut–Jaipur service), so every via-route must be listed under its service.
+  const SERVICE_PAGE_SIZE = 10;
+  const servicePageBody = (page) => ({ page, sortColumn: 'sales', sortOrder: 'desc', sid: 0, did: 0 });
+  const viaRouteBody = (routeId) => ({ routeId: Number(routeId), sortColumn: 'sales', sortOrder: 'desc' });
+  // 1290 → "21:30:00", the same form redPro's assignment list uses, so the two never fight over it.
+  const hhmmss = (mins) => { const m = Number(mins); if (!Number.isFinite(m)) return ''; const t = ((m % 1440) + 1440) % 1440; return `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}:00`; };
+  const rowsOf = (j) => (j == null ? [] : Array.isArray(j) ? j : Array.isArray(j && j.data) ? j.data : j && typeof j === 'object' ? Object.values(j).filter((v) => v && typeof v === 'object' && 'RtId' in v) : []);
+
+  function parseServicePage(j) {
+    return rowsOf(j).filter((r) => r && r.serviceid != null && r.RtId != null).map((r) => {
+      const sd = r.ServiceDetails || {};
+      const start = hhmmss((r.DepTMnt || [])[0]);
+      return {
+        serviceId: String(r.serviceid), mainRouteId: String(r.mainRouteId || r.RtId), viaCount: Number(r.viaRouteCnt) || 1,
+        startTime: start, origin: s(sd.SrcNm, 80), dest: s(sd.DestNm, 80),
+        label: `${start.slice(0, 5)}, ${s(sd.SrcNm, 60)} - ${s(sd.DestNm, 60)}`, routeIds: [String(r.RtId)],
+      };
+    });
   }
+  const parseViaRoutes = (j) => rowsOf(j).filter((r) => r && r.RtId != null).map((r) => String(r.RtId));
+  // What Garage Saathi's /redpro/ingest kind "services" takes.
+  const serviceRow = (svc, via) => ({ serviceId: svc.serviceId, routeIds: [...new Set([svc.mainRouteId, ...svc.routeIds, ...(via || [])])].sort(),
+    startTime: svc.startTime, origin: svc.origin, dest: svc.dest, label: svc.label });
 
   // ---- timetable (IST wall clock; the office laptop runs in IST) ----
   const SLOTS = { reviews: ['06:15', '18:15'], complaints: ['07:30', '13:30', '19:30'], services: ['05:30'] };
@@ -127,7 +119,7 @@
       title: `Last sync ${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}` };
   }
 
-  const api = { OPERATOR_ID, mapReview, mapComplaint, mapAssignment, parseServicewise, due, reviewWindow, reviewsBody, badge, JOBS, SLOTS };
+  const api = { OPERATOR_ID, mapReview, mapComplaint, mapAssignment, SERVICE_PAGE_SIZE, servicePageBody, viaRouteBody, hhmmss, parseServicePage, parseViaRoutes, serviceRow, due, reviewWindow, reviewsBody, badge, JOBS, SLOTS };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.RP = api;
 })(typeof self !== 'undefined' ? self : this);

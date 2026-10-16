@@ -28,13 +28,27 @@ check('complaint: notes keep time and text', JSON.stringify(c.notes) === JSON.st
 const a = R.mapAssignment(ASSIGN);
 check('assignment: names kept, phones dropped', a.driver1 === 'Bheru' && none(a, '9000000003', '9000000004') && a.serviceId === '125687');
 
-const sw = R.parseServicewise({ data: { services: [
-  { serviceId: 125291, serviceName: '21:30, Meerut - Jaipur (Rajasthan)', routes: [{ routeId: 46026242 }, { routeId: '46026243' }] },
-  { service_id: '125687', label: '17:00, Kota - Rishikesh', routeIds: [46346772] }] } });
-const byId = Object.fromEntries(sw.map((x) => [x.serviceId, x]));
-check('servicewise: nested route objects', JSON.stringify(byId['125291'].routeIds) === '["46026242","46026243"]' && byId['125291'].startTime === '21:30');
-check('servicewise: plain route id list', JSON.stringify(byId['125687'].routeIds) === '["46346772"]');
-check('servicewise: nothing recognisable → empty', R.parseServicewise({ data: [{ x: 1 }] }).length === 0);
+// Shapes from redPro's Ratings page, 16 Oct 2026 (ratings and sales numbers dropped).
+const PAGE = { count: 91, data: [
+  { serviceid: '125686', RtId: 46169996, mainRouteId: 46169996, directRouteId: 46169996, viaRouteCnt: 10, isMainRoute: true, DepTMnt: ['1290'],
+    ServiceDetails: { SrcNm: 'Meerut', DestNm: 'Jaipur (Rajasthan)', SrcId: 79617, DestId: 807 } },
+  { serviceid: '28624', RtId: 9883198, mainRouteId: 9883198, viaRouteCnt: 1, isMainRoute: true, DepTMnt: ['1335'],
+    ServiceDetails: { SrcNm: 'Jaipur (Rajasthan)', DestNm: 'Udaipur' } }] };
+const VIA = { 0: { RtId: 46169996, serviceid: '125686', isMainRoute: true, DepTMnt: ['1290'] },
+  1: { RtId: 46169989, serviceid: '125686', isMainRoute: false, DepTMnt: ['1420'], ServiceDetails: { SrcNm: 'Delhi' } },
+  2: { RtId: 46169994, serviceid: '125686', isMainRoute: false, DepTMnt: ['60'], ServiceDetails: { SrcNm: 'Gurugram (Gurgaon)' } } };
+const svcs = R.parseServicePage(PAGE);
+check('service page: id, main route, start time, places', svcs.length === 2 && svcs[0].serviceId === '125686' && svcs[0].mainRouteId === '46169996'
+  && svcs[0].startTime === '21:30:00' && svcs[0].origin === 'Meerut' && svcs[0].viaCount === 10);
+check('via routes read from the numbered-object answer', JSON.stringify(R.parseViaRoutes(VIA)) === '["46169996","46169989","46169994"]');
+const row = R.serviceRow(svcs[0], R.parseViaRoutes(VIA));
+check('a service lists its main route and every via route once', JSON.stringify(row.routeIds) === '["46169989","46169994","46169996"]' && row.label === '21:30, Meerut - Jaipur (Rajasthan)');
+check('a service with no via routes keeps its own route', JSON.stringify(R.serviceRow(svcs[1], []).routeIds) === '["9883198"]');
+check('minutes → the assignment list\'s time form', R.hhmmss(1290) === '21:30:00' && R.hhmmss(60) === '01:00:00' && R.hhmmss('x') === '');
+check('request bodies are what redPro sent', JSON.stringify(R.servicePageBody(1)) === '{"page":1,"sortColumn":"sales","sortOrder":"desc","sid":0,"did":0}'
+  && JSON.stringify(R.viaRouteBody('46169996')) === '{"routeId":46169996,"sortColumn":"sales","sortOrder":"desc"}');
+check('an empty via-route answer gives no routes', R.parseViaRoutes(null).length === 0);
+check('an empty or odd answer gives no services', R.parseServicePage({ data: [] }).length === 0 && R.parseServicePage(null).length === 0);
 
 const at = (y, mo, d, h, mi) => new Date(y, mo - 1, d, h, mi).getTime();
 check('never ran → due', ['reviews', 'complaints', 'services'].every((j) => R.due(j, at(2026, 10, 8, 10, 0), {})));

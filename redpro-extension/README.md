@@ -19,8 +19,7 @@ service list. **Passengers' names and phone numbers are never sent.**
    Bhuwan has the token. It goes in the extension, never in a chat or an e-mail.
 5. Open https://www.redbus.pro, sign in as usual, then right-click the tab and choose **Pin**.
    Keep that tab open.
-6. In redPro, open **Complaints & RnR → R & R** once. This teaches the extension the service list.
-7. Click the extension's icon, then **Sync now**. After a minute each row should show a time.
+6. Click the extension's icon, then **Sync now**. After a minute each row should show a time.
 
 ## Day to day
 
@@ -46,8 +45,10 @@ A slot missed while the laptop slept runs once when it wakes, if it is less than
 - `background.js` holds the Chrome side. It runs the calls inside the redPro tab
   (`chrome.scripting.executeScript`, world `MAIN`) so they carry that tab's sign-in. It posts to
   `<Garage Saathi>/redpro/ingest` with the token (see `REDPRO_TRACE.md`).
-- The service-list request body is learned by watching redPro's own Ratings page send it
-  (`webRequest`, observe only).
+- The service list comes in two calls: `getServiceWise` (10 services a page) and then
+  `getServiceWiseViaRoute` for each service's via-routes. A review carries the passenger's own
+  route, often a via-route. redPro returns an **empty answer** for its ~10 biggest services
+  (200–400 routes). Those keep only their main route, and the popup says how many there were.
 - **Why an extension and not a program on the laptop:** redPro's bot protection refuses an
   automated browser, and its sign-in does not survive one closing. A real Chrome with a real
   sign-in is the only way in, and this extension does not try to disguise anything.
