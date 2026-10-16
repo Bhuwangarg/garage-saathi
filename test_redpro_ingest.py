@@ -110,5 +110,36 @@ check("drivers do get the service list (no names in it)", S.redact_for({"id": "d
       and "Ravindra" not in json.dumps(svcrec))
 check("the service remembers the last bus redBus had on it", stored("rbservices", "125291")["lastVehicle"] == "MP44ZF2103")
 
+
+# ---- No duplicates on re-sync: the extension's timetable reads overlapping windows (45, 14, 3 days),
+# re-reads the assignment list hourly and the service list daily. Replay that and count records.
+def snapshot():
+    return {st: count(st) for st in S.REDPRO_STORES}
+
+def revs(n, start=0):
+    return [{"reviewId": str(500000 + i), "tin": "T%06d" % i, "pnr": str(9000 + i), "routeId": "46169989",
+             "boardAt": "2026-10-%02d 22:00:00" % (1 + i % 28), "stars": 1 + i % 5, "comment": "c%d" % i}
+            for i in range(start, start + n)]
+
+S.ingest_redpro({"kind": "reviews", "rows": revs(300)}, now=NOW + 10)                  # first sync: 45 days
+S.ingest_redpro({"kind": "complaints", "rows": [comp]}, now=NOW + 10)
+S.ingest_redpro({"kind": "services", "rows": [{"serviceId": "125686", "routeIds": ["46169996", "46169989"],
+                                               "startTime": "21:30:00", "origin": "Meerut", "dest": "Jaipur (Rajasthan)"}]}, now=NOW + 10)
+after_first = snapshot()
+w = S.ingest_redpro({"kind": "reviews", "rows": revs(120, 180)}, now=NOW + 20)          # morning: 14 days, overlaps
+check("an overlapping reviews window adds no copies", snapshot()["rbreviews"] == after_first["rbreviews"] and w["written"] == 0)
+w = S.ingest_redpro({"kind": "reviews", "rows": revs(300) + revs(20, 300)}, now=NOW + 30)
+check("only genuinely new reviews are added", snapshot()["rbreviews"] == after_first["rbreviews"] + 20 and w["written"] == 20)
+S.ingest_redpro({"kind": "complaints", "rows": [comp, comp]}, now=NOW + 40)              # same case twice in one post
+check("a complaint sent twice is one record", snapshot()["rbcomplaints"] == after_first["rbcomplaints"])
+for h in range(5):                                                                       # five hourly snapshots, no change
+    S.ingest_redpro({"kind": "assignments", "rows": [a1], "capturedAt": day_ms + h * 3600000}, now=day_ms + h * 3600000)
+s = stored("rbassign", "as-125291-" + S._ist_day(day_ms))
+check("hourly snapshots of an unchanged bus add no entries", [o["vehicleNo"] for o in s["obs"]].count("RJ09PA6141") <= 2)
+before = stored("rbservices", "125686")["routeIds"]
+S.ingest_redpro({"kind": "services", "rows": [{"serviceId": "125686", "routeIds": ["46169989", "46169996"]}]}, now=NOW + 50)
+check("a daily service list re-read repeats no route", stored("rbservices", "125686")["routeIds"] == before == sorted(set(before)))
+check("record counts stable across the whole replay", snapshot()["rbservices"] == after_first["rbservices"])
+
 print("\n%d failed" % len(fails) if fails else "\nall passed")
 raise SystemExit(1 if fails else 0)
