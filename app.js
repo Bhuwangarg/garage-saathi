@@ -313,6 +313,10 @@ const I18N = {
     rvWhyService: 'This service is not in the list yet', rvWhyNoSource: 'No gate check or redBus assignment for that trip', rvCrewNotRecorded: 'crew not on the duty log for that time',
     rvSources: 'Where this came from', rvSrcGate: 'Gate check', rvSrcRedpro: 'redBus assignment', rvSrcIts: 'ITS booking', rvAsTyped: 'as typed in redBus', rvSwapped: 'bus changed that day',
     rvCrew: 'Crew on that trip', rvSafetyK: 'Safety', rvGenuine: 'Service', rvFaq: 'Question', rvPraise: 'Praise', rvBoarded: 'Boarded',
+    rbnTitle: 'redBus names', rbnHint: 'redBus shows who drove each bus by a typed name. Confirm once which crew member each name is on each bus; reviews of that bus are then traced to them. Nothing is matched on its own.',
+    rbnToConfirm: 'To confirm', rbnConfirmed: 'Confirmed', rbnAllDone: 'Every name redBus has shown is confirmed.', rbnDay: 'day seen', rbnDays: 'days seen',
+    rbnWhyBefore: 'confirmed on another bus', rbnWhyBoard: 'on the duty board', rbnWhyName: 'similar name', rbnSomeoneElse: 'Someone else…', rbnNotAName: 'Not a real name',
+    rbnNotInFleet: 'not in the fleet list', rbnWho: 'Who is this?', rbnSaved: 'Saved', rbnBanner: 'redBus names to confirm', rbViaDuty: 'duty board', rbViaRedpro: 'redBus name',
     rvBusCard: 'redBus reviews (30 days)', rvCrewReviews: 'redBus reviews on their trips (30 days)', rvMinSample: 'fewer than 10 rated trips, too few to judge', cmpNotes: 'redBus agent notes',
     gcHomeTitle: 'Gate checks today', gcNoCheckShort: 'no check yet', gcHistory: 'Earlier decisions', hmGateWaiting: 'Bus waiting at the gate', hmGateWaitingSub: 'A check failed — go or hold?', asGateLine: 'Gate check',
     gi_ac: 'AC cooling', gi_blankets: 'Blanket and pillow on every berth', gi_cabin: 'Berths, floor and washroom clean', gi_charging: 'Charging points work', gi_water: 'Water bottles loaded',
@@ -642,6 +646,10 @@ const I18N = {
     rvWhyService: 'यह सर्विस अभी सूची में नहीं है', rvWhyNoSource: 'उस यात्रा का न गेट चेक है न redBus असाइनमेंट', rvCrewNotRecorded: 'उस समय का स्टाफ़ ड्यूटी लॉग में नहीं',
     rvSources: 'यह जानकारी कहाँ से', rvSrcGate: 'गेट चेक', rvSrcRedpro: 'redBus असाइनमेंट', rvSrcIts: 'ITS बुकिंग', rvAsTyped: 'जैसा redBus में लिखा', rvSwapped: 'उस दिन बस बदली',
     rvCrew: 'उस यात्रा का स्टाफ़', rvSafetyK: 'सुरक्षा', rvGenuine: 'सेवा', rvFaq: 'सवाल', rvPraise: 'तारीफ़', rvBoarded: 'चढ़े',
+    rbnTitle: 'redBus नाम', rbnHint: 'redBus हर बस का ड्राइवर लिखे हुए नाम से दिखाता है। हर बस पर हर नाम एक बार पक्का करें कि वह कौन है; फिर उस बस के रिव्यू उन्हीं से जुड़ेंगे। अपने-आप कुछ नहीं जुड़ता।',
+    rbnToConfirm: 'पक्का करना है', rbnConfirmed: 'पक्के', rbnAllDone: 'redBus के सभी नाम पक्के हो चुके।', rbnDay: 'दिन दिखा', rbnDays: 'दिन दिखा',
+    rbnWhyBefore: 'दूसरी बस पर पक्का', rbnWhyBoard: 'ड्यूटी में', rbnWhyName: 'मिलता नाम', rbnSomeoneElse: 'कोई और…', rbnNotAName: 'असली नाम नहीं',
+    rbnNotInFleet: 'बेड़े की सूची में नहीं', rbnWho: 'यह कौन है?', rbnSaved: 'सेव हुआ', rbnBanner: 'पक्के करने वाले redBus नाम', rbViaDuty: 'ड्यूटी', rbViaRedpro: 'redBus नाम',
     rvBusCard: 'redBus रिव्यू (30 दिन)', rvCrewReviews: 'इनकी यात्राओं के redBus रिव्यू (30 दिन)', rvMinSample: '10 से कम रेटिंग, अभी फ़ैसला नहीं', cmpNotes: 'redBus एजेंट नोट',
     gcHomeTitle: 'आज के गेट चेक', gcNoCheckShort: 'बिना चेक', gcHistory: 'पहले के फ़ैसले', hmGateWaiting: 'बस गेट पर इंतज़ार में', hmGateWaitingSub: 'जाँच में दिक्कत — चलो या रुको?', asGateLine: 'गेट चेक',
     gi_ac: 'AC ठंडा कर रहा है', gi_blankets: 'हर बर्थ पर कंबल और तकिया', gi_cabin: 'बर्थ, फ़र्श और वॉशरूम साफ़', gi_charging: 'चार्जिंग पॉइंट चालू', gi_water: 'पानी की बोतलें रखीं',
@@ -1248,8 +1256,8 @@ async function load() {
   const gatepasses = await DB.all('gatepasses').catch(() => []);
   const dutylog = await DB.all('dutylog').catch(() => []);
   const gatechecks = await DB.all('gatechecks').catch(() => []);
-  const [rbservices, rbreviews, rbcomplaints, rbassign] = await Promise.all(['rbservices', 'rbreviews', 'rbcomplaints', 'rbassign'].map((n) => DB.all(n).catch(() => [])));
-  S.cache = { users, buses, parts, jobs, ledger, att, purchases, drivers, incidents, driverreports, routes, triplog, fuel, gpsevents, audits, components, def, vendors, trips, challans, usage, stockmoves, breakdowns, gatepasses, dutylog, gatechecks, rbservices, rbreviews, rbcomplaints, rbassign, garage };
+  const [rbservices, rbreviews, rbcomplaints, rbassign, rbalias] = await Promise.all(['rbservices', 'rbreviews', 'rbcomplaints', 'rbassign', 'rbalias'].map((n) => DB.all(n).catch(() => [])));
+  S.cache = { users, buses, parts, jobs, ledger, att, purchases, drivers, incidents, driverreports, routes, triplog, fuel, gpsevents, audits, components, def, vendors, trips, challans, usage, stockmoves, breakdowns, gatepasses, dutylog, gatechecks, rbservices, rbreviews, rbcomplaints, rbassign, rbalias, garage };
   refreshBiz();   // keep the displayed business name in sync with garage config
 }
 const byId = (arr, id) => arr.find((x) => x.id === id);
@@ -9025,6 +9033,7 @@ function viewAssignments() {
     <button class="chip ${byBus ? 'active' : ''}" data-act="asRole" data-v="bus">🚌 ${esc(t('asByBus'))}</button></div>`;
   body += `<div class="card"><div class="tiny muted">${byBus ? t('asBusSeats') : t('asHint')}</div></div>`;
   if (typeof Duty !== 'undefined') body += dutyLookupCard();
+  { const rbn = rbnPendingCount(); if (rbn) body += `<div class="card" data-act="openRbNames" style="cursor:pointer"><div class="row between"><b>🪪 ${t('rbnBanner')}</b><span class="badge b-amber">${rbn} ›</span></div></div>`; }
   // One box over both lists below: ~90 buses and ~170 crew is a long scroll to
   // answer "who is on 1023?". Matches the bus number however it is written, the
   // person's name, and the company.
@@ -9536,6 +9545,8 @@ function traceCtx() {
   const ctx = {
     services: S.cache.rbservices || [], routeIx: Trace.routeIndex(S.cache.rbservices || []), gatechecks: gateChecks(),
     assign: S.cache.rbassign || [], buses: S.cache.buses || [], crewAt, its: itsLookups(),
+    // Only names the office confirmed for that bus; never a guess.
+    aliasCrew: ((m) => (name, reg) => m.get(Trace.aliasId(name, reg)) || null)(new Map((S.cache.rbalias || []).filter((a) => a.status === 'crew' && a.crewId).map((a) => [a.id, a.crewId]))),
   };
   _traceMemo = { key: S.cache, ctx, map: new Map() };
   return ctx;
@@ -9603,6 +9614,8 @@ function viewReviews() {
   let body = tabs;
   const scope = _rvBus ? `🚌 ${esc(busName(_rvBus))}` : _rvCrew ? `🧑‍✈️ ${esc((driverById(_rvCrew) || {}).name || '')}` : '';
   if (scope) body += `<div class="banner" style="display:flex;justify-content:space-between">${scope}<button class="btn sm ghost" data-act="rvClearScope">✕</button></div>`;
+  const rbn = rbnPendingCount();
+  if (rbn) body += `<div class="card" data-act="openRbNames" style="cursor:pointer"><div class="row between"><b>🪪 ${t('rbnBanner')}</b><span class="badge b-amber">${rbn} ›</span></div></div>`;
   if (_rvTab === 'complaints') return viewComplaintsTab(body);
   if (!all.length) return shell(t('rvTitle'), body + `<div class="card"><div class="empty">${t('rvNone')}</div></div>`, null, NARROW);
 
@@ -9656,7 +9669,7 @@ function rvSourcesBlock(tr) {
   h += row(t('rvSrcIts'), i ? `<b>${esc(i.regNo)}</b>` : '—');
   h += `<h3 style="margin-top:12px">${t('rvCrew')}</h3>`;
   h += tr.crew.length ? tr.crew.map((c) => `<div class="li" data-act="rvOpenCrew" data-id="${esc(c.crewId)}" style="cursor:pointer"><div class="ava">${CREW_ROLE_META[c.role === 'conductor' ? 'conductor' : 'driver'][0]}</div>
-      <div class="main"><div class="t">${esc(c.name || '?')}</div><div class="s">${esc(crewRoleLabel(c.role))}${c.via === 'gate' ? ' · ' + t('rvSrcGate') : ''}</div></div></div>`).join('')
+      <div class="main"><div class="t">${esc(c.name || '?')}</div><div class="s">${esc(crewRoleLabel(c.role))} · ${(c.vias || [c.via]).map((v) => t({ gate: 'rvSrcGate', duty: 'rbViaDuty', redpro: 'rbViaRedpro' }[v] || 'rbViaDuty')).join(' + ')}</div></div></div>`).join('')
     : `<div class="tiny muted">${t(tr.bus ? 'rvCrewNotRecorded' : 'rvWhyNoSource')}</div>`;
   return h;
 }
@@ -9724,6 +9737,94 @@ async function gateServiceSet(id, svcId) {
   const s = (S.cache.rbservices || []).find((x) => String(x.id) === String(svcId)); if (!s) return closeSheet();
   c.serviceId = String(s.id); c.serviceNo = s.serviceNo || ''; c.serviceLabel = svcLabel(s);
   closeSheet(); await _gateSave(c);
+}
+
+/* ===== redBus names → crew (confirmed once, per bus) =========================
+ * redPro's hourly assignment names who drove ("Kesar Dvr", "Jitu Ji", "Staff").
+ * Typed names are never matched automatically — two Mukeshes are two men — so
+ * the office confirms each name once for each bus, and from then on that
+ * name on that bus is that person when a review is traced. Suggestions only
+ * order the choices; a person decides. */
+const rbAliases = () => S.cache.rbalias || [];
+function rbNamePairs() {
+  const pairs = new Map();
+  for (const a of S.cache.rbassign || []) {
+    for (const o of a.obs || []) {
+      if (!o.vehicleNo) continue;
+      for (const [name, role] of [[o.driver1, 'driver'], [o.driver2, 'driver'], [o.cro, 'conductor']]) {
+        if (!name || !Trace.normName(name)) continue;
+        const id = Trace.aliasId(name, o.vehicleNo);
+        const p = pairs.get(id) || { id, name, regNo: o.vehicleNo, role, days: new Set(), last: 0 };
+        p.days.add(a.date); p.last = Math.max(p.last, o.at || 0);
+        pairs.set(id, p);
+      }
+    }
+  }
+  return [...pairs.values()];
+}
+const rbBusByReg = (reg) => (S.cache.buses || []).find((b) => Trace.normReg(b.regNo) === Trace.normReg(reg)) || null;
+function rbSuggestions(p) {
+  const out = [];
+  const push = (crewId, why) => { const d = driverById(crewId); if (d && crewStatusOf(d) === 'active' && !out.some((x) => x.crewId === crewId)) out.push({ crewId, name: d.name, why }); };
+  // 1. this name already confirmed on another bus
+  for (const a of rbAliases()) if (a.status === 'crew' && a.crewId && Trace.normName(a.name) === Trace.normName(p.name)) push(a.crewId, t('rbnWhyBefore'));
+  // 2. whoever the duty board has in that seat on that bus
+  const bus = rbBusByReg(p.regNo);
+  if (bus) (p.role === 'conductor' ? [conductorOfBus(bus.id)] : driversOfBus(bus.id)).filter(Boolean).forEach((d) => push(d.id, t('rbnWhyBoard')));
+  // 3. crew with a similar name
+  activeCrew().filter((d) => crewRoleOf(d) === p.role).map((d) => ({ d, s: Trace.nameLike(p.name, d.name) }))
+    .filter((x) => x.s > 0).sort((a, b) => b.s - a.s).slice(0, 3).forEach((x) => push(x.d.id, t('rbnWhyName')));
+  return out.slice(0, 4);
+}
+const rbnPendingCount = () => { if (!can(S.user.role, 'manageDrivers')) return 0; const done = new Set(rbAliases().map((a) => a.id)); return rbNamePairs().filter((p) => !done.has(p.id)).length; };
+
+function viewRbNames() {
+  const byId = new Map(rbAliases().map((a) => [a.id, a]));
+  const pairs = rbNamePairs().sort((a, b) => b.days.size - a.days.size || b.last - a.last);
+  const todo = pairs.filter((p) => !byId.has(p.id));
+  const done = rbAliases().slice().sort((a, b) => (b.decidedAt || 0) - (a.decidedAt || 0));
+  let body = `<div class="card"><div class="tiny muted">${t('rbnHint')}</div></div>`;
+  body += `<div class="card"><div class="row between"><h3>${t('rbnToConfirm')}</h3><span class="badge ${todo.length ? 'b-amber' : 'b-green'}">${todo.length}</span></div>`;
+  body += todo.length ? todo.map((p) => {
+    const sug = Trace.isGenericName(p.name) ? [] : rbSuggestions(p);
+    const busTxt = rbBusByReg(p.regNo) ? '' : ` · <span style="color:var(--amber)">${t('rbnNotInFleet')}</span>`;
+    return `<div class="rbn-row"><div class="rbn-head"><b>${esc(p.name)}</b> <span class="muted small">· ${esc(crewRoleLabel(p.role))}</span></div>
+      <div class="tiny muted">🚌 ${esc(p.regNo)}${busTxt} · ${p.days.size} ${t(p.days.size === 1 ? 'rbnDay' : 'rbnDays')}</div>
+      <div class="rbn-acts">${sug.map((x) => `<button class="btn sm" data-act="rbnSet" data-pair="${esc(p.id)}" data-crew="${esc(x.crewId)}">${esc(x.name)}<span class="tiny muted"> · ${esc(x.why)}</span></button>`).join('')}
+        <button class="btn sm ghost" data-act="rbnPick" data-pair="${esc(p.id)}">${t('rbnSomeoneElse')}</button>
+        <button class="btn sm ghost" data-act="rbnGeneric" data-pair="${esc(p.id)}">${t('rbnNotAName')}</button></div></div>`;
+  }).join('') : `<div class="muted small">${t('rbnAllDone')}</div>`;
+  body += `</div>`;
+  if (done.length) {
+    body += `<details class="card"><summary class="row between" style="cursor:pointer"><h3>${t('rbnConfirmed')}</h3><span class="badge b-low">${done.length}</span></summary>` +
+      done.map((a) => `<div class="li" data-act="rbnPick" data-pair="${esc(a.id)}" style="cursor:pointer"><div class="ava">${a.status === 'generic' ? '∅' : CREW_ROLE_META[a.role === 'conductor' ? 'conductor' : 'driver'][0]}</div>
+        <div class="main"><div class="t">${esc(a.name)} → ${a.status === 'generic' ? t('rbnNotAName') : esc((driverById(a.crewId) || {}).name || '?')}</div>
+        <div class="s">🚌 ${esc(a.regNo)} · ${esc(userName(a.decidedBy))} · ${fmtDate(a.decidedAt)}</div></div></div>`).join('') + `</details>`;
+  }
+  shell(t('rbnTitle'), body, null, NARROW);
+}
+function rbPairById(id) {
+  const a = rbAliases().find((x) => x.id === id);
+  if (a) return { id, name: a.name, regNo: a.regNo, role: a.role };
+  return rbNamePairs().find((p) => p.id === id) || null;
+}
+async function rbnSave(id, status, crewId) {
+  if (!can(S.user.role, 'manageDrivers')) return;
+  const p = rbPairById(id); if (!p) return;
+  const old = rbAliases().find((x) => x.id === id) || {};
+  await DB.put('rbalias', Object.assign({}, old, { id, name: old.name || p.name, regNo: old.regNo || p.regNo, role: old.role || p.role,
+    status, crewId: status === 'crew' ? crewId : null, decidedBy: S.user.id, decidedAt: Date.now() }));
+  _traceMemo = { key: null, ctx: null, map: new Map() };
+  await load(); closeSheet(); toast(t('rbnSaved')); rerender();
+}
+function rbnPick(id) {
+  const p = rbPairById(id); if (!p) return;
+  const crew = activeCrew().filter((d) => crewRoleOf(d) === p.role).sort((a, b) => a.name.localeCompare(b.name));
+  const cur = (rbAliases().find((x) => x.id === id) || {}).crewId;
+  openSheet(`${p.name} · ${p.regNo}`, `<label class="field"><span class="lbl">${t('rbnWho')}</span>
+    <select id="rbn-crew">${crew.map((d) => `<option value="${esc(d.id)}" ${d.id === cur ? 'selected' : ''}>${esc(d.name)}${d.busId ? ' · ' + esc(busName(d.busId)) : ''}</option>`).join('')}</select></label>
+    <button class="btn primary" data-act="rbnPickSave" data-pair="${esc(id)}">${t('save')}</button>
+    <div class="spacer"></div><button class="btn ghost" data-act="rbnGeneric" data-pair="${esc(id)}">${t('rbnNotAName')}</button>`);
 }
 
 /* ===== Trip cash & expenses → per-bus accounting ==========================
@@ -11607,7 +11708,7 @@ const current = () => S.stack[S.stack.length - 1];
 const ROUTE_PERM = { money: 'money', fleet: 'fleet', people: 'people', bills: 'bills', insights: 'insights', drivers: 'manageDrivers', assignments: 'assignDriver', routes: 'manageRoutes', reports: 'dashboard', busreport: 'dashboard', livemap: 'liveMap', track: 'liveMap', fuel: 'addFuel', safety: 'dashboard', breakdowns: 'logIncident', warranty: 'viewWarranty', storehealth: 'issuePart', linkgps: 'addBus', newjob: 'addJob', forecast: 'dashboard', pilferage: 'insights', components: 'manageComponents', def: 'addFuel', vendors: 'addPurchase', import: 'addPurchase', crewpins: 'manageCrewLogins', crewbank: 'manageDrivers', usage: 'dashboard', accounting: 'dashboard', busacct: 'dashboard',
   // `purchases` renders the same view as `bills`; without its own entry the
   // `bills` permission was bypassable just by using the other route name.
-  purchases: 'bills', alerts: 'dashboard', buses: 'fleet', gate: 'gateCheck', gatechecks: 'gateDecide', reviews: 'dashboard',
+  purchases: 'bills', alerts: 'dashboard', buses: 'fleet', gate: 'gateCheck', gatechecks: 'gateDecide', reviews: 'dashboard', rbnames: 'manageDrivers',
   store: 'viewStore', jobs: 'viewJobs', scoreboard: 'viewScoreboard',
   challans: 'challans', buschallans: 'challans',
   // Company billing and another person's scorecard rendered for any role because
@@ -11633,6 +11734,7 @@ function render(r) {
     case 'gate': return viewGate(r.id);
     case 'gatechecks': return viewGateChecks();
     case 'reviews': return viewReviews();
+    case 'rbnames': return viewRbNames();
     case 'jobs': return r.id ? viewJobDetail(r.id) : viewJobs();
     case 'store': return r.id ? viewPartDetail(r.id) : viewStore();
     case 'me': return viewMe();
@@ -12059,6 +12161,11 @@ const _dispatchClick = async (e) => {
       case 'assignDriver': return sheetAssignDriverToBus(el.getAttribute('data-bus'), el.getAttribute('data-role'), Number(el.getAttribute('data-slot')) || null);
       case 'asRole': _asRole = el.getAttribute('data-v'); return rerender();
       case 'gateStart': return gateStart();
+      case 'openRbNames': return push({ name: 'rbnames' });
+      case 'rbnSet': return rbnSave(el.getAttribute('data-pair'), 'crew', el.getAttribute('data-crew'));
+      case 'rbnGeneric': return rbnSave(el.getAttribute('data-pair'), 'generic', null);
+      case 'rbnPick': return rbnPick(el.getAttribute('data-pair'));
+      case 'rbnPickSave': return rbnSave(el.getAttribute('data-pair'), 'crew', ($('#rbn-crew') || {}).value);
       case 'gateService': return gateServiceSheet(el.getAttribute('data-id'));
       case 'gateServiceSet': return gateServiceSet(el.getAttribute('data-id'), el.getAttribute('data-svc'));
       case 'openReviews': _rvBus = null; _rvCrew = null; return push({ name: 'reviews' });

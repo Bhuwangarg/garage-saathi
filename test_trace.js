@@ -65,7 +65,25 @@ check('redPro swap during the day is flagged, nearest-to-departure wins', r.sour
 
 // Gate check driver not on the duty board is still named as crew.
 r = T.resolve(review, { services, gatechecks: [Object.assign({}, gate[0], { driverId: 'u-drv-OTHER' })], assign: [], buses, crewAt });
-check('the gate-check driver is always listed', r.crew.some((c) => c.crewId === 'u-drv-OTHER' && c.via === 'gate'));
+check('the gate-check driver is always listed', r.crew.some((c) => c.crewId === 'u-drv-OTHER' && c.via === 'gate') && r.crew[0].crewId === 'u-drv-OTHER');
+
+// redBus names confirmed once per bus.
+check('name key keeps every word', T.normName('  Kesar  Dvr!') === 'kesar dvr' && T.normName('Mukesh') !== T.normName('Mukesh Sharma'));
+check('alias id is name + bus', T.aliasId('Kesar Dvr', 'mp44zf2538') === 'al-MP44ZF2538-kesar_dvr');
+check('"Staff" names nobody', T.isGenericName('Staff') && T.isGenericName('Stf') && !T.isGenericName('Kesar Dvr'));
+check('suggestions ignore Dvr/Ji', T.nameLike('Kesar Dvr', 'Kesar Singh') > 0.4 && T.nameLike('Ajeet Sanoli', 'Ajeet') > 0 && T.nameLike('Staff', 'Ravi') === 0);
+const aliases = { [T.aliasId('Ravindra', 'RJ09PA6141')]: 'u-drv-RJ09PA6141-1' };
+const aliasCrew = (name, reg) => aliases[T.aliasId(name, reg)] || null;
+r = T.resolve(review, { services, gatechecks: [], assign, buses, crewAt, aliasCrew });
+check('a confirmed redBus name adds that driver, labelled redpro', r.crew.some((c) => c.crewId === 'u-drv-RJ09PA6141-1' && c.vias.includes('redpro')));
+check('…alongside the duty board, not instead of it', r.crew.some((c) => c.crewId === 'u-drv-RJ09PA6141-0' && c.vias.includes('duty')));
+r = T.resolve(review, { services, gatechecks: [], assign, buses, crewAt, aliasCrew: () => null });
+check('an unconfirmed name adds nobody', r.crew.length === 1);
+const aliases2 = { [T.aliasId('Ravindra', 'RJ09PA6141')]: 'u-drv-RJ09PA6141-0' };
+r = T.resolve(review, { services, gatechecks: [], assign, buses, crewAt, aliasCrew: (n, g) => aliases2[T.aliasId(n, g)] || null });
+check('the same person from two sources is one entry with both labels', r.crew.length === 1 && r.crew[0].vias.join() === 'duty,redpro');
+r = T.resolve(review, { services, gatechecks: gate, assign: assignOther, buses, crewAt, aliasCrew: () => 'u-x' });
+check('no redBus name is used when redBus\'s bus is not the bus shown', !r.crew.some((c) => c.crewId === 'u-x'));
 
 // Classification.
 check('drunk driving is safety', T.classify({ stars: 1, comment: 'driver was drunk and driving rashly' }) === 'safety');

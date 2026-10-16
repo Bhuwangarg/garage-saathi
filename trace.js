@@ -36,6 +36,26 @@
     return m ? m[1] + m[2].padStart(2, '0') + m[3] + m[4].padStart(4, '0') : r;
   };
 
+  // A driver name as redPro has it typed ("Kesar Dvr", "Jitu Ji"), reduced to a stable key:
+  // lower case, letters and digits only, single spaces. Nothing is dropped, so "Mukesh" and
+  // "Mukesh Sharma" stay different keys. The server builds the same key (_alias_id in sync_server.py).
+  const normName = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  // One confirmed answer per typed name per bus: the same name on another bus may be another man.
+  const aliasId = (name, reg) => `al-${normReg(reg)}-${normName(name).replace(/ /g, '_')}`;
+  // Words that say nothing about who someone is, ignored only when suggesting a match.
+  const FILLER = new Set(['dvr', 'driver', 'drv', 'ji', 'bhai', 'sahab', 'saab', 'sir', 'staff', 'stf', 'bus', 'flix', 'conductor', 'cond', 'khalasi', 'helper']);
+  const nameTokens = (s) => normName(s).split(' ').filter((w) => w && !FILLER.has(w) && !/^\d+$/.test(w));
+  // 0..1: how alike two names look, for ordering suggestions only. Never used to decide.
+  function nameLike(a, b) {
+    const x = nameTokens(a), y = nameTokens(b);
+    if (!x.length || !y.length) return 0;
+    let hit = 0;
+    for (const w of x) if (y.some((v) => v === w || (w.length >= 4 && v.length >= 4 && (v.startsWith(w) || w.startsWith(v))))) hit++;
+    return hit / Math.max(x.length, y.length);
+  }
+  // A typed name that names nobody.
+  const isGenericName = (s) => !nameTokens(s).length;
+
   // routeId → serviceId, from the collector's service list (each service has many routes).
   function routeIndex(services) {
     const ix = new Map();
@@ -80,7 +100,7 @@
     const mid = (win.from + win.to) / 2;
     const o = obs.sort((x, y) => Math.abs(x.at - mid) - Math.abs(y.at - mid))[0];
     const distinct = new Set(obs.map((x) => normReg(x.vehicleNo)));
-    return { regNo: o.vehicleNo, driver1: o.driver1 || '', driver2: o.driver2 || '', at: o.at, changed: distinct.size > 1 };
+    return { regNo: o.vehicleNo, driver1: o.driver1 || '', driver2: o.driver2 || '', cro: o.cro || '', at: o.at, changed: distinct.size > 1 };
   }
 
   /* Resolve one review/complaint.
@@ -124,8 +144,22 @@
     // Crew from our own records only.
     const at = out.sources.gate ? out.sources.gate.at : out.dep != null ? out.dep : item.boardAt;
     if (out.bus.busId && typeof ctx.crewAt === 'function') out.crew = ctx.crewAt(out.bus.busId, at) || [];
-    if (out.sources.gate && out.sources.gate.driverId && !out.crew.some((c) => c.crewId === out.sources.gate.driverId)) {
-      out.crew.unshift({ crewId: out.sources.gate.driverId, role: 'driver', via: 'gate' });
+    out.crew = out.crew.map((c) => Object.assign({ via: 'duty', vias: ['duty'] }, c));
+    const add = (crewId, role, via) => {
+      const have = out.crew.find((c) => c.crewId === crewId);
+      if (have) { if (!have.vias.includes(via)) have.vias.push(via); return; }
+      const entry = { crewId, role, via, vias: [via] };
+      if (via === 'gate') out.crew.unshift(entry); else out.crew.push(entry);
+    };
+    if (out.sources.gate && out.sources.gate.driverId) add(out.sources.gate.driverId, 'driver', 'gate');
+    // redBus's own assignment names who drove; a name the office confirmed once for this bus is
+    // that person. Only when redBus's bus is the bus shown, and never an unconfirmed name.
+    const rp = out.sources.redpro;
+    if (rp && typeof ctx.aliasCrew === 'function' && normReg(rp.regNo) === normReg(out.bus.regNo)) {
+      for (const [name, role] of [[rp.driver1, 'driver'], [rp.driver2, 'driver'], [rp.cro, 'conductor']]) {
+        const id = name ? ctx.aliasCrew(name, rp.regNo) : null;
+        if (id) add(id, role, 'redpro');
+      }
     }
     return out;
   }
@@ -143,7 +177,7 @@
     return 'genuine';
   }
 
-  const api = { parseLocal, dayKey, normReg, routeIndex, departureFor, tripWindow, resolve, classify, LOOKBACK };
+  const api = { parseLocal, dayKey, normReg, normName, aliasId, nameLike, isGenericName, routeIndex, departureFor, tripWindow, resolve, classify, LOOKBACK };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Trace = api;
 })(typeof window !== 'undefined' ? window : this);

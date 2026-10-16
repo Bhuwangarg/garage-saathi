@@ -1140,6 +1140,8 @@ WRITE_ROLES = {
     # The departure checklist. The driver fills it and releases; owner and
     # supervisor only decide go/hold on a failed one. See _guard_write.
     "gatechecks":    {"owner", "supervisor", "driver"},
+    # "This name redBus shows on this bus is this crew member", confirmed once by the office.
+    "rbalias":       {"owner", "supervisor", "crewmanager"},
     "trips":         {"owner", "supervisor", "driver"},
     "triplog":       {"owner", "supervisor", "driver"},
     # Operational stores every role legitimately writes:
@@ -1251,6 +1253,9 @@ def _guard_write(store, rid, data, actor, existing, c=None):
 
     if store == "gatechecks":
         return _guard_gatecheck(data, actor, old, manager, c)
+
+    if store == "rbalias":
+        return _guard_rbalias(data, actor, old, c)
 
     if store == "dutylog":
         # The record a review, a complaint or a challan is traced to a crew by.
@@ -1857,6 +1862,57 @@ def ingest_redpro(body, now=None):
         c.commit()
         c.close()
     return {"ok": True, "kind": kind, "written": written, "skipped": skipped, "maxRev": rev}
+
+
+# ----------------------------- redBus name -> crew ---------------------------
+def _norm_name(s):
+    """Same key as Trace.normName in trace.js: lower case, letters and digits, single spaces."""
+    return re.sub(r"[^a-z0-9]+", " ", str(s or "").lower()).strip()
+
+
+def _alias_id(name, reg):
+    """One answer per typed name per bus. Matches Trace.aliasId; test_rbalias.py checks the two agree."""
+    return "al-%s-%s" % (norm_reg(re.sub(r"[^A-Za-z0-9]", "", str(reg or ""))), _norm_name(name).replace(" ", "_"))
+
+
+def _guard_rbalias(data, actor, old, c):
+    """A confirmed match between a driver name typed in redPro and one of our crew. It decides who a
+    review is traced to, so: it must name a real crew record (or say the name is nobody, like
+    "Staff"), one record per name per bus, never deleted, and every change keeps the one before."""
+    if data.get("_deleted"):
+        return "a confirmed name cannot be deleted; mark it as someone else or as not a name"
+    name, reg = str(data.get("name") or "").strip(), str(data.get("regNo") or "").strip()
+    if not _norm_name(name) or not reg or len(name) > 60:
+        return "a confirmed name needs the name and the bus"
+    if data.get("id") != _alias_id(name, reg):
+        return "this name and bus already have their own record"
+    if old and (old.get("name") != data.get("name") or old.get("regNo") != data.get("regNo")):
+        return "the name and the bus of a confirmed match cannot be changed"
+    if data.get("role") not in ("driver", "conductor"):
+        return "invalid seat"
+    status = data.get("status")
+    if status == "generic":
+        data["crewId"] = None
+    elif status == "crew":
+        cid = data.get("crewId")
+        row = c.execute("SELECT data FROM records WHERE store='drivers' AND id=?", (cid,)).fetchone() if (c and isinstance(cid, str)) else None
+        try:
+            rec = json.loads(row[0]) if row else None
+        except Exception:
+            rec = None
+        if not rec or rec.get("_deleted"):
+            return "that crew member is not in the crew bank"
+    else:
+        return "invalid status"
+    data["decidedBy"] = actor["id"]
+    data["decidedAt"] = now_ms()
+    if old and (old.get("crewId") != data.get("crewId") or old.get("status") != status):
+        hist = list(old.get("history") or [])
+        hist.append({k: old.get(k) for k in ("crewId", "status", "decidedBy", "decidedAt")})
+        data["history"] = hist[-20:]
+    elif old:
+        data["history"] = old.get("history") or []
+    return None
 
 
 def may_write(role, store):

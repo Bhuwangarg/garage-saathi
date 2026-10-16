@@ -55,7 +55,9 @@ const Sync = (function () {
                   'gatechecks',
                   // redPro data, written only by the server from the office collector.
                   // Pulled, never pushed (the server refuses any client write).
-                  'rbservices', 'rbreviews', 'rbcomplaints', 'rbassign'];
+                  'rbservices', 'rbreviews', 'rbcomplaints', 'rbassign',
+                  // Confirmed redBus-name -> crew matches, written by the office (not server-only).
+                  'rbalias'];
 
   const ls = window.localStorage;
   // Default sync backend: a device's explicit setting always wins. Otherwise, on

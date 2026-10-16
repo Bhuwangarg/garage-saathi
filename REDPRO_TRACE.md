@@ -53,3 +53,23 @@ otherwise they wait for ITS.
 Sorting (`Trace.classify`): safety only on a hard signal (drunk, rash, accident,
 police…). Stacked service gripes never count as safety. FAQ means a
 refund/cancellation question with no redBus tags.
+
+## redBus names → crew (`rbalias`)
+
+redPro's hourly assignment names who drove each bus as **typed text**
+("Kesar Dvr", "Jitu Ji", "Staff"). These names are never matched on their own.
+On **redBus names** (from the duty board or the reviews screen), the office
+confirms each **name + bus** pair once:
+- choose a crew member (suggestions: the same name already confirmed on another bus,
+  then the duty board for that bus, then similar names), or
+- mark it **Not a real name**.
+
+From then on, when redBus's bus is the bus a review traces to, that confirmed
+person is added to the trip's crew, labelled **redBus name**. They sit
+alongside the gate-check driver and the duty board, so a disagreement shows.
+
+- Id: `al-<REG>-<name_key>`, built the same way by `Trace.aliasId` and `_alias_id`
+  (`test_rbalias.py` checks they agree).
+- Written by owner, supervisor and crew manager. The server checks the crew record exists,
+  stamps `decidedBy`/`decidedAt`, refuses deletes, and keeps earlier answers in `history`.
+

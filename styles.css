@@ -1300,3 +1300,9 @@ body.printing-gp .gp-screen{display:none !important}
   .kpi-v.long{font-size:21px}
   .phead-t{font-size:27px}
 }
+
+/* redBus names: one row per typed name + bus, suggestions as buttons. */
+.rbn-row{padding:10px 0;border-top:1px solid var(--line2)}
+.rbn-row:first-of-type{border-top:0}
+.rbn-acts{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.rbn-acts .btn.sm{min-height:36px}
