@@ -16,6 +16,7 @@ os.environ.pop("TURSO_URL", None)
 os.environ.pop("TURSO_DATABASE_URL", None)
 os.environ["ITS_LOOKUP_USER"] = "lookup-test"
 os.environ["ITS_LOOKUP_PASSWORD"] = "not-a-real-password"
+os.environ["ITS_BRANCH_CODE"] = "MLX"
 
 import its_lookup as L  # noqa: E402
 import sync_server as S  # noqa: E402
@@ -30,9 +31,17 @@ def check(name, cond):
 
 
 P = "ctl00_ContentPlaceHolder1_"
+# The shape of ITS's real Login.aspx (16 Oct 2026): Company/Branch radios named "Login", a branch
+# code, user, password, and an OTP box that is ALWAYS on the page.
 LOGIN = """<html><form action="Login.aspx"><input type="hidden" name="__VIEWSTATE" value="vs1">
+<input id="rbtCompany" type="radio" name="Login" value="rbtCompany" checked="checked" />
+<input id="rbtBranch" type="radio" name="Login" value="rbtBranch" checked="checked" />
+<label for="user_name">Branch Code:</label><input name="txtCompanyCode" id="txtCompanyCode">
+<input type="hidden" name="VCECC_ClientState" value="">
 <input name="txtUserName" id="txtUserName"><input type="password" name="txtPassword" id="txtPassword">
-<input type="submit" name="btnLogin" value="Login"></form></html>"""
+<input type="submit" name="btnSubmit" value="Login"><input type="submit" name="btnPopUpOpen" value="x">
+<input name="txtOTP" placeholder="Enter OTP"><input type="submit" name="btnSubmitOTP" value="Verify OTP">
+</form></html>"""
 PNR_FORM = f"""<html><form><input type="hidden" name="__VIEWSTATE" value="vs2">
 <input name="ctl00$ContentPlaceHolder1$txtPNRNO" id="{P}txtPNRNO">
 <input type="submit" name="ctl00$ContentPlaceHolder1$btnLoad" id="{P}btnLoad" value="Load"></form></html>"""
@@ -71,7 +80,9 @@ class FakeIts:
                 body = urllib.parse.parse_qs(self.rfile.read(int(self.headers.get("Content-Length", 0))).decode())
                 outer.posts.append((self.path, body))
                 if self.path.startswith("/Login.aspx"):
-                    if body.get("txtPassword") == ["not-a-real-password"]:
+                    outer.last_login = body
+                    if body.get("txtPassword") == ["not-a-real-password"] and body.get("txtCompanyCode") == ["MLX"] \
+                            and body.get("Login") == ["rbtBranch"] and body.get("txtUserName") == ["lookup-test"]:
                         return self._send("<html>welcome</html>", "sid=ok; Path=/")
                     return self._send(LOGIN.replace("</form>", '<span id="lblMessage">Invalid password</span></form>'))
                 pnr = (body.get(f"ctl00$ContentPlaceHolder1$txtPNRNO") or [""])[0]
@@ -94,6 +105,10 @@ check("driver's number read as 10 digits (LRM and +91 removed)", trip.get("drive
 check("no passenger details in what it returns", not any(k in json.dumps(trip) for k in ("Test Passenger", "9000000001", "p@example.com")))
 check("the PNR form was submitted with the PNR and Load", any(p == L.PNR_PATH and b.get("ctl00$ContentPlaceHolder1$txtPNRNO") == ["252074004"]
       and "ctl00$ContentPlaceHolder1$btnLoad" in b for p, b in its.posts))
+check("login sends the branch code, Branch, the user and btnSubmit",
+      its.last_login.get("txtCompanyCode") == ["MLX"] and its.last_login.get("Login") == ["rbtBranch"]
+      and its.last_login.get("txtUserName") == ["lookup-test"] and "btnSubmit" in its.last_login
+      and "btnSubmitOTP" not in its.last_login)
 check("an unknown PNR is {} (not found)", s.lookup("111111111") == {})
 check("a malformed PNR is never sent", s.lookup("12; DROP") == {} and s.lookup("") == {})
 os.environ["ITS_LOOKUP_PASSWORD"] = "wrong"
@@ -103,6 +118,19 @@ try:
 except L.ItsAuthError as e:
     check("a refused login raises with ITS's reason", "Invalid password" in str(e))
 os.environ["ITS_LOOKUP_PASSWORD"] = "not-a-real-password"
+os.environ["ITS_BRANCH_CODE"] = "WRONG"
+try:
+    L.Session().lookup("252074004")
+    check("a wrong branch code fails", False)
+except L.ItsAuthError as e:
+    check("a wrong branch code is not mistaken for an OTP", "OTP" not in str(e) and "Invalid password" in str(e))
+os.environ["ITS_BRANCH_CODE"] = ""
+try:
+    L.Session().lookup("252074004")
+    check("no branch code fails", False)
+except L.ItsAuthError as e:
+    check("a missing branch code says which setting to add", "ITS_BRANCH_CODE" in str(e))
+os.environ["ITS_BRANCH_CODE"] = "MLX"
 
 # --- what the server keeps ---------------------------------------------------
 OWNER = {"id": "u-owner", "role": "owner"}

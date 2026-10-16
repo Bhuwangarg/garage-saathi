@@ -42,6 +42,10 @@ def credentials():
     return (os.environ.get("ITS_LOOKUP_USER", "").strip(), os.environ.get("ITS_LOOKUP_PASSWORD", ""))
 
 
+def branch_code():
+    return os.environ.get("ITS_BRANCH_CODE", "").strip()
+
+
 def configured():
     u, p = credentials()
     return bool(u and p)
@@ -140,26 +144,45 @@ class Session:
             return r.read().decode("utf-8", "replace")
 
     def login(self):
+        """ITS's login (seen 16 Oct 2026): a Company/Branch radio named "Login" (rbtCompany /
+        rbtBranch), txtCompanyCode labelled "Branch Code:", txtUserName, txtPassword, btnSubmit.
+        The page always carries an OTP box (txtOTP) too, so its mere presence proves nothing."""
         state = form_state(self._req(LOGIN_PATH))
-        uf = next((n for n in state.fields if re.search(r"user(name)?|login|uid", n, re.I)
-                   and not n.startswith("__") and "hidden" not in n.lower()), None)
-        pf = next((n for n in state.fields if re.search(r"pass", n, re.I)), None)
+        names = list(state.fields)
+        pick = lambda exact, rx: exact if exact in state.fields else next(
+            (n for n in names if re.search(rx, n, re.I) and n not in ("Login",) and not n.startswith("__")
+             and "state" not in n.lower()), None)
+        uf = pick("txtUserName", r"user\s*name|username|uid")
+        pf = pick("txtPassword", r"pass")
+        cf = pick("txtCompanyCode", r"(company|branch)\s*code")
         if not uf or not pf:
             raise ItsAuthError("could not find the username/password fields on ITS's login page")
-        payload = dict(state.fields)
+        payload = {k: v for k, v in state.fields.items() if k not in ("txtOTP", "txtAuthenticateRemarks")}
         payload[uf], payload[pf] = self.user, self.password
-        btn = next((n for n, kind, _ in state.buttons if kind == "submit"), None)
+        if cf:
+            if not branch_code():
+                raise ItsAuthError("ITS's login wants a branch code: set ITS_BRANCH_CODE in Vercel")
+            payload[cf] = branch_code()
+        if "Login" in payload:
+            # The lookup user is a branch user: ITS's PNR page lives under /Branch/.
+            payload["Login"] = os.environ.get("ITS_LOGIN_AS", "rbtBranch")
+        btn = "btnSubmit" if any(n == "btnSubmit" for n, _k, _i in state.buttons) else next(
+            (n for n, kind, _ in state.buttons if kind == "submit"), None)
         if btn:
             payload[btn] = "Login"
         body = self._req(LOGIN_PATH, payload)
-        msg = re.search(r'id="[^"]*lblMessage"[^>]*>(.*?)<', body, re.S)
-        if msg and clean(msg.group(1)):
-            raise ItsAuthError("ITS refused the lookup login: " + clean(msg.group(1))[:120])
-        if re.search(r"otp|one\s*time\s*password", body, re.I) and looks_logged_out(body):
-            raise ItsAuthError("ITS asks the lookup user for an OTP; someone must clear it once in a browser")
-        if looks_logged_out(body):
-            raise ItsAuthError("the lookup login did not take, and ITS gave no reason")
-        self.authed = True
+        if not looks_logged_out(body):
+            self.authed = True
+            return
+        msg = re.search(r'id="[^"]*(lblMessage|lblMsg|lblError)[^"]*"[^>]*>(.*?)<', body, re.S)
+        if msg and clean(msg.group(2)):
+            raise ItsAuthError("ITS refused the lookup login: " + clean(msg.group(2))[:120])
+        # Only a message that an OTP was actually SENT means an OTP step; the empty OTP box is always there.
+        if re.search(r"otp\s*(has\s*been\s*|is\s*)?sent|sent\s.{0,40}otp|otp\s*send\s*successfully", body, re.I):
+            raise ItsAuthError("ITS sent the lookup user an OTP; it must be switched off for this user")
+        alerts = [clean(a) for a in re.findall(r"alert\(['\"](.*?)['\"]\)", body)][:2]
+        raise ItsAuthError("the lookup login did not take" + (": " + "; ".join(alerts)[:120] if alerts else
+                           " (check the branch code, user name and password in Vercel)"))
 
     def lookup(self, pnr):
         """PNR -> trip dict ({} when ITS has no such PNR). Signs in again once if the session lapsed."""
