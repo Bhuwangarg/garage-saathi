@@ -1926,6 +1926,9 @@ except Exception:                     # noqa: BLE001 - a missing module costs th
 ITS_BATCH_MAX = 10                    # PNRs per request: ~2 ITS pages each, well inside a 60 s function
 ITS_BUDGET_S = 40
 ITS_RECHECK_NOT_FOUND_MS = 86400000   # a PNR ITS did not know is asked again after a day, not every time
+# Bumped whenever the lookup itself is fixed: "not found" from an older version may have been the bug
+# (v1 posted dropdowns empty and crashed ITS's page on every PNR, 16-17 Oct 2026), so those are asked again.
+ITS_LOOKUP_VERSION = 2
 
 
 def _crew_by_phone(c, phone):
@@ -1969,7 +1972,8 @@ def its_lookup_batch(pnrs, actor, session_factory=None, clock=time.monotonic):
         for p in want:
             row = c.execute("SELECT data FROM records WHERE store='itslookup' AND id=?", ("it-" + p,)).fetchone()
             old = json.loads(row[0]) if row else None
-            if old and (old.get("found") or now - (old.get("lookedUpAt") or 0) < ITS_RECHECK_NOT_FOUND_MS):
+            stale = (old or {}).get("v", 1) < ITS_LOOKUP_VERSION and not (old or {}).get("found")
+            if old and not stale and (old.get("found") or now - (old.get("lookedUpAt") or 0) < ITS_RECHECK_NOT_FOUND_MS):
                 continue
             todo.append(p)
     finally:
@@ -1993,7 +1997,7 @@ def its_lookup_batch(pnrs, actor, session_factory=None, clock=time.monotonic):
         rev = c.execute("SELECT COALESCE(MAX(rev),0) FROM records").fetchone()[0]
         for p, trip in done:
             crew = _crew_by_phone(c, trip.get("driverPhone")) if trip else None
-            rec = {"id": "it-" + p, "pnr": p, "found": bool(trip), "lookedUpAt": now, "by": actor["id"],
+            rec = {"id": "it-" + p, "pnr": p, "found": bool(trip), "lookedUpAt": now, "by": actor["id"], "v": ITS_LOOKUP_VERSION,
                    "_by": "its-lookup", "_org": "mahalaxmi", "updatedAt": now}
             if trip:
                 found += 1

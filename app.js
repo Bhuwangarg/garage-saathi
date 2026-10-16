@@ -9571,8 +9571,9 @@ function itsLookups() {
   return out;
 }
 // Untraced 1–3★ reviews whose PNR ITS has not been asked about yet.
+const ITS_LOOKUP_VERSION = 2;   // matches sync_server.py: "not found" from an older lookup is asked again
 function itsPending() {
-  const asked = new Set((S.cache.itslookup || []).map((r) => r.pnr));
+  const asked = new Set((S.cache.itslookup || []).filter((r) => r.found || (r.v || 1) >= ITS_LOOKUP_VERSION).map((r) => r.pnr));
   const untraced = (x) => { const tr = traceOf(x); return !tr.bus && !tr.crew.length; };
   return (S.cache.rbreviews || []).filter((r) => r.pnr && r.stars && r.stars <= 3 && !asked.has(r.pnr) && untraced(r))
     .concat((S.cache.rbcomplaints || []).filter((c) => c.pnr && !asked.has(c.pnr) && untraced(c)));

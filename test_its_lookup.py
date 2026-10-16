@@ -42,9 +42,16 @@ LOGIN = """<html><form action="Login.aspx"><input type="hidden" name="__VIEWSTAT
 <input type="submit" name="btnSubmit" value="Login"><input type="submit" name="btnPopUpOpen" value="x">
 <input name="txtOTP" placeholder="Enter OTP"><input type="submit" name="btnSubmitOTP" value="Verify OTP">
 </form></html>"""
+# Like ITS's real PNR page: a master page with dropdowns. A post with a dropdown value the page
+# did not offer, or a wrong button caption, crashes it (event validation).
 PNR_FORM = f"""<html><form><input type="hidden" name="__VIEWSTATE" value="vs2">
+<input type="hidden" name="__EVENTVALIDATION" value="ev2">
+<select name="ctl00$ddlBranch"><option value="12">Jaipur</option><option value="72" selected="selected">HO</option></select>
+<select name="ctl00$ddlLang"><option value="en">English</option><option value="hi">Hindi</option></select>
+<textarea name="ctl00$txtNote">kept as is</textarea>
 <input name="ctl00$ContentPlaceHolder1$txtPNRNO" id="{P}txtPNRNO">
-<input type="submit" name="ctl00$ContentPlaceHolder1$btnLoad" id="{P}btnLoad" value="Load"></form></html>"""
+<input type="submit" name="ctl00$ContentPlaceHolder1$btnLoad" id="{P}btnLoad" value="Load PNR"></form></html>"""
+CRASH = "<html><title>Contact-Support</title>Error</html>"
 
 
 def pnr_page(found):
@@ -85,6 +92,10 @@ class FakeIts:
                             and body.get("Login") == ["rbtBranch"] and body.get("txtUserName") == ["lookup-test"]:
                         return self._send("<html>welcome</html>", "sid=ok; Path=/")
                     return self._send(LOGIN.replace("</form>", '<span id="lblMessage">Invalid password</span></form>'))
+                if body.get("ctl00$ddlBranch") != ["72"] or body.get("ctl00$ddlLang") != ["en"] \
+                        or body.get("ctl00$ContentPlaceHolder1$btnLoad") != ["Load PNR"] \
+                        or body.get("ctl00$txtNote") != ["kept as is"] or body.get("__EVENTVALIDATION") != ["ev2"]:
+                    return self._send(CRASH)               # what ITS does with a malformed post
                 pnr = (body.get(f"ctl00$ContentPlaceHolder1$txtPNRNO") or [""])[0]
                 return self._send(pnr_page(pnr == "252074004"))
 
@@ -109,6 +120,9 @@ check("login sends the branch code, Branch, the user and btnSubmit",
       its.last_login.get("txtCompanyCode") == ["MLX"] and its.last_login.get("Login") == ["rbtBranch"]
       and its.last_login.get("txtUserName") == ["lookup-test"] and "btnSubmit" in its.last_login
       and "btnSubmitOTP" not in its.last_login)
+check("dropdowns post their selected (or first) option, the button its own caption, textareas their text",
+      any(b.get("ctl00$ddlBranch") == ["72"] and b.get("ctl00$ddlLang") == ["en"] and b.get("ctl00$txtNote") == ["kept as is"]
+          and b.get("ctl00$ContentPlaceHolder1$btnLoad") == ["Load PNR"] for p, b in its.posts if p == L.PNR_PATH))
 check("an unknown PNR is {} (not found)", s.lookup("111111111") == {})
 check("a malformed PNR is never sent", s.lookup("12; DROP") == {} and s.lookup("") == {})
 os.environ["ITS_LOOKUP_PASSWORD"] = "wrong"
@@ -160,6 +174,14 @@ check("a PNR ITS does not know is recorded as not found", stored("it-111111111")
 n = len(its.posts)
 code, res = S.its_lookup_batch(["252074004", "111111111"], OWNER)
 check("found PNRs and fresh not-founds are not asked again", res["skipped"] == 2 and len(its.posts) == n)
+c = S.db()
+rev = c.execute("SELECT COALESCE(MAX(rev),0) FROM records").fetchone()[0]
+old_nf = dict(stored("it-111111111"), v=1)
+S._upsert_record(c, "itslookup", "it-111111111", old_nf, S.now_ms(), rev)
+c.commit()
+c.close()
+code, res = S.its_lookup_batch(["111111111"], OWNER)
+check("a 'not found' from the old, broken lookup is asked again", res["lookedUp"] == 1 and stored("it-111111111")["v"] == S.ITS_LOOKUP_VERSION)
 
 c = S.db()
 rev = c.execute("SELECT COALESCE(MAX(rev),0) FROM records").fetchone()[0]

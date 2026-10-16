@@ -56,26 +56,61 @@ def clean(text):
 
 
 class _FormState(HTMLParser):
-    """ASP.NET hidden fields and every named control on a page."""
+    """What a browser would post from a page: hidden fields, inputs, the SELECTED option of every
+    dropdown, textareas, and every button with its own value.
+
+    Dropdowns matter: ASP.NET event validation rejects a post whose dropdown value is not one the page
+    offered, and ITS answers that with its crash page (/NotifyUser.aspx?aspxerrorpath). On 17 Oct 2026
+    this parser sent every <select> empty, and ITS's PNR page crashed on each lookup."""
 
     def __init__(self):
         HTMLParser.__init__(self, convert_charrefs=True)
-        self.fields, self.buttons = {}, []
+        self.fields, self.buttons, self.button_values = {}, [], {}
+        self._select, self._first, self._chosen = None, None, False
+        self._textarea, self._text = None, []
 
     def handle_starttag(self, tag, attrs):
-        if tag not in ("input", "select", "textarea"):
-            return
         a = dict(attrs)
+        if tag == "select":
+            self._select, self._first, self._chosen = a.get("name"), None, False
+            return
+        if tag == "option" and self._select:
+            v = a.get("value", "")
+            if self._first is None:
+                self._first = v
+            if "selected" in a and not self._chosen:
+                self.fields[self._select], self._chosen = v, True
+            return
+        if tag == "textarea":
+            self._textarea, self._text = a.get("name"), []
+            return
+        if tag != "input":
+            return
         name, kind = a.get("name"), (a.get("type") or "text").lower()
         if not name:
             return
         if kind in ("submit", "image", "button"):
             self.buttons.append((name, kind, a.get("id") or ""))
+            self.button_values[name] = a.get("value", "")
         elif kind in ("checkbox", "radio"):
             if a.get("checked") is not None:
                 self.fields[name] = a.get("value", "on")
-        else:
+        elif kind != "file":
             self.fields[name] = a.get("value", "")
+
+    def handle_data(self, data):
+        if self._textarea:
+            self._text.append(data)
+
+    def handle_endtag(self, tag):
+        if tag == "select" and self._select:
+            # A dropdown with no option marked selected posts its first option, as a browser does.
+            if not self._chosen and self._first is not None:
+                self.fields[self._select] = self._first
+            self._select = None
+        elif tag == "textarea" and self._textarea:
+            self.fields[self._textarea] = "".join(self._text)
+            self._textarea = None
 
 
 def form_state(html):
@@ -176,7 +211,7 @@ class Session:
         btn = "btnSubmit" if any(n == "btnSubmit" for n, _k, _i in state.buttons) else next(
             (n for n, kind, _ in state.buttons if kind == "submit"), None)
         if btn:
-            payload[btn] = "Login"
+            payload[btn] = state.button_values.get(btn) or "Login"
         body = self._req(LOGIN_PATH, payload)
         if not looks_logged_out(body):
             self.authed = True
@@ -209,7 +244,7 @@ class Session:
                     payload[n] = str(pnr)
             btn = next((n for n, _k, ident in state.buttons if ident.endswith("btnLoad")), None)
             if btn:
-                payload[btn] = "Load"
+                payload[btn] = state.button_values.get(btn) or "Load"     # the button's own caption
             res = self._req(PNR_PATH, payload)
             if looks_logged_out(res):
                 self.authed = False
