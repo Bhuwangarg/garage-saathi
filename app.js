@@ -313,6 +313,9 @@ const I18N = {
     rvWhyService: 'This service is not in the list yet', rvWhyNoSource: 'No gate check or redBus assignment for that trip', rvCrewNotRecorded: 'crew not on the duty log for that time',
     rvSources: 'Where this came from', rvSrcGate: 'Gate check', rvSrcRedpro: 'redBus assignment', rvSrcIts: 'ITS booking', rvAsTyped: 'as typed in redBus', rvSwapped: 'bus changed that day',
     rvCrew: 'Crew on that trip', rvSafetyK: 'Safety', rvGenuine: 'Service', rvFaq: 'Question', rvPraise: 'Praise', rvBoarded: 'Boarded',
+    itsDiagBtn: 'Show what ITS answered', itsDiagTitle: 'What ITS answered (one PNR)', itsDiagWait: 'Asking ITS…', itsDiagNone: 'Nothing looked up yet',
+    itsDiagFound: 'Found', itsDiagPage: 'Page', itsDiagMsgs: 'Messages from ITS', itsDiagFilled: 'Fields that came back filled', itsDiagEmpty: 'Fields that came back empty',
+    itsDiagNote: 'Field names and messages only — no names, numbers or values are sent or kept.',
     itsTitle: 'Look up in ITS', itsSub: 'untraced 1–3★ reviews — ITS can name the driver from the PNR', itsBtn: 'Look up', itsRunning: 'Looking up in ITS…',
     itsFound: 'found in ITS', itsDriver: 'driver matched', itsDone: 'ITS lookup done', itsOff: 'ITS lookups are not set up yet (lookup user missing in Vercel)', rvViaIts: 'ITS driver',
     rbnTitle: 'redBus names', rbnHint: 'redBus shows who drove each bus by a typed name. Confirm once which crew member each name is on each bus; reviews of that bus are then traced to them. Nothing is matched on its own.',
@@ -648,6 +651,9 @@ const I18N = {
     rvWhyService: 'यह सर्विस अभी सूची में नहीं है', rvWhyNoSource: 'उस यात्रा का न गेट चेक है न redBus असाइनमेंट', rvCrewNotRecorded: 'उस समय का स्टाफ़ ड्यूटी लॉग में नहीं',
     rvSources: 'यह जानकारी कहाँ से', rvSrcGate: 'गेट चेक', rvSrcRedpro: 'redBus असाइनमेंट', rvSrcIts: 'ITS बुकिंग', rvAsTyped: 'जैसा redBus में लिखा', rvSwapped: 'उस दिन बस बदली',
     rvCrew: 'उस यात्रा का स्टाफ़', rvSafetyK: 'सुरक्षा', rvGenuine: 'सेवा', rvFaq: 'सवाल', rvPraise: 'तारीफ़', rvBoarded: 'चढ़े',
+    itsDiagBtn: 'ITS का जवाब देखें', itsDiagTitle: 'ITS ने क्या लौटाया (एक PNR)', itsDiagWait: 'ITS से पूछ रहे हैं…', itsDiagNone: 'अभी कुछ नहीं देखा गया',
+    itsDiagFound: 'मिला', itsDiagPage: 'पेज', itsDiagMsgs: 'ITS के संदेश', itsDiagFilled: 'भरे हुए खाने', itsDiagEmpty: 'खाली खाने',
+    itsDiagNote: 'सिर्फ़ खानों के नाम और संदेश — कोई नाम, नंबर या मान नहीं भेजा या रखा जाता।',
     itsTitle: 'ITS में देखें', itsSub: 'बिना बस वाले 1–3★ रिव्यू — ITS PNR से ड्राइवर बता सकता है', itsBtn: 'देखें', itsRunning: 'ITS में देख रहे हैं…',
     itsFound: 'ITS में मिले', itsDriver: 'ड्राइवर मिला', itsDone: 'ITS खोज पूरी', itsOff: 'ITS खोज अभी चालू नहीं (Vercel में लुकअप यूज़र नहीं)', rvViaIts: 'ITS ड्राइवर',
     rbnTitle: 'redBus नाम', rbnHint: 'redBus हर बस का ड्राइवर लिखे हुए नाम से दिखाता है। हर बस पर हर नाम एक बार पक्का करें कि वह कौन है; फिर उस बस के रिव्यू उन्हीं से जुड़ेंगे। अपने-आप कुछ नहीं जुड़ता।',
@@ -9596,13 +9602,32 @@ async function itsLookupRun() {
     setTimeout(async () => { await load(); rerender(); }, 2500);
   }
 }
+// Owner: when ITS finds nothing, see what ITS's answer looked like for one PNR (field names and
+// messages only; the server sends no values and stores nothing).
+async function itsDiag() {
+  const any = (S.cache.itslookup || []).find((r) => !r.found);
+  if (!any) return toast(t('itsDiagNone'));
+  openSheet(t('itsDiagTitle'), `<div class="muted small">${t('itsDiagWait')}</div>`);
+  const res = await Sync.itsLookup([any.pnr], true);
+  const a = (res.answers || [])[0] || {};
+  const list = (xs) => (xs && xs.length ? xs.map((x) => `<span class="badge b-low" style="margin:2px">${esc(x)}</span>`).join('') : '—');
+  openSheet(t('itsDiagTitle'), res.error ? `<div class="banner bad">${esc(res.error)}</div>` : `
+    <div class="small"><b>${t('itsDiagFound')}:</b> ${res.found ? '✓' : '✗'} · <b>${t('itsDiagPage')}:</b> ${esc(a.title || '—')} · ${a.bytes || 0} B</div>
+    <div class="small" style="margin-top:8px"><b>${t('itsDiagMsgs')}</b><div>${list((a.messages || []).concat(a.alerts || []))}</div></div>
+    <div class="small" style="margin-top:8px"><b>${t('itsDiagFilled')}</b><div>${list(a.filled)}</div></div>
+    <div class="small" style="margin-top:8px"><b>${t('itsDiagEmpty')}</b><div>${list(a.empty)}</div></div>
+    <div class="tiny muted" style="margin-top:10px">${t('itsDiagNote')}</div>`);
+}
 function itsCard() {
   if (!can(S.user.role, 'dashboard')) return '';
+  const looked = S.cache.itslookup || [];
+  const diagBtn = S.user.role === 'owner' && looked.length && !looked.some((r) => r.found)
+    ? `<button class="btn sm ghost" data-act="itsDiag">${t('itsDiagBtn')}</button>` : '';
   if (_itsRun) return `<div class="card"><div class="row between"><b>🔎 ${t('itsRunning')}</b><span class="muted small">${_itsRun.done}/${_itsRun.total}</span></div><div class="tiny muted">${_itsRun.found} ${t('itsFound')} · ${_itsRun.matched} ${t('itsDriver')}</div></div>`;
   const n = itsPending().length;
-  if (!n) return '';
+  if (!n && !diagBtn) return '';
   return `<div class="card"><div class="row between"><div><b>🔎 ${t('itsTitle')}</b><div class="tiny muted">${n} ${t('itsSub')}</div></div>
-    <button class="btn sm" data-act="itsLookupRun">${t('itsBtn')}</button></div></div>`;
+    ${n ? `<button class="btn sm" data-act="itsLookupRun">${t('itsBtn')}</button>` : ''}</div>${diagBtn ? `<div style="margin-top:6px">${diagBtn}</div>` : ''}</div>`;
 }
 function traceCtx() {
   if (_traceMemo.key === S.cache && _traceMemo.ctx) return _traceMemo.ctx;
@@ -12232,6 +12257,7 @@ const _dispatchClick = async (e) => {
       case 'gateStart': return gateStart();
       case 'openRbNames': return push({ name: 'rbnames' });
       case 'itsLookupRun': return itsLookupRun();
+      case 'itsDiag': return itsDiag();
       case 'rbnSet': return rbnSave(el.getAttribute('data-pair'), 'crew', el.getAttribute('data-crew'));
       case 'rbnGeneric': return rbnSave(el.getAttribute('data-pair'), 'generic', null);
       case 'rbnPick': return rbnPick(el.getAttribute('data-pair'));

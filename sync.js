@@ -378,10 +378,10 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
   }
   // ITS fallback: look up to 10 review PNRs in ITS (owner/supervisor). The server keeps the trip
   // and the crew member the driver's number matches; it arrives here through the normal pull.
-  async function itsLookup(pnrs) {
+  async function itsLookup(pnrs, diag) {
     try {
       const res = await fetch(baseUrl() + '/its/lookup', {
-        method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ pnrs }),
+        method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify(diag ? { pnrs, diag: true } : { pnrs }),
       });
       let j = {};
       try { j = await res.json(); } catch (e) { /* not JSON */ }
