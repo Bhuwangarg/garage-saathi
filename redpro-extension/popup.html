@@ -16,6 +16,7 @@
   .sub{color:var(--muted);font-size:12px}
   main{padding:10px 14px 14px;display:flex;flex-direction:column;gap:10px}
   .problem{background:color-mix(in srgb,var(--red) 12%,transparent);color:var(--red);border-radius:9px;padding:8px 10px;font-weight:600}
+  .progress{font:12px var(--mono);color:var(--accent);padding:2px 0}
   .jobs{background:var(--surface);border:1px solid var(--line);border-radius:10px}
   .job{display:grid;grid-template-columns:92px 1fr;gap:2px 8px;padding:8px 10px;border-top:1px solid var(--line)}
   .job:first-child{border-top:0}
@@ -44,6 +45,7 @@
 </header>
 <main>
   <div class="problem" id="problem" hidden></div>
+  <div class="progress" id="progress" hidden></div>
   <div class="jobs" id="jobs"></div>
   <button id="sync" type="button">Sync now</button>
   <details id="settings">
@@ -55,7 +57,7 @@
     <div style="display:flex;gap:10px;align-items:center;margin-top:8px">
       <button id="save" type="button">Save</button><span class="note" id="saved"></span>
     </div>
-    <p class="note">The token stays in this Chrome only (not synced to a Google account).
+    <p class="note">The popup can be closed while it syncs; the sync carries on.<br>The token stays in this Chrome only (not synced to a Google account).
       Passengers' names and phone numbers are never sent.</p>
   </details>
 </main>

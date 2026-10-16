@@ -24,7 +24,9 @@ chrome.runtime.onStartup.addListener(ensureAlarm);
 chrome.alarms.onAlarm.addListener((a) => { if (a.name === 'tick') tick(false); });
 
 chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
-  if (msg && msg.type === 'syncNow') { tick(true).then(reply, (e) => reply({ error: String(e) })); return true; }
+  // Start the run and answer at once: a first sync reads 45 days of reviews (minutes). The popup
+  // follows it through `progress` instead of waiting on this message.
+  if (msg && msg.type === 'syncNow') { const started = !running; tick(true).catch(() => {}); reply({ started }); return false; }
   if (msg && msg.type === 'status') { status().then(reply); return true; }
   return false;
 });
@@ -43,7 +45,7 @@ chrome.webRequest.onBeforeRequest.addListener((d) => {
 
 async function status() {
   const { state = {}, settings = {}, servicewiseBody } = await get(['state', 'settings', 'servicewiseBody']);
-  return { state, hasToken: !!settings.token, gsUrl: settings.gsUrl || DEFAULTS.gsUrl, servicewiseKnown: !!servicewiseBody, running: !!running };
+  return { state, hasToken: !!settings.token, gsUrl: settings.gsUrl || DEFAULTS.gsUrl, servicewiseKnown: !!servicewiseBody, running: !!running, progress: running ? progress : '' };
 }
 
 async function paint(state) {
@@ -116,6 +118,7 @@ async function runJob(job, tabId, settings, state, cap) {
       const batch = j.report || [];
       rows.push(...batch.map(RP.mapReview));
       seen += batch.length;
+      step(`Reviews: page ${page + 1}, ${seen}${total != null ? ' of ' + total : ''} read`);
       if ((page + 1) % REVIEW_FLUSH_PAGES === 0 && rows.length) { written += await post(settings, 'reviews', rows, cap); rows = []; }
       if (!batch.length || (total != null && seen >= total)) break;
     }
@@ -141,6 +144,8 @@ async function runJob(job, tabId, settings, state, cap) {
 }
 
 let running = false;
+let progress = '';
+const step = (msg) => { progress = msg; };
 async function tick(manual) {
   if (running) return { busy: true };
   running = true;
@@ -151,8 +156,10 @@ async function tick(manual) {
     const now = Date.now();
     const jobs = RP.JOBS.filter((j) => manual || RP.due(j, now, state));
     if (!jobs.length) return out;
+    step('Looking for the redPro tab…');
     const tab = await redproTab();
     if (!tab) { state.problem = 'Open redPro in a tab, sign in, and pin the tab'; return out; }
+    step('Checking the redPro sign-in…');
     try {
       if (!(await signedIn(tab.id))) throw new SignedOut('this redPro tab is not signed in as Mahalaxmi (5269) — sign in again');
     } catch (e) {
@@ -163,6 +170,7 @@ async function tick(manual) {
     const cap = Date.now();
     for (const job of jobs) {
       try {
+        step(`${({ assignments: 'Bus & driver', reviews: 'Reviews', complaints: 'Complaints', services: 'Service list' })[job]}…`);
         const res = await runJob(job, tab.id, settings, state, cap);
         state[job] = { last: Date.now(), result: res };
         out[job] = res;
@@ -176,6 +184,7 @@ async function tick(manual) {
     return out;
   } finally {
     running = false;
+    progress = '';
     await set({ state });
     await paint(state);
   }

@@ -9,6 +9,11 @@ function text(el, s) { el.textContent = s; return el; }
 
 async function render() {
   const st = await send({ type: 'status' });
+  if (chrome.runtime.lastError || !st) {
+    const p = $('problem'); p.hidden = false;
+    text(p, 'The extension is not answering. Open chrome://extensions and click the reload arrow on Mahalaxmi redPro Sync.');
+    return;
+  }
   const s = st.state || {};
   const p = $('problem');
   p.hidden = !s.problem && st.hasToken;
@@ -32,6 +37,8 @@ async function render() {
     jobs.append(row);
   }
   $('sync').disabled = !!st.running;
+  $('sync').textContent = st.running ? 'Syncing…' : 'Sync now';
+  const pr = $('progress'); pr.hidden = !st.running; text(pr, st.progress || 'Starting…');
   const { settings = {} } = await chrome.storage.local.get('settings');
   if (document.activeElement !== $('gs')) $('gs').value = settings.gsUrl || st.gsUrl;
   $('settings').open = !st.hasToken;
@@ -39,8 +46,11 @@ async function render() {
 
 $('sync').addEventListener('click', async () => {
   $('sync').disabled = true; $('sync').textContent = 'Syncing…';
-  await send({ type: 'syncNow' });
-  $('sync').textContent = 'Sync now';
+  const r = await send({ type: 'syncNow' });
+  if (chrome.runtime.lastError || !r) {
+    const p = $('problem'); p.hidden = false;
+    text(p, 'The extension did not answer. Open chrome://extensions and click the reload arrow on Mahalaxmi redPro Sync.');
+  }
   render();
 });
 
@@ -57,4 +67,4 @@ $('save').addEventListener('click', async () => {
 });
 
 render();
-setInterval(render, 3000);
+setInterval(render, 1000);   // follow a running sync
