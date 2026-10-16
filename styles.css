@@ -137,8 +137,12 @@ a{color:var(--blue)}
 .bottomnav .ic{font-size:21px;line-height:1;filter:grayscale(.1)}
 
 /* Cards */
-.card{background:var(--surface);border-radius:var(--radius);padding:16px;margin-bottom:14px;
+/* 16 inside, 12 between. Cards were 14 apart while every grid beside them was
+ * 12, so a column of cards and a grid of cards never lined up — which is most
+ * of what "the spacing is off" was. */
+.card{background:var(--surface);border-radius:var(--radius);padding:var(--s4);margin-bottom:var(--s3);
   box-shadow:var(--shadow)}
+.card > :last-child{margin-bottom:0}
 .card h3{margin:0 0 10px;font-size:15px;font-weight:700;letter-spacing:-.2px}
 .tile{background:linear-gradient(180deg,var(--tile),var(--tile2));box-shadow:none;border:1px solid var(--line2)}
 .row{display:flex;gap:10px;align-items:center}
@@ -147,10 +151,10 @@ a{color:var(--blue)}
 .small{font-size:13px}
 .tiny{font-size:11.5px}
 .stat{font-size:27px;font-weight:800;letter-spacing:-.8px}
-.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
-.spacer{height:8px}
-.hr{height:1px;background:var(--line);margin:13px -16px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:var(--s3)}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:var(--s3)}
+.spacer{height:var(--s2)}
+.hr{height:1px;background:var(--line);margin:var(--s3) calc(-1 * var(--s4))}
 
 /* Badges (semantic washes — theme-aware) */
 .badge{display:inline-block;padding:4px 10px;border-radius:999px;font-size:11px;font-weight:700;line-height:1.3}
@@ -1099,3 +1103,179 @@ body.printing-gp .gp-screen{display:none !important}
 .buschip{display:inline-flex;align-items:center;gap:4px;font-family:var(--mono);font-size:10.5px;
   padding:2px 8px;border-radius:999px;background:var(--surface2);color:var(--text2);
   white-space:nowrap}
+
+/* ==========================================================================
+ * Fleet-dashboard layer
+ *
+ * Taken from the two FleetTrack dashboards the owner chose, read slide by
+ * slide and translated to a phone rather than copied from a 27-inch screen.
+ * The reference's own grammar, which every piece below follows:
+ *
+ *   label  tiny, grey, sentence case, sits ABOVE its value
+ *   value  big, bold, tight tracking; its unit is small and grey beside it
+ *   pill   rounded-full, pale tinted ground, saturated text — status and deltas
+ *   tile   a rounded square holding a single glyph, leading a stat
+ *   orange ONLY fills: bars, gauges, the chart line. Never a button ground.
+ *          Buttons are dark or outlined, exactly as in the reference.
+ *
+ * Spacing is on a 4px scale and nothing here invents a value off it. Two
+ * numbers decide most of the rhythm: 12 between siblings, 16 inside a card.
+ * ======================================================================== */
+:root{
+  --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:20px; --s6:24px;
+  --rad-lg:18px; --rad-md:14px; --rad-sm:10px;
+}
+
+/* An emoji followed by a word renders with no side bearing, so every label in
+ * the app read as "🚌Bus". One nudge here fixes all of them at once. */
+.lbl,.tt,.t,.drow-l,.kpi-l,.btn,h3,.phead-t{word-spacing:.08em}
+
+/* ---- Page header: big title, grey line under it ------------------------ */
+.phead{margin:2px 2px var(--s4)}
+.phead-t{font-size:23px;font-weight:800;letter-spacing:-.5px;line-height:1.15}
+.phead-s{font-size:12.5px;color:var(--muted);margin-top:var(--s1);line-height:1.4}
+
+/* ---- Stat chip: tile, label, big number, delta pill -------------------- */
+.kpirow{display:grid;grid-template-columns:1fr 1fr;gap:var(--s3);margin-bottom:var(--s3)}
+.kpirow.one{grid-template-columns:1fr}
+@media (min-width:620px){.kpirow{grid-template-columns:repeat(4,1fr)}}
+.kpi{display:flex;align-items:center;gap:var(--s3);background:var(--surface);
+  border:1px solid var(--line2);border-radius:var(--rad-md);padding:var(--s3);
+  box-shadow:var(--shadow-sm);min-width:0}
+.kpi-ic{width:38px;height:38px;border-radius:12px;flex:none;display:grid;place-items:center;
+  background:var(--surface2);font-size:17px}
+.kpi-b{min-width:0;flex:1}
+/* Labels wrap to a second line rather than ellipsing. "In the workshop n…"
+ * tells nobody anything, and Hindi runs longer than English on every one of
+ * these — the grid row stretches so the tiles stay level. */
+.kpi-l{font-size:11px;color:var(--muted);line-height:1.25;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.kpi-v{font-size:21px;font-weight:800;letter-spacing:-.6px;line-height:1.2;margin-top:1px;
+  display:flex;align-items:baseline;gap:5px;flex-wrap:wrap}
+/* A lakh-sized odometer plus its unit does not fit a half-width tile at 21px,
+ * and wrapping "km" to its own line looked like a mistake. */
+.kpi-v.long{font-size:17px;letter-spacing:-.4px}
+.kpi-u{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:0}
+
+/* Delta pill. Green is not automatically good — the caller says which it is,
+ * because fuel spend rising 8% is a red fact and downtime falling is a green
+ * one, and a component that guesses from the sign gets half of them wrong. */
+.delta{font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:999px;letter-spacing:0;
+  white-space:nowrap}
+.delta.up{background:var(--green-wash);color:var(--green)}
+.delta.down{background:var(--red-wash);color:var(--red)}
+.delta.flat{background:var(--surface2);color:var(--muted)}
+
+/* ---- Detail row: icon, grey label, bold value at the right ------------- */
+.drow{display:flex;align-items:center;gap:var(--s2);padding:7px 0;min-width:0}
+.drow + .drow{border-top:1px solid var(--line2)}
+.drow-i{width:18px;flex:none;text-align:center;font-size:13px;opacity:.75}
+.drow-l{flex:1;min-width:0;font-size:12.5px;color:var(--muted);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.drow-v{font-size:13px;font-weight:700;text-align:right;letter-spacing:-.1px}
+.drow-v .u{font-size:11px;font-weight:600;color:var(--muted);margin-left:3px}
+.dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:5px;vertical-align:1px}
+.dot.ok{background:var(--green)} .dot.warn{background:var(--amber)} .dot.bad{background:var(--red)}
+
+/* ---- Panel header: title, optional action on the right ----------------- */
+.ptitle{display:flex;align-items:center;justify-content:space-between;gap:var(--s2);
+  margin-bottom:var(--s3)}
+.ptitle h3{margin:0}
+
+/* ---- Person row: avatar, role, name, round action buttons -------------- */
+.prow{display:flex;align-items:center;gap:var(--s3);min-width:0}
+.prow-f{width:40px;height:40px;border-radius:50%;flex:none;object-fit:cover;
+  background:var(--surface2);border:1px solid var(--line2);display:grid;place-items:center;
+  font-weight:700;color:var(--muted)}
+.prow-b{flex:1;min-width:0}
+.prow-l{font-size:10.5px;color:var(--faint);line-height:1.2}
+.prow-n{font-size:14px;font-weight:700;letter-spacing:-.2px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.iconbtn{width:36px;height:36px;border-radius:50%;flex:none;display:grid;place-items:center;
+  background:var(--surface);border:1px solid var(--line);font-size:15px;cursor:pointer;
+  color:var(--text);text-decoration:none}
+.iconbtn:active{transform:scale(.94)}
+@media (prefers-reduced-motion:reduce){.iconbtn:active{transform:none}}
+
+/* ---- Three facts in a row, each label over value ----------------------- */
+.facts{display:flex;gap:var(--s3);padding-top:var(--s3);border-top:1px solid var(--line2);
+  margin-top:var(--s3)}
+.fact{flex:1;min-width:0}
+.fact-l{font-size:10.5px;color:var(--faint);line-height:1.2}
+.fact-v{font-size:13.5px;font-weight:700;letter-spacing:-.2px;margin-top:2px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ---- Two actions, equal width, outlined -------------------------------- */
+.btnpair{display:grid;grid-template-columns:1fr 1fr;gap:var(--s2);margin-top:var(--s3)}
+.btnpair .btn{margin:0}
+
+/* ---- Segmented half-gauge ---------------------------------------------- */
+.gauge{display:flex;flex-direction:column;align-items:center;gap:var(--s1)}
+.gauge-s{display:flex;align-items:flex-end;gap:3px;height:46px}
+.gauge-s i{width:7px;border-radius:3px;background:var(--line);display:block}
+.gauge-s i.on{background:var(--accent)}
+.gauge-v{font-size:18px;font-weight:800;letter-spacing:-.4px;margin-top:2px}
+.gauge-l{font-size:10.5px;color:var(--faint)}
+
+/* ---- Small stat card: label, icon in the corner, big number ------------ */
+.msgrid{display:grid;grid-template-columns:1fr 1fr;gap:var(--s3)}
+.mstat{background:var(--surface);border:1px solid var(--line2);border-radius:var(--rad-md);
+  padding:var(--s3);box-shadow:var(--shadow-sm);min-width:0}
+.mstat-h{display:flex;align-items:flex-start;justify-content:space-between;gap:var(--s2)}
+.mstat-l{font-size:11px;color:var(--muted);line-height:1.3;min-width:0}
+.mstat-i{width:24px;height:24px;border-radius:50%;flex:none;display:grid;place-items:center;
+  background:var(--surface2);font-size:12px}
+.mstat-v{font-size:22px;font-weight:800;letter-spacing:-.6px;margin-top:var(--s2);
+  display:flex;align-items:baseline;gap:4px}
+.mstat-u{font-size:11px;font-weight:600;color:var(--muted)}
+.mstat-f{font-size:10.5px;color:var(--faint);margin-top:var(--s1);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ---- Journey bar: two ends and the progress between them --------------- */
+.jbar{display:flex;align-items:center;gap:var(--s2);margin-top:var(--s3)}
+.jbar-e{min-width:0}
+.jbar-e.r{text-align:right}
+.jbar-c{font-size:13px;font-weight:800;letter-spacing:-.2px}
+.jbar-s{font-size:10px;color:var(--faint);white-space:nowrap}
+.jbar-t{flex:1;height:4px;border-radius:2px;background:var(--line);position:relative;min-width:40px}
+.jbar-t i{position:absolute;inset:0 auto 0 0;background:var(--accent);border-radius:2px}
+
+/* ---- Bringing the rest of the app onto the same grammar ----------------
+ *
+ * Forty screens already wrote "label above value" by hand, in two shapes:
+ *   <div class="card tile"><div class="muted small">L</div><div class="stat">V</div></div>
+ *   <div><div class="tiny muted">L</div><b>V</b></div>
+ * Both are the reference's shape already — what they lacked was its type
+ * scale. Restyling the two primitives converts every one of those screens at
+ * once, which is also the only way they stay converted: a rule holds, forty
+ * hand-edits drift apart again by Christmas.
+ */
+.card.tile{padding:var(--s3);border-radius:var(--rad-md);border:1px solid var(--line2);
+  box-shadow:var(--shadow-sm);background:var(--surface)}
+.card.tile > .muted.small{font-size:11px;line-height:1.3;color:var(--muted)}
+.card.tile > .stat{font-size:22px;letter-spacing:-.6px;margin-top:var(--s2)}
+
+/* The in-card label/value pair. Scoped to a .tiny.muted that LEADS its box, so
+ * a caption sitting under a value is left alone. */
+.grid2 > div > .tiny.muted:first-child,
+.grid3 > div > .tiny.muted:first-child{font-size:11px;color:var(--muted);line-height:1.3}
+.grid2 > div > .tiny.muted:first-child + b,
+.grid3 > div > .tiny.muted:first-child + b{display:block;font-size:16px;letter-spacing:-.3px;
+  margin-top:3px;line-height:1.25}
+
+/* The reference puts its stat row across the full width above everything
+ * else; on the tablet and desktop grids these would otherwise land in one
+ * column, which is the one place the layout would stop looking like it. */
+@media (min-width:700px){
+  .content > .kpirow,
+  .content > .phead,
+  .content > .msgrid{grid-column:1 / -1}
+}
+@media (min-width:1024px) and (pointer:fine){
+  .kpirow{grid-template-columns:repeat(4,minmax(0,1fr))}
+  /* At desk width the chip can afford the reference's proportions. */
+  .kpi{padding:var(--s4)}
+  .kpi-v{font-size:25px}
+  .kpi-v.long{font-size:21px}
+  .phead-t{font-size:27px}
+}

@@ -92,7 +92,7 @@ const I18N = {
     isReused: 'Reused / second-hand part', isReusedShort: 'reused', isReusedCost: 'What it is worth',
     isReusedHint: 'Charge what the used part is actually worth, not the price of a new one — otherwise every cost-per-km figure for this bus is wrong, and it flatters whoever fitted it. Zero is a fine answer for something off the scrap shelf.',
     hmNothing: 'nothing needs you right now', hmNotCheckedIn: 'You are not checked in today.',
-    hmLast30: 'last 30 days', hmLast7: 'Repair cost', hmReports: 'reports',
+    hmLast30: 'last 30 days', hmOnRoad: 'On the road', hmInShopShort: 'In the shop', hmLast7: 'Repair cost', hmReports: 'reports',
     hmToVerify: 'Waiting for your sign-off', hmToVerifySub: 'closed by somebody else',
     hmUnexplained: 'Unexplained stock changes', hmUnexplainedSub: 'quantity edited with no job card',
     hmPilferage: 'Pilferage flags', hmPilferageSub: 'worth asking about',
@@ -415,7 +415,7 @@ const I18N = {
     isReused: 'पुराना / सेकंड-हैंड पुर्जा', isReusedShort: 'पुराना', isReusedCost: 'इसकी असली कीमत',
     isReusedHint: 'पुराने पुर्जे की जो असली कीमत है वही लिखिए, नए के दाम नहीं — वरना इस बस का प्रति किमी खर्च गलत निकलेगा, और लगाने वाले का हिसाब अच्छा दिखेगा। रद्दी से उठाए पुर्जे के लिए शून्य लिखना भी ठीक है।',
     hmNothing: 'अभी कुछ बाकी नहीं', hmNotCheckedIn: 'आज आपकी हाज़िरी नहीं लगी है।',
-    hmLast30: 'पिछले 30 दिन', hmLast7: 'मरम्मत खर्च', hmReports: 'रिपोर्ट',
+    hmLast30: 'पिछले 30 दिन', hmOnRoad: 'सड़क पर', hmInShopShort: 'वर्कशॉप में', hmLast7: 'मरम्मत खर्च', hmReports: 'रिपोर्ट',
     hmToVerify: 'आपकी जाँच बाकी', hmToVerifySub: 'किसी और ने बंद किए',
     hmUnexplained: 'बिना वजह बदला स्टॉक', hmUnexplainedSub: 'जॉब कार्ड के बिना मात्रा बदली',
     hmPilferage: 'पिलफ़रेज निशान', hmPilferageSub: 'पूछने लायक',
@@ -2393,6 +2393,113 @@ const notCheckedInBanner = () => {
     <button class="btn sm" data-nav="me" style="margin-left:auto">${t('checkin')}</button></div>`;
 };
 
+/* ===== Fleet-dashboard components =========================================
+ *
+ * The render side of the CSS layer at the foot of styles.css. Every screen
+ * that shows a number should reach for these rather than inventing another
+ * label-over-value, because the reason the app looked uneven was not the
+ * colours — it was fourteen slightly different ways of writing "4,80,840 km".
+ *
+ * All of them take plain values and return a string, so they compose into the
+ * existing template literals with no change to how a screen is built.
+ */
+
+// Page header. Every screen gets the same first two lines: what this is, and
+// one line saying what it is for.
+const pageHead = (title, sub) => `<div class="phead">
+  <div class="phead-t">${esc(title)}</div>
+  ${sub ? `<div class="phead-s">${esc(sub)}</div>` : ''}</div>`;
+
+/* A delta pill. `dir` is the caller's judgement, never inferred from the sign:
+ * fuel spend up 8% is a red fact and downtime down 8% is a green one, and a
+ * component that guesses gets half of them backwards. */
+const deltaPill = (text, dir) => text
+  ? `<span class="delta ${dir === 'bad' ? 'down' : dir === 'good' ? 'up' : 'flat'}">${esc(text)}</span>`
+  : '';
+
+/* The stat chip: glyph tile, small grey label, big number, optional unit and
+ * delta. `o = {icon, label, value, unit, delta, dir, act, id}` */
+function kpi(o) {
+  const attrs = o.act ? ` data-act="${esc(o.act)}"${o.id ? ` data-id="${esc(o.id)}"` : ''} style="cursor:pointer"` : '';
+  return `<div class="kpi"${attrs}>
+    <div class="kpi-ic">${o.icon || '•'}</div>
+    <div class="kpi-b">
+      <div class="kpi-l">${esc(o.label || '')}</div>
+      <div class="kpi-v${String(o.value == null ? '' : o.value).length > 7 ? ' long' : ''}">${esc(String(o.value == null ? '—' : o.value))}${
+        o.unit ? `<span class="kpi-u">${esc(o.unit)}</span>` : ''}${deltaPill(o.delta, o.dir)}</div>
+    </div></div>`;
+}
+const kpiRow = (items) => `<div class="kpirow${items.length === 1 ? ' one' : ''}">${items.map(kpi).join('')}</div>`;
+
+/* A fact inside a panel: icon, grey label, bold value hard right. `value` may
+ * carry a status dot — pass `dot: 'ok'|'warn'|'bad'`. */
+function detailRow(icon, label, value, o) {
+  const x = o || {};
+  return `<div class="drow"${x.act ? ` data-act="${esc(x.act)}"${x.id ? ` data-id="${esc(x.id)}"` : ''} style="cursor:pointer"` : ''}>
+    <span class="drow-i">${icon || ''}</span>
+    <span class="drow-l">${esc(label)}</span>
+    <span class="drow-v">${x.dot ? `<i class="dot ${esc(x.dot)}"></i>` : ''}${
+      esc(String(value == null || value === '' ? '—' : value))}${x.unit ? `<span class="u">${esc(x.unit)}</span>` : ''}</span></div>`;
+}
+
+// A panel's heading, with somewhere for one action to live.
+const panelTitle = (title, right) => `<div class="ptitle"><h3>${esc(title)}</h3>${right || ''}</div>`;
+
+/* A person, the way the reference shows a driver: face, what they are to this
+ * record, their name, and the two things you would actually do about them.
+ * The call button is a real tel: link — on a phone in a yard that is the
+ * single most used control on the screen. */
+function personRow(person, roleLabel, opts) {
+  const o = opts || {};
+  const face = person ? crewFace(person) : '';
+  const name = person ? (person.name || '—') : (o.empty || '—');
+  const phone = person && person.phone ? String(person.phone).replace(/[^\d+]/g, '') : '';
+  return `<div class="prow">
+    ${face ? `<img class="prow-f" src="${esc(face)}" alt="">`
+           : `<span class="prow-f">${esc((name || '?').slice(0, 1))}</span>`}
+    <div class="prow-b"><div class="prow-l">${esc(roleLabel || '')}</div>
+      <div class="prow-n">${esc(name)}</div></div>
+    ${phone ? `<a class="iconbtn" href="tel:${esc(phone)}" title="${esc(phone)}">📞</a>` : ''}
+    ${o.openId ? `<span class="iconbtn" data-driver="${esc(o.openId)}" title="${esc(t('cbOpen') || 'Open')}">›</span>` : ''}
+  </div>`;
+}
+
+// Three short facts in a row under a hairline — the reference's "Truck ID /
+// Dock / Started" strip.
+const factStrip = (facts) => `<div class="facts">${facts.map((f) => `<div class="fact">
+  <div class="fact-l">${esc(f[0])}</div><div class="fact-v">${esc(String(f[1] == null ? '—' : f[1]))}</div></div>`).join('')}</div>`;
+
+/* The segmented half-gauge. Discrete bars rather than an arc: at phone size a
+ * thin arc reads as a smudge, and counting filled bars is instant. */
+function gauge(pct, label, bars) {
+  const n = bars || 11;
+  const p = Math.max(0, Math.min(100, Math.round(pct || 0)));
+  const on = Math.round(p / 100 * n);
+  // Tallest in the middle, so the row reads as the half-circle it stands for.
+  const h = (i) => 18 + Math.round(26 * Math.sin((i + 0.5) / n * Math.PI));
+  return `<div class="gauge"><div class="gauge-s">${
+    Array.from({ length: n }, (_, i) => `<i class="${i < on ? 'on' : ''}" style="height:${h(i)}px"></i>`).join('')}</div>
+    <div class="gauge-v">${p}%</div><div class="gauge-l">${esc(label || '')}</div></div>`;
+}
+
+/* The small stat card: label top-left, glyph top-right, number below.
+ * `o = {label, value, unit, icon, foot}` */
+const miniStat = (o) => `<div class="mstat"${o.act ? ` data-act="${esc(o.act)}" style="cursor:pointer"` : ''}>
+  <div class="mstat-h"><div class="mstat-l">${esc(o.label || '')}</div>
+    <div class="mstat-i">${o.icon || ''}</div></div>
+  <div class="mstat-v">${esc(String(o.value == null ? '—' : o.value))}${
+    o.unit ? `<span class="mstat-u">${esc(o.unit)}</span>` : ''}</div>
+  ${o.foot ? `<div class="mstat-f">${esc(o.foot)}</div>` : ''}</div>`;
+const miniGrid = (items) => `<div class="msgrid">${items.map(miniStat).join('')}</div>`;
+
+/* Two ends and the progress between them. In the reference it is a shipping
+ * route; here it is whatever has a start, an end and a position — a service
+ * interval, a tank, a trip. */
+const journeyBar = (leftTop, leftSub, rightTop, rightSub, pct) => `<div class="jbar">
+  <div class="jbar-e"><div class="jbar-c">${esc(leftTop)}</div><div class="jbar-s">${esc(leftSub || '')}</div></div>
+  <div class="jbar-t"><i style="width:${Math.max(0, Math.min(100, Math.round(pct || 0)))}%"></i></div>
+  <div class="jbar-e r"><div class="jbar-c">${esc(rightTop)}</div><div class="jbar-s">${esc(rightSub || '')}</div></div></div>`;
+
 /* ===== The owner's home ====================================================
  * The owner is not on the floor. What they need on opening the app is what the
  * fleet is costing, and the short list of things only they can settle — money
@@ -2506,11 +2613,25 @@ function viewOwnerHome() {
 
   let body = greetBlock('👑');
 
-  body += `<div class="card" data-act="openReports" style="cursor:pointer">
-    <div class="row between"><h3>${t('runningCost')}</h3>
-      ${trend == null ? '' : `<span class="schip ${trend <= 0 ? 'ok' : 'crit'}"><i></i>${trend <= 0 ? '▼' : '▲'} ${Math.abs(trend)}%</span>`}</div>
-    <div class="stat money">${money(cost30)}</div>
-    <div class="tiny muted">${t('hmLast30')}${owed ? ` · ${t('youOwe')} ${money(owed)}` : ''}</div></div>`;
+  /* The four numbers the owner opens the app for, as the reference's stat row.
+   * Spend first because it is the one that moves; then what the fleet is doing
+   * right now, which the old home could only say by counting rows by eye.
+   * A rise in cost is red and a fall is green — stated, not inferred, because
+   * the same arrow means the opposite thing on the next tile along. */
+  const _inShop = inShopJobs().length, _away = awayJobs().length;
+  const _running = Math.max(0, (S.cache.buses || []).length - _inShop - _away);
+  body += kpiRow([
+    { icon: '💰', label: t('hmLast30'), value: money(cost30),
+      delta: trend == null ? '' : (trend <= 0 ? '▼ ' : '▲ ') + Math.abs(trend) + '%',
+      dir: trend == null ? 'flat' : (trend <= 0 ? 'good' : 'bad'), act: 'openReports' },
+    { icon: '🚌', label: t('hmOnRoad'), value: _running, unit: 'of ' + (S.cache.buses || []).length },
+    { icon: '🏭', label: t('hmInShopShort'), value: _inShop, act: 'openJobsBoard' },
+    { icon: '🌍', label: t('owAway'), value: _away },
+  ]);
+  if (owed) {
+    body += `<div class="card" data-act="openPurchases" style="cursor:pointer;margin-top:-2px">
+      ${detailRow('🧾', t('youOwe'), money(owed), { act: 'openPurchases' })}</div>`;
+  }
 
   const rows = [];
   const gateWait = gateWaitingCount();
@@ -3428,8 +3549,12 @@ function viewJobDetail(id) {
     <div class="row between"><h3>${esc(busName(j.busId))}</h3>${statusBadge(j.status)}</div>
     <div class="small">${esc(j.problem)}</div>
     <div class="row" style="gap:8px;margin-top:8px">${prioBadge(j.priority)}
-      <span class="small muted">👷 ${esc(crewLabel(j, true))}</span>
       <span class="small muted">· ${fmtDate(j.createdAt)}</span></div>
+    ${jobCrew(j).length ? `<div class="hr"></div>` + jobCrew(j).map((a) => {
+      const m = (S.cache.users || []).find((x) => x.id === a.userId);
+      const who = m || { name: userName(a.userId) };
+      return personRow(who, a.task || t('crewTitle'));
+    }).join('<div class="spacer"></div>') : ''}
     ${isOutside(j) ? `<div class="banner" style="margin-top:8px;background:var(--amber-wash,#fff6e5)">🌍 <b>${t('owAway')}</b> · ${esc(j.outsideCity || j.externalVendor || '—')}${
       j.outsideLat != null && j.outsideLng != null
         ? ` <a href="${esc(mapsUrl(j.outsideLat, j.outsideLng))}" target="_blank" rel="noopener" style="margin-left:auto">${t('owOpenMap')} ↗</a>` : ''}</div>` : ''}
@@ -4069,10 +4194,12 @@ function viewStore() {
   const parts = [...S.cache.parts].sort((a, b) => (a.qty <= a.reorderLevel ? -1 : 1) - (b.qty <= b.reorderLevel ? -1 : 1));
   const stockValue = parts.reduce((s, p) => s + (p.qty || 0) * (p.unitCost || 0), 0);
 
-  let body = `<div class="grid2">
-    <div class="card tile"><div class="muted small">Stock value</div><div class="stat">${money(stockValue)}</div></div>
-    <div class="card tile"><div class="muted small">Part types</div><div class="stat">${parts.length}</div></div>
-  </div>`;
+  const _lowN = parts.filter(isLow).length;
+  let body = kpiRow([
+    { icon: '🧾', label: 'Stock value', value: money(stockValue) },
+    { icon: '📦', label: 'Part types', value: parts.length,
+      delta: _lowN ? _lowN + ' low' : '', dir: 'bad' },
+  ]);
 
   if (can(S.user.role, 'issuePart')) {
     body += `<div class="btnrow" style="margin-bottom:12px">
@@ -7103,27 +7230,49 @@ function viewReports() {
 function viewBusReport(busId) {
   const b = byId(S.cache.buses, busId); if (!b) return viewReports();
   const r = busReport(b, reportSinceMs()), c = r.cost, cpk = busCostPerKm(b);
+  const sv0 = serviceInfo(b);
+  const svUsed = Math.max(0, Math.min(sv0.interval, (b.odometer || 0) - sv0.last));
+  const svPct = sv0.interval > 0 ? Math.round(svUsed / sv0.interval * 100) : 0;
+  const drv0 = driverOfBus(b.id);
   let body = periodBar();
-  body += `<div class="card"><div class="row between"><h3>${esc(b.regNo)}</h3>
-    <button class="btn sm" data-act="shareBusReport" data-bus="${esc(b.id)}">📤 Share</button></div>
-    <div class="small muted">${esc(b.company)} · ${esc(b.model || '')} · ${(b.odometer || 0).toLocaleString('en-IN')} km</div></div>`;
-  body += `<div class="card"><h3>Maintenance cost${periodLabel()}</h3>
-    <div class="row between small"><span class="muted">Parts</span><b>${money(c.parts)}</b></div>
-    <div class="row between small"><span class="muted">Labour</span><b>${money(c.labour)}</b></div>
-    <div class="row between small"><span class="muted">Outside vendor</span><b>${money(c.ext)}</b></div>
+  body += pageHead(b.regNo, [b.company, b.model].filter(Boolean).join(' · '));
+  body += kpiRow([
+    { icon: '🛣️', label: 'On the clock', value: (b.odometer || 0).toLocaleString('en-IN'), unit: 'km' },
+    { icon: '🔧', label: 'Next service in', value: sv0.dueIn > 0 ? sv0.dueIn.toLocaleString('en-IN') : 'overdue',
+      unit: sv0.dueIn > 0 ? 'km' : '', delta: sv0.status === 'overdue' ? 'due' : '', dir: 'bad' },
+  ]);
+  body += `<div class="card">${panelTitle('Maintenance cost' + periodLabel(),
+      `<button class="btn sm" data-act="shareBusReport" data-bus="${esc(b.id)}">📤 Share</button>`)}
+    ${detailRow('🔩', 'Parts', money(c.parts))}
+    ${detailRow('👷', 'Labour', money(c.labour))}
+    ${detailRow('🏪', 'Outside vendor', money(c.ext))}
     <div class="hr"></div>
     <div class="row between"><b>Total</b><b style="color:var(--brand2)">${money(c.total)}</b></div>
     ${cpk ? `<div class="tiny muted" style="margin-top:6px">≈ ₹${cpk.toFixed(2)}/km maintenance (lifetime)</div>` : ''}</div>`;
+  // Where this bus is in its service interval, and who is on it — the two
+  // questions the yard asks about a bus before any of the money.
+  body += `<div class="card">${panelTitle('Service & crew')}
+    ${journeyBar(sv0.last.toLocaleString('en-IN'), 'last service',
+                 sv0.nextOdo.toLocaleString('en-IN'), 'next due', svPct)}
+    <div class="tiny muted" style="margin-top:6px">${svPct}% of the interval used${
+      sv0.status === 'overdue' ? ' — overdue by ' + Math.abs(sv0.dueIn).toLocaleString('en-IN') + ' km' : ''}</div>
+    <div class="hr"></div>
+    ${personRow(drv0, t('vcDriver'), { empty: t('vcNoDriver'), openId: drv0 ? drv0.id : '' })}</div>`;
   // Fuel & mileage
   const fm = busMileage(b.id);
   body += `<div class="card"><div class="row between"><h3>Fuel &amp; mileage</h3>${fm.drop ? '<span class="badge b-red">mileage ↓</span>' : ''}</div>`;
   if (fm.fills) {
-    body += `<div class="grid2">
-      <div><div class="tiny muted">Mileage</div><b>${fm.avgKmpl != null ? fm.avgKmpl.toFixed(1) + ' km/l' : '—'}</b></div>
-      <div><div class="tiny muted">Fuel cost/km</div><b>${fm.fuelPerKm != null ? '₹' + fm.fuelPerKm.toFixed(1) : '—'}</b></div>
-      <div><div class="tiny muted">Total fuel</div><b>${money(fm.totalCost)}</b></div>
-      <div><div class="tiny muted">Fills</div><b>${fm.fills}</b></div></div>
-      ${cpk != null && fm.fuelPerKm != null ? `<div class="hr"></div><div class="row between"><b>True running cost</b><b style="color:var(--brand2)">₹${(cpk + fm.fuelPerKm).toFixed(1)}/km</b></div>` : ''}`;
+    body += miniGrid([
+      { icon: '⛽', label: 'Mileage', value: fm.avgKmpl != null ? fm.avgKmpl.toFixed(1) : '—', unit: 'km/l',
+        foot: fm.drop ? 'down on its usual' : '' },
+      { icon: '₹', label: 'Fuel cost per km', value: fm.fuelPerKm != null ? '₹' + fm.fuelPerKm.toFixed(1) : '—' },
+      { icon: '🧾', label: 'Total fuel', value: money(fm.totalCost) },
+      { icon: '🔢', label: 'Fills logged', value: fm.fills },
+    ]);
+    if (cpk != null && fm.fuelPerKm != null) {
+      body += `<div class="hr"></div><div class="row between"><b>True running cost</b>
+        <b style="color:var(--brand2)">₹${(cpk + fm.fuelPerKm).toFixed(1)}/km</b></div>`;
+    }
     /* The average is one number and hides the thing worth seeing: WHICH tank
      * was bad. One run at half the usual km/l is a leak, a theft or a dropped
      * digit, and it is invisible inside a lifetime average. */
@@ -7148,11 +7297,12 @@ function viewBusReport(busId) {
     body += `<div class="muted small">No fuel logged yet.</div>`;
   }
   body += `${can(S.user.role, 'addFuel') ? `<div class="spacer"></div><button class="btn sm" data-act="addFuel" data-bus="${esc(b.id)}">⛽ Log fuel</button>` : ''}</div>`;
-  body += `<div class="card"><h3>Jobs &amp; downtime</h3><div class="grid2">
-      <div><div class="tiny muted">Jobs</div><b>${r.n}</b></div>
-      <div><div class="tiny muted">Outside repairs</div><b>${r.extJobs}</b></div>
-      <div><div class="tiny muted">Total bay time</div><b>${Math.round(r.downDays)} day(s)</b></div>
-      <div><div class="tiny muted">Still open</div><b>${r.byStatus.open + r.byStatus['in-progress']}</b></div></div></div>`;
+  body += `<div class="card">${panelTitle('Jobs & downtime')}` + miniGrid([
+    { icon: '🔧', label: 'Job cards', value: r.n },
+    { icon: '🌍', label: 'Done outside', value: r.extJobs },
+    { icon: '🕒', label: 'Total bay time', value: Math.round(r.downDays), unit: 'days' },
+    { icon: '📋', label: 'Still open', value: r.byStatus.open + r.byStatus['in-progress'] },
+  ]) + `</div>`;
   if (r.topParts.length) {
     body += `<div class="card"><h3>Parts consumed</h3>` + r.topParts.slice(0, 6).map((p) => {
       const part = byId(S.cache.parts, p.pid);
@@ -7705,8 +7855,15 @@ function viewFuel() {
   const fleetCost = rows.reduce((s, x) => s + x.m.totalCost, 0);
   let body = '';
   if (can(S.user.role, 'addFuel')) body += `<button class="btn primary" data-act="addFuel" style="margin-bottom:12px">⛽ Log fuel</button>`;
-  body += `<div class="card"><div class="muted small">Total fuel spend (logged)</div><div class="stat" style="color:var(--brand2)">${money(fleetCost)}</div>
-    <div class="tiny muted">Log full-tank fills for accurate km/l.</div></div>`;
+  const _fleetKmpl = rows.filter((x) => x.m.avgKmpl != null);
+  const _avg = _fleetKmpl.length
+    ? (_fleetKmpl.reduce((s2, x) => s2 + x.m.avgKmpl, 0) / _fleetKmpl.length) : null;
+  const _dropping = rows.filter((x) => x.m.drop).length;
+  body += kpiRow([
+    { icon: '🧾', label: 'Fuel spend (logged)', value: money(fleetCost) },
+    { icon: '⛽', label: 'Fleet average', value: _avg != null ? _avg.toFixed(1) : '—', unit: 'km/l',
+      delta: _dropping ? _dropping + ' down' : '', dir: 'bad' },
+  ]);
   const pumps = pumpPrices();
   if (pumps.length) {
     body += `<div class="card"><div class="row between"><h3>⛽ ${esc(t('fuByPump'))}</h3><span class="badge b-low">${pumps.length}</span></div>`;
