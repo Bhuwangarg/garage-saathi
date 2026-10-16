@@ -219,6 +219,7 @@ const I18N = {
     cbSearchPh: 'Search name, phone, licence, Aadhaar last 4…', cbExport: 'Export list (CSV)',
     cbFAll: 'All', cbFDrivers: 'Drivers', cbFConductors: 'Conductors', cbFIncomplete: 'Docs missing', cbFExpiring: 'Expiring', cbFLeft: 'Ex-staff',
     cbNobody: 'Nobody in this list', cbNobodyMatch: 'Nobody matches', cbNoPhone: 'no phone', cbNoBus: 'no bus',
+    cbKpiDocs: 'Missing documents', cbKpiExp: 'Expiring soon',
     cbDocsShort: 'docs', cbLeftBadge: 'left', cbExported: 'people exported — Aadhaar masked',
     // Joining form
     cbNewJoining: 'New joining', cbTakePhoto: 'Take his photo', cbFullName: 'Full name', cbNamePh: 'e.g. Ramesh Kumar',
@@ -542,6 +543,7 @@ const I18N = {
     cbSearchPh: 'नाम, फ़ोन, लाइसेंस, आधार के आखिरी 4…', cbExport: 'सूची डाउनलोड (CSV)',
     cbFAll: 'सभी', cbFDrivers: 'ड्राइवर', cbFConductors: 'कंडक्टर', cbFIncomplete: 'कागज़ बाकी', cbFExpiring: 'खत्म हो रहे', cbFLeft: 'पुराने स्टाफ',
     cbNobody: 'इस सूची में कोई नहीं', cbNobodyMatch: 'कोई नहीं मिला', cbNoPhone: 'फ़ोन नहीं', cbNoBus: 'बस नहीं',
+    cbKpiDocs: 'कागज़ अधूरे', cbKpiExp: 'जल्द ख़त्म',
     cbDocsShort: 'कागज़', cbLeftBadge: 'छोड़ा', cbExported: 'लोगों की सूची डाउनलोड — आधार छिपा हुआ',
     // Joining form
     cbNewJoining: 'नई भर्ती', cbTakePhoto: 'फोटो लें', cbFullName: 'पूरा नाम', cbNamePh: 'जैसे रमेश कुमार',
@@ -2404,11 +2406,18 @@ const notCheckedInBanner = () => {
  * existing template literals with no change to how a screen is built.
  */
 
-// Page header. Every screen gets the same first two lines: what this is, and
-// one line saying what it is for.
+/* Page header.
+ *
+ * The reference's chrome carries no title, so its "Dashboard Overview" is the
+ * only place the screen names itself. Ours has a title bar on every screen —
+ * so a full pageHead under it says the same word twice, which is how the
+ * reports screen ended up reading "Bus reports" and then "reports". Use
+ * pageSub where the bar already names the screen, which is nearly everywhere;
+ * pageHead only where it does not. */
 const pageHead = (title, sub) => `<div class="phead">
   <div class="phead-t">${esc(title)}</div>
   ${sub ? `<div class="phead-s">${esc(sub)}</div>` : ''}</div>`;
+const pageSub = (sub) => (sub ? `<div class="phead"><div class="phead-s">${esc(sub)}</div></div>` : '');
 
 /* A delta pill. `dir` is the caller's judgement, never inferred from the sign:
  * fuel spend up 8% is a red fact and downtime down 8% is a green one, and a
@@ -2420,7 +2429,10 @@ const deltaPill = (text, dir) => text
 /* The stat chip: glyph tile, small grey label, big number, optional unit and
  * delta. `o = {icon, label, value, unit, delta, dir, act, id}` */
 function kpi(o) {
-  const attrs = o.act ? ` data-act="${esc(o.act)}"${o.id ? ` data-id="${esc(o.id)}"` : ''} style="cursor:pointer"` : '';
+  const data = Object.entries(o.data || {}).map(([k, v]) => ` data-${esc(k)}="${esc(v)}"`).join('');
+  const attrs = o.act || data
+    ? ` ${o.act ? `data-act="${esc(o.act)}"` : ''}${o.id ? ` data-id="${esc(o.id)}"` : ''}${data} style="cursor:pointer"`
+    : '';
   return `<div class="kpi"${attrs}>
     <div class="kpi-ic">${o.icon || '•'}</div>
     <div class="kpi-b">
@@ -4081,14 +4093,21 @@ function unexplainedStockMoves(days) {
 function viewStoreHealth() {
   const st = storeStats();
   const tcol = st.trust >= 80 ? 'var(--green)' : st.trust >= 50 ? '#f59e0b' : '#ef4444';
-  let body = `<div class="card"><div class="row between">
-      <div><div class="muted small">Store trust score</div><div class="stat" style="color:${tcol}">${st.trust}<span style="font-size:14px">/100</span></div></div>
-      <div style="text-align:right"><div class="muted small">Shrinkage</div><div class="stat" style="color:#ef4444">${money(st.shrinkValue)}</div><div class="tiny muted">${st.shrinkPct.toFixed(1)}% of throughput</div></div></div>
-    ${st.lastAudit ? `<div class="tiny muted">Last count ${fmtDate(st.lastAudit.at)}` + (st.count ? ` · ${st.count} total` : '') + `</div>` : `<div class="tiny muted">No stock count yet — run one to baseline.</div>`}</div>`;
-  body += `<div class="card"><h3>Reconciliation</h3>
-    <div class="row between small"><span>Stock received</span><b>${money(st.receivedValue)}</b></div>
-    <div class="row between small"><span>Issued to jobs</span><b>${money(st.issuedValue)}</b></div>
-    <div class="row between small"><span>On hand now</span><b>${money(st.stockValue)}</b></div>
+  let body = pageSub('What the shelf says against what the book says');
+  body += kpiRow([
+    { icon: '🛡️', label: 'Store trust score', value: st.trust, unit: '/100',
+      delta: st.trust >= 80 ? 'good' : st.trust >= 50 ? 'watch' : 'poor',
+      dir: st.trust >= 80 ? 'good' : st.trust >= 50 ? 'flat' : 'bad' },
+    { icon: '🕳️', label: 'Shrinkage', value: money(st.shrinkValue),
+      dir: st.shrinkValue ? 'bad' : 'flat' },
+  ]);
+  body += `<div class="card"><div class="tiny muted">${st.lastAudit
+    ? `Last count ${fmtDate(st.lastAudit.at)}` + (st.count ? ` \u00b7 ${st.count} total` : '')
+    : 'No stock count yet \u2014 shrinkage cannot be measured until one is done.'}</div></div>`;
+  body += `<div class="card">${panelTitle('Reconciliation')}
+    ${detailRow('📥', 'Stock received', money(st.receivedValue))}
+    ${detailRow('📤', 'Issued to jobs', money(st.issuedValue))}
+    ${detailRow('📦', 'On hand now', money(st.stockValue))}
     <div class="hr"></div>
     <div class="row between"><b>Unexplained shrinkage</b><b style="color:#ef4444">${money(st.shrinkValue)}</b></div>
     <div class="tiny muted" style="margin-top:6px">Parts gone without an issue-to-job — the pilferage signal.</div></div>`;
@@ -6816,7 +6835,15 @@ async function removeStaff(id) {
 function viewPurchases() {
   const list = [...S.cache.purchases].sort((a, b) => b.at - a.at);
   const pending = list.filter((p) => p.paymentStatus === 'pending').reduce((s, p) => s + p.amount, 0);
-  let body = `<div class="card"><div class="muted small">Pending to suppliers</div><div class="stat" style="color:var(--amber)">${money(pending)}</div></div>`;
+  const _paid30 = list.filter((p) => p.paymentStatus === 'paid' && (p.at || 0) >= Date.now() - 30 * day)
+    .reduce((s2, p) => s2 + (p.amount || 0), 0);
+  const _nPend = list.filter((p) => p.paymentStatus === 'pending').length;
+  let body = pageSub('What the garage owes, and what it has settled');
+  body += kpiRow([
+    { icon: '🧾', label: 'Pending to suppliers', value: money(pending),
+      delta: _nPend ? _nPend + ' bill' + (_nPend === 1 ? '' : 's') : '', dir: _nPend ? 'bad' : 'flat' },
+    { icon: '✅', label: 'Paid, last 30 days', value: money(_paid30) },
+  ]);
   body += `<input id="pur-search" class="searchbox" placeholder="Search supplier or item…" autocomplete="off">`;
   body += `<div class="card listwrap" id="pur-list"><h3>${t('purchases')}</h3>`;
   const canPay = can(S.user.role, 'addPurchase');
@@ -7213,9 +7240,16 @@ function viewReports() {
   const fleetTotal = rows.reduce((s, x) => s + x.r.cost.total, 0);
   const fleetJobs = rows.reduce((s, x) => s + x.r.n, 0);
   let body = periodBar();
-  body += `<div class="card"><div class="muted small">Total maintenance spend${periodLabel()}</div>
-    <div class="stat" style="color:var(--brand2)">${money(fleetTotal)}</div>
-    <div class="tiny muted">${rows.length} buses · ${fleetJobs} job(s)</div></div>`;
+  const _perBus = rows.length ? fleetTotal / rows.length : 0;
+  const _worst = rows[0];
+  body += pageSub('Maintenance spend' + periodLabel() + ' \u00b7 ' + rows.length + ' buses');
+  body += kpiRow([
+    { icon: '💰', label: 'Total spend' + periodLabel(), value: money(fleetTotal) },
+    { icon: '🚌', label: 'Average per bus', value: money(Math.round(_perBus)) },
+    { icon: '🔧', label: 'Job cards', value: fleetJobs },
+    { icon: '🔺', label: 'Costliest bus', value: _worst ? _worst.b.regNo : '—',
+      act: _worst ? 'busReport' : '', data: _worst ? { bus: _worst.b.id } : null },
+  ]);
   body += `<div class="card"><h3>By bus — highest spend first</h3>`;
   body += rows.length ? rows.map(({ b, r }) => {
     const cpk = busCostPerKm(b);
@@ -7235,7 +7269,7 @@ function viewBusReport(busId) {
   const svPct = sv0.interval > 0 ? Math.round(svUsed / sv0.interval * 100) : 0;
   const drv0 = driverOfBus(b.id);
   let body = periodBar();
-  body += pageHead(b.regNo, [b.company, b.model].filter(Boolean).join(' · '));
+  body += pageSub([b.company, b.model].filter(Boolean).join(' \u00b7 '));
   body += kpiRow([
     { icon: '🛣️', label: 'On the clock', value: (b.odometer || 0).toLocaleString('en-IN'), unit: 'km' },
     { icon: '🔧', label: 'Next service in', value: sv0.dueIn > 0 ? sv0.dueIn.toLocaleString('en-IN') : 'overdue',
@@ -7405,7 +7439,14 @@ function penLine(label, count, pen) {
 }
 function viewScoreboard() {
   const mechs = S.cache.users.filter((u) => u.role === 'mechanic').map((u) => ({ u, s: mechanicScore(u.id).score })).sort((a, b) => b.s - a.s);
-  let body = `<div class="card"><div class="tiny muted">${t('mpBlurb')}</div></div>`;
+  const _avgScore = mechs.length ? Math.round(mechs.reduce((s2, x) => s2 + x.s, 0) / mechs.length) : 0;
+  const _weak = mechs.filter((x) => x.s < 60).length;
+  let body = pageSub(t('mpBlurb'));
+  body += kpiRow([
+    { icon: '👷', label: 'Mechanics', value: mechs.length },
+    { icon: '📊', label: 'Average score', value: _avgScore, unit: '/100',
+      delta: _weak ? _weak + ' under 60' : '', dir: _weak ? 'bad' : 'good' },
+  ]);
   body += `<input id="sb-search" class="searchbox" placeholder="Search a name…" autocomplete="off">`;
   body += `<div class="card listwrap" id="sb-list"><h3>Mechanic leaderboard</h3>`;
   body += mechs.length ? mechs.map(({ u, s }, i) => {
@@ -7943,8 +7984,15 @@ function viewDef() {
   const fleetCost = rows.reduce((s, x) => s + x.s.costTotal, 0);
   let body = '';
   if (can(S.user.role, 'addFuel')) body += `<button class="btn primary" data-act="addDef" style="margin-bottom:12px">🧪 Log AdBlue / DEF</button>`;
-  body += `<div class="card"><div class="muted small">Total DEF spend (logged)</div><div class="stat" style="color:var(--brand2)">${money(fleetCost)}</div>
-    <div class="tiny muted">AdBlue for BS6/Volvo SCR engines — not farm urea. Log top-ups for consumption &amp; cost.</div></div>`;
+  const _defFlag = rows.filter((x) => x.s.flag).length;
+  const _defL = rows.filter((x) => x.s.perHundred != null);
+  const _defAvg = _defL.length ? _defL.reduce((s2, x) => s2 + x.s.perHundred, 0) / _defL.length : null;
+  body = pageSub('For BS6 and Volvo SCR engines \u2014 not farm urea') + body;
+  body += kpiRow([
+    { icon: '🧪', label: 'DEF spend (logged)', value: money(fleetCost) },
+    { icon: '📉', label: 'Fleet average', value: _defAvg != null ? _defAvg.toFixed(1) : '—', unit: 'L/100km',
+      delta: _defFlag ? _defFlag + ' flagged' : '', dir: 'bad' },
+  ]);
   if (!defBuses.length) body += `<div class="banner warn">No bus is marked as using DEF yet. Logging a top-up marks that bus automatically.</div>`;
   body += `<div class="card"><h3>DEF by bus</h3>`;
   body += rows.length ? rows.map(({ b, s }) => `<div class="li" data-act="addDef" data-bus="${esc(b.id)}" style="cursor:pointer">${avatar(busImg(b), '🚌')}
@@ -8175,16 +8223,18 @@ function viewHistory(busId) {
   const jobs = completedJobs(scope);
   const track = serviceTracking(scope).filter((x) => x.quickRepeat || x.due);
 
-  let body = `<div class="card"><div class="tiny muted">${t('histSub')}</div></div>`;
+  let body = pageSub(t('histSub'));
 
   if (jobs.length) {
     const spend = jobs.reduce((s, j) => s + jobCost(j).total, 0);
     const d90 = jobs.filter((j) => jobDoneAt(j) >= Date.now() - 90 * day);
-    body += `<div class="tiles">
-      <div class="card tile"><div class="muted small">${t('histTitle')} · 90d</div><div class="stat">${d90.length}</div></div>
-      <div class="card tile"><div class="muted small">Spend · 90d</div><div class="stat">${money(d90.reduce((s, j) => s + jobCost(j).total, 0))}</div></div>
-      <div class="card tile"><div class="muted small">All time</div><div class="stat">${jobs.length}</div></div>
-      <div class="card tile"><div class="muted small">All time spend</div><div class="stat">${money(spend)}</div></div></div>`;
+    const spend90 = d90.reduce((s2, j) => s2 + jobCost(j).total, 0);
+    body += kpiRow([
+      { icon: '✅', label: t('histTitle') + ' · 90d', value: d90.length },
+      { icon: '💰', label: 'Spend · 90d', value: money(spend90) },
+      { icon: '📚', label: 'All time', value: jobs.length },
+      { icon: '🧾', label: 'All-time spend', value: money(spend) },
+    ]);
   }
 
   if (track.length) {
@@ -8220,10 +8270,13 @@ function viewBreakdowns() {
   const worstSys = Object.entries(bySys).sort((a, b) => b[1] - a[1]);
   const offRoad = all.reduce((s, b) => s + (Number(b.downtimeHours) || 0), 0);
 
-  let body = `<div class="card"><div class="tiny muted">${t('bdBlurb')}</div></div>`;
-  body += `<div class="grid2">
-    <div class="card tile"><div class="muted small">${t('bdLast180')}</div><div class="stat">${all.length}</div></div>
-    <div class="card tile"><div class="muted small">${t('bdOffRoad')}</div><div class="stat">${Math.round(offRoad)}<span style="font-size:14px"> ${t('bdHrs')}</span></div></div></div>`;
+  let body = pageSub(t('bdBlurb'));
+  body += kpiRow([
+    { icon: '🛠️', label: t('bdLast180'), value: all.length },
+    { icon: '🕒', label: t('bdOffRoad'), value: Math.round(offRoad), unit: t('bdHrs') },
+    { icon: '🚌', label: 'Buses affected', value: Object.keys(byBus).length },
+    { icon: '🔺', label: 'Worst system', value: worstSys.length ? bdSystem(worstSys[0][0]).label : '—' },
+  ]);
 
   if (worstSys.length) {
     const top = worstSys[0];
@@ -10169,11 +10222,17 @@ function viewCrewBank() {
   const expiring = act.filter((d) => crewExpiring(d).length).length;
   const gone = all.length - act.length;
 
-  let body = `<div class="card"><div class="row between">
-      <div><div style="font-weight:800;font-size:18px">${act.length} ${t('cbOnRoll')}</div>
-        <div class="small muted">${drv} ${t('cbDrivers')} · ${con} ${t('cbConductors')}${gone ? ' · ' + gone + ' ' + t('cbLeft') : ''}</div></div>
-      <div class="ringwrap">${progressRing(act.length ? Math.round((act.length - missing) / act.length * 100) : 100)}</div></div>
-    <div class="tiny muted" style="margin-top:8px">${missing ? `⚠️ ${missing} ${t(missing === 1 ? 'cbMissingDocsOne' : 'cbMissingDocsMany')}` : '✓ ' + t('cbAllOnFile')}${expiring ? ` ${expiring} ${t('cbExpiringSoon')}` : ''}</div></div>`;
+  /* The roll as four figures. The ring that was here showed one percentage
+   * and needed a caption to say what it was a percentage OF; these say it. */
+  let body = kpiRow([
+    { icon: '🧑‍✈️', label: t('cbDrivers'), value: drv },
+    { icon: '🎟️', label: t('cbConductors'), value: con },
+    { icon: '📄', label: t('cbKpiDocs'), value: missing,
+      delta: missing ? 'chase' : '', dir: missing ? 'bad' : 'good' },
+    { icon: '⏳', label: t('cbKpiExp'), value: expiring,
+      dir: expiring ? 'bad' : 'flat' },
+  ]);
+  if (gone) body += pageSub(gone + ' ' + t('cbLeft'));
   body += `<input id="crew-search" class="searchbox" placeholder="${esc(t('cbSearchPh'))}" autocomplete="off">`;
   body += `<div class="chiprow" id="crew-chips"></div>`;
   body += `<div class="card listwrap" id="crew-list"><div class="empty">Loading…</div></div>`;
