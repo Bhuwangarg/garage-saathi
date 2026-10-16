@@ -219,7 +219,9 @@ const I18N = {
     cbSearchPh: 'Search name, phone, licence, Aadhaar last 4…', cbExport: 'Export list (CSV)',
     cbFAll: 'All', cbFDrivers: 'Drivers', cbFConductors: 'Conductors', cbFIncomplete: 'Docs missing', cbFExpiring: 'Expiring', cbFLeft: 'Ex-staff',
     cbNobody: 'Nobody in this list', cbNobodyMatch: 'Nobody matches', cbNoPhone: 'no phone', cbNoBus: 'no bus',
-    cbKpiDocs: 'Missing documents', cbKpiExp: 'Expiring soon',
+    cbKpiDocs: 'Nothing on file', cbKpiExp: 'Expiring soon', cbKpiScan: 'Not scanned',
+    cbNoScan: 'no scan', cbOnFileWord: 'on file', cbScannedWord: 'scanned',
+    cbNothingOnFile: 'Not one number or scan recorded', cbNumberOnly: 'Number recorded, no scan yet',
     cbDocsShort: 'docs', cbLeftBadge: 'left', cbExported: 'people exported — Aadhaar masked',
     // Joining form
     cbNewJoining: 'New joining', cbTakePhoto: 'Take his photo', cbFullName: 'Full name', cbNamePh: 'e.g. Ramesh Kumar',
@@ -543,7 +545,9 @@ const I18N = {
     cbSearchPh: 'नाम, फ़ोन, लाइसेंस, आधार के आखिरी 4…', cbExport: 'सूची डाउनलोड (CSV)',
     cbFAll: 'सभी', cbFDrivers: 'ड्राइवर', cbFConductors: 'कंडक्टर', cbFIncomplete: 'कागज़ बाकी', cbFExpiring: 'खत्म हो रहे', cbFLeft: 'पुराने स्टाफ',
     cbNobody: 'इस सूची में कोई नहीं', cbNobodyMatch: 'कोई नहीं मिला', cbNoPhone: 'फ़ोन नहीं', cbNoBus: 'बस नहीं',
-    cbKpiDocs: 'कागज़ अधूरे', cbKpiExp: 'जल्द ख़त्म',
+    cbKpiDocs: 'कुछ दर्ज नहीं', cbKpiExp: 'जल्द ख़त्म', cbKpiScan: 'स्कैन नहीं',
+    cbNoScan: 'स्कैन नहीं', cbOnFileWord: 'दर्ज', cbScannedWord: 'स्कैन',
+    cbNothingOnFile: 'ना नंबर ना स्कैन — कुछ भी नहीं', cbNumberOnly: 'नंबर दर्ज है, स्कैन अभी नहीं',
     cbDocsShort: 'कागज़', cbLeftBadge: 'छोड़ा', cbExported: 'लोगों की सूची डाउनलोड — आधार छिपा हुआ',
     // Joining form
     cbNewJoining: 'नई भर्ती', cbTakePhoto: 'फोटो लें', cbFullName: 'पूरा नाम', cbNamePh: 'जैसे रमेश कुमार',
@@ -9972,12 +9976,39 @@ function crewExpiring(d, withinDays) {
     .map((r) => ({ label: docLabel(r.doc), key: r.doc.key, expiry: r.cur.expiry, dl: daysLeft(r.cur.expiry) }))
     .sort((a, b) => a.dl - b.dl);
 }
+/* Is this document on file at all, and is it scanned?
+ *
+ * These are two different questions and the app was only asking the second.
+ * A document counted ONLY when a photograph of it existed — so a driver whose
+ * licence number and Aadhaar number are both typed in, with his face photo on
+ * the record, still read "3 docs missing". Every crew member did, which is why
+ * the crew bank reported a hundred and ten of a hundred and ten: not one
+ * office in the country scans every licence, and the figure was unreachable by
+ * design. A number that can only ever be bad is a number everybody learns to
+ * scroll past, and then the genuinely undocumented driver hides among them.
+ *
+ * So: `have` is anything recorded — a number or a scan. `scan` is the image.
+ * The joining photograph counts as the photo document, because it is the same
+ * picture: crewFace() has always read d.photo, and the document check was the
+ * only place that did not. */
+function docHeld(d, key) {
+  const doc = docOf(d, key) || {};
+  const scan = !!doc.photo || (key === 'photo' && !!d.photo);
+  const num = !!String(doc.number || (key === 'license' ? (d.license || '') : '')).trim();
+  return { scan, num, have: scan || num };
+}
+
 function driverDocStatus(d) {
   const role = crewRoleOf(d);
   const mand = DRIVER_DOCS.filter((x) => docIsMandatory(x, role));
-  const mandDone = mand.filter((x) => docOf(d, x.key) && docOf(d, x.key).photo).length;
-  const allDone = DRIVER_DOCS.filter((x) => docOf(d, x.key) && docOf(d, x.key).photo).length;
-  return { mandDone, mandTotal: mand.length, allDone, allTotal: DRIVER_DOCS.length, pct: mand.length ? Math.round(mandDone / mand.length * 100) : 100 };
+  const mandDone = mand.filter((x) => docHeld(d, x.key).scan).length;     // scanned
+  const mandHave = mand.filter((x) => docHeld(d, x.key).have).length;     // on file at all
+  const allDone = DRIVER_DOCS.filter((x) => docHeld(d, x.key).scan).length;
+  const allHave = DRIVER_DOCS.filter((x) => docHeld(d, x.key).have).length;
+  return { mandDone, mandHave, mandTotal: mand.length, allDone, allHave, allTotal: DRIVER_DOCS.length,
+    // The ring tracks what is ON FILE, because that is the thing the office can
+    // actually finish. Scans are shown separately and never make it look 0%.
+    pct: mand.length ? Math.round(mandHave / mand.length * 100) : 100 };
 }
 // Animated SVG completion ring. animate=true starts empty (filled after mount).
 function progressRing(pct, animate) {
@@ -9995,8 +10026,11 @@ function viewDriverDocs(driverId) {
   const docs = d.docs || {}, st = driverDocStatus(d), crole = crewRoleOf(d);
   let body = `<div class="card"><div class="ringwrap">${progressRing(st.pct, true)}
     <div><div style="font-weight:800;font-size:17px">${esc(d.name)}</div>
-      <div class="small muted">${esc(crewRoleLabel(crole))} · ${st.mandDone}/${st.mandTotal} ${t('cbMandatoryWord')} · ${st.allDone}/${st.allTotal} ${t('cbTotalOnFile')}</div>
-      <div class="tiny" style="margin-top:5px;color:${st.mandDone < st.mandTotal ? '#ef4444' : '#16a571'};font-weight:700">${st.mandDone < st.mandTotal ? '⚠️ ' + t('cbMandMissing') : '✓ ' + t('cbMandOk')}</div></div></div></div>`;
+      <div class="small muted">${esc(crewRoleLabel(crole))} · ${st.mandHave}/${st.mandTotal} ${t('cbOnFileWord')} · ${st.mandDone}/${st.mandTotal} ${t('cbScannedWord')}</div>
+      <div class="tiny" style="margin-top:5px;color:${st.mandHave < st.mandTotal ? '#ef4444' : st.mandDone < st.mandTotal ? 'var(--muted)' : '#16a571'};font-weight:700">${
+        st.mandHave < st.mandTotal ? '⚠️ ' + t('cbMandMissing')
+        : st.mandDone < st.mandTotal ? '📷 ' + t('cbNumberOnly')
+        : '✓ ' + t('cbMandOk')}</div></div></div>`;
   body += `<div class="docgrid">`;
   body += DRIVER_DOCS.map((doc, i) => {
     const cur = docs[doc.key], has = cur && cur.photo;
@@ -10167,7 +10201,7 @@ function crewMatchesFilter(d, f) {
   if (st !== 'active') return false;
   if (f === 'all') return true;
   if (f === 'driver' || f === 'conductor') return crewRoleOf(d) === f;
-  if (f === 'incomplete') { const s2 = driverDocStatus(d); return s2.mandDone < s2.mandTotal; }
+  if (f === 'incomplete') { const s2 = driverDocStatus(d); return s2.mandHave < s2.mandTotal; }
   if (f === 'expiring') return crewExpiring(d).length > 0;
   return true;
 }
@@ -10178,7 +10212,8 @@ function crewLi(d) {
   const exp = crewExpiring(d)[0];
   const badge = stat === 'archived' ? `<span class="badge b-low">${t('cbArchivedBadge')}</span>`
     : left ? `<span class="badge b-low">${t('cbLeftBadge')}</span>`
-    : st.mandDone < st.mandTotal ? `<span class="badge b-red">${st.mandTotal - st.mandDone} ${t('cbDocsShort')}</span>`
+    : st.mandHave < st.mandTotal ? `<span class="badge b-red">${st.mandTotal - st.mandHave} ${t('cbDocsShort')}</span>`
+    : st.mandDone < st.mandTotal ? `<span class="badge b-low">${t('cbNoScan')}</span>`
     : exp ? `<span class="badge b-amber">${exp.dl < 0 ? t('expired') : exp.dl + 'd'}</span>`
     : `<span class="badge b-green">✓</span>`;
   // The searchable text nobody should have to see: Aadhaar's last four are
@@ -10218,7 +10253,9 @@ function viewCrewBank() {
   const all = allCrew(), act = activeCrew();
   const drv = act.filter((d) => crewRoleOf(d) === 'driver').length;
   const con = act.filter((d) => crewRoleOf(d) === 'conductor').length;
-  const missing = act.filter((d) => { const s = driverDocStatus(d); return s.mandDone < s.mandTotal; }).length;
+  const missing = act.filter((d) => { const s = driverDocStatus(d); return s.mandHave < s.mandTotal; }).length;
+  // Recorded but never scanned: worth chasing, not worth alarming anybody.
+  const unscanned = act.filter((d) => { const s = driverDocStatus(d); return s.mandHave === s.mandTotal && s.mandDone < s.mandTotal; }).length;
   const expiring = act.filter((d) => crewExpiring(d).length).length;
   const gone = all.length - act.length;
 
@@ -10229,6 +10266,7 @@ function viewCrewBank() {
     { icon: '🎟️', label: t('cbConductors'), value: con },
     { icon: '📄', label: t('cbKpiDocs'), value: missing,
       delta: missing ? 'chase' : '', dir: missing ? 'bad' : 'good' },
+    { icon: '📷', label: t('cbKpiScan'), value: unscanned, dir: 'flat' },
     { icon: '⏳', label: t('cbKpiExp'), value: expiring,
       dir: expiring ? 'bad' : 'flat' },
   ]);
@@ -10670,7 +10708,7 @@ function exportCrewCsv() {
       maskAadhaar(crewAadhaarNo(d)), d.joinedAt ? fmtDate(d.joinedAt) : '',
       d.leftAt ? fmtDate(d.leftAt) : '', d.leftReason || '', d.rehire || '', d.address || '', d.bloodGroup || '',
       d.emgName || '', d.emgPhone || '', d.emgRelation || '', d.refName || '', d.refPhone || '',
-      `${st.mandDone}/${st.mandTotal} mandatory, ${st.allDone}/${st.allTotal} total`].map(q).join(',');
+      `${st.mandHave}/${st.mandTotal} on file, ${st.mandDone}/${st.mandTotal} scanned`].map(q).join(',');
   });
   const csv = '﻿' + [cols.map(q).join(',')].concat(rows).join('\r\n');
   const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
@@ -11352,7 +11390,7 @@ function computeInsights() {
   const docGaps = [];
   activeCrew().forEach((d) => {
     const st = driverDocStatus(d), crole = crewRoleOf(d);
-    if (st.mandDone < st.mandTotal) docGaps.push({ d, crole, st });
+    if (st.mandHave < st.mandTotal) docGaps.push({ d, crole, st });
     crewExpiring(d).forEach((x) => out.push({ sev: x.dl < 0 ? 'high' : 'med', icon: '📄',
       title: `${x.label} ${x.dl < 0 ? 'expired' : 'expiring'} — ${d.name}`,
       detail: `${x.label} ${x.dl < 0 ? 'expired' : 'expires'} ${fmtDate(x.expiry)}.`, nav: { name: 'driverdocs', id: d.id } }));

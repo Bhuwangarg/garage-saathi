@@ -428,6 +428,27 @@ ck "each card names its driver"   "$(j "String(/DRIVER|ड्राइवर/i.t
 ck "and search still filters them" \
   "$(j "(function(){var i=document.getElementById('fleet-search');i.value='zzzznope';i.oninput();var n=[].slice.call(document.querySelectorAll('#fleet-list .vcard')).filter(function(c){return c.style.display!=='none'}).length;i.value='';i.oninput();return String(n)})()")" "0"
 
+# 2n) A document on file and a document scanned are different facts. Counting
+# only scans made every crew member read "3 docs missing", and a number that
+# can never be good is a number everyone scrolls past.
+login owner u-owner 1 1 1 1
+ck "a typed licence number counts as on file" \
+  "$(j "(function(){var d={role:'driver',license:'RJ14 2019 0001234'};var s=driverDocStatus(d);return s.mandHave+'/'+s.mandTotal})()")" "1/3"
+ck "but it is not counted as scanned" \
+  "$(j "(function(){var d={role:'driver',license:'RJ14 2019 0001234'};return String(driverDocStatus(d).mandDone)})()")" "0"
+ck "the joining photo is the photo document" \
+  "$(j "(function(){var d={role:'driver',photo:'data:image/jpeg;base64,x'};var s=driverDocStatus(d);return s.mandDone+'/'+s.mandHave})()")" "1/1"
+ck "a fully documented driver reads complete" \
+  "$(j "(function(){var d={role:'driver',photo:'p',docs:{license:{photo:'l'},aadhaar:{photo:'a'}}};var s=driverDocStatus(d);return s.mandHave+'/'+s.mandDone+'/'+s.pct})()")" "3/3/100"
+ck "numbers only still reads 100% on file" \
+  "$(j "(function(){var d={role:'driver',license:'X',photo:'p',docs:{aadhaar:{number:'1234'}}};var s=driverDocStatus(d);return s.mandHave+'/'+s.mandDone+'/'+s.pct})()")" "3/1/100"
+ck "a blank record is still flagged" \
+  "$(j "(function(){var s=driverDocStatus({role:'driver'});return s.mandHave+'/'+s.pct})()")" "0/0"
+# The alarm is "nothing recorded", not "not scanned".
+ck "the crew filter flags only the blank one" \
+  "$(j "(function(){var blank={role:'driver'},num={role:'driver',license:'X',photo:'p',docs:{aadhaar:{number:'1'}}};
+     return String(crewMatchesFilter(blank,'incomplete'))+'/'+String(crewMatchesFilter(num,'incomplete'))})()")" "true/false"
+
 # 3) Invariant sweep: form controls never navigate (owner's main tabs).
 login owner u-owner 1 1 1 1
 for SCREEN in home jobs store me; do
