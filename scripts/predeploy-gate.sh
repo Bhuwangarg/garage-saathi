@@ -449,6 +449,30 @@ ck "the crew filter flags only the blank one" \
   "$(j "(function(){var blank={role:'driver'},num={role:'driver',license:'X',photo:'p',docs:{aadhaar:{number:'1'}}};
      return String(crewMatchesFilter(blank,'incomplete'))+'/'+String(crewMatchesFilter(num,'incomplete'))})()")" "true/false"
 
+# 2p) A bus in the workshop does not need a driver today, and a shortfall that
+# no amount of filling in can fix is a hiring fact, not a duty-board one.
+login owner u-owner 1 1 1 1
+j "window.__dz='';(async function(){var bs=S.cache.buses.slice(0,3),n=Date.now();
+  await DB.put('jobcards',{id:'g-dz1',busId:bs[0].id,problem:'In our shop',status:'open',priority:'low',createdAt:n,updatedAt:n,assignees:[],partsUsed:[],beforePhotos:[],afterPhotos:[]});
+  await DB.put('jobcards',{id:'g-dz2',busId:bs[1].id,problem:'At a vendor',status:'open',priority:'low',createdAt:n,updatedAt:n,assignees:[],partsUsed:[],beforePhotos:[],afterPhotos:[],outside:true,outsideCity:'Noida'});
+  await load();
+  var all=S.cache.buses.length,need=busesNeedingCrew().length;
+  var inNeed=busesNeedingCrew().some(function(b){return b.id===bs[0].id||b.id===bs[1].id});
+  window.__dz=[all-need,inNeed?'INCLUDED':'excluded'].join('/')
+})().catch(function(e){window.__dz='ERR '+e.message})" >/dev/null
+settle "window.__dz||''" "2/excluded" 40 >/dev/null
+ck "a bus in the shop or away needs no driver"  "$(j "window.__dz")" "2/excluded"
+# Coverage arithmetic: free people, fillable seats, and the part nobody can fill.
+ck "coverage counts free drivers" \
+  "$(j "(function(){var c=crewCoverage('driver');return String(c.free===activeCrew().filter(function(d){return crewRoleOf(d)==='driver'&&!d.busId}).length)})()")" "true"
+ck "fillable never exceeds the free pool" \
+  "$(j "(function(){var c=crewCoverage('driver');return String(c.fillable<=c.free&&c.fillable<=c.short)})()")" "true"
+ck "short splits into fillable and unstaffable" \
+  "$(j "(function(){var c=crewCoverage('driver');return String(c.short===c.fillable+c.unstaffable)})()")" "true"
+ck "conductors are counted on their own pool" \
+  "$(j "(function(){var c=crewCoverage('conductor');return String(c.pool===activeCrew().filter(function(d){return crewRoleOf(d)==='conductor'}).length)})()")" "true"
+j "(async function(){await DB.softDel('jobcards','g-dz1');await DB.softDel('jobcards','g-dz2');await load()})()" >/dev/null
+
 # 3) Invariant sweep: form controls never navigate (owner's main tabs).
 login owner u-owner 1 1 1 1
 for SCREEN in home jobs store me; do

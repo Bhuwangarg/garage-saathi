@@ -329,6 +329,9 @@ const I18N = {
     asDriverAssigned: 'Driver assigned', asConductorAssigned: 'Conductor assigned', asForThisBus: 'for this bus',
     asNobodyYet: 'Nobody on the roster yet', asNobody: 'Nobody',
     cmToday: "Today's duty", cmNeedDriver: 'need a driver', cmNeedConductor: 'need a conductor',
+    cmFreeDrivers: 'Drivers with no bus', cmFreeConductors: 'Conductors with no bus', cmCanFill: 'can be filled',
+    cmInWorkshop: 'in the workshop or away',
+    cmShortHands: '{d} buses have no driver and {c} no conductor that filling the board cannot fix: there are {dp} drivers for {n} buses on the road. That is a hiring question, not a duty-board one.',
     cmAllSet: 'Every bus has its driver and conductor ✓', cmOpenBoard: 'Open the duty board',
   },
   hi: {
@@ -655,6 +658,9 @@ const I18N = {
     asDriverAssigned: 'ड्राइवर दे दिया', asConductorAssigned: 'कंडक्टर दे दिया', asForThisBus: 'इस बस के लिए',
     asNobodyYet: 'अभी रोल पर कोई नहीं', asNobody: 'कोई नहीं',
     cmToday: 'आज की ड्यूटी', cmNeedDriver: 'बसों को ड्राइवर चाहिए', cmNeedConductor: 'बसों को कंडक्टर चाहिए',
+    cmFreeDrivers: 'बिना बस के ड्राइवर', cmFreeConductors: 'बिना बस के कंडक्टर', cmCanFill: 'भर सकते हैं',
+    cmInWorkshop: 'वर्कशॉप या बाहर',
+    cmShortHands: '{d} बसों पर ड्राइवर और {c} पर कंडक्टर नहीं — यह बोर्ड भरने से नहीं सुधरेगा: {n} बसों के लिए {dp} ड्राइवर ही हैं। यह भर्ती का सवाल है।',
     cmAllSet: 'हर बस पर ड्राइवर और कंडक्टर हैं ✓', cmOpenBoard: 'ड्यूटी बोर्ड खोलें',
   },
 };
@@ -1750,6 +1756,42 @@ const driversOfBus = (busId) => driverSeatsOf(busId).filter(Boolean);
 const driverSlotOf = (d) => { const s = d && d.busId ? driverSeatsOf(d.busId) : []; return s[0] === d ? 1 : s[1] === d ? 2 : 0; };
 const conductorOfBus = (busId) => activeCrew().find((d) => d.busId === busId && crewRoleOf(d) === 'conductor') || null;
 
+/* ---- Which buses actually need crew, and whether there is crew to give ----
+ *
+ * "67 buses need a driver" counted every bus record in the yard, including the
+ * ones standing in the workshop and the ones away at a vendor in another city.
+ * Nobody is driving those today and nobody should be assigned to them.
+ *
+ * The number underneath it mattered more. There are 54 drivers and about a
+ * hundred buses: even a perfectly filled board leaves forty-odd buses with
+ * nobody on them, so the red count could never reach zero — and a number that
+ * can never be good is one the crew manager stops reading, which is the whole
+ * point of his screen. What he can act on is the drivers who are free while
+ * buses are short, so that is what the screen now leads with.
+ */
+const busesNeedingCrew = () => {
+  const busy = new Set();
+  inShopJobs().forEach((j) => busy.add(j.busId));     // in our workshop
+  awayJobs().forEach((j) => busy.add(j.busId));       // at a vendor elsewhere
+  return (S.cache.buses || []).filter((b) => !busy.has(b.id));
+};
+
+/* The staffing picture as three facts: buses that want crew, people who have
+ * none, and whether the shortfall is a filling problem or a hiring one. */
+function crewCoverage(role) {
+  const isDriver = role !== 'conductor';
+  const pool = activeCrew().filter((d) => crewRoleOf(d) === (isDriver ? 'driver' : 'conductor'));
+  const need = busesNeedingCrew();
+  const short = need.filter((b) => !(isDriver ? driverOfBus(b.id) : conductorOfBus(b.id)));
+  const free = pool.filter((d) => !d.busId);
+  // Buses that could be crewed right now if somebody filled the board, versus
+  // buses there is simply nobody for.
+  const fillable = Math.min(free.length, short.length);
+  return { pool: pool.length, need: need.length, short: short.length,
+           free: free.length, fillable, unstaffable: Math.max(0, short.length - free.length),
+           shortBuses: short };
+}
+
 /* The dated duty log (duty.js). `busId` on a crew record says who is on a bus
  * now and is overwritten on every change; the log keeps when each change
  * happened, so "who drove this bus on the 21st" has an answer. Every write of a
@@ -2223,17 +2265,35 @@ function viewFleet() {
  * today, and a way into the bank. Nothing else is on this screen because
  * nothing else is his job. */
 function viewCrewManagerHome() {
-  const buses = S.cache.buses || [];
-  const noDrv = buses.filter((b) => !driverOfBus(b.id));
-  const noCon = buses.filter((b) => !conductorOfBus(b.id));
+  const buses = busesNeedingCrew();
+  const covD = crewCoverage('driver'), covC = crewCoverage('conductor');
+  const noDrv = covD.shortBuses, noCon = covC.shortBuses;
   const myAtt = (S.cache.att || []).filter((a) => a.userId === S.user.id);
   const checkedIn = myAtt.length && myAtt[myAtt.length - 1].type === 'in' && isToday(myAtt[myAtt.length - 1].at);
 
   let body = `<div class="greet"><div class="greet-av">🗂️</div>
     <div><div class="greet-hi">${t('namaste')}, ${esc(S.user.name)}</div>
-      <div class="muted small">${t('cmToday')} · ${buses.length} ${t('buses').toLowerCase()}</div></div></div>`;
+      <div class="muted small">${t('cmToday')} · ${buses.length} ${t('buses').toLowerCase()}${
+        (S.cache.buses || []).length > buses.length
+          ? ' · ' + ((S.cache.buses || []).length - buses.length) + ' ' + t('cmInWorkshop') : ''}</div></div></div>`;
   if (!checkedIn) body += `<div class="banner warn">⏰ ${t('checkin')}<button class="btn sm" data-nav="me" style="margin-left:auto">${t('checkin')}</button></div>`;
 
+  /* Free people first. "67 buses need a driver" is not a task; "19 drivers
+   * have no bus" is — and the difference between the two is the number that
+   * no amount of filling in can fix. */
+  body += kpiRow([
+    { icon: '🧑‍✈️', label: t('cmFreeDrivers'), value: covD.free,
+      delta: covD.fillable ? covD.fillable + ' ' + t('cmCanFill') : '', dir: covD.free ? 'bad' : 'good',
+      act: 'asOpen', data: { v: 'driver' } },
+    { icon: '🎫', label: t('cmFreeConductors'), value: covC.free,
+      delta: covC.fillable ? covC.fillable + ' ' + t('cmCanFill') : '', dir: covC.free ? 'bad' : 'good',
+      act: 'asOpen', data: { v: 'conductor' } },
+  ]);
+  if (covD.unstaffable || covC.unstaffable) {
+    body += `<div class="card"><div class="tiny muted">${esc(t('cmShortHands')
+      .replace('{d}', covD.unstaffable).replace('{c}', covC.unstaffable)
+      .replace('{dp}', covD.pool).replace('{n}', buses.length))}</div></div>`;
+  }
   body += (noDrv.length || noCon.length)
     ? `<div class="card"><h3>${t('cmToday')}</h3>
         <div class="trow" data-act="asOpen" data-v="driver"><div class="ti">🧑‍✈️</div><div class="tm"><div class="tt">${noDrv.length} ${t('cmNeedDriver')}</div>
@@ -2695,7 +2755,7 @@ function viewSupervisorHome() {
   const mineToVerify = selfOk ? [] : S.cache.jobs.filter((j) => j.status === 'done' && j.closedBy === S.user.id);
   const othersToVerify = S.cache.jobs.filter((j) => j.status === 'done' && (selfOk || j.closedBy !== S.user.id));
   const openReports = (S.cache.driverreports || []).filter((r) => r.status === 'open').sort((a, b) => b.at - a.at);
-  const noDriver = (S.cache.buses || []).filter((b) => !driverOfBus(b.id));
+  const noDriver = crewCoverage('driver').shortBuses;
   const overdue = busesDueService().filter((x) => x.sv.status === 'overdue');
   const alerts = allDocAlerts();
   const low = (S.cache.parts || []).filter(isLow);
