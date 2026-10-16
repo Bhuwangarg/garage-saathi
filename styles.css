@@ -548,6 +548,12 @@ body.printing-gp .gp-screen{display:none !important}
   .content > .btnrow,
   .content > .trow,
   .content > .listwrap,
+  .content > .vgrid,
+  .content > .kpirow,
+  .content > .phead,
+  /* A card whose whole content is a grid of ninety buses is not a column
+     item: give it the width and let the grid inside it breathe. */
+  .content > #as-bybus,
   .content > input{grid-column:1 / -1}
   /* Job cards flow two-up rather than one per row: a tablet showed three jobs
      and a third of a blank screen. They stay cards, not desktop table rows,
@@ -644,6 +650,10 @@ body.printing-gp .gp-screen{display:none !important}
   .content > .spacer,
   .content > .jobcard,
   .content > .listwrap,
+  .content > .vgrid,
+  .content > .kpirow,
+  .content > .phead,
+  .content > #as-bybus,
   .content > input{grid-column:1 / -1}
 
   /* A list of records reads as one table, so its container gets the frame and
@@ -1038,9 +1048,20 @@ body.printing-gp .gp-screen{display:none !important}
  * stay on our own tokens so the dark theme and the plate motif still hold.
  * One column on a phone, two from 560px, three on a desktop pane.
  */
-.vgrid{display:grid;grid-template-columns:1fr;gap:12px;margin-top:10px}
-@media (min-width:560px){.vgrid{grid-template-columns:1fr 1fr}}
-@media (min-width:900px){.vgrid{grid-template-columns:repeat(3,1fr)}}
+/* auto-fill, not breakpoints.
+ *
+ * This grid was sized by @media, which measures the WINDOW. It is not always a
+ * child of the window: on a desktop the fleet list sits in one half-width
+ * column of the content grid, and the same grid is nested inside a card on the
+ * duty board. At 1280px the window said "three columns" while the box it was
+ * actually in was 480px wide, so three vehicle cards were crushed into half a
+ * screen. Sizing from its own width cannot make that mistake anywhere it is
+ * put. 260px is a vehicle card with a legible 16:9 photograph above it. */
+.vgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));
+  gap:var(--s3);margin-top:var(--s2);align-items:start}
+/* Below the minimum there is no room for two, so one full-width card beats a
+ * pair of 150px ones. */
+@media (max-width:360px){.vgrid{grid-template-columns:1fr}}
 
 .vcard{background:var(--surface);border:1px solid var(--line2);border-radius:var(--radius);
   box-shadow:var(--shadow-sm);overflow:hidden;cursor:pointer;
