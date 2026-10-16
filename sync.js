@@ -57,7 +57,9 @@ const Sync = (function () {
                   // Pulled, never pushed (the server refuses any client write).
                   'rbservices', 'rbreviews', 'rbcomplaints', 'rbassign',
                   // Confirmed redBus-name -> crew matches, written by the office (not server-only).
-                  'rbalias'];
+                  'rbalias',
+                  // ITS PNR lookups (server-written by /its/lookup; pulled, never pushed).
+                  'itslookup'];
 
   const ls = window.localStorage;
   // Default sync backend: a device's explicit setting always wins. Otherwise, on
@@ -373,6 +375,22 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
       if (!res.ok) return { error: 'Challan lookup failed (' + res.status + ')' };
       return await res.json();
     } catch (e) { return { configured: false }; }
+  }
+  // ITS fallback: look up to 10 review PNRs in ITS (owner/supervisor). The server keeps the trip
+  // and the crew member the driver's number matches; it arrives here through the normal pull.
+  async function itsLookup(pnrs) {
+    try {
+      const res = await fetch(baseUrl() + '/its/lookup', {
+        method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ pnrs }),
+      });
+      let j = {};
+      try { j = await res.json(); } catch (e) { /* not JSON */ }
+      if (res.status === 503 || res.status === 501) return { configured: false, error: j.error };
+      if (res.status === 401) return { error: 'Sign in again to look up in ITS' };
+      if (res.status === 403) return { error: 'Only the owner or a supervisor can look up in ITS' };
+      if (!res.ok && !j.lookedUp) return { error: j.error || ('ITS lookup failed (' + res.status + ')') };
+      return j;
+    } catch (e) { return { error: 'No connection to the server' }; }
   }
   // Claude vision: send a photo (data URL) + prompt → text. For part-wear grading
   // and serial OCR. { text } on success, { configured:false } if no server key.
@@ -925,7 +943,7 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
     } catch (e) { return null; }
   }
 
-  return { start, tick, kick, setUrl, reset, info, login, logout, warmUp, roster, pendingIds, addStaff, deleteStaff, renameStaff, registerRoster, setPin, gps, validSyncUrl, backfillContacts, setActor, tokenUser, now, deleteUploads, ai, aiVision, challans, fleet, latest, uploadPhoto,
+  return { start, tick, kick, setUrl, reset, info, login, logout, warmUp, roster, pendingIds, addStaff, deleteStaff, renameStaff, registerRoster, setPin, gps, validSyncUrl, backfillContacts, setActor, tokenUser, now, deleteUploads, ai, aiVision, challans, itsLookup, fleet, latest, uploadPhoto,
            queuePhoto, uploadError, remove, clearQuarantine, subscribePush, pushTest, flagOn, flagList,
            get status() { return status; } };
 })();

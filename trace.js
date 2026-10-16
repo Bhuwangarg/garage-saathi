@@ -123,12 +123,19 @@
       out.sources.redpro = fromRedpro(ctx.assign, serviceId, win);
     }
     const its = item.pnr && ctx.its ? ctx.its[String(item.pnr)] : null;
-    if (its && its.regNo) out.sources.its = { regNo: its.regNo };
+    // ITS gives the driver (matched by phone) and, through our duty log, that driver's bus then.
+    if (its && (its.regNo || its.crewId)) out.sources.its = { regNo: its.regNo || '', crewId: its.crewId || null, at: its.at || null };
 
     // Each source's answer as a bus key, so they can be compared.
     const keyOf = (s) => (s ? normReg(s.regNo) : null);
-    const g = keyOf(out.sources.gate), r = keyOf(out.sources.redpro), i = keyOf(out.sources.its);
+    const g = keyOf(out.sources.gate), r = keyOf(out.sources.redpro), i = out.sources.its && out.sources.its.regNo ? keyOf(out.sources.its) : null;
     const answers = [g, r, i].filter(Boolean);
+    if (!answers.length && out.sources.its && out.sources.its.crewId) {
+      // ITS knows who drove but our records do not say which bus they were on: the driver is still known.
+      out.crew = [{ crewId: out.sources.its.crewId, role: 'driver', via: 'its', vias: ['its'] }];
+      out.confidence = 'medium'; out.why = 'its-driver';
+      return out;
+    }
     if (!answers.length) {
       out.why = !serviceId ? 'service-unknown' : item.boardAt == null ? 'no-time' : 'no-source';
       return out;
@@ -152,6 +159,8 @@
       if (via === 'gate') out.crew.unshift(entry); else out.crew.push(entry);
     };
     if (out.sources.gate && out.sources.gate.driverId) add(out.sources.gate.driverId, 'driver', 'gate');
+    // ITS's driver (by phone) for this PNR, when ITS's bus is the bus shown or ITS gave no bus.
+    if (out.sources.its && out.sources.its.crewId && (!i || i === normReg(out.bus.regNo))) add(out.sources.its.crewId, 'driver', 'its');
     // redBus's own assignment names who drove; a name the office confirmed once for this bus is
     // that person. Only when redBus's bus is the bus shown, and never an unconfirmed name.
     const rp = out.sources.redpro;

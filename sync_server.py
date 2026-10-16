@@ -1165,6 +1165,8 @@ WRITE_ROLES = {
 # change to a part's quantity, so the people it watches must not be able to add
 # to it or delete from it.
 SERVER_INGEST_ONLY = {"gpsevents", "gpslive", "challans", "odometerlogs", "waconv",
+                      # ITS PNR lookups, written only by /its/lookup.
+                      "itslookup",
                       "stockmoves",
                       # redPro data, written only by /redpro/ingest from the office collector.
                       "rbservices", "rbreviews", "rbcomplaints", "rbassign"}
@@ -1915,6 +1917,101 @@ def _guard_rbalias(data, actor, old, c):
     return None
 
 
+# ----------------------------- ITS PNR fallback ----------------------------
+try:
+    import its_lookup
+except Exception:                     # noqa: BLE001 - a missing module costs the fallback, not the server
+    its_lookup = None
+
+ITS_BATCH_MAX = 10                    # PNRs per request: ~2 ITS pages each, well inside a 60 s function
+ITS_BUDGET_S = 40
+ITS_RECHECK_NOT_FOUND_MS = 86400000   # a PNR ITS did not know is asked again after a day, not every time
+
+
+def _crew_by_phone(c, phone):
+    """The crew record whose phone (or alternate phone) is this number. Exact number, never a name."""
+    if not phone:
+        return None
+    hits = []
+    for raw, in c.execute("SELECT data FROM records WHERE store='drivers'").fetchall():
+        try:
+            d = json.loads(raw)
+        except Exception:
+            continue
+        if not isinstance(d, dict) or d.get("_deleted"):
+            continue
+        if phone in (its_lookup.phone10(d.get("phone")), its_lookup.phone10(d.get("altPhone"))):
+            hits.append(d)
+    # Two crew records with one number is a data problem; naming either would be a guess.
+    return hits[0] if len(hits) == 1 else None
+
+
+def its_lookup_batch(pnrs, actor, session_factory=None, clock=time.monotonic):
+    """Look PNRs up in ITS and keep, per PNR, the trip and the crew member the driver's number
+    belongs to. The driver's number is kept masked; passenger details are never kept.
+    Returns (status, payload)."""
+    if its_lookup is None:
+        return 501, {"error": "its_lookup.py is missing on the server"}
+    if not its_lookup.configured() and session_factory is None:
+        return 503, {"error": "ITS lookups are off: set ITS_LOOKUP_USER and ITS_LOOKUP_PASSWORD in Vercel"}
+    want = []
+    for p in pnrs or []:
+        p = str(p).strip()
+        if re.fullmatch(r"\d{5,15}", p) and p not in want:
+            want.append(p)
+    if not want:
+        return 400, {"error": "expected {pnrs: [digits, ...]}"}
+    want = want[:ITS_BATCH_MAX]
+    now = now_ms()
+    c = db()
+    try:
+        todo = []
+        for p in want:
+            row = c.execute("SELECT data FROM records WHERE store='itslookup' AND id=?", ("it-" + p,)).fetchone()
+            old = json.loads(row[0]) if row else None
+            if old and (old.get("found") or now - (old.get("lookedUpAt") or 0) < ITS_RECHECK_NOT_FOUND_MS):
+                continue
+            todo.append(p)
+    finally:
+        c.close()
+    done, found, matched, error = [], 0, 0, None
+    if todo:
+        t0 = clock()
+        try:
+            sess = (session_factory or its_lookup.Session)()
+            for p in todo:
+                if clock() - t0 > ITS_BUDGET_S:
+                    break
+                trip = sess.lookup(p)
+                done.append((p, trip))
+        except its_lookup.ItsError as e:
+            error = str(e)[:200]
+        except Exception as e:            # noqa: BLE001 - ITS down or changed: report it, keep what was read
+            error = "ITS did not answer as expected: " + str(e)[:160]
+    with _lock:
+        c = db()
+        rev = c.execute("SELECT COALESCE(MAX(rev),0) FROM records").fetchone()[0]
+        for p, trip in done:
+            crew = _crew_by_phone(c, trip.get("driverPhone")) if trip else None
+            rec = {"id": "it-" + p, "pnr": p, "found": bool(trip), "lookedUpAt": now, "by": actor["id"],
+                   "_by": "its-lookup", "_org": "mahalaxmi", "updatedAt": now}
+            if trip:
+                found += 1
+                ph = trip.pop("driverPhone", "")
+                rec.update(trip)
+                rec["driverPhoneMasked"] = ("•••••• " + ph[-4:]) if ph else ""
+                rec["crewId"] = crew.get("id") if crew else None
+                matched += 1 if crew else 0
+            rev = _upsert_record(c, "itslookup", rec["id"], rec, now, rev)
+        c.commit()
+        c.close()
+    out = {"ok": error is None, "asked": len(want), "lookedUp": len(done), "found": found, "driverMatched": matched,
+           "skipped": len(want) - len(todo), "left": len(todo) - len(done)}
+    if error:
+        out["error"] = error
+    return (200 if error is None or done else 502), out
+
+
 def may_write(role, store):
     # Checked before the owner short-circuit: these stores are written only by the
     # server from an upstream source (GPS telemetry, the eChallan proxy). A client
@@ -2432,7 +2529,7 @@ def redact_for(actor, rec):
         return rec
     if st == "waconv":                    # keyed by a crew member's phone number
         return None
-    if st in ("rbreviews", "rbcomplaints", "rbassign"):
+    if st in ("rbreviews", "rbcomplaints", "rbassign", "itslookup"):
         # Reviews, complaints and redBus's driver names are for the people who act
         # on them. A driver's phone does not need every passenger's comment about
         # every colleague. (rbservices holds no names: drivers need it to pick the
@@ -4220,6 +4317,16 @@ class Handler(BaseHTTPRequestHandler):
             # subscription on the server.
             n = send_push("Garage Saathi", "✅ Test alert — phone notifications are working.", "/", roles=(me["role"],))
             return self._send(200, {"ok": True, "sent": n, "webpush": _WEBPUSH})
+
+        if u.path == "/its/lookup":                  # owner/supervisor: PNRs of untraced reviews -> ITS
+            me = self._auth_user()
+            if not me:
+                return self._send(401, {"error": "unauthorized"})
+            if me["role"] not in ("owner", "supervisor"):
+                return self._send(403, {"error": "forbidden"})
+            b = self._body()
+            code, res = its_lookup_batch((b or {}).get("pnrs") if isinstance(b, dict) else None, me)
+            return self._send(code, res)
 
         if u.path == "/redpro/ingest":               # the office collector posts redPro data here
             if not _REDPRO_TOKEN_OK:

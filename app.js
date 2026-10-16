@@ -313,6 +313,8 @@ const I18N = {
     rvWhyService: 'This service is not in the list yet', rvWhyNoSource: 'No gate check or redBus assignment for that trip', rvCrewNotRecorded: 'crew not on the duty log for that time',
     rvSources: 'Where this came from', rvSrcGate: 'Gate check', rvSrcRedpro: 'redBus assignment', rvSrcIts: 'ITS booking', rvAsTyped: 'as typed in redBus', rvSwapped: 'bus changed that day',
     rvCrew: 'Crew on that trip', rvSafetyK: 'Safety', rvGenuine: 'Service', rvFaq: 'Question', rvPraise: 'Praise', rvBoarded: 'Boarded',
+    itsTitle: 'Look up in ITS', itsSub: 'untraced 1–3★ reviews — ITS can name the driver from the PNR', itsBtn: 'Look up', itsRunning: 'Looking up in ITS…',
+    itsFound: 'found in ITS', itsDriver: 'driver matched', itsDone: 'ITS lookup done', itsOff: 'ITS lookups are not set up yet (lookup user missing in Vercel)', rvViaIts: 'ITS driver',
     rbnTitle: 'redBus names', rbnHint: 'redBus shows who drove each bus by a typed name. Confirm once which crew member each name is on each bus; reviews of that bus are then traced to them. Nothing is matched on its own.',
     rbnToConfirm: 'To confirm', rbnConfirmed: 'Confirmed', rbnAllDone: 'Every name redBus has shown is confirmed.', rbnDay: 'day seen', rbnDays: 'days seen',
     rbnWhyBefore: 'confirmed on another bus', rbnWhyBoard: 'on the duty board', rbnWhyName: 'similar name', rbnSomeoneElse: 'Someone else…', rbnNotAName: 'Not a real name',
@@ -646,6 +648,8 @@ const I18N = {
     rvWhyService: 'यह सर्विस अभी सूची में नहीं है', rvWhyNoSource: 'उस यात्रा का न गेट चेक है न redBus असाइनमेंट', rvCrewNotRecorded: 'उस समय का स्टाफ़ ड्यूटी लॉग में नहीं',
     rvSources: 'यह जानकारी कहाँ से', rvSrcGate: 'गेट चेक', rvSrcRedpro: 'redBus असाइनमेंट', rvSrcIts: 'ITS बुकिंग', rvAsTyped: 'जैसा redBus में लिखा', rvSwapped: 'उस दिन बस बदली',
     rvCrew: 'उस यात्रा का स्टाफ़', rvSafetyK: 'सुरक्षा', rvGenuine: 'सेवा', rvFaq: 'सवाल', rvPraise: 'तारीफ़', rvBoarded: 'चढ़े',
+    itsTitle: 'ITS में देखें', itsSub: 'बिना बस वाले 1–3★ रिव्यू — ITS PNR से ड्राइवर बता सकता है', itsBtn: 'देखें', itsRunning: 'ITS में देख रहे हैं…',
+    itsFound: 'ITS में मिले', itsDriver: 'ड्राइवर मिला', itsDone: 'ITS खोज पूरी', itsOff: 'ITS खोज अभी चालू नहीं (Vercel में लुकअप यूज़र नहीं)', rvViaIts: 'ITS ड्राइवर',
     rbnTitle: 'redBus नाम', rbnHint: 'redBus हर बस का ड्राइवर लिखे हुए नाम से दिखाता है। हर बस पर हर नाम एक बार पक्का करें कि वह कौन है; फिर उस बस के रिव्यू उन्हीं से जुड़ेंगे। अपने-आप कुछ नहीं जुड़ता।',
     rbnToConfirm: 'पक्का करना है', rbnConfirmed: 'पक्के', rbnAllDone: 'redBus के सभी नाम पक्के हो चुके।', rbnDay: 'दिन दिखा', rbnDays: 'दिन दिखा',
     rbnWhyBefore: 'दूसरी बस पर पक्का', rbnWhyBoard: 'ड्यूटी में', rbnWhyName: 'मिलता नाम', rbnSomeoneElse: 'कोई और…', rbnNotAName: 'असली नाम नहीं',
@@ -1256,8 +1260,8 @@ async function load() {
   const gatepasses = await DB.all('gatepasses').catch(() => []);
   const dutylog = await DB.all('dutylog').catch(() => []);
   const gatechecks = await DB.all('gatechecks').catch(() => []);
-  const [rbservices, rbreviews, rbcomplaints, rbassign, rbalias] = await Promise.all(['rbservices', 'rbreviews', 'rbcomplaints', 'rbassign', 'rbalias'].map((n) => DB.all(n).catch(() => [])));
-  S.cache = { users, buses, parts, jobs, ledger, att, purchases, drivers, incidents, driverreports, routes, triplog, fuel, gpsevents, audits, components, def, vendors, trips, challans, usage, stockmoves, breakdowns, gatepasses, dutylog, gatechecks, rbservices, rbreviews, rbcomplaints, rbassign, rbalias, garage };
+  const [rbservices, rbreviews, rbcomplaints, rbassign, rbalias, itslookup] = await Promise.all(['rbservices', 'rbreviews', 'rbcomplaints', 'rbassign', 'rbalias', 'itslookup'].map((n) => DB.all(n).catch(() => [])));
+  S.cache = { users, buses, parts, jobs, ledger, att, purchases, drivers, incidents, driverreports, routes, triplog, fuel, gpsevents, audits, components, def, vendors, trips, challans, usage, stockmoves, breakdowns, gatepasses, dutylog, gatechecks, rbservices, rbreviews, rbcomplaints, rbassign, rbalias, itslookup, garage };
   refreshBiz();   // keep the displayed business name in sync with garage config
 }
 const byId = (arr, id) => arr.find((x) => x.id === id);
@@ -9536,7 +9540,70 @@ function gateHomeSummaryCard() {
  * the gate check's driver and the dated duty log — never from a name typed
  * into redPro. A disagreement between sources is shown, not averaged away. */
 let _traceMemo = { key: null, ctx: null, map: new Map() };
-const itsLookups = () => ({});   // step 3: the ITS PNR fallback fills this
+// ITS fallback: per PNR, ITS's driver (matched by number on the server) and, from our duty log,
+// the bus that driver was on at the journey time. Feeds Trace.resolve as the third source.
+function itsTripTime(r) {
+  const d = /^(\d{2})-(\d{2})-(\d{4})$/.exec(r.journeyDate || ''); if (!d) return null;
+  const tm = /^(\d{1,2}):(\d{2})\s*([AP]M)?/i.exec(r.startTime || '');
+  let h = tm ? +tm[1] : 0; const m = tm ? +tm[2] : 0;
+  if (tm && tm[3]) { const pm = tm[3].toUpperCase() === 'PM'; if (pm && h < 12) h += 12; if (!pm && h === 12) h = 0; }
+  return new Date(+d[3], +d[2] - 1, +d[1], h, m).getTime();
+}
+function itsLookups() {
+  const out = {}, log = S.cache.dutylog || [];
+  for (const r of S.cache.itslookup || []) {
+    if (!r.found || !r.crewId) continue;
+    const at = itsTripTime(r);
+    let regNo = '';
+    if (at != null) {
+      const st = Duty.stateAt(log, at).get(r.crewId);
+      const bus = st && st.busId ? (S.cache.buses || []).find((b) => b.id === st.busId) : null;
+      regNo = bus ? bus.regNo : '';
+    }
+    out[r.pnr] = { crewId: r.crewId, regNo, at };
+  }
+  return out;
+}
+// Untraced 1–3★ reviews whose PNR ITS has not been asked about yet.
+function itsPending() {
+  const asked = new Set((S.cache.itslookup || []).map((r) => r.pnr));
+  const untraced = (x) => { const tr = traceOf(x); return !tr.bus && !tr.crew.length; };
+  return (S.cache.rbreviews || []).filter((r) => r.pnr && r.stars && r.stars <= 3 && !asked.has(r.pnr) && untraced(r))
+    .concat((S.cache.rbcomplaints || []).filter((c) => c.pnr && !asked.has(c.pnr) && untraced(c)));
+}
+let _itsRun = null;
+async function itsLookupRun() {
+  if (_itsRun || !can(S.user.role, 'dashboard')) return;
+  const queue = itsPending().sort((a, b) => rvBoard(b) - rvBoard(a)).map((r) => r.pnr);
+  _itsRun = { done: 0, total: queue.length, found: 0, matched: 0, error: '' };
+  rerender();
+  try {
+    while (queue.length && _itsRun) {
+      const batch = queue.splice(0, 10);
+      const res = await Sync.itsLookup(batch);
+      if (res.configured === false) { _itsRun.error = t('itsOff'); break; }
+      if (res.error && !res.lookedUp) { _itsRun.error = res.error; break; }
+      _itsRun.done += res.lookedUp || 0; _itsRun.found += res.found || 0; _itsRun.matched += res.driverMatched || 0;
+      if (res.error) { _itsRun.error = res.error; break; }
+      if (!res.lookedUp && !res.skipped) break;
+      rerender();
+    }
+  } finally {
+    const r = _itsRun; _itsRun = null;
+    Sync.kick();
+    _traceMemo = { key: null, ctx: null, map: new Map() };
+    toast(r && r.error ? `⚠️ ${r.error}` : `${t('itsDone')}: ${r.found}/${r.done} ${t('itsFound')}, ${r.matched} ${t('itsDriver')}`);
+    setTimeout(async () => { await load(); rerender(); }, 2500);
+  }
+}
+function itsCard() {
+  if (!can(S.user.role, 'dashboard')) return '';
+  if (_itsRun) return `<div class="card"><div class="row between"><b>🔎 ${t('itsRunning')}</b><span class="muted small">${_itsRun.done}/${_itsRun.total}</span></div><div class="tiny muted">${_itsRun.found} ${t('itsFound')} · ${_itsRun.matched} ${t('itsDriver')}</div></div>`;
+  const n = itsPending().length;
+  if (!n) return '';
+  return `<div class="card"><div class="row between"><div><b>🔎 ${t('itsTitle')}</b><div class="tiny muted">${n} ${t('itsSub')}</div></div>
+    <button class="btn sm" data-act="itsLookupRun">${t('itsBtn')}</button></div></div>`;
+}
 function traceCtx() {
   if (_traceMemo.key === S.cache && _traceMemo.ctx) return _traceMemo.ctx;
   const log = S.cache.dutylog || [];
@@ -9572,6 +9639,7 @@ const rvClassBadge = (k) => { const m = RV_CLASS[k] || RV_CLASS.genuine; return 
 const rvBoard = (r) => Trace.parseLocal(r.boardAt || r.doj) || 0;
 const rvStarsAva = (n) => `<div class="ava rv-st s${n || 0}">${n ? n + '★' : '—'}</div>`;
 function rvTraceLine(tr) {
+  if (!tr.bus && tr.crew.length) return `<div class="tiny">🧑‍✈️ ${tr.crew.map((c) => esc(c.name || '?')).join(', ')} · ${t('rvViaIts')}</div>`;
   if (!tr.bus) return `<div class="tiny muted">${t(tr.why === 'service-unknown' ? 'rvWhyService' : 'rvWhyNoSource')}</div>`;
   const crew = tr.crew.length ? tr.crew.map((c) => esc(c.name || '?')).join(', ') : t('rvCrewNotRecorded');
   return `<div class="tiny">🚌 <b>${esc(tr.bus.regNo || '')}</b> · ${crew}</div>`;
@@ -9616,6 +9684,7 @@ function viewReviews() {
   if (scope) body += `<div class="banner" style="display:flex;justify-content:space-between">${scope}<button class="btn sm ghost" data-act="rvClearScope">✕</button></div>`;
   const rbn = rbnPendingCount();
   if (rbn) body += `<div class="card" data-act="openRbNames" style="cursor:pointer"><div class="row between"><b>🪪 ${t('rbnBanner')}</b><span class="badge b-amber">${rbn} ›</span></div></div>`;
+  if (_rvTab === 'reviews') body += itsCard();
   if (_rvTab === 'complaints') return viewComplaintsTab(body);
   if (!all.length) return shell(t('rvTitle'), body + `<div class="card"><div class="empty">${t('rvNone')}</div></div>`, null, NARROW);
 
@@ -9666,10 +9735,10 @@ function rvSourcesBlock(tr) {
   let h = `<h3 style="margin-top:12px">${t('rvSources')}</h3>`;
   h += row(t('rvSrcGate'), g ? `<b>${esc(g.regNo)}</b> · ${esc((driverById(g.driverId) || {}).name || '')} · ${hhmm(g.at)} <a href="#" data-act="rvOpenGate" data-id="${esc(g.checkId)}">›</a>` : '—');
   h += row(t('rvSrcRedpro'), r ? `<b>${esc(r.regNo)}</b>${r.driver1 ? ` · ${esc(r.driver1)} <span class="tiny muted">(${t('rvAsTyped')})</span>` : ''}${r.changed ? ` · <span class="tiny" style="color:var(--amber)">${t('rvSwapped')}</span>` : ''}` : '—');
-  h += row(t('rvSrcIts'), i ? `<b>${esc(i.regNo)}</b>` : '—');
+  h += row(t('rvSrcIts'), i ? `${i.regNo ? `<b>${esc(i.regNo)}</b> · ` : ''}${esc((driverById(i.crewId) || {}).name || '')}` : '—');
   h += `<h3 style="margin-top:12px">${t('rvCrew')}</h3>`;
   h += tr.crew.length ? tr.crew.map((c) => `<div class="li" data-act="rvOpenCrew" data-id="${esc(c.crewId)}" style="cursor:pointer"><div class="ava">${CREW_ROLE_META[c.role === 'conductor' ? 'conductor' : 'driver'][0]}</div>
-      <div class="main"><div class="t">${esc(c.name || '?')}</div><div class="s">${esc(crewRoleLabel(c.role))} · ${(c.vias || [c.via]).map((v) => t({ gate: 'rvSrcGate', duty: 'rbViaDuty', redpro: 'rbViaRedpro' }[v] || 'rbViaDuty')).join(' + ')}</div></div></div>`).join('')
+      <div class="main"><div class="t">${esc(c.name || '?')}</div><div class="s">${esc(crewRoleLabel(c.role))} · ${(c.vias || [c.via]).map((v) => t({ gate: 'rvSrcGate', duty: 'rbViaDuty', redpro: 'rbViaRedpro', its: 'rvViaIts' }[v] || 'rbViaDuty')).join(' + ')}</div></div></div>`).join('')
     : `<div class="tiny muted">${t(tr.bus ? 'rvCrewNotRecorded' : 'rvWhyNoSource')}</div>`;
   return h;
 }
@@ -12162,6 +12231,7 @@ const _dispatchClick = async (e) => {
       case 'asRole': _asRole = el.getAttribute('data-v'); return rerender();
       case 'gateStart': return gateStart();
       case 'openRbNames': return push({ name: 'rbnames' });
+      case 'itsLookupRun': return itsLookupRun();
       case 'rbnSet': return rbnSave(el.getAttribute('data-pair'), 'crew', el.getAttribute('data-crew'));
       case 'rbnGeneric': return rbnSave(el.getAttribute('data-pair'), 'generic', null);
       case 'rbnPick': return rbnPick(el.getAttribute('data-pair'));

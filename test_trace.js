@@ -85,6 +85,16 @@ check('the same person from two sources is one entry with both labels', r.crew.l
 r = T.resolve(review, { services, gatechecks: gate, assign: assignOther, buses, crewAt, aliasCrew: () => 'u-x' });
 check('no redBus name is used when redBus\'s bus is not the bus shown', !r.crew.some((c) => c.crewId === 'u-x'));
 
+// ITS fallback: driver by phone, bus from our duty log.
+r = T.resolve(review, { services, gatechecks: [], assign: [], buses, crewAt, its: { '251365749': { crewId: 'u-drv-RJ09PA6141-0', regNo: 'RJ09PA6141' } } });
+check('ITS with a bus → medium, its, crew labelled its', r.confidence === 'medium' && r.why === 'its' && r.crew.some((c) => c.vias.includes('its')));
+r = T.resolve(review, { services, gatechecks: [], assign: [], buses, crewAt, its: { '251365749': { crewId: 'u-drv-X', regNo: '' } } });
+check('ITS driver without a bus still names the driver', r.confidence === 'medium' && r.why === 'its-driver' && r.crew[0].crewId === 'u-drv-X' && !r.bus);
+r = T.resolve(review, { services, gatechecks: gate, assign: [], buses, crewAt, its: { '251365749': { crewId: 'u-drv-Y', regNo: 'MP44ZF2103' } } });
+check('ITS on another bus than the gate check → conflict, ITS driver not added to that bus', r.confidence === 'conflict' && !r.crew.some((c) => c.crewId === 'u-drv-Y'));
+r = T.resolve({ pnr: '777', routeId: 'unknown', boardAt: at('2026-10-07 22:00:00') }, { services, gatechecks: [], assign: [], buses, crewAt, its: { '777': { crewId: 'u-drv-Z', regNo: '' } } });
+check('ITS names the driver even when the route is unmapped', r.crew.length === 1 && r.crew[0].crewId === 'u-drv-Z');
+
 // Classification.
 check('drunk driving is safety', T.classify({ stars: 1, comment: 'driver was drunk and driving rashly' }) === 'safety');
 check('stacked service gripes are not safety', T.classify({ stars: 1, comment: 'dirty, AC bad, no blanket, late', tags: ['Cleanliness'] }) === 'genuine');

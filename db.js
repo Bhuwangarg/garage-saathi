@@ -5,7 +5,7 @@
  */
 
 const DB_NAME = 'garage-saathi';
-const DB_VERSION = 19;  // v19 adds rbalias; v18 adds the redPro stores; v17 adds gatechecks; v16 adds dutylog (dated crew seat changes); v12 adds the usage store (daily per-person feature counters) — onupgradeneeded creates any missing
+const DB_VERSION = 20;  // v20 adds itslookup; v19 adds rbalias; v18 adds the redPro stores; v17 adds gatechecks; v16 adds dutylog (dated crew seat changes); v12 adds the usage store (daily per-person feature counters) — onupgradeneeded creates any missing
 
 const STORES = {
   users: 'id',
@@ -40,6 +40,7 @@ const STORES = {
   rbreviews: 'id',     // redPro: reviews — no passenger name/phone (server-written)
   rbcomplaints: 'id',  // redPro: complaint cases (server-written)
   rbassign: 'id',      // redPro: redBus's bus/driver per service per day, as observed (server-written)
+  itslookup: 'id',     // ITS PNR lookups: trip + crew matched by the driver's number (server-written)
   rbalias: 'id',       // "this redBus name on this bus is this crew member", confirmed once by the office
   gatechecks: 'id',    // departure checklist: one per bus departure — selfie, items, release / office decision
   dutylog: 'id',       // append-only: one row per crew seat change, with when. The duty board

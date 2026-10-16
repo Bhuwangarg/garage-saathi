@@ -73,3 +73,23 @@ alongside the gate-check driver and the duty board, so a disagreement shows.
 - Written by owner, supervisor and crew manager. The server checks the crew record exists,
   stamps `decidedBy`/`decidedAt`, refuses deletes, and keeps earlier answers in `history`.
 
+## ITS fallback (`/its/lookup`, store `itslookup`)
+
+For untraced 1–3★ reviews and complaints, the reviews screen offers **Look up in ITS**.
+`POST /its/lookup {pnrs}` (owner/supervisor, at most 10 per request) signs in to ITS as a
+**dedicated lookup user** (`ITS_LOOKUP_USER` / `ITS_LOOKUP_PASSWORD` in Vercel). It reads
+`Branch/Company_PNRDetails.aspx` for each PNR and keeps:
+- the trip: route/time ids, journey date and time, route, cities;
+- `crewId`: the crew record whose phone or alt phone is **exactly** the driver's contact ITS has
+  for that trip. If two records share the number, it matches nobody;
+- the driver's number **masked** (`•••••• 1234`). Passenger details are never kept.
+
+A PNR ITS doesn't know is recorded as not found and retried after a day. Found PNRs are never
+retried. On the phone, `itsLookups()` turns each match into the bus that driver held at the
+journey time (dated duty log). That makes ITS the third source in `Trace.resolve`: labelled
+**ITS driver**, outranked by the gate check and redBus, and flagged as a conflict if it names
+another bus.
+
+**Never use the office's everyday ITS login for this.** Submitting the PNR page from the
+company-level browser session signed it out on 16 Oct 2026.
+
