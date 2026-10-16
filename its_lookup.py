@@ -207,5 +207,21 @@ class Session:
             if looks_logged_out(res):
                 self.authed = False
                 continue
+            if getattr(self, "diag", None) is not None:
+                self.diag.append(shape_of_answer(res))
             return trip_from(form_inputs(res))
         raise ItsAuthError("ITS keeps signing the lookup user out")
+
+
+def shape_of_answer(html):
+    """What ITS's answer looks like, with no values: for finding out why a PNR reads as "not found"
+    without ever seeing a passenger's details."""
+    vals = form_inputs(html)
+    title = re.search(r"<title>(.*?)</title>", html or "", re.S | re.I)
+    msgs = [clean(m.group(2))[:120] for m in re.finditer(r'id="[^"]*(lbl\w*)"[^>]*>(.*?)<', html or "", re.S)
+            if clean(m.group(2)) and not re.search(r"\d{6,}", clean(m.group(2)))]
+    alerts = [clean(a)[:120] for a in re.findall(r"alert\(['\"](.*?)['\"]\)", html or "") if not re.search(r"\d{6,}", a)]
+    return {"title": clean(title.group(1))[:80] if title else "", "bytes": len(html or ""),
+            "filled": sorted(k for k, v in vals.items() if v), "empty": sorted(k for k, v in vals.items() if not v)[:40],
+            "messages": msgs[:8], "alerts": alerts[:4],
+            "pnrEchoed": bool(vals.get("txtPNRNO")), "hasPnrBox": "txtPNRNO" in vals}

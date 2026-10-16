@@ -2012,6 +2012,23 @@ def its_lookup_batch(pnrs, actor, session_factory=None, clock=time.monotonic):
     return (200 if error is None or done else 502), out
 
 
+def its_lookup_diag(pnrs):
+    """Owner only: look ONE PNR up and return the shape of ITS's answer (field names, messages),
+    never its values, and store nothing."""
+    if its_lookup is None or not its_lookup.configured():
+        return 503, {"error": "ITS lookups are off"}
+    p = next((str(x).strip() for x in (pnrs or []) if re.fullmatch(r"\d{5,15}", str(x).strip())), None)
+    if not p:
+        return 400, {"error": "expected {pnrs: [digits], diag: true}"}
+    try:
+        sess = its_lookup.Session()
+        sess.diag = []
+        trip = sess.lookup(p)
+        return 200, {"ok": True, "found": bool(trip), "answers": sess.diag}
+    except Exception as e:                # noqa: BLE001
+        return 502, {"ok": False, "error": str(e)[:200]}
+
+
 def may_write(role, store):
     # Checked before the owner short-circuit: these stores are written only by the
     # server from an upstream source (GPS telemetry, the eChallan proxy). A client
@@ -4325,6 +4342,8 @@ class Handler(BaseHTTPRequestHandler):
             if me["role"] not in ("owner", "supervisor"):
                 return self._send(403, {"error": "forbidden"})
             b = self._body()
+            if isinstance(b, dict) and b.get("diag") and me["role"] == "owner":
+                return self._send(*its_lookup_diag(b.get("pnrs")))
             code, res = its_lookup_batch((b or {}).get("pnrs") if isinstance(b, dict) else None, me)
             return self._send(code, res)
 
