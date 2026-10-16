@@ -314,7 +314,7 @@ const I18N = {
     rvSources: 'Where this came from', rvSrcGate: 'Gate check', rvSrcRedpro: 'redBus assignment', rvSrcIts: 'ITS booking', rvAsTyped: 'as typed in redBus', rvSwapped: 'bus changed that day',
     rvCrew: 'Crew on that trip', rvSafetyK: 'Safety', rvGenuine: 'Service', rvFaq: 'Question', rvPraise: 'Praise', rvBoarded: 'Boarded',
     itsDiagBtn: 'Show what ITS answered', itsDiagTitle: 'What ITS answered (one PNR)', itsDiagWait: 'Asking ITS…', itsDiagNone: 'Nothing looked up yet',
-    itsDiagFound: 'Found', itsDiagPage: 'Page', itsDiagMsgs: 'Messages from ITS', itsDiagFilled: 'Fields that came back filled', itsDiagEmpty: 'Fields that came back empty',
+    itsDiagFound: 'Found', itsDiagPage: 'Page', itsDiagMsgs: 'Messages from ITS', itsDiagFilled: 'Fields that came back filled', itsDiagEmpty: 'Fields that came back empty', itsDiagButtons: 'Buttons on the page',
     itsDiagNote: 'Field names and messages only — no names, numbers or values are sent or kept.',
     itsTitle: 'Look up in ITS', itsSub: 'untraced 1–3★ reviews — ITS can name the driver from the PNR', itsBtn: 'Look up', itsRunning: 'Looking up in ITS…',
     itsFound: 'found in ITS', itsDriver: 'driver matched', itsDone: 'ITS lookup done', itsOff: 'ITS lookups are not set up yet (lookup user missing in Vercel)', rvViaIts: 'ITS driver',
@@ -652,7 +652,7 @@ const I18N = {
     rvSources: 'यह जानकारी कहाँ से', rvSrcGate: 'गेट चेक', rvSrcRedpro: 'redBus असाइनमेंट', rvSrcIts: 'ITS बुकिंग', rvAsTyped: 'जैसा redBus में लिखा', rvSwapped: 'उस दिन बस बदली',
     rvCrew: 'उस यात्रा का स्टाफ़', rvSafetyK: 'सुरक्षा', rvGenuine: 'सेवा', rvFaq: 'सवाल', rvPraise: 'तारीफ़', rvBoarded: 'चढ़े',
     itsDiagBtn: 'ITS का जवाब देखें', itsDiagTitle: 'ITS ने क्या लौटाया (एक PNR)', itsDiagWait: 'ITS से पूछ रहे हैं…', itsDiagNone: 'अभी कुछ नहीं देखा गया',
-    itsDiagFound: 'मिला', itsDiagPage: 'पेज', itsDiagMsgs: 'ITS के संदेश', itsDiagFilled: 'भरे हुए खाने', itsDiagEmpty: 'खाली खाने',
+    itsDiagFound: 'मिला', itsDiagPage: 'पेज', itsDiagMsgs: 'ITS के संदेश', itsDiagFilled: 'भरे हुए खाने', itsDiagEmpty: 'खाली खाने', itsDiagButtons: 'पेज के बटन',
     itsDiagNote: 'सिर्फ़ खानों के नाम और संदेश — कोई नाम, नंबर या मान नहीं भेजा या रखा जाता।',
     itsTitle: 'ITS में देखें', itsSub: 'बिना बस वाले 1–3★ रिव्यू — ITS PNR से ड्राइवर बता सकता है', itsBtn: 'देखें', itsRunning: 'ITS में देख रहे हैं…',
     itsFound: 'ITS में मिले', itsDriver: 'ड्राइवर मिला', itsDone: 'ITS खोज पूरी', itsOff: 'ITS खोज अभी चालू नहीं (Vercel में लुकअप यूज़र नहीं)', rvViaIts: 'ITS ड्राइवर',
@@ -9609,13 +9609,16 @@ async function itsDiag() {
   if (!any) return toast(t('itsDiagNone'));
   openSheet(t('itsDiagTitle'), `<div class="muted small">${t('itsDiagWait')}</div>`);
   const res = await Sync.itsLookup([any.pnr], true);
-  const a = (res.answers || [])[0] || {};
   const list = (xs) => (xs && xs.length ? xs.map((x) => `<span class="badge b-low" style="margin:2px">${esc(x)}</span>`).join('') : '—');
-  openSheet(t('itsDiagTitle'), res.error ? `<div class="banner bad">${esc(res.error)}</div>` : `
-    <div class="small"><b>${t('itsDiagFound')}:</b> ${res.found ? '✓' : '✗'} · <b>${t('itsDiagPage')}:</b> ${esc(a.title || '—')} · ${a.bytes || 0} B</div>
-    <div class="small" style="margin-top:8px"><b>${t('itsDiagMsgs')}</b><div>${list((a.messages || []).concat(a.alerts || []))}</div></div>
-    <div class="small" style="margin-top:8px"><b>${t('itsDiagFilled')}</b><div>${list(a.filled)}</div></div>
-    <div class="small" style="margin-top:8px"><b>${t('itsDiagEmpty')}</b><div>${list(a.empty)}</div></div>
+  // One block per request the lookup made: sign-in, the PNR page, the answer.
+  const steps = (res.answers || []).map((a, i) => `<div class="card" style="padding:10px;margin:8px 0">
+    <div class="small"><b>${i + 1}. ${esc(a.step || '')}</b> → ${esc(a.landed || '')}</div>
+    <div class="small">${t('itsDiagPage')}: ${esc(a.title || '—')} · ${a.bytes || 0} B</div>
+    <div class="tiny"><b>${t('itsDiagMsgs')}</b> ${list((a.messages || []).concat(a.alerts || []))}</div>
+    <div class="tiny"><b>${t('itsDiagFilled')}</b> ${list(a.filled)}</div>
+    <div class="tiny"><b>${t('itsDiagButtons')}</b> ${list(a.buttons)}</div></div>`).join('');
+  openSheet(t('itsDiagTitle'), res.error ? `<div class="banner bad">${esc(res.error)}</div>${steps}` : `
+    <div class="small"><b>${t('itsDiagFound')}:</b> ${res.found ? '✓' : '✗'}</div>${steps}
     <div class="tiny muted" style="margin-top:10px">${t('itsDiagNote')}</div>`);
 }
 function itsCard() {

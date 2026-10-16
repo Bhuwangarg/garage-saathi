@@ -2020,13 +2020,14 @@ def its_lookup_diag(pnrs):
     p = next((str(x).strip() for x in (pnrs or []) if re.fullmatch(r"\d{5,15}", str(x).strip())), None)
     if not p:
         return 400, {"error": "expected {pnrs: [digits], diag: true}"}
+    sess = None
     try:
         sess = its_lookup.Session()
         sess.diag = []
         trip = sess.lookup(p)
         return 200, {"ok": True, "found": bool(trip), "answers": sess.diag}
-    except Exception as e:                # noqa: BLE001
-        return 502, {"ok": False, "error": str(e)[:200]}
+    except Exception as e:                # noqa: BLE001 - show how far it got
+        return 200, {"ok": False, "error": str(e)[:200], "answers": getattr(sess, "diag", [])}
 
 
 def may_write(role, store):
