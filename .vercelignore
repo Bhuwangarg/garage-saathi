@@ -37,3 +37,6 @@ crew-backup-*.json
 # Docs — no reason to serve them.
 *.md
 !index.html
+
+# The Chrome extension is installed on the office laptop, not served by the app.
+redpro-extension/

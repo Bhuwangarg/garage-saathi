@@ -438,7 +438,7 @@ _STATIC_OK = {".html", ".js", ".css", ".webmanifest", ".svg", ".png",
 # licence numbers) are .json files written into this same folder — a standalone
 # server served them to anyone who guessed the timestamped name. The app loads no
 # .json. Tooling and platform folders, and dot-files, are never served either.
-_STATIC_DENY_DIRS = {"scripts", "mobile", "api", "uploads", "__pycache__", "node_modules"}
+_STATIC_DENY_DIRS = {"scripts", "mobile", "api", "uploads", "__pycache__", "node_modules", "redpro-extension"}
 
 
 def _redact(msg):

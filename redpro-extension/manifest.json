@@ -1,0 +1,15 @@
+{
+  "manifest_version": 3,
+  "name": "Mahalaxmi redPro Sync",
+  "version": "1.0.0",
+  "description": "Sends Mahalaxmi's own redPro reviews, complaints and bus assignments to Garage Saathi, through the redPro tab you are signed in to.",
+  "background": { "service_worker": "background.js" },
+  "action": { "default_popup": "popup.html", "default_title": "Mahalaxmi redPro Sync" },
+  "permissions": ["alarms", "storage", "scripting", "webRequest"],
+  "host_permissions": [
+    "https://www.redbus.pro/*",
+    "https://garage-saathi-sync.vercel.app/*",
+    "http://localhost/*"
+  ],
+  "minimum_chrome_version": "116"
+}

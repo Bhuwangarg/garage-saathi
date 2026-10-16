@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Mahalaxmi redPro Sync</title>
+<style>
+  /* Garage Saathi's tokens, so the office sees one family of tools. */
+  :root{--bg:#F5F3ED;--surface:#fff;--text:#1C1915;--muted:#655E52;--line:rgba(28,25,21,.14);
+    --accent:#0A757F;--green:#1A7443;--amber:#8A5806;--red:#B93124;
+    --font:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;--mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace}
+  @media (prefers-color-scheme:dark){:root{--bg:#17140F;--surface:#211D17;--text:#F1ECE3;--muted:#A69E91;--line:rgba(241,236,227,.13);
+    --accent:#25C4D6;--green:#3DD07E;--amber:#F5A524;--red:#F0584B;color-scheme:dark}}
+  body{margin:0;width:340px;background:var(--bg);color:var(--text);font:13px/1.45 var(--font)}
+  header{padding:12px 14px;border-bottom:1px solid var(--line)}
+  h1{font-size:14px;margin:0}
+  .sub{color:var(--muted);font-size:12px}
+  main{padding:10px 14px 14px;display:flex;flex-direction:column;gap:10px}
+  .problem{background:color-mix(in srgb,var(--red) 12%,transparent);color:var(--red);border-radius:9px;padding:8px 10px;font-weight:600}
+  .jobs{background:var(--surface);border:1px solid var(--line);border-radius:10px}
+  .job{display:grid;grid-template-columns:92px 1fr;gap:2px 8px;padding:8px 10px;border-top:1px solid var(--line)}
+  .job:first-child{border-top:0}
+  .job b{font-weight:700}
+  .when{font:12px var(--mono);color:var(--muted)}
+  .res{grid-column:2;font-size:12px;color:var(--muted)}
+  .res.err{color:var(--red)}
+  button{font:700 13px var(--font);border:0;border-radius:10px;padding:10px 12px;cursor:pointer;background:var(--text);color:var(--bg);
+    transition:transform 160ms cubic-bezier(.23,1,.32,1)}
+  button:active:not([disabled]){transform:scale(.97)}
+  button[disabled]{opacity:.5;cursor:default}
+  button.ghost{background:none;color:var(--accent);padding:6px 0}
+  @media (prefers-reduced-motion:reduce){button{transition:none}button:active:not([disabled]){transform:none}}
+  details{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+  summary{cursor:pointer;font-weight:700}
+  label{display:block;margin-top:8px;font-size:12px;color:var(--muted)}
+  input{width:100%;box-sizing:border-box;margin-top:3px;padding:7px 8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text);font:12px var(--mono)}
+  .note{font-size:11.5px;color:var(--muted)}
+  :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Mahalaxmi redPro Sync</h1>
+  <div class="sub" id="headline">Reads redPro through your signed-in tab → Garage Saathi</div>
+</header>
+<main>
+  <div class="problem" id="problem" hidden></div>
+  <div class="jobs" id="jobs"></div>
+  <button id="sync" type="button">Sync now</button>
+  <details id="settings">
+    <summary>Settings</summary>
+    <label for="token">Garage Saathi token</label>
+    <input id="token" type="password" autocomplete="off" placeholder="paste the token here">
+    <label for="gs">Garage Saathi address</label>
+    <input id="gs" type="url">
+    <div style="display:flex;gap:10px;align-items:center;margin-top:8px">
+      <button id="save" type="button">Save</button><span class="note" id="saved"></span>
+    </div>
+    <p class="note">The token stays in this Chrome only (not synced to a Google account).
+      Passengers' names and phone numbers are never sent.</p>
+  </details>
+</main>
+<script src="popup.js"></script>
+</body>
+</html>
