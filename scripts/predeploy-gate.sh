@@ -452,13 +452,18 @@ ck "the crew filter flags only the blank one" \
 # 2p) A bus in the workshop does not need a driver today, and a shortfall that
 # no amount of filling in can fix is a hiring fact, not a duty-board one.
 login owner u-owner 1 1 1 1
-j "window.__dz='';(async function(){var bs=S.cache.buses.slice(0,3),n=Date.now();
-  await DB.put('jobcards',{id:'g-dz1',busId:bs[0].id,problem:'In our shop',status:'open',priority:'low',createdAt:n,updatedAt:n,assignees:[],partsUsed:[],beforePhotos:[],afterPhotos:[]});
-  await DB.put('jobcards',{id:'g-dz2',busId:bs[1].id,problem:'At a vendor',status:'open',priority:'low',createdAt:n,updatedAt:n,assignees:[],partsUsed:[],beforePhotos:[],afterPhotos:[],outside:true,outsideCity:'Noida'});
+# Measured as a DELTA, not an absolute: earlier sections of this gate leave
+# their own open job cards behind, so "two buses are excluded" was only ever
+# true on a clean fleet. Pick two buses that are currently free, and assert
+# that putting a card on each removes exactly those two.
+j "window.__dz='';(async function(){var free=busesNeedingCrew(),b0=free[0],b1=free[1],n=Date.now();
+  var before=free.length;
+  await DB.put('jobcards',{id:'g-dz1',busId:b0.id,problem:'In our shop',status:'open',priority:'low',createdAt:n,updatedAt:n,assignees:[],partsUsed:[],beforePhotos:[],afterPhotos:[]});
+  await DB.put('jobcards',{id:'g-dz2',busId:b1.id,problem:'At a vendor',status:'open',priority:'low',createdAt:n,updatedAt:n,assignees:[],partsUsed:[],beforePhotos:[],afterPhotos:[],outside:true,outsideCity:'Noida'});
   await load();
-  var all=S.cache.buses.length,need=busesNeedingCrew().length;
-  var inNeed=busesNeedingCrew().some(function(b){return b.id===bs[0].id||b.id===bs[1].id});
-  window.__dz=[all-need,inNeed?'INCLUDED':'excluded'].join('/')
+  var after=busesNeedingCrew();
+  var gone=after.every(function(b){return b.id!==b0.id&&b.id!==b1.id});
+  window.__dz=[before-after.length,gone?'excluded':'INCLUDED'].join('/')
 })().catch(function(e){window.__dz='ERR '+e.message})" >/dev/null
 settle "window.__dz||''" "2/excluded" 40 >/dev/null
 ck "a bus in the shop or away needs no driver"  "$(j "window.__dz")" "2/excluded"
