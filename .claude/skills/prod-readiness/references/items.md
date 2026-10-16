@@ -8,7 +8,7 @@ check and regenerate, or the file and the tool will disagree within a month.
 
 | # | Item | Verdict | Why |
 |---|---|---|---|
-| 1 | Rate Limiting | GAP | /push, /pull and /upload have no rate limit. One stuck phone in a retry loop can spend the whole Vercel budget. Cheapest fix: a per-user counter in the existing sys table, refused with 429 + Retry-After |
+| 1 | Rate Limiting | GUARDED | login brute-force: loginfails table + lockout in sync_server.py |
 | 2 | Caching | MANUAL | no headers block in vercel.json — static assets fall back to Vercel's defaults. Fine while sw.js versions the cache; revisit if that changes |
 | 3 | Load Balancing | N/A | Vercel's edge is all three. Running our own would add a hop and a thing to page about |
 | 4 | Reverse Proxies | N/A | Vercel's edge is all three. Running our own would add a hop and a thing to page about |
@@ -20,7 +20,7 @@ check and regenerate, or the file and the tool will disagree within a month.
 | 10 | Circuit Breakers | N/A | one dependency (Postgres) with no fallback to trip over to; a breaker would only turn a slow failure into a fast one |
 | 11 | Timeouts | GUARDED | client fetches abort on a timeout |
 | 12 | Retries | GUARDED | sync.js retries failed pulls/pushes |
-| 13 | Exponential Backoff | GAP | retries appear to use a fixed interval. A server having a bad minute gets the same load every tick from every phone — add exponential backoff with jitter |
+| 13 | Exponential Backoff | GUARDED | retries back off rather than hammering |
 | 14 | Idempotency | GUARDED | /push upserts by (store, id): replaying the same push is a no-op |
 | 15 | Message Queues | N/A | the outbox in sync.js is the only queue this needs. A broker would be a second thing to keep alive for no gain at this size |
 | 16 | Pub/Sub | N/A | the outbox in sync.js is the only queue this needs. A broker would be a second thing to keep alive for no gain at this size |
@@ -51,14 +51,14 @@ check and regenerate, or the file and the tool will disagree within a month.
 | 41 | Memory Leaks | GUARDED | listeners are added and removed in pairs, or scoped to disposable elements |
 | 42 | Garbage Collection | GUARDED | listeners are added and removed in pairs, or scoped to disposable elements |
 | 43 | Thread Safety | N/A | one request per handler invocation and no shared threads of ours |
-| 44 | Backpressure | GAP | /push reads Content-Length without a ceiling. Vercel caps the request anyway, so this is a clarity fix, not an outage: declare MAX_PUSH_BYTES and refuse 413 |
+| 44 | Backpressure | GUARDED | the /push body has a declared ceiling |
 | 45 | Autoscaling | N/A | Vercel scales the function per request; there is nothing of ours to scale |
 | 46 | Horizontal Scaling | GUARDED | no module-level state that a second instance would disagree about |
 | 47 | Vertical Scaling | MANUAL | function memory is Vercel's default; raise it only against a measured limit |
 | 48 | CDN | GUARDED | service worker caches under garage-saathi-v108 and revalidates |
 | 49 | Edge Caching | GUARDED | service worker caches under garage-saathi-v108 and revalidates |
 | 50 | Cache Invalidation | GUARDED | deploy identity (BUILD_TAG) and a versioned SW cache both exist |
-| 51 | Feature Flags | GAP | no flags: every change is live for all roles the moment it deploys. For a fleet that runs at night, a flag on anything risky is cheap insurance |
+| 51 | Feature Flags | GUARDED | FEATURE_FLAGS on the server, delivered on /pull, read by Sync.flagOn() |
 | 52 | Blue-Green Deployment | N/A | a hundred users on one deployment — a canary needs traffic to split. Rolling back is the control here, not a percentage rollout |
 | 53 | Canary Releases | N/A | a hundred users on one deployment — a canary needs traffic to split. Rolling back is the control here, not a percentage rollout |
 | 54 | Rolling Deployments | N/A | a hundred users on one deployment — a canary needs traffic to split. Rolling back is the control here, not a percentage rollout |
@@ -66,7 +66,7 @@ check and regenerate, or the file and the tool will disagree within a month.
 | 56 | Health Checks | GUARDED | /health exists (and it probes storage) |
 | 57 | Liveness & Readiness Probes | GUARDED | /health exists (and it probes storage) |
 | 58 | Monitoring | MANUAL | no automated check — read the item and decide |
-| 59 | Logging | MANUAL | 22 print() statements go to Vercel's log stream. Readable, but not queryable and dropped after the retention window — attach a drain if an incident ever needs yesterday |
+| 59 | Logging | MANUAL | 26 print() statements go to Vercel's log stream. Readable, but not queryable and dropped after the retention window — attach a drain if an incident ever needs yesterday |
 | 60 | Distributed Tracing | N/A | one serverless handler and one database: there is no multi-hop request to trace. Revisit if the Bolna/WhatsApp agents start calling through this server |
 | 61 | Metrics | MANUAL | no metrics are emitted. Vercel's own dashboard covers invocations, errors and duration; anything business-level (pushes refused, sync failures) is not counted |
 | 62 | Alerts | MANUAL | no alerting configured in the repo — set Vercel notifications and a Supabase disk alert |
@@ -89,7 +89,7 @@ check and regenerate, or the file and the tool will disagree within a month.
 | 79 | XSS | MANUAL | 908 esc() calls; 11 interpolation(s) inside markup are unescaped. Spot-checked samples were constants from code-defined maps, not user input — grep "${x.name}" and confirm each source before trusting this line |
 | 80 | SSRF | GUARDED | no outbound request takes its URL from user-supplied data |
 | 81 | Database Migrations | GUARDED | schema changes are idempotent CREATE/ALTER statements run at boot — simple, and it does mean there is no down-migration |
-| 82 | Schema Versioning | GAP | nothing records which schema a deploy expects. With boot-time CREATE/ALTER this has not bitten; it will the first time a column has to change type |
+| 82 | Schema Versioning | GUARDED | the schema carries a version |
 | 83 | Disaster Recovery | GUARDED | the app can export its own data, which is a second copy off the platform |
 | 84 | Backups | MANUAL | Supabase takes daily backups on the paid tiers — open the dashboard and confirm the plan, the retention and that a restore has been tried once |
 | 85 | Failover | N/A | single region (bom1), single database. Failover would mean a second region nobody is paying for |
@@ -109,7 +109,7 @@ check and regenerate, or the file and the tool will disagree within a month.
 | 99 | HTTP/2 & HTTP/3 | N/A | handled by Vercel and the browser; nothing of ours chooses a transport |
 | 100 | gRPC | N/A | JSON over HTTP, consumed by a browser |
 | 101 | Webhooks | GUARDED | the inbound GPS webhook authenticates on a shared token |
-| 102 | API Versioning | GAP | /pull and /push are unversioned. Phones update lazily, so an old build will call today's endpoint for weeks — any breaking change needs a /v2, not an edit |
+| 102 | API Versioning | GUARDED | /v1/<path> is accepted as an alias and an unknown version 404s rather than being served v1 |
 | 103 | Semantic Versioning | MANUAL | sw.js carries a monotonic cache version, which is what phones key off. Formal semver would only matter if something else consumed this API |
 | 104 | Infrastructure as Code | N/A | the infrastructure is two dashboards (Vercel, Supabase) and a DNS record. Terraform would be more moving parts than it removes |
 | 105 | Terraform | N/A | the infrastructure is two dashboards (Vercel, Supabase) and a DNS record. Terraform would be more moving parts than it removes |

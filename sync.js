@@ -118,6 +118,33 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
   let quarantine = JSON.parse(ls.getItem('quarantine') || '{}');
   let token = ls.getItem('token') || '';
   let lastError = ls.getItem('lastSyncError') || '';
+  /* When the server has told us to stop for a while (429 + Retry-After).
+   *
+   * Without this the answer to "too many requests" was another request four
+   * seconds later, for ever — the device would sit at the ceiling, getting
+   * nothing done and still costing a request every tick. Kept in storage so a
+   * reload does not forget it and start hammering again. */
+  let pauseUntil = Number(ls.getItem('syncPauseUntil') || 0) || 0;
+  /* Consecutive failed ticks, for the backoff below.
+   *
+   * The loop retried every four seconds for ever. A server having a bad minute
+   * therefore got the same load from every phone in the yard for that whole
+   * minute — the shape that turns a blip into an outage, because the retries
+   * are what keep it down. Each failure now doubles the wait, up to five
+   * minutes, with a little jitter so ninety phones do not come back in step.
+   * A single success clears it. */
+  let failStreak = 0;
+  const BACKOFF_MAX_MS = 5 * 60 * 1000;
+  function backoffMs() {
+    if (failStreak < 1) return 0;
+    const base = Math.min(4000 * Math.pow(2, failStreak - 1), BACKOFF_MAX_MS);
+    return Math.round(base * (0.8 + Math.random() * 0.4));   // ±20% jitter
+  }
+  /* Feature flags, as the server last reported them. Off unless the server
+   * says otherwise, so an unknown flag behaves exactly as the code did before
+   * flags existed. */
+  let flags = [];
+  try { flags = JSON.parse(ls.getItem('featureFlags') || '[]') || []; } catch (e) { flags = []; }
   // Records this device could not write to IndexedDB, by store|id, with how many
   // times it has failed. A record is retried on the next pulls and only given up
   // on after PULL_STORE_TRIES, so one unstorable row cannot stall every later
@@ -465,8 +492,36 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
   }
   function kick() { clearTimeout(kickTimer); kickTimer = setTimeout(tick, 600); }
 
+  /* Is this feature turned on? False unless the server named it, so a flag
+   * nobody has set behaves exactly as the code did before flags existed — and
+   * a phone that has never synced is not left guessing. Flip one in Vercel's
+   * FEATURE_FLAGS; every device picks it up on its next pull, no deploy. */
+  function flagOn(name) { return flags.indexOf(String(name)) >= 0; }
+  function flagList() { return flags.slice(); }
+
+  /* Read a 429 and stand down for as long as it asked. Returns the Error to
+   * throw, so the caller reads `throw await throttled(res, 'pull')`. */
+  async function throttled(res, where) {
+    let secs = 0;
+    try { secs = Number(((await res.clone().json()) || {}).retryAfterSec) || 0; } catch (e) { /* no body */ }
+    if (!secs) secs = Number(res.headers.get('Retry-After')) || 60;
+    // Never trust it blindly: a bad value must not park the yard for a day.
+    secs = Math.max(5, Math.min(secs, 900));
+    pauseUntil = Date.now() + secs * 1000;
+    ls.setItem('syncPauseUntil', String(pauseUntil));
+    const e = new Error('server asked us to slow down — retrying in ' + secs + 's');
+    e.throttled = true;
+    return e;
+  }
+
   async function tick() {
     if (busy) return;
+    // Standing down because the server said so. Not an error and not offline:
+    // the device is working, it is just waiting its turn.
+    if (pauseUntil && Date.now() < pauseUntil) {
+      setStatus('waiting');
+      return;
+    }
     busy = true;
     try {
       // A fresh device seeds ~2,900 records from the bundled GS_SEED, and every
@@ -485,6 +540,8 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
       // in Me → Sync for ever, through every successful sync and every fresh
       // sign-in, telling someone to fix a problem that was already fixed.
       lastError = ''; lastErrorAt = 0;
+      failStreak = 0;                        // one good tick clears the backoff
+      pauseUntil = 0; ls.removeItem('syncPauseUntil');
       ls.removeItem('lastSyncError'); ls.removeItem('lastSyncErrorAt');
     } catch (e) {
       // "Offline" was shown for a refused token, a 500, a broken cursor and a
@@ -492,6 +549,13 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
       // same as one in a tunnel. Keep the reason; Me → Sync shows it.
       lastError = (e && e.message) ? String(e.message) : 'sync failed';
       lastErrorAt = Date.now();
+      // A 429 already carries the server's own wait; anything else backs off
+      // on its own so a struggling server is not held down by its clients.
+      if (!(e && e.throttled)) {
+        failStreak += 1;
+        const wait = backoffMs();
+        if (wait > 4000) { pauseUntil = Date.now() + wait; ls.setItem('syncPauseUntil', String(pauseUntil)); }
+      }
       ls.setItem('lastSyncError', lastError);
       ls.setItem('lastSyncErrorAt', String(lastErrorAt));
       setStatus(e && e.sessionExpired ? 'signedout' : 'offline');
@@ -563,7 +627,8 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
     } catch (e) { throw e; }                    // offline → retry later, keep keys
 
     if (res.status === 401) throw sessionDead('push');
-    if (res.status === 429 || res.status >= 500) throw new Error('push ' + res.status);
+    if (res.status === 429) throw await throttled(res, 'push');
+    if (res.status >= 500) throw new Error('push ' + res.status);
 
     let body = {};
     try { body = await res.json(); } catch (e) { body = {}; }
@@ -612,6 +677,7 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
       } catch (e) { throw e; }
       if (one.ok) { outbox.delete(key); saveOutbox(); continue; }
       if (one.status === 401) throw sessionDead('push');
+      if (one.status === 429) throw await throttled(one, 'push');
       if (one.status >= 400 && one.status < 500 && one.status !== 429) {
         let why = '';
         try { why = ((await one.json()) || {}).error || ''; } catch (e) { /* no body */ }
@@ -683,9 +749,13 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
     const res = await fetch(baseUrl() + '/pull?since=' + lastRev + '&deviceId=' + encodeURIComponent(deviceId),
       { headers: authHeaders() });
     if (res.status === 401) throw sessionDead('pull');
+    if (res.status === 429) throw await throttled(res, 'pull');
     if (!res.ok) throw new Error('pull ' + res.status);
     const j = await res.json();
     if (typeof j.serverTime === 'number') { clockOffset = j.serverTime - Date.now(); ls.setItem('clockOffset', String(clockOffset)); }
+    // Flags ride along on the pull rather than needing a request of their own,
+    // which is the difference between being read and not being read.
+    if (Array.isArray(j.flags)) { flags = j.flags; ls.setItem('featureFlags', JSON.stringify(flags)); }
     let applied = 0; let conflicts = 0; let holdRev = 0;
     for (const r of (j.records || [])) {
       if (!STORES.includes(r.store) || !r.data) continue;
@@ -854,6 +924,6 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
   }
 
   return { start, tick, kick, setUrl, reset, info, login, logout, warmUp, roster, pendingIds, addStaff, deleteStaff, renameStaff, registerRoster, setPin, gps, validSyncUrl, backfillContacts, setActor, tokenUser, now, deleteUploads, ai, aiVision, challans, fleet, latest, uploadPhoto,
-           queuePhoto, uploadError, remove, clearQuarantine, subscribePush, pushTest,
+           queuePhoto, uploadError, remove, clearQuarantine, subscribePush, pushTest, flagOn, flagList,
            get status() { return status; } };
 })();

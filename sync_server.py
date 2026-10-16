@@ -229,6 +229,82 @@ MAX_REQUEST_BYTES = max(MAX_UPLOAD_BYTES * 4 // 3 + 64 * 1024, 6 * 1024 * 1024)
 # Records in one /push. The app sends at most 250 and a restore 200; one request
 # holds the server's write lock for its whole batch.
 MAX_PUSH_RECORDS = int(os.environ.get("MAX_PUSH_RECORDS", "1000"))
+# A ceiling in bytes as well as in records. 1,000 records of inline photo data
+# is a different request from 1,000 rows of text, and the platform's own limit
+# answers with a bare 413 that says nothing. Refused before the body is read.
+MAX_PUSH_BYTES = int(os.environ.get("MAX_PUSH_MB", "6")) * 1024 * 1024
+
+# ---- Rate limiting on the sync endpoints ---------------------------------
+#
+# What this guards against is not an attacker. It is one phone stuck in a retry
+# loop: on a per-request serverless bill that is a runaway cost with nobody
+# watching, and the first anybody learns of it is the invoice.
+#
+# The ceilings sit well above what a working device does. A client tick is
+# every four seconds, so a busy phone makes about fifteen pulls a minute and a
+# push with them; 120 a minute is eight times that. Anything above it is a loop,
+# not a person. Uploads are rarer and bigger, so they get their own hourly
+# ceiling.
+#
+# Keyed on the USER, never the IP: the yard shares one wifi, and an IP limit
+# would stop every conductor because one phone was stuck.
+# ---- The wire protocol's version ----------------------------------------
+#
+# Phones update lazily: a conductor who does not reopen the app for three weeks
+# is still calling whatever this server exposes today. So the endpoints may
+# never change shape in place — a breaking change has to arrive as /v2 while
+# /v1 keeps answering the old builds until they have all come back.
+#
+# /v1/<path> is accepted NOW, as an alias for the bare path, so that door
+# exists before it is needed. Old clients keep calling /pull and /push and are
+# unaffected; nothing has to be coordinated.
+# ---- The schema's version ------------------------------------------------
+#
+# The schema is built by idempotent CREATE/ALTER at boot, which has been enough
+# because every change so far has been an added table or an added column. The
+# first change that is NOT additive — a column whose type moves, a table that
+# splits — needs to know what it is starting from, and by then it is too late
+# to start recording it. Bump this whenever the shape changes; the server
+# writes it down and says so in the log when it moves.
+SCHEMA_VERSION = 1
+
+PROTOCOL_VERSION = 1
+_VERSIONED = re.compile(r"^/v(\d+)(/.*)$")
+
+
+def _strip_version(path):
+    """('/pull', 1) for '/v1/pull'; ('/pull', None) for '/pull'.
+
+    An unknown version is left alone so it 404s rather than being silently
+    served the current shape — answering /v9 with v1 data is how a future
+    client gets quietly wrong answers."""
+    m = _VERSIONED.match(path)
+    if not m:
+        return path, None
+    want = int(m.group(1))
+    if want != PROTOCOL_VERSION:
+        return path, want
+    return m.group(2), want
+
+
+# ---- Feature flags -------------------------------------------------------
+#
+# Every change has been live for every role the moment it deployed. For a fleet
+# that runs at night that is the wrong default for anything risky: the only
+# control was a rollback, which takes back the good with the bad.
+#
+# Flags are OFF unless named in FEATURE_FLAGS (comma-separated, set in Vercel —
+# no redeploy to flip one). The server hands the list to the client on /pull,
+# and the client's flagOn() defaults to false, so a flag that nobody set behaves
+# exactly as the code did before flags existed.
+def feature_flags():
+    raw = os.environ.get("FEATURE_FLAGS", "")
+    return sorted({f.strip() for f in raw.replace(";", ",").split(",") if f.strip()})
+
+
+RL_SYNC_PER_MIN = int(os.environ.get("RL_SYNC_PER_MIN", "120"))
+RL_UPLOAD_PER_HOUR = int(os.environ.get("RL_UPLOAD_PER_HOUR", "240"))
+RATE_LIMIT_OFF = os.environ.get("RATE_LIMIT_OFF") == "1"   # escape hatch, no redeploy needed
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "").strip()
 
 # Login brute-force protection: lock a user (and the source IP) after too many
@@ -503,6 +579,21 @@ def db():
         c.execute("""CREATE TABLE IF NOT EXISTS disabledlogins(id TEXT PRIMARY KEY, at BIGINT)""")
         # AI proxy calls per user per day — the key is billed to the operator.
         c.execute("""CREATE TABLE IF NOT EXISTS aiusage(k TEXT PRIMARY KEY, n BIGINT)""")
+        # One row per (bucket, user, time window). Old windows are swept rather
+        # than kept — see _rate_ok.
+        c.execute("""CREATE TABLE IF NOT EXISTS ratelimit(
+            k TEXT PRIMARY KEY, n BIGINT, win BIGINT)""")
+        # Record which schema this deploy expects, and say so when it changes.
+        # Written after the CREATEs above, so it only lands if they succeeded.
+        try:
+            row = c.execute("SELECT v FROM sys WHERE k='schema_version'").fetchone()
+            was = int(row[0]) if row and str(row[0]).isdigit() else 0
+            if was != SCHEMA_VERSION:
+                c.execute("INSERT INTO sys(k,v) VALUES(?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v",
+                          ("schema_version", str(SCHEMA_VERSION)))
+                print("schema version %d -> %d" % (was, SCHEMA_VERSION))
+        except Exception as e:                       # never let bookkeeping stop a boot
+            print("schema version note failed: %s" % type(e).__name__)
         try:
             c.commit()
         except Exception:
@@ -2664,6 +2755,48 @@ def ai_allowed(user):
     return None
 
 
+def _rate_ok(user_id, bucket):
+    """(True, 0) when this request may proceed, else (False, seconds to wait).
+
+    FAILS OPEN, deliberately. A limiter that refuses work because its own
+    counter table hiccuped would turn a database blip into a yard that cannot
+    release a bus — which is a worse outage than the cost it exists to cap. If
+    the check cannot run, the request goes through and the reason is logged.
+
+    One extra round-trip per sync request is the price. At a tick every four
+    seconds per device that is cheap next to an unbounded retry loop.
+    """
+    if RATE_LIMIT_OFF or not user_id:
+        return True, 0
+    cap, window = (RL_SYNC_PER_MIN, 60) if bucket == "sync" else (RL_UPLOAD_PER_HOUR, 3600)
+    if cap <= 0:
+        return True, 0
+    now = int(time.time())
+    win = now // window
+    key = "%s:%s:%d" % (bucket, user_id, win)
+    try:
+        with _lock:
+            c = db()
+            row = c.execute("SELECT n FROM ratelimit WHERE k=?", (key,)).fetchone()
+            n = int(row[0]) if row else 0
+            if n >= cap:
+                c.close()
+                return False, max(1, (win + 1) * window - now)
+            c.execute("INSERT INTO ratelimit(k,n,win) VALUES(?,?,?) "
+                      "ON CONFLICT(k) DO UPDATE SET n=excluded.n", (key, n + 1, win))
+            # Sweep spent windows occasionally instead of on a schedule nobody
+            # runs. Only on the first request of a window, and only sometimes,
+            # so the delete is rare rather than per-request.
+            if n == 0 and (now % 101) < 4:
+                c.execute("DELETE FROM ratelimit WHERE win < ?", (win - 2,))
+            c.commit()
+            c.close()
+        return True, 0
+    except Exception as e:
+        print("rate limit check failed, allowing the request: %s: %s" % (type(e).__name__, _redact(e)))
+        return True, 0
+
+
 _UPLOAD_NAME = re.compile(r"^[0-9a-f]{32}\.(jpg|png|pdf)$")
 # What an upload may be, told by its first bytes and not by the data URL's
 # label: a camera or gallery picture (JPEG/PNG), or a PDF such as a DigiLocker
@@ -3311,7 +3444,7 @@ class Handler(BaseHTTPRequestHandler):
     # A connection that stops sending holds a thread; do not wait on it forever.
     timeout = 60
 
-    def _send(self, code, payload=None, raw=None, ctype="application/json", cache=None):
+    def _send(self, code, payload=None, raw=None, ctype="application/json", cache=None, retry_after=None):
         if raw is not None:
             body = raw
         else:
@@ -3324,10 +3457,29 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", ctype)
         if cache:
             self.send_header("Cache-Control", cache)
+        if retry_after:
+            self.send_header("Retry-After", str(int(retry_after)))
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         if body:
             self.wfile.write(body)
+
+    def _unversion(self, path):
+        """Map /v1/x to /x. A version we do not speak is left to 404."""
+        bare, want = _strip_version(path)
+        if want is not None and want != PROTOCOL_VERSION:
+            return path
+        return bare
+
+    def _rate_limited(self, me, bucket):
+        """True when this request has been answered with a 429 and the caller
+        must stop. Checked after auth, so the counter is per person."""
+        ok, wait = _rate_ok((me or {}).get("id"), bucket)
+        if ok:
+            return False
+        print("rate limit: %s hit the %s ceiling, told to wait %ds" % ((me or {}).get("id"), bucket, wait))
+        self._send(429, {"error": "too many requests", "retryAfterSec": wait}, retry_after=wait)
+        return True
 
     def _body(self):
         n = self._content_length() or 0
@@ -3402,7 +3554,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         self._boot()
-        u = urlparse(self.path)
+        u = urlparse(self.path)._replace(path=self._unversion(urlparse(self.path).path))
         # "/" is the app when the PWA is bundled with the function, and only falls
         # back to health when it is not (a backend-only deploy). /health is always
         # health, which is what the keepalive cron and every deploy check use.
@@ -3455,6 +3607,11 @@ class Handler(BaseHTTPRequestHandler):
                                      # up a new env var while still serving old code), and
                                      # echallanKeySet is whether the key reached the process.
                                      "build": BUILD_TAG, "echallanKeySet": bool(ECHALLAN_API_KEY),
+                                     "schemaVersion": SCHEMA_VERSION, "protocol": PROTOCOL_VERSION,
+                                     "flags": feature_flags(),
+                                     "rateLimit": {"syncPerMin": RL_SYNC_PER_MIN,
+                                                   "uploadPerHour": RL_UPLOAD_PER_HOUR,
+                                                   "off": RATE_LIMIT_OFF},
                                      # Which key the odometer OCR will actually use. Names the
                                      # provider and model but never the key, so a misconfigured
                                      # switch is visible without dashboard access.
@@ -3495,8 +3652,16 @@ class Handler(BaseHTTPRequestHandler):
             me = self._auth_user()
             if not me:
                 return self._send(401, {"error": "unauthorized"})
+            if self._rate_limited(me, "sync"):
+                return None
             since = int((parse_qs(u.query).get("since") or ["0"])[0])
-            return self._send(200, pull(since, actor=me), cache="no-store")
+            out = pull(since, actor=me)
+            # Carried on every pull rather than fetched separately: a flag the
+            # client learns about a tick late is fine, one it has to make an
+            # extra request for will not be read at all.
+            out["flags"] = feature_flags()
+            out["protocol"] = PROTOCOL_VERSION
+            return self._send(200, out, cache="no-store")
         if u.path == "/gps":
             # Live position, speed and ignition of a named bus. Registration
             # numbers are painted on the buses, so this must not be anonymous.
@@ -3620,7 +3785,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         self._boot()
-        u = urlparse(self.path)
+        u = urlparse(self.path)._replace(path=self._unversion(urlparse(self.path).path))
         if self._content_length() is None:
             self.close_connection = True
             return self._send(413, {"error": "request body missing a valid size, or too large"})
@@ -3832,6 +3997,13 @@ class Handler(BaseHTTPRequestHandler):
             me = self._auth_user()
             if not me:
                 return self._send(401, {"error": "unauthorized"})
+            if self._rate_limited(me, "sync"):
+                return None
+            _n = int(self.headers.get("Content-Length") or 0)
+            if _n > MAX_PUSH_BYTES:
+                return self._send(413, {"error": "push too large (max %d MB) — the device should "
+                                                 "send fewer records per tick"
+                                                 % (MAX_PUSH_BYTES // (1024 * 1024))})
             recs = self._body().get("records") or []
             if not isinstance(recs, list) or len(recs) > MAX_PUSH_RECORDS:
                 return self._send(413, {"error": "too many records in one push (max %d)" % MAX_PUSH_RECORDS})
@@ -3889,8 +4061,11 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, {"ok": True, "removed": delete_uploads(urls[:200])})
 
         if u.path == "/upload":
-            if not self._auth_user():
+            _me = self._auth_user()
+            if not _me:
                 return self._send(401, {"error": "unauthorized"})
+            if self._rate_limited(_me, "upload"):
+                return None
             if int(self.headers.get("Content-Length") or 0) > MAX_UPLOAD_BYTES:
                 return self._send(413, {"error": f"upload too large (max {MAX_UPLOAD_BYTES // (1024*1024)} MB)"})
             data = self._body().get("data") or ""

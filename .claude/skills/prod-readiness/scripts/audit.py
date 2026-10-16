@@ -416,7 +416,12 @@ def c_rollback():
 
 
 def c_feature_flags():
-    s = APP() + SERVER()
+    s = APP() + SERVER() + SYNC()
+    # The mechanism is a server-side list handed to the client on /pull, read
+    # through flagOn(). Look for both halves: a flag list nobody can read, or a
+    # reader with nothing feeding it, is not a working flag system.
+    if "def feature_flags(" in SERVER() and "function flagOn(" in SYNC():
+        return GUARDED, "FEATURE_FLAGS on the server, delivered on /pull, read by Sync.flagOn()"
     if re.search(r"FEATURE_FLAGS?\s*=|featureFlag|isFeatureEnabled\(", s):
         return GUARDED, "feature flags exist"
     return (GAP, "no flags: every change is live for all roles the moment it deploys. For a "
@@ -536,6 +541,10 @@ def c_cdn():
 
 def c_api_versioning():
     s = SERVER()
+    # Versioning here is a prefix the router strips, not a second set of route
+    # literals — so look for the mechanism, not for "/v1/" spelled out.
+    if "PROTOCOL_VERSION" in s and "_strip_version" in s:
+        return GUARDED, "/v1/<path> is accepted as an alias and an unknown version 404s rather than being served v1"
     ours = re.findall(r'path\s*(?:==|\.startswith\()\s*["\']/([a-z0-9/_-]+)', s)
     if any(re.match(r"v\d", p) for p in ours):
         return GUARDED, "our endpoints are versioned"

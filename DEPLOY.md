@@ -51,6 +51,29 @@ with the process, so it is a test tool, never production.
 
 ## Production hardening checklist (before real staff/vendor use)
 Done:
+- [x] **Rate limiting on the sync endpoints** — `/pull`, `/push` and `/upload` are capped
+      **per user**, never per IP: the yard shares one wifi, and an IP cap would stop every
+      conductor because one phone was stuck. Defaults are `RL_SYNC_PER_MIN=120` (a working
+      device makes about 15) and `RL_UPLOAD_PER_HOUR=240`. Over the line the server answers
+      `429` with `Retry-After`, and the client stands down for exactly that long instead of
+      asking again in four seconds. **It fails open**: if the counter table cannot be read
+      the request goes through and the reason is logged — a limiter that refuses work
+      because of its own hiccup is a worse outage than the bill it caps.
+      `RATE_LIMIT_OFF=1` turns it off with no redeploy.
+- [x] **Retries back off** — a failed sync doubles its wait (4s → 8 → 16 …, capped at five
+      minutes) with ±20% jitter so ninety phones do not return in step. One good tick clears it.
+- [x] **Push size ceiling** — `MAX_PUSH_MB` (default 6) refused before the body is read,
+      alongside the existing `MAX_PUSH_RECORDS` (1000). A thousand rows of text and a
+      thousand rows carrying inline photos are very different requests.
+- [x] **Wire protocol is versioned** — `PROTOCOL_VERSION`, with `/v1/<path>` accepted as an
+      alias for every endpoint today. Phones update lazily, so a breaking change must arrive
+      as `/v2` while `/v1` keeps answering old builds; an unknown version 404s rather than
+      being quietly served the current shape.
+- [x] **Schema version recorded** — `SCHEMA_VERSION` is written to `sys` at boot and logged
+      when it moves. Bump it whenever the shape changes.
+- [x] **Feature flags** — off unless named in `FEATURE_FLAGS` (comma-separated, set in
+      Vercel, no redeploy to flip one). The list rides along on `/pull`; the client reads it
+      with `Sync.flagOn('name')`, which is false for anything the server did not name.
 - [x] **Login brute-force lockout** — `/auth/login` locks a user after 5 failed PINs / 15 min,
       with a generous per-IP backstop (50) so a shared garage IP isn't locked by one person.
       Tune via `MAX_LOGIN_FAILS`, `MAX_IP_FAILS`, `LOGIN_LOCK_SEC`.
