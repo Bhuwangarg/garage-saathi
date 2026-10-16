@@ -2,19 +2,25 @@
 # Core server is stdlib-only; pywebpush powers Phase-3 web-push notifications
 # (it pulls in cryptography + py-vapid + http-ece). If absent, push silently
 # no-ops and the rest of the server runs unchanged.
-pywebpush>=1.14.0
+pywebpush>=1.14.0,<2
 # Optional and DORMANT: persist to a free Turso (libSQL) database instead of the
 # local (ephemeral on a serverless host) SQLite file. Activated only when
 # TURSO_URL + TURSO_AUTH_TOKEN are set — production uses Postgres (DATABASE_URL)
 # instead, and /health reports tursoConfigured: false.
-libsql-experimental>=0.0.41
+libsql-experimental>=0.0.41,<0.1
 # Optional: Cloudflare R2 (S3-compatible) for free, persistent photo storage.
 # Only imported when the R2_* env vars are set; else photos go to local disk.
-boto3>=1.34.0
+boto3>=1.34.0,<2
 # boto3 verifies TLS against a CA bundle it expects to find on disk; the
 # serverless runtime has none, which failed every upload with an SSLError.
 certifi>=2024.2.2
 
 # Postgres (Supabase) — the durable store, set via DATABASE_URL. The only option
 # here that survives a redeploy on a serverless host with no persistent disk.
-psycopg[binary]>=3.1
+psycopg[binary]>=3.1,<4
+
+# Upper bounds added 16 Oct 2026. Every line was open-ended, so a deploy that
+# changed nothing of ours could still pull a new major of boto3 or psycopg and
+# break production. The floors are unchanged — this only stops a major version
+# arriving unannounced. certifi is deliberately left open: it is a CA bundle and
+# the newest is always the one you want.

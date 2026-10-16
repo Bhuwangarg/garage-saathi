@@ -1,0 +1,5 @@
+# Gaps that were looked at and deliberately left. One per line:
+#   <check title> | <YYYY-MM-DD> | <why>
+# The audit still prints these, as ACCEPTED rather than GAP, and --fail-on-gap
+# ignores them. Delete a line to make the tool argue with you again.
+Dependency hell | 2026-10-16 | certifi is a CA bundle; the newest is always the one we want, so it stays open-ended on purpose. Every other dependency is bounded.

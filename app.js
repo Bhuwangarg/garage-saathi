@@ -324,7 +324,7 @@ const I18N = {
     asAssignDriver: 'Assign driver', asAssignConductor: 'Assign conductor', asNone: '— none —',
     asSeat: 'Seat', asDriverN: 'Driver', asSeat2Hint: 'relief driver, night / long route', asFirstFree: 'First free seat', asSeatEmpty: 'Empty', asExtraDriver: 'Also marked on this bus — move to a seat or another bus',
     asDriverAssigned: 'Driver assigned', asConductorAssigned: 'Conductor assigned', asForThisBus: 'for this bus',
-    asNobodyYet: 'Nobody on the roster yet',
+    asNobodyYet: 'Nobody on the roster yet', asNobody: 'Nobody',
     cmToday: "Today's duty", cmNeedDriver: 'need a driver', cmNeedConductor: 'need a conductor',
     cmAllSet: 'Every bus has its driver and conductor ✓', cmOpenBoard: 'Open the duty board',
   },
@@ -647,7 +647,7 @@ const I18N = {
     asAssignDriver: 'ड्राइवर दें', asAssignConductor: 'कंडक्टर दें', asNone: '— कोई नहीं —',
     asSeat: 'सीट', asDriverN: 'ड्राइवर', asSeat2Hint: 'दूसरा ड्राइवर, रात / लंबा रूट', asFirstFree: 'पहली खाली सीट', asSeatEmpty: 'खाली', asExtraDriver: 'यह भी इसी बस पर दर्ज है — सीट या दूसरी बस दें',
     asDriverAssigned: 'ड्राइवर दे दिया', asConductorAssigned: 'कंडक्टर दे दिया', asForThisBus: 'इस बस के लिए',
-    asNobodyYet: 'अभी रोल पर कोई नहीं',
+    asNobodyYet: 'अभी रोल पर कोई नहीं', asNobody: 'कोई नहीं',
     cmToday: 'आज की ड्यूटी', cmNeedDriver: 'बसों को ड्राइवर चाहिए', cmNeedConductor: 'बसों को कंडक्टर चाहिए',
     cmAllSet: 'हर बस पर ड्राइवर और कंडक्टर हैं ✓', cmOpenBoard: 'ड्यूटी बोर्ड खोलें',
   },
@@ -8706,21 +8706,39 @@ function dutyLookupCard() {
  * lists, and the question on the floor is the other way round: this bus goes out
  * tonight, who is on it? Each seat is a button that opens the same picker the
  * person-first lists use, so nothing about assigning changes. */
-function dutyBusRow(b) {
+/* The duty board's by-bus view, as the same vehicle card the fleet list uses.
+ *
+ * Filling a seat means knowing which bus you are looking at, and a row that
+ * said "1217" and nothing else did not help — the photograph does, and the
+ * faces already in the crew bank say at a glance whether a seat is filled and
+ * by whom. The three seats stay as the chips they were, so the tap that opens
+ * the picker is unchanged. */
+function dutyBusCard(b) {
   const seats = driverSeatsOf(b.id), con = conductorOfBus(b.id);
+  const filled = [seats[0], seats[1], con].filter(Boolean).length;
+  const cls = filled === 0 ? 'crit' : filled < 3 ? 'warn' : 'ok';
+  const word = filled === 0 ? t('asNobody') : `${filled}/3`;
+  const faceOf = (p) => p && crewFace(p)
+    ? `<img class="vc-face" src="${esc(crewFace(p))}" alt="" title="${esc(p.name)}">`
+    : `<span class="vc-face vc-noface" title="${p ? esc(p.name) : ''}">${p ? esc((p.name || '?').slice(0, 1)) : '–'}</span>`;
   const seatChip = (label, person, role, slot) =>
     `<button class="chip" style="${person ? '' : 'border-style:dashed;color:var(--muted)'}" data-act="assignDriver"
       data-bus="${esc(b.id)}" data-role="${esc(role)}"${slot ? ` data-slot="${slot}"` : ''}>${
       esc(label)}: <b>${person ? esc(person.name) : esc(t('asSeatEmpty'))}</b></button>`;
-  return `<div class="li" style="align-items:flex-start"><div class="ava">🚌</div>
-    <div class="main"><div class="t">${esc(b.regNo)}</div>
-      ${b.company ? `<div class="s">${esc(b.company)}</div>` : ''}
-      <div class="seatrow">
+  return `<div class="vcard">
+    <div class="vc-top"><img src="${esc(busImg(b))}" alt="" loading="lazy">
+      <span class="schip ${cls} vc-pill"><i></i>${esc(word)}</span></div>
+    <div class="vc-body">
+      ${plateChip(b)}
+      ${b.company ? `<div class="vc-sub">${esc(b.company)}</div>` : ''}
+      <div class="vc-faces">${faceOf(seats[0])}${faceOf(seats[1])}${faceOf(con)}</div>
+      <div class="seatrow" style="margin-top:9px">
         ${seatChip(t('asDriverN') + ' 1', seats[0], 'driver', 1)}
         ${seatChip(t('asDriverN') + ' 2', seats[1], 'driver', 2)}
         ${seatChip(crewRoleLabel('conductor'), con, 'conductor', null)}
       </div></div></div>`;
 }
+const dutyBusRow = dutyBusCard;   // the old name, still called from the board
 
 function viewAssignments() {
   const role = _asRole === 'conductor' ? 'conductor' : 'driver';
@@ -8740,7 +8758,7 @@ function viewAssignments() {
   if (byBus) {
     const fleet = [...buses].sort((a, b) => String(a.regNo).localeCompare(String(b.regNo), undefined, { numeric: true }));
     body += `<div class="card" id="as-bybus"><div class="row between"><h3>🚌 ${esc(t('buses'))}</h3><span class="badge b-low">${fleet.length}</span></div>`;
-    body += fleet.length ? fleet.map(dutyBusRow).join('')
+    body += fleet.length ? `<div class="vgrid">${fleet.map(dutyBusCard).join('')}</div>`
       : `<div class="empty">🚌 ${esc(t('noBusesHere'))}<div class="tiny muted" style="margin-top:6px">${esc(t('noBusesFix'))}</div></div>`;
     body += `</div>`;
     shell(t('asTitle'), body);
@@ -9957,10 +9975,16 @@ function crewLi(d) {
   // enough to search on, and the mask is what gets rendered.
   const hay = `${d.name} ${d.phone || ''} ${crewLicenceNo(d)} ${_digits(crewAadhaarNo(d)).slice(-4)} ${bus} ${crewRoleLabel(role)}`;
   const sub = [d.phone || t('cbNoPhone'), bus || t('cbNoBus'), crewLicenceNo(d)].filter(Boolean).join(' · ');
-  return `<div class="li" data-driver="${esc(d.id)}" data-hay="${esc(hay)}" style="${left ? 'opacity:.62' : ''}">
-    <div class="ava">${crewFace(d) ? `<img src="${esc(crewFace(d))}" alt="">` : meta[0]}</div>
-    <div class="main"><div class="t">${esc(d.name)} <span class="tiny muted">${esc(crewRoleLabel(role))}</span></div>
-      <div class="s">${esc(sub)}</div></div>
+  /* Kept as a dense row, not a photo card. Ninety buses are told apart by
+   * their picture; a hundred and seventy people are found by typing a name,
+   * and a grid of cards would be three times the scroll to do it in. What the
+   * reference contributes here is the round face and the pill, not the grid. */
+  return `<div class="li crewrow" data-driver="${esc(d.id)}" data-hay="${esc(hay)}" style="${left ? 'opacity:.62' : ''}">
+    <div class="ava ava-round">${crewFace(d) ? `<img src="${esc(crewFace(d))}" alt="">` : meta[0]}</div>
+    <div class="main"><div class="t">${esc(d.name)}</div>
+      <div class="crewmeta"><span class="rolepill">${meta[0]} ${esc(crewRoleLabel(role))}</span>${
+        bus ? `<span class="buschip">🚌 ${esc(bus)}</span>` : ''}</div>
+      <div class="s">${esc([d.phone || t('cbNoPhone'), crewLicenceNo(d)].filter(Boolean).join(' · '))}</div></div>
     ${badge}</div>`;
 }
 

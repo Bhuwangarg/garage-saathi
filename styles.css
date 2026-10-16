@@ -10,9 +10,20 @@
   --text:#1C1915; --text2:#3A352D; --ink:#141210;   /* KEPT --ink (strong black) */
   --muted:#655E52; --faint:#6F675A;
   --line:rgba(28,25,21,.14); --line2:rgba(28,25,21,.08);
-  /* accent = instrument teal (was lime). --accent-ink = text ON the accent. --accent-700 = hover/pressed */
-  --accent:#0A757F; --accent-700:#075C64; --accent-ink:#F4F0E7; --accent-wash:rgba(10,117,127,.11);
-  --brand2:#0A757F;                                 /* KEPT — chip active refs var(--brand2) */
+  /* accent = signal orange (was instrument teal), taken from the fleet
+   * dashboards the owner chose as reference.
+   *
+   * THREE tokens, not one, because the old --accent-ink did two jobs: it was
+   * the light ink on --ink grounds (primary buttons, the toast, the logo) AND
+   * the ink on the accent itself. Teal tolerated that; a vivid orange does
+   * not — near-white on #F15A24 is 3:1 and unreadable at button sizes.
+   *   --accent-ink  light ink on the near-black --ink grounds (unchanged)
+   *   --on-accent   dark ink on the orange itself          (5.4:1 / 7.1:1)
+   *   --brand2      the accent as TEXT, on paper or on the pale wash (4.7+:1)
+   * --accent itself stays the vivid reference orange, for fills and bars. */
+  --accent:#F15A24; --accent-700:#D1430D; --accent-ink:#F4F0E7; --accent-wash:rgba(241,90,36,.12);
+  --on-accent:#231006;                              /* text ON the orange, NOT on --ink */
+  --brand2:#9A3412;                                 /* accent as TEXT: readable on paper and on the wash */                                 /* KEPT — chip active refs var(--brand2) */
   /* semantic — kept SEPARATE from accent; brake/hazard/running/GPS */
   --red:#B93124; --amber:#8A5806; --green:#1A7443; --blue:#1668B0;
   --red-wash:rgba(185,49,36,.12); --amber-wash:rgba(138,88,6,.13);
@@ -32,8 +43,9 @@
     --text:#F1ECE3; --text2:#D9D2C6; --ink:#F5F1EA;
     --muted:#A69E91; --faint:#948C7E;
     --line:rgba(241,236,227,.13); --line2:rgba(241,236,227,.07);
-    --accent:#25C4D6; --accent-700:#1AA8B8; --accent-ink:#062227; --accent-wash:rgba(37,196,214,.12);
-    --brand2:#25C4D6;
+    --accent:#FF8A3D; --accent-700:#F15A24; --accent-ink:#062227; --accent-wash:rgba(255,138,61,.14);
+    --on-accent:#231006;
+    --brand2:#FFB08A;
     --red:#F0584B; --amber:#F5A524; --green:#3DD07E; --blue:#4FA8FF;
     --red-wash:rgba(240,88,75,.13); --amber-wash:rgba(245,165,36,.13);
     --green-wash:rgba(61,208,126,.13); --blue-wash:rgba(79,168,255,.13);
@@ -49,8 +61,9 @@
   --text:#F1ECE3; --text2:#D9D2C6; --ink:#F5F1EA;
   --muted:#A69E91; --faint:#948C7E;
   --line:rgba(241,236,227,.13); --line2:rgba(241,236,227,.07);
-  --accent:#25C4D6; --accent-700:#1AA8B8; --accent-ink:#062227; --accent-wash:rgba(37,196,214,.12);
-  --brand2:#25C4D6;
+  --accent:#FF8A3D; --accent-700:#F15A24; --accent-ink:#062227; --accent-wash:rgba(255,138,61,.14);
+  --on-accent:#231006;
+  --brand2:#FFB08A;
   --red:#F0584B; --amber:#F5A524; --green:#3DD07E; --blue:#4FA8FF;
   --red-wash:rgba(240,88,75,.13); --amber-wash:rgba(245,165,36,.13);
   --green-wash:rgba(61,208,126,.13); --blue-wash:rgba(79,168,255,.13);
@@ -64,8 +77,9 @@
   --text:#1C1915; --text2:#3A352D; --ink:#141210;
   --muted:#655E52; --faint:#6F675A;
   --line:rgba(28,25,21,.14); --line2:rgba(28,25,21,.08);
-  --accent:#0A757F; --accent-700:#075C64; --accent-ink:#F4F0E7; --accent-wash:rgba(10,117,127,.11);
-  --brand2:#0A757F;
+  --accent:#F15A24; --accent-700:#D1430D; --accent-ink:#F4F0E7; --accent-wash:rgba(241,90,36,.12);
+  --on-accent:#231006;                              /* text ON the orange, NOT on --ink */
+  --brand2:#9A3412;                                 /* accent as TEXT: readable on paper and on the wash */
   --red:#B93124; --amber:#8A5806; --green:#1A7443; --blue:#1668B0;
   --red-wash:rgba(185,49,36,.12); --amber-wash:rgba(138,88,6,.13);
   --green-wash:rgba(26,116,67,.12); --blue-wash:rgba(22,104,176,.12);
@@ -157,7 +171,7 @@ a{color:var(--blue)}
   padding:13px 16px;border-radius:14px;font-weight:700;cursor:pointer;width:100%;box-shadow:var(--shadow-sm)}
 .btn.primary{background:var(--ink);color:var(--accent-ink);border:none;box-shadow:var(--shadow)}
 .btn.primary:active{transform:translateY(1px)}
-.btn.accent{background:var(--accent);color:var(--accent-ink);border:none}
+.btn.accent{background:var(--accent);color:var(--on-accent);border:none}
 .btn.ghost{background:none;box-shadow:none;border-color:transparent}
 .btn.danger{background:var(--surface);color:var(--red);border-color:var(--red-wash)}
 .btn,.btn.sm{min-height:48px}
@@ -165,7 +179,7 @@ a{color:var(--blue)}
 .btn.sm{padding:9px 13px;font-size:13px;width:auto;border-radius:11px}
 .btnrow{display:flex;gap:12px}
 .fab{position:fixed;right:calc(50% - 244px);bottom:90px;width:58px;height:58px;border-radius:50%;
-  background:var(--accent);color:var(--accent-ink);border:none;font-size:28px;font-weight:600;
+  background:var(--accent);color:var(--on-accent);border:none;font-size:28px;font-weight:600;
   box-shadow:0 12px 28px -6px rgba(28,25,21,.4);z-index:25;display:grid;place-items:center}
 @media(max-width:520px){.fab{right:18px}}
 
@@ -193,7 +207,7 @@ textarea{min-height:76px;resize:vertical}
 
 /* Dashboard: dark summary pill */
 .feature-pill{display:flex;align-items:center;gap:12px;background:var(--ink);color:var(--accent-ink);border-radius:16px;padding:13px 15px;margin-top:6px}
-.fp-dot{width:38px;height:38px;border-radius:50%;background:var(--accent);color:var(--accent-ink);
+.fp-dot{width:38px;height:38px;border-radius:50%;background:var(--accent);color:var(--on-accent);
   display:grid;place-items:center;font-weight:800;font-size:18px;flex:none}
 .fp-big{font-size:21px;font-weight:800;letter-spacing:-.4px}
 .fp-sub{font-size:12px;opacity:.7}
@@ -216,7 +230,7 @@ textarea{min-height:76px;resize:vertical}
 .aibanner{display:flex;align-items:center;gap:12px;cursor:pointer;
   background:linear-gradient(120deg,#1b1d24,#2a2140);color:#fff}
 .aibanner .t{color:#fff}
-.ai-ic{width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,var(--accent),#9be0ff);
+.ai-ic{width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,var(--accent),#FFC48A);
   display:grid;place-items:center;font-size:20px;flex:none}
 .ai-ic.big{width:48px;height:48px;font-size:24px}
 .feature-ai{display:flex;align-items:center;gap:13px;
@@ -308,7 +322,7 @@ img.ava{object-fit:cover}
  * wrap instead, and each seat gets the width its name needs. */
 .seatrow{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
 .seatrow .chip{flex:0 1 auto;max-width:100%;padding:6px 11px;font-size:12px;white-space:normal;text-align:left}
-.chip.active{border-color:var(--accent);color:var(--accent);background:var(--accent-wash)}
+.chip.active{border-color:var(--accent);color:var(--brand2);background:var(--accent-wash)}
 /* List filter/search animation — staggered fade-up of rows */
 @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 .row-anim{animation:fadeUp .26s cubic-bezier(.22,.61,.36,1) both}
@@ -379,7 +393,7 @@ img.ava{object-fit:cover}
 /* Prominent bilingual switch on the login flow */
 .langseg{display:inline-flex;background:var(--surface2);border:1px solid var(--line);border-radius:999px;padding:3px;gap:2px}
 .langseg button{min-width:52px;min-height:40px;border:none;background:none;color:var(--muted);font-weight:800;font-size:15px;border-radius:999px;padding:6px 14px}
-.langseg button.on{background:var(--accent);color:var(--accent-ink)}
+.langseg button.on{background:var(--accent);color:var(--on-accent)}
 
 .empty{text-align:center;color:var(--muted);padding:44px 12px}
 .toast{position:fixed;bottom:104px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--accent-ink);
@@ -438,7 +452,7 @@ img.ava{object-fit:cover}
 .trow.crit .ti{background:var(--red-wash);color:var(--red)}
 .trow.warn .ti{background:var(--amber-wash);color:var(--amber)}
 .trow.ok .ti{background:var(--green-wash);color:var(--green)}
-.trow.info .ti{background:var(--accent-wash);color:var(--accent)}
+.trow.info .ti{background:var(--accent-wash);color:var(--brand2)}
 
 /* theme toggle button in the top bar */
 .themebtn{background:var(--surface);border:1px solid var(--line);color:var(--text);border-radius:999px;
@@ -891,9 +905,9 @@ body.printing-gp .gp-screen{display:none !important}
   font-size:12.5px;font-weight:800;background:var(--surface2);color:var(--muted);
   border:1.5px solid var(--line);transition:background .18s ease,color .18s ease,border-color .18s ease}
 .wz-l{font-size:11px;font-weight:700;letter-spacing:.01em;text-align:center;line-height:1.2}
-.wz-dot.on .wz-n{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.wz-dot.on .wz-n{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
 .wz-dot.on{color:var(--text)}
-.wz-dot.done .wz-n{background:var(--accent-wash);color:var(--accent);border-color:var(--accent)}
+.wz-dot.done .wz-n{background:var(--accent-wash);color:var(--brand2);border-color:var(--accent)}
 .wz-dot.done .wz-n::after{content:'✓';font-size:13px}
 .wz-dot.done .wz-n{font-size:0}
 .wz-dot:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:8px}
@@ -1066,3 +1080,22 @@ body.printing-gp .gp-screen{display:none !important}
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .vc-ml{font-size:10px;color:var(--faint);margin-top:1px;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* Three seats on a duty card: driver 1, driver 2, conductor — faces first,
+ * because an empty seat should be visible before anybody reads a word. */
+.vc-faces{display:flex;gap:6px;margin-top:10px}
+.vc-faces .vc-face{width:34px;height:34px}
+.vcard .seatrow{display:flex;flex-wrap:wrap;gap:6px}
+.vcard .seatrow .chip{font-size:11px;padding:5px 9px}
+
+/* Crew rows: the reference's round portrait and role pill, on the dense row
+ * the crew bank needs. A grid of cards would triple the scroll to find one of
+ * a hundred and seventy people by name. */
+.ava.ava-round{border-radius:50%}
+.crewrow .crewmeta{display:flex;flex-wrap:wrap;gap:5px;margin:4px 0 3px}
+.rolepill{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:650;
+  padding:2px 8px;border-radius:999px;background:var(--accent-wash);color:var(--brand2);
+  white-space:nowrap}
+.buschip{display:inline-flex;align-items:center;gap:4px;font-family:var(--mono);font-size:10.5px;
+  padding:2px 8px;border-radius:999px;background:var(--surface2);color:var(--text2);
+  white-space:nowrap}
