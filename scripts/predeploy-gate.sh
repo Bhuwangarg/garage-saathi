@@ -41,11 +41,44 @@ if command -v node >/dev/null 2>&1; then
   node --check "$REPO/app.js" || { echo "❌ g-saathi gate: app.js failed syntax check"; exit 1; }
 fi
 
+# One gate at a time per browser. The gstack daemon is ONE headless browser
+# with ONE tab per repo, so two gates running together (a push from one
+# session while another session pushes or reruns the gate) take turns driving
+# the same tab: one's goto lands mid-way through the other's login, and both
+# read each other's user. Seen 17 Oct as "supervisor login (got none)" and a
+# deleted card returning its parts twice. Wait for the other run instead.
+# Pin the daemon to this repo, so the lock and the browser are the same scope
+# whatever directory the gate is started from (the CLI otherwise picks its
+# daemon from the caller's cwd).
+export BROWSE_STATE_FILE="$REPO/.gstack/browse.json"
+mkdir -p "$REPO/.gstack"
+LOCK="$REPO/.gstack/gate.lock"
+HAVE_LOCK=0
+_waited=0
+until mkdir "$LOCK" 2>/dev/null; do
+  _holder="$(cat "$LOCK/pid" 2>/dev/null)"
+  # A holder that died without cleaning up (kill -9, a closed laptop) must not
+  # block every push after it. No pid yet is a run that is just starting —
+  # unless the lock has sat like that for a minute.
+  if { [ -n "$_holder" ] && ! kill -0 "$_holder" 2>/dev/null; } ||
+     { [ -z "$_holder" ] && [ $(( $(date +%s) - $(stat -f %m "$LOCK" 2>/dev/null || stat -c %Y "$LOCK" 2>/dev/null || date +%s) )) -gt 60 ]; }; then
+    rm -rf "$LOCK"; continue
+  fi
+  [ "$_waited" -eq 0 ] && echo "… another gate run (pid ${_holder:-?}) is using the test browser — waiting for it to finish"
+  _waited=$((_waited+1))
+  if [ "$_waited" -gt 900 ]; then echo "❌ g-saathi gate: still locked by pid ${_holder:-?} after 15 min ($LOCK)"; exit 1; fi
+  sleep 1
+done
+HAVE_LOCK=1
+echo "$$" > "$LOCK/pid"
+
 # Serve the app.
 python3 -m http.server "$PORT" --bind 127.0.0.1 --directory "$REPO" >/dev/null 2>&1 &
 SRV=$!
-cleanup() { kill "$SRV" 2>/dev/null; }
+cleanup() { kill "$SRV" 2>/dev/null; [ "$HAVE_LOCK" -eq 1 ] && rm -rf "$LOCK"; }
 trap cleanup EXIT
+# Interrupted (Ctrl-C, a killed push) still has to free the lock and the port.
+trap 'exit 130' INT TERM
 sleep 1
 
 PASS=0; FAIL=0
@@ -95,11 +128,34 @@ _login_once() { # role userid d1 d2 d3 d4
 }
 
 echo "── g-saathi pre-deploy gate ──"
+# Start from an EMPTY origin, not merely a fresh build. The port above is only
+# one of 120, and the gstack daemon is one browser per repo that lives across
+# runs, so a later run lands on an origin an earlier one already used — with
+# its IndexedDB and localStorage still in it. That was the "98 passed, 7
+# failed" flake: the rerun found the last run's deleted g-del card and its
+# extra 480100 fuel fill, and 2j/2k timed out waiting for numbers that could
+# no longer come out. Clearing the service worker and caches alone (as this
+# used to) left all of that in place.
+#
+# Wiped from a page the app does not run on (a 404 on this origin), so nothing
+# holds the database open and the delete is not blocked. Twice: the first pass
+# unregisters a stale service worker, the second runs with it gone.
+BLANK="http://localhost:$PORT/__gate_blank__"
+WIPE="window.__wipe='';(async function(){try{var rs=await navigator.serviceWorker.getRegistrations();await Promise.all(rs.map(function(r){return r.unregister()}));var ks=await caches.keys();await Promise.all(ks.map(function(k){return caches.delete(k)}));localStorage.clear();sessionStorage.clear();var ds=await indexedDB.databases();await Promise.all(ds.map(function(d){return new Promise(function(ok,no){var q=indexedDB.deleteDatabase(d.name);q.onsuccess=ok;q.onerror=no;q.onblocked=function(){no(new Error('blocked: '+d.name))}})}));window.__wipe='done'}catch(e){window.__wipe='ERR '+e.message}})();'x'"
 # Warm up the gstack daemon (first call boots it, ~3s).
-"$B" goto "$URL" >/dev/null 2>&1; sleep 4
-# Belt-and-suspenders: nuke any service-worker registration + caches for this
-# origin, then hard-reload, so we never grade a previously-cached build.
-"$B" js "(async()=>{try{var rs=await navigator.serviceWorker.getRegistrations();await Promise.all(rs.map(function(r){return r.unregister();}));var ks=await caches.keys();await Promise.all(ks.map(function(k){return caches.delete(k);}));}catch(e){}})();'cleared'" >/dev/null 2>&1; sleep 2
+"$B" goto "$BLANK" >/dev/null 2>&1; sleep 4
+for _pass in 1 2; do
+  "$B" goto "$BLANK" >/dev/null 2>&1
+  j "$WIPE" >/dev/null
+  settle "window.__wipe||''" "done" 25 >/dev/null
+done
+j "window.__clean='';(async function(){var d=(await indexedDB.databases()).length,r=(await navigator.serviceWorker.getRegistrations()).length,c=(await caches.keys()).length;window.__clean=[d,localStorage.length,r,c].join('/')})();'x'" >/dev/null
+settle "window.__clean||''" "0/0/0/0" 25 >/dev/null
+CLEAN="$(j "window.__clean||''")"
+if [ "$CLEAN" != "0/0/0/0" ]; then
+  echo "❌ g-saathi gate: could not empty the test origin (idb/ls/sw/caches = ${CLEAN:-?}; wipe: $(j "window.__wipe||''")) — refusing to grade on a previous run's data"
+  exit 1
+fi
 "$B" goto "$URL" >/dev/null 2>&1; sleep 3
 
 # 1) Login smoke for every role.
