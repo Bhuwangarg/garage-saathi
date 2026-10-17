@@ -166,14 +166,22 @@ def stored(rid):
 
 
 rec = stored("it-252074004")
-check("the driver is matched to the crew bank by exact number", rec["crewId"] == "d-ravi")
+check("the driver is matched to the crew bank by exact number", rec["crewId"] == "d-ravi" and rec["matchReason"] == "matched")
 check("the driver's number is kept masked only", rec["driverPhoneMasked"] == "•••••• 1111" and "9829011111" not in json.dumps(rec))
 check("no passenger details kept", not any(k in json.dumps(rec) for k in ("Test Passenger", "9000000001", "p@example.com")))
-check("a PNR ITS does not know is recorded as not found", stored("it-111111111")["found"] is False)
+check("a PNR ITS does not know is recorded as not found", stored("it-111111111")["found"] is False and stored("it-111111111")["matchReason"] == "pnr-not-found")
 
 n = len(its.posts)
 code, res = S.its_lookup_batch(["252074004", "111111111"], OWNER)
-check("found PNRs and fresh not-founds are not asked again", res["skipped"] == 2 and len(its.posts) == n)
+check("matched PNRs and fresh not-founds are not asked again", res["skipped"] == 2 and len(its.posts) == n)
+c = S.db()
+rev = c.execute("SELECT COALESCE(MAX(rev),0) FROM records").fetchone()[0]
+S._upsert_record(c, "itslookup", "it-252074004", dict(stored("it-252074004"), crewId=None, matchReason="not-in-crew-bank",
+                 lookedUpAt=S.now_ms() - 2 * 3600000), S.now_ms(), rev)
+c.commit()
+c.close()
+code, res = S.its_lookup_batch(["252074004"], OWNER)
+check("an unmatched number is asked again after an hour (crew bank may have it now)", res["lookedUp"] == 1)
 c = S.db()
 rev = c.execute("SELECT COALESCE(MAX(rev),0) FROM records").fetchone()[0]
 old_nf = dict(stored("it-111111111"), v=1)
@@ -188,6 +196,9 @@ rev = c.execute("SELECT COALESCE(MAX(rev),0) FROM records").fetchone()[0]
 S._upsert_record(c, "drivers", "d-dup", {"id": "d-dup", "name": "Other", "altPhone": "9829011111"}, S.now_ms(), rev)
 c.commit()
 check("two crew records with one number match nobody", S._crew_by_phone(c, "9829011111") is None)
+check("…and say why", S._crew_match(c, "9829011111")[1] == "number-shared")
+check("a number in nobody's record says so", S._crew_match(c, "9111111111")[1] == "not-in-crew-bank")
+check("no number says so", S._crew_match(c, "")[1] == "no-driver-number")
 c.close()
 
 check("only the server writes lookups", not S.may_write("owner", "itslookup"))

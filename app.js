@@ -313,6 +313,16 @@ const I18N = {
     rvWhyService: 'This service is not in the list yet', rvWhyNoSource: 'No gate check or redBus assignment for that trip', rvCrewNotRecorded: 'crew not on the duty log for that time',
     rvSources: 'Where this came from', rvSrcGate: 'Gate check', rvSrcRedpro: 'redBus assignment', rvSrcIts: 'ITS booking', rvAsTyped: 'as typed in redBus', rvSwapped: 'bus changed that day',
     rvCrew: 'Crew on that trip', rvSafetyK: 'Safety', rvGenuine: 'Service', rvFaq: 'Question', rvPraise: 'Praise', rvBoarded: 'Boarded',
+    wndTitle: 'Why no driver?', wndHint: 'Every 1–3★ review and complaint, in the one place its trace stops before a person — and what fixes it.', wndTotal: 'reviews and complaints (1–3★)',
+    wndShow: 'Show them', wndTrips: 'trips', itsLooked: 'looked up',
+    wndOk: 'Driver named', wndOkFix: 'Traced to a person — nothing to do.',
+    wndNoNumber: 'ITS: no driver number on that trip', wndNoNumberFix: 'The office entered no driver contact in ITS for these trips. Enter it in ITS when the bus leaves.',
+    wndNotInBank: 'ITS: driver number not in the crew bank', wndNotInBankFix: 'ITS has a driver number Garage Saathi does not know. Add it to the right crew record (People → Crew bank); the next lookup matches it.',
+    wndShared: 'ITS: number on two crew records', wndSharedFix: 'Two crew records carry the same phone, so neither is named. Fix the duplicate in the crew bank.',
+    wndBusNoCrew: 'Bus known, nobody on the duty board then', wndBusNoCrewFix: 'The bus is known but Garage Saathi had no driver on it at that time. Fill the duty board, or confirm redBus names.',
+    wndNoSource: 'No source for that night', wndNoSourceFix: 'No gate check, no redBus bus history and no ITS answer for that trip. Look up in ITS; going forward, gate checks fill this.',
+    wndUnmapped: 'Route not in redBus\'s service list', wndUnmappedFix: 'redPro does not list this route (its biggest services). Look up in ITS.',
+    wndNotFound: 'ITS: PNR not found', wndNotFoundFix: 'ITS has no booking under this PNR. Rare — check one in ITS.',
     itsDiagBtn: 'Show what ITS answered', itsDiagTitle: 'What ITS answered (one PNR)', itsDiagWait: 'Asking ITS…', itsDiagNone: 'Nothing looked up yet',
     itsDiagFound: 'Found', itsDiagPage: 'Page', itsDiagMsgs: 'Messages from ITS', itsDiagFilled: 'Fields that came back filled', itsDiagEmpty: 'Fields that came back empty', itsDiagButtons: 'Buttons on the page',
     itsDiagNote: 'Field names and messages only — no names, numbers or values are sent or kept.',
@@ -651,6 +661,16 @@ const I18N = {
     rvWhyService: 'यह सर्विस अभी सूची में नहीं है', rvWhyNoSource: 'उस यात्रा का न गेट चेक है न redBus असाइनमेंट', rvCrewNotRecorded: 'उस समय का स्टाफ़ ड्यूटी लॉग में नहीं',
     rvSources: 'यह जानकारी कहाँ से', rvSrcGate: 'गेट चेक', rvSrcRedpro: 'redBus असाइनमेंट', rvSrcIts: 'ITS बुकिंग', rvAsTyped: 'जैसा redBus में लिखा', rvSwapped: 'उस दिन बस बदली',
     rvCrew: 'उस यात्रा का स्टाफ़', rvSafetyK: 'सुरक्षा', rvGenuine: 'सेवा', rvFaq: 'सवाल', rvPraise: 'तारीफ़', rvBoarded: 'चढ़े',
+    wndTitle: 'ड्राइवर क्यों नहीं?', wndHint: 'हर 1–3★ रिव्यू और शिकायत — कहाँ रुकती है, और क्या ठीक करना है।', wndTotal: 'रिव्यू और शिकायतें (1–3★)',
+    wndShow: 'दिखाएँ', wndTrips: 'यात्राएँ', itsLooked: 'देखे गए',
+    wndOk: 'ड्राइवर मिला', wndOkFix: 'व्यक्ति तक पहुँचा — कुछ नहीं करना।',
+    wndNoNumber: 'ITS: उस यात्रा पर ड्राइवर नंबर नहीं', wndNoNumberFix: 'ITS में इन यात्राओं का ड्राइवर नंबर नहीं डाला गया। बस निकलते समय ITS में डालें।',
+    wndNotInBank: 'ITS: ड्राइवर नंबर स्टाफ़ बैंक में नहीं', wndNotInBankFix: 'ITS में ड्राइवर का नंबर है जो Garage Saathi में नहीं। सही स्टाफ़ रिकॉर्ड में जोड़ें; अगली खोज में मिल जाएगा।',
+    wndShared: 'ITS: नंबर दो रिकॉर्ड में', wndSharedFix: 'दो स्टाफ़ रिकॉर्ड में एक ही फ़ोन है। स्टाफ़ बैंक में दोहराव ठीक करें।',
+    wndBusNoCrew: 'बस पता, ड्यूटी में कोई नहीं', wndBusNoCrewFix: 'बस पता है पर उस समय ड्यूटी में ड्राइवर नहीं था। ड्यूटी भरें, या redBus नाम पक्के करें।',
+    wndNoSource: 'उस रात का कोई स्रोत नहीं', wndNoSourceFix: 'न गेट चेक, न redBus बस इतिहास, न ITS जवाब। ITS में देखें; आगे गेट चेक से भरेगा।',
+    wndUnmapped: 'रूट redBus सूची में नहीं', wndUnmappedFix: 'redPro यह रूट नहीं दिखाता (सबसे बड़ी सर्विस)। ITS में देखें।',
+    wndNotFound: 'ITS: PNR नहीं मिला', wndNotFoundFix: 'ITS में इस PNR की बुकिंग नहीं। कम होता है — एक ITS में जाँचें।',
     itsDiagBtn: 'ITS का जवाब देखें', itsDiagTitle: 'ITS ने क्या लौटाया (एक PNR)', itsDiagWait: 'ITS से पूछ रहे हैं…', itsDiagNone: 'अभी कुछ नहीं देखा गया',
     itsDiagFound: 'मिला', itsDiagPage: 'पेज', itsDiagMsgs: 'ITS के संदेश', itsDiagFilled: 'भरे हुए खाने', itsDiagEmpty: 'खाली खाने', itsDiagButtons: 'पेज के बटन',
     itsDiagNote: 'सिर्फ़ खानों के नाम और संदेश — कोई नाम, नंबर या मान नहीं भेजा या रखा जाता।',
@@ -9571,9 +9591,13 @@ function itsLookups() {
   return out;
 }
 // Untraced 1–3★ reviews whose PNR ITS has not been asked about yet.
-const ITS_LOOKUP_VERSION = 2;   // matches sync_server.py: "not found" from an older lookup is asked again
+const ITS_LOOKUP_VERSION = 3;   // matches sync_server.py: an older lookup without a matched driver is asked again
 function itsPending() {
-  const asked = new Set((S.cache.itslookup || []).filter((r) => r.found || (r.v || 1) >= ITS_LOOKUP_VERSION).map((r) => r.pnr));
+  // Same waits as the server: matched never again; unknown/shared number after an hour; no number or
+  // not found after a day.
+  const wait = { 'not-in-crew-bank': 3600000, 'number-shared': 3600000 };
+  const settled = (r) => r.crewId || ((r.v || 1) >= ITS_LOOKUP_VERSION && Date.now() - (r.lookedUpAt || 0) < (wait[r.matchReason] || 86400000));
+  const asked = new Set((S.cache.itslookup || []).filter(settled).map((r) => r.pnr));
   const untraced = (x) => { const tr = traceOf(x); return !tr.bus && !tr.crew.length; };
   return (S.cache.rbreviews || []).filter((r) => r.pnr && r.stars && r.stars <= 3 && !asked.has(r.pnr) && untraced(r))
     .concat((S.cache.rbcomplaints || []).filter((c) => c.pnr && !asked.has(c.pnr) && untraced(c)));
@@ -9622,17 +9646,95 @@ async function itsDiag() {
     <div class="small"><b>${t('itsDiagFound')}:</b> ${res.found ? '✓' : '✗'}</div>${steps}
     <div class="tiny muted" style="margin-top:10px">${t('itsDiagNote')}</div>`);
 }
+// Always on the reviews screen for owner/supervisor: what ITS has done, the next lookup, the
+// owner's "what did ITS answer", and the way into "Why no driver?".
 function itsCard() {
   if (!can(S.user.role, 'dashboard')) return '';
-  const looked = S.cache.itslookup || [];
-  const diagBtn = S.user.role === 'owner' && looked.length && !looked.some((r) => r.found)
-    ? `<button class="btn sm ghost" data-act="itsDiag">${t('itsDiagBtn')}</button>` : '';
   if (_itsRun) return `<div class="card"><div class="row between"><b>🔎 ${t('itsRunning')}</b><span class="muted small">${_itsRun.done}/${_itsRun.total}</span></div><div class="tiny muted">${_itsRun.found} ${t('itsFound')} · ${_itsRun.matched} ${t('itsDriver')}</div></div>`;
+  const looked = S.cache.itslookup || [];
   const n = itsPending().length;
-  if (!n && !diagBtn) return '';
-  return `<div class="card"><div class="row between"><div><b>🔎 ${t('itsTitle')}</b><div class="tiny muted">${n} ${t('itsSub')}</div></div>
-    ${n ? `<button class="btn sm" data-act="itsLookupRun">${t('itsBtn')}</button>` : ''}</div>${diagBtn ? `<div style="margin-top:6px">${diagBtn}</div>` : ''}</div>`;
+  const found = looked.filter((r) => r.found).length, matched = looked.filter((r) => r.crewId).length;
+  return `<div class="card"><div class="row between"><b>🔎 ${t('itsTitle')}</b>
+      ${n ? `<button class="btn sm" data-act="itsLookupRun">${t('itsBtn')} (${n})</button>` : ''}</div>
+    <div class="tiny muted">${looked.length} ${t('itsLooked')} · ${found} ${t('itsFound')} · ${matched} ${t('itsDriver')}</div>
+    <div class="row" style="gap:6px;flex-wrap:wrap;margin-top:8px">
+      <button class="btn sm" data-act="openWhyNoDriver">❓ ${t('wndTitle')}</button>
+      ${S.user.role === 'owner' && looked.length ? `<button class="btn sm ghost" data-act="itsDiag">${t('itsDiagBtn')}</button>` : ''}</div></div>`;
 }
+
+/* ===== Why no driver? ========================================================
+ * Every 1–3★ review and complaint in one bucket: why the trace stops short of a
+ * person, in words, with the fix. Buckets follow the chain (service → bus that
+ * night → who was on it), and ITS's own reason wins where ITS was asked, since
+ * it is the most specific. */
+const WND = [  // key, icon, i18n label, i18n fix
+  ['ok', '✅', 'wndOk', 'wndOkFix'],
+  ['its-no-number', '📵', 'wndNoNumber', 'wndNoNumberFix'],
+  ['its-not-in-bank', '📇', 'wndNotInBank', 'wndNotInBankFix'],
+  ['its-shared', '👥', 'wndShared', 'wndSharedFix'],
+  ['bus-no-crew', '🚌', 'wndBusNoCrew', 'wndBusNoCrewFix'],
+  ['no-source', '🌙', 'wndNoSource', 'wndNoSourceFix'],
+  ['route-unmapped', '🧭', 'wndUnmapped', 'wndUnmappedFix'],
+  ['its-not-found', '❔', 'wndNotFound', 'wndNotFoundFix'],
+];
+function whyNoDriver(item) {
+  const tr = traceOf(item);
+  if (tr.crew.length) return 'ok';
+  const it = (S.cache.itslookup || []).find((r) => r.pnr === item.pnr);
+  if (it && it.found) {
+    if (it.matchReason === 'no-driver-number' || (!it.matchReason && !it.driverPhoneMasked)) return 'its-no-number';
+    if (it.matchReason === 'number-shared') return 'its-shared';
+    if (it.matchReason === 'not-in-crew-bank' || (!it.matchReason && it.driverPhoneMasked && !it.crewId)) return 'its-not-in-bank';
+  }
+  if (tr.bus) return 'bus-no-crew';
+  if (it && !it.found && (it.v || 1) >= ITS_LOOKUP_VERSION) return 'its-not-found';
+  return tr.why === 'service-unknown' ? 'route-unmapped' : 'no-source';
+}
+let _wndOpen = null;
+function viewWhyNoDriver() {
+  const items = (S.cache.rbreviews || []).filter((r) => r.stars && r.stars <= 3)
+    .concat(S.cache.rbcomplaints || []).sort((a, b) => rvBoard(b) - rvBoard(a));
+  const groups = new Map(WND.map((w) => [w[0], []]));
+  for (const x of items) groups.get(whyNoDriver(x)).push(x);
+  const total = items.length;
+  let body = `<div class="card"><div class="tiny muted">${t('wndHint')}</div>
+    <div class="row" style="gap:6px;flex-wrap:wrap;margin-top:8px">${WND.filter((w) => groups.get(w[0]).length).map((w) =>
+      `<span class="schip ${w[0] === 'ok' ? 'ok' : 'mute'}"><i></i>${w[1]} ${groups.get(w[0]).length}</span>`).join('')}</div>
+    <div class="tiny muted" style="margin-top:6px">${total} ${t('wndTotal')}</div></div>`;
+  for (const [key, icon, label, fix] of WND) {
+    const list = groups.get(key);
+    if (!list.length) continue;
+    const pct = Math.round(list.length / Math.max(1, total) * 100);
+    const open = _wndOpen === key;
+    body += `<div class="card"><div class="row between" data-act="wndToggle" data-k="${key}" style="cursor:pointer">
+        <div><b>${icon} ${t(label)}</b><div class="tiny muted">${t(fix)}</div></div>
+        <div style="text-align:right"><div class="stat" style="font-size:20px">${list.length}</div><div class="tiny muted">${pct}%</div></div></div>`;
+    if (key === 'its-not-in-bank') {
+      // Same number on many trips is one driver to add: show the masked number, how often, and where.
+      const byNum = new Map();
+      for (const x of list) {
+        const it = (S.cache.itslookup || []).find((r) => r.pnr === x.pnr) || {};
+        const k = it.driverPhoneMasked || '?';
+        const g = byNum.get(k) || { n: 0, routes: new Set(), last: 0 };
+        g.n++; g.routes.add(`${x.source} → ${x.dest}`); g.last = Math.max(g.last, rvBoard(x)); byNum.set(k, g);
+      }
+      body += `<div class="hr"></div>` + [...byNum.entries()].sort((a, b) => b[1].n - a[1].n).slice(0, 12).map(([num, g]) =>
+        `<div class="row between small" style="padding:4px 0;gap:8px"><span><b>${esc(num)}</b> · ${esc([...g.routes].slice(0, 2).join(', '))}</span><span class="muted">${g.n} ${t('wndTrips')} · ${fmtDate(g.last)}</span></div>`).join('');
+    }
+    if (open) {
+      body += `<div class="hr"></div>` + list.slice(0, 25).map((x) => {
+        const isReview = String(x.id).startsWith('rv-');
+        return `<div class="li" data-act="${isReview ? 'openReview' : 'openComplaint'}" data-id="${esc(x.id)}" style="cursor:pointer">${isReview ? rvStarsAva(x.stars) : '<div class="ava">🟠</div>'}
+          <div class="main"><div class="t">${esc(x.source)} → ${esc(x.dest)}</div><div class="s">${fmtDateTime(rvBoard(x))} · PNR ${esc(x.pnr)}</div>${rvTraceLine(traceOf(x))}</div></div>`;
+      }).join('') + (list.length > 25 ? `<div class="tiny muted">+${list.length - 25}</div>` : '');
+    } else {
+      body += `<div class="tiny" style="margin-top:6px;color:var(--accent);cursor:pointer" data-act="wndToggle" data-k="${key}">${t('wndShow')} ›</div>`;
+    }
+    body += `</div>`;
+  }
+  shell(t('wndTitle'), body, null, NARROW);
+}
+
 function traceCtx() {
   if (_traceMemo.key === S.cache && _traceMemo.ctx) return _traceMemo.ctx;
   const log = S.cache.dutylog || [];
@@ -11806,7 +11908,7 @@ const current = () => S.stack[S.stack.length - 1];
 const ROUTE_PERM = { money: 'money', fleet: 'fleet', people: 'people', bills: 'bills', insights: 'insights', drivers: 'manageDrivers', assignments: 'assignDriver', routes: 'manageRoutes', reports: 'dashboard', busreport: 'dashboard', livemap: 'liveMap', track: 'liveMap', fuel: 'addFuel', safety: 'dashboard', breakdowns: 'logIncident', warranty: 'viewWarranty', storehealth: 'issuePart', linkgps: 'addBus', newjob: 'addJob', forecast: 'dashboard', pilferage: 'insights', components: 'manageComponents', def: 'addFuel', vendors: 'addPurchase', import: 'addPurchase', crewpins: 'manageCrewLogins', crewbank: 'manageDrivers', usage: 'dashboard', accounting: 'dashboard', busacct: 'dashboard',
   // `purchases` renders the same view as `bills`; without its own entry the
   // `bills` permission was bypassable just by using the other route name.
-  purchases: 'bills', alerts: 'dashboard', buses: 'fleet', gate: 'gateCheck', gatechecks: 'gateDecide', reviews: 'dashboard', rbnames: 'manageDrivers',
+  purchases: 'bills', alerts: 'dashboard', buses: 'fleet', gate: 'gateCheck', gatechecks: 'gateDecide', reviews: 'dashboard', rbnames: 'manageDrivers', whynodriver: 'dashboard',
   store: 'viewStore', jobs: 'viewJobs', scoreboard: 'viewScoreboard',
   challans: 'challans', buschallans: 'challans',
   // Company billing and another person's scorecard rendered for any role because
@@ -11833,6 +11935,7 @@ function render(r) {
     case 'gatechecks': return viewGateChecks();
     case 'reviews': return viewReviews();
     case 'rbnames': return viewRbNames();
+    case 'whynodriver': return viewWhyNoDriver();
     case 'jobs': return r.id ? viewJobDetail(r.id) : viewJobs();
     case 'store': return r.id ? viewPartDetail(r.id) : viewStore();
     case 'me': return viewMe();
@@ -12262,6 +12365,8 @@ const _dispatchClick = async (e) => {
       case 'openRbNames': return push({ name: 'rbnames' });
       case 'itsLookupRun': return itsLookupRun();
       case 'itsDiag': return itsDiag();
+      case 'openWhyNoDriver': _wndOpen = null; return push({ name: 'whynodriver' });
+      case 'wndToggle': _wndOpen = _wndOpen === el.getAttribute('data-k') ? null : el.getAttribute('data-k'); return rerender();
       case 'rbnSet': return rbnSave(el.getAttribute('data-pair'), 'crew', el.getAttribute('data-crew'));
       case 'rbnGeneric': return rbnSave(el.getAttribute('data-pair'), 'generic', null);
       case 'rbnPick': return rbnPick(el.getAttribute('data-pair'));

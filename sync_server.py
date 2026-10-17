@@ -1928,13 +1928,32 @@ ITS_BUDGET_S = 40
 ITS_RECHECK_NOT_FOUND_MS = 86400000   # a PNR ITS did not know is asked again after a day, not every time
 # Bumped whenever the lookup itself is fixed: "not found" from an older version may have been the bug
 # (v1 posted dropdowns empty and crashed ITS's page on every PNR, 16-17 Oct 2026), so those are asked again.
-ITS_LOOKUP_VERSION = 2
+# A found PNR whose driver did not match is asked again: after the office adds a number to the crew
+# bank (an hour), or enters the driver's number in ITS (a day). Matched PNRs are never asked again.
+ITS_RECHECK_UNMATCHED_MS = {"not-in-crew-bank": 3600000, "number-shared": 3600000, "no-driver-number": 86400000}
+ITS_LOOKUP_VERSION = 3   # v3 records WHY a found PNR's driver did not match (matchReason)
+
+
+def _crew_match(c, phone):
+    """(crew record or None, reason). Reason is one of: matched, no-driver-number,
+    not-in-crew-bank, number-shared. Exact number, never a name."""
+    if not phone:
+        return None, "no-driver-number"
+    hits = _crew_hits(c, phone)
+    if len(hits) == 1:
+        return hits[0], "matched"
+    return None, ("number-shared" if hits else "not-in-crew-bank")
 
 
 def _crew_by_phone(c, phone):
     """The crew record whose phone (or alternate phone) is this number. Exact number, never a name."""
     if not phone:
         return None
+    hits = _crew_hits(c, phone)
+    return hits[0] if len(hits) == 1 else None
+
+
+def _crew_hits(c, phone):
     hits = []
     for raw, in c.execute("SELECT data FROM records WHERE store='drivers'").fetchall():
         try:
@@ -1946,7 +1965,7 @@ def _crew_by_phone(c, phone):
         if phone in (its_lookup.phone10(d.get("phone")), its_lookup.phone10(d.get("altPhone"))):
             hits.append(d)
     # Two crew records with one number is a data problem; naming either would be a guess.
-    return hits[0] if len(hits) == 1 else None
+    return hits
 
 
 def its_lookup_batch(pnrs, actor, session_factory=None, clock=time.monotonic):
@@ -1972,9 +1991,13 @@ def its_lookup_batch(pnrs, actor, session_factory=None, clock=time.monotonic):
         for p in want:
             row = c.execute("SELECT data FROM records WHERE store='itslookup' AND id=?", ("it-" + p,)).fetchone()
             old = json.loads(row[0]) if row else None
-            stale = (old or {}).get("v", 1) < ITS_LOOKUP_VERSION and not (old or {}).get("found")
-            if old and not stale and (old.get("found") or now - (old.get("lookedUpAt") or 0) < ITS_RECHECK_NOT_FOUND_MS):
-                continue
+            # Asked again: anything from an older lookup that did not end in a matched driver.
+            if old and old.get("crewId"):
+                continue                                        # driver matched: done
+            if old and old.get("v", 1) >= ITS_LOOKUP_VERSION:
+                wait = ITS_RECHECK_UNMATCHED_MS.get(old.get("matchReason"), ITS_RECHECK_NOT_FOUND_MS)
+                if now - (old.get("lookedUpAt") or 0) < wait:
+                    continue
             todo.append(p)
     finally:
         c.close()
@@ -1996,7 +2019,7 @@ def its_lookup_batch(pnrs, actor, session_factory=None, clock=time.monotonic):
         c = db()
         rev = c.execute("SELECT COALESCE(MAX(rev),0) FROM records").fetchone()[0]
         for p, trip in done:
-            crew = _crew_by_phone(c, trip.get("driverPhone")) if trip else None
+            crew, why = _crew_match(c, trip.get("driverPhone")) if trip else (None, "pnr-not-found")
             rec = {"id": "it-" + p, "pnr": p, "found": bool(trip), "lookedUpAt": now, "by": actor["id"], "v": ITS_LOOKUP_VERSION,
                    "_by": "its-lookup", "_org": "mahalaxmi", "updatedAt": now}
             if trip:
@@ -2006,6 +2029,7 @@ def its_lookup_batch(pnrs, actor, session_factory=None, clock=time.monotonic):
                 rec["driverPhoneMasked"] = ("•••••• " + ph[-4:]) if ph else ""
                 rec["crewId"] = crew.get("id") if crew else None
                 matched += 1 if crew else 0
+            rec["matchReason"] = why
             rev = _upsert_record(c, "itslookup", rec["id"], rec, now, rev)
         c.commit()
         c.close()
