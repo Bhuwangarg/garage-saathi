@@ -244,6 +244,9 @@ j "route({name:'history'})" >/dev/null
 settle "S.route.name" "history" 20 >/dev/null
 ck "mechanic history is only their own work" \
   "$(j "completedJobs().filter(function(x){return x.assignedTo!==S.user.id}).length")" "0"
+# ...and the door stays open: the route now carries a permission (2q), which
+# must not take a mechanic's own finished work away from them.
+ck "the mechanic still reaches completed work" "$(j "S.route.name")" "history"
 
 # 2c) The topbar carries no permanent sync badge, and a batch of writes is ONE push.
 login supervisor u-sup 2 2 2 2
@@ -355,6 +358,15 @@ ck "the second mechanic sees the shared job" "$(j "document.querySelector('[data
 j "route({name:'jobs',id:'g-crew'})" >/dev/null
 settle "S.route.id||''" "g-crew" 20 >/dev/null
 ck "and can open it" "$(j "String(/Gate crew job/.test(document.querySelector('.content').innerText))")" "true"
+# Being ON a job is not being allowed to CLOSE it. The job card's close section
+# used to open for "mine", so a mechanic with both photos in got a live Close
+# job button, and the close wrote 'done' on the phone that the server then
+# refused. The earlier "no close button" check missed it: it looked only for
+# markDone. Both photos are present here, so nothing else holds the close back.
+j "window.__mc='';(async function(){var b=S.cache.buses[0],n=Date.now();await DB.put('jobcards',{id:'g-mclose',busId:b.id,problem:'Gate mechanic close',status:'in-progress',priority:'low',createdAt:n,updatedAt:n,assignedTo:'u-m2',assignees:[{userId:'u-m2',task:'Brakes'}],partsUsed:[],beforePhotos:['b'],afterPhotos:['a']});await load();route({name:'jobs',id:'g-mclose'});var btn=document.querySelector('[data-act=closeJob],[data-act=markDone]')?'button':'none';await confirmCloseJob('g-mclose');var st=byId(S.cache.jobs,'g-mclose').status;await DB.softDel('jobcards','g-mclose');await load();window.__mc=btn+'/'+st})().catch(function(e){window.__mc='ERR '+e.message})" >/dev/null
+settle "window.__mc||''" "none/in-progress" 30 >/dev/null
+ck "a mechanic's own live card offers no close"  "$(j "(window.__mc||'').split('/')[0]")" "none"
+ck "and closing it directly is refused"          "$(j "(window.__mc||'').split('/')[1]")" "in-progress"
 # A mechanic on neither side of it must not reach it, by list or by link.
 login mechanic u-m3 0 0 0 3
 j "route({name:'jobs'})" >/dev/null
@@ -536,6 +548,15 @@ ck "short splits into fillable and unstaffable" \
 ck "conductors are counted on their own pool" \
   "$(j "(function(){var c=crewCoverage('conductor');return String(c.pool===activeCrew().filter(function(d){return crewRoleOf(d)==='conductor'}).length)})()")" "true"
 j "(async function(){await DB.softDel('jobcards','g-dz1');await DB.softDel('jobcards','g-dz2');await load()})()" >/dev/null
+
+# 2q) A driver reaches their own bus and nothing of the workshop's. These three
+# routes had no ROUTE_PERM entry, so a forced history route showed a driver
+# the fleet's spend, every bus and the mechanics' names. Forcing them must
+# land on home, like every other gated route.
+login driver u-d1 0 0 1 0
+for R in history outsidejobs gatepass; do
+  ck "a driver cannot force open $R" "$(j "(function(){route({name:'$R'});return S.route.name})()")" "home"
+done
 
 # 3) Invariant sweep: form controls never navigate (owner's main tabs).
 login owner u-owner 1 1 1 1

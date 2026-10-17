@@ -3560,6 +3560,11 @@ function isVerifierRole() { return can(S.user.role, 'verifyJob'); }
  * vendor bill) are still required to close — what went is only the second
  * signature, not the evidence. */
 const selfSignsOff = (role) => role === 'supervisor';
+// Closing a card belongs to the supervisor or the owner — never to the mechanic
+// on it, however much of it is theirs. The server refuses any other close
+// (sync_server: "only an owner or supervisor may close a job"), so a close the
+// phone allowed would only sit there as 'done' until the server said no.
+const mayCloseJob = () => ['owner', 'supervisor'].includes(S.user.role);
 
 // Driver reports a job addressed are resolved when it is signed off, however
 // it got there — a separate verify, or a supervisor's close.
@@ -3756,7 +3761,7 @@ function actionsForJob(j, editable) {
   // Closing a card belongs to the supervisor or the owner. A mechanic sees the
   // work and its state; they do not sign it off. Mirrored in _guard_write on the
   // server, which is where it actually holds.
-  const mayClose = ['owner', 'supervisor'].includes(S.user.role);
+  const mayClose = mayCloseJob();
   if (editable && mayClose && (j.status === 'open' || j.status === 'in-progress')) {
     actions += `<button class="btn primary" data-act="markDone" data-job="${esc(j.id)}">✅ ${t('markDone')}</button>`;
   }
@@ -8686,10 +8691,10 @@ function partsCardExtras(job) {
     }).join('');
   }
   // Photo-gate checklist + close-with-hours. This used to be for the assigned
-  // mechanic only, which left it unreachable once mechanics stopped logging in —
-  // the supervisor keeps the card on their behalf, so whoever may edit the job
-  // closes it.
-  const mayClose = mine || ['owner', 'supervisor'].includes(S.user.role);
+  // mechanic only, then for the mechanic OR the supervisor. Mechanics sign in
+  // again now, to see their work, and "mine" handed them a live Close job
+  // button the server refuses. The supervisor keeps the card; they close it.
+  const mayClose = mayCloseJob();
   if (mayClose && (job.status === 'open' || job.status === 'in-progress')) {
     h += `<div class="hr"></div>${photoGateChecklist(job)}`;
     const ready = photoGateReady(job);
@@ -8743,6 +8748,7 @@ async function fulfilRequest(jobId, reqId) {
 function sheetCloseJob(jobId) {
   const j = byId(S.cache.jobs, jobId);
   if (!j) return;
+  if (!mayCloseJob()) return toast(t('cbNotAllowed'));
   if (!photoGateReady(j)) {
     return openSheet(t('closeJobBtn'), `<div class="banner warn">⚠️ ${t('addPhotoNote')}</div>`);
   }
@@ -8782,6 +8788,7 @@ function hrsStep(dir) {
 async function confirmCloseJob(jobId) {
   const j = byId(S.cache.jobs, jobId);
   if (!j) return;
+  if (!mayCloseJob()) { closeSheet(); return toast(t('cbNotAllowed')); }
   if (!photoGateReady(j)) { closeSheet(); return toast(t('photoGateBefore')); }
   const el = $('#f-hrs');
   j.labourHours = el ? (Number(el.getAttribute('data-hrs')) || j.labourHours || 0) : (j.labourHours || 0);
@@ -8807,6 +8814,8 @@ async function confirmCloseJob(jobId) {
 
 async function markDone(jobId) {
   const j = byId(S.cache.jobs, jobId);
+  if (!j) return;
+  if (!mayCloseJob()) return toast(t('cbNotAllowed'));
   if (j.externalVendor) {
     // Outside repair: there is no in-house before/after work to photograph.
     // Require at least one proof photo (the vendor's bill/receipt) instead.
@@ -11913,7 +11922,13 @@ const ROUTE_PERM = { money: 'money', fleet: 'fleet', people: 'people', bills: 'b
   challans: 'challans', buschallans: 'challans',
   // Company billing and another person's scorecard rendered for any role because
   // ROUTE_PERM had no entry for them — the same bypass class as `purchases`/`bills`.
-  company: 'dashboard', scorecard: 'viewScoreboard' };
+  company: 'dashboard', scorecard: 'viewScoreboard',
+  // These three had no entry, so any signed-in role could force them open: a
+  // driver reached the fleet's completed work (spend, every bus, mechanics'
+  // names) and the outside-job gate passes. Completed work follows the job
+  // board (completedJobs() narrows a mechanic to their own); the passes follow
+  // the role that issues them.
+  history: 'viewJobs', outsidejobs: 'outsideJob', gatepass: 'outsideJob' };
 function render(r) {
   if (typeof stopMap === 'function') stopMap();   // leaving any screen halts the live-map refresh timer
   if (typeof stopTrack === 'function') stopTrack();
