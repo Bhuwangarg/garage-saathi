@@ -335,6 +335,8 @@ const I18N = {
     dpRvTitle: 'redBus reviews mapped to them', dp30: '30 d', dp90: '90 d', dpAll: 'All', dpRvNone: 'No review traced to them in this period.', dpAvg: 'average', dpReviews: 'reviews',
     dpMappedBy: 'Mapped by', dpComplaintsAbout: 'Low ratings mention', dpSeeAll: 'All their reviews', dpOverall: 'Total performance', dpConduct: 'Conduct',
     dpConductSub: 'incidents + GPS', dpConductSubC: 'incidents', dpPassenger: 'Passengers', dpRated: 'rated', dpOverallHow: 'Half conduct, half passenger stars (1★ = 0, 5★ = 100), last 90 days.',
+    dpShowLess: 'Show fewer', cmRatings: 'Crew ratings from passengers', cmRatingsSub: 'Lowest first, 90 days, crew with 10+ rated trips. Tap to see their reviews.',
+    cmRatingsWait: 'Nobody has 10 rated trips traced to them yet. Keeping the duty board right and confirming redBus names fills this in.',
     dpOverallWait: 'Conduct only for now. Passenger stars count once 10 rated trips are traced to them in 90 days.',
     rvBusCard: 'redBus reviews (30 days)', rvCrewReviews: 'redBus reviews on their trips (30 days)', rvMinSample: 'fewer than 10 rated trips, too few to judge', cmpNotes: 'redBus agent notes',
     gcHomeTitle: 'Gate checks today', gcNoCheckShort: 'no check yet', gcHistory: 'Earlier decisions', hmGateWaiting: 'Bus waiting at the gate', hmGateWaitingSub: 'A check failed — go or hold?', asGateLine: 'Gate check',
@@ -687,6 +689,8 @@ const I18N = {
     dpRvTitle: 'इनसे जुड़े redBus रिव्यू', dp30: '30 दिन', dp90: '90 दिन', dpAll: 'सब', dpRvNone: 'इस अवधि में कोई रिव्यू इनसे नहीं जुड़ा।', dpAvg: 'औसत', dpReviews: 'रिव्यू',
     dpMappedBy: 'कैसे जुड़ा', dpComplaintsAbout: 'कम रेटिंग में', dpSeeAll: 'इनके सारे रिव्यू', dpOverall: 'कुल प्रदर्शन', dpConduct: 'आचरण',
     dpConductSub: 'घटनाएँ + GPS', dpConductSubC: 'घटनाएँ', dpPassenger: 'यात्री', dpRated: 'रेटिंग', dpOverallHow: 'आधा आचरण, आधा यात्री स्टार (1★ = 0, 5★ = 100), पिछले 90 दिन।',
+    dpShowLess: 'कम दिखाएँ', cmRatings: 'यात्रियों की नज़र में स्टाफ़', cmRatingsSub: 'सबसे कम पहले, 90 दिन, 10+ रेटेड यात्राओं वाले। रिव्यू देखने के लिए टैप करें।',
+    cmRatingsWait: 'अभी किसी की 10 रेटेड यात्राएँ नहीं जुड़ीं। ड्यूटी बोर्ड सही रखने और redBus नाम पक्के करने से भरेगा।',
     dpOverallWait: 'अभी सिर्फ़ आचरण। 90 दिन में 10 रेटेड यात्राएँ जुड़ने पर यात्री स्टार भी गिने जाएँगे।',
     rvBusCard: 'redBus रिव्यू (30 दिन)', rvCrewReviews: 'इनकी यात्राओं के redBus रिव्यू (30 दिन)', rvMinSample: '10 से कम रेटिंग, अभी फ़ैसला नहीं', cmpNotes: 'redBus एजेंट नोट',
     gcHomeTitle: 'आज के गेट चेक', gcNoCheckShort: 'बिना चेक', gcHistory: 'पहले के फ़ैसले', hmGateWaiting: 'बस गेट पर इंतज़ार में', hmGateWaitingSub: 'जाँच में दिक्कत — चलो या रुको?', asGateLine: 'गेट चेक',
@@ -1189,6 +1193,8 @@ const PERMS = {
   receiveStock: ['owner', 'supervisor', 'store'],
   addPurchase: ['owner', 'supervisor', 'store'],
   dashboard: ['owner', 'supervisor'],
+  // redBus reviews traced to a crew member: the crew manager assigns them, so sees them too.
+  crewReviews: ['owner', 'supervisor', 'crewmanager'],
   insights: ['owner', 'supervisor'],         // AI Insights screen
   // 'crewmanager' is a single-job login: the daily duty board and the crew bank,
   // and nothing else. It deliberately has no money, fleet, jobs or store rights.
@@ -2361,7 +2367,23 @@ function viewCrewManagerHome() {
       <div class="tiny muted">${t('cmLiveMapSub')}</div></div><div class="tc">›</div></div>
     <div class="trow" data-act="openCrewBank"><div class="ti">🗂️</div><div class="tm"><div class="tt">${t('cbTitle')}</div>
       <div class="tiny muted">${activeCrew().length} ${t('cbOnRoll')}</div></div><div class="tc">›</div></div></div>`;
+  body += crewRatingsCard();
   shell(t('today'), body);
+}
+/* The crew manager's view of the reviews: who passengers rate lowest, among crew with enough
+ * rated trips to judge (90 days), so the next assignment is made knowing it. */
+function crewRatingsCard() {
+  if (!can(S.user.role, 'crewReviews') || !(S.cache.rbreviews || []).length) return '';
+  const rows = activeCrew().map((d) => ({ d, o: driverOverall(d.id) })).filter((x) => x.o.n);
+  const judged = rows.filter((x) => x.o.passenger != null).sort((a, b) => a.o.avg - b.o.avg);
+  let h = `<div class="card"><div class="row between"><h3>⭐ ${t('cmRatings')}</h3><span class="badge b-low">${rows.length}</span></div>
+    <div class="tiny muted">${t('cmRatingsSub')}</div>`;
+  h += judged.length ? judged.slice(0, 6).map(({ d, o }) => `<div class="li" data-driver="${esc(d.id)}" style="cursor:pointer">
+      <div class="ava">${CREW_ROLE_META[crewRoleOf(d)][0]}</div>
+      <div class="main"><div class="t">${esc(d.name)}</div><div class="s">${esc(busName(d.busId) || t('cbNoBus'))} · ★${o.avg.toFixed(1)} · ${o.n} ${t('dpRated')}</div></div>
+      <span class="badge ${scoreClass(o.overall)}">${o.overall}</span></div>`).join('')
+    : `<div class="small muted" style="margin-top:6px">${t('cmRatingsWait')}</div>`;
+  return h + `</div>`;
 }
 
 /* ===== Usage report =======================================================
@@ -8971,7 +8993,7 @@ async function confirmLogService(busId) {
 /* ------------------------------- Drivers ---------------------------------- */
 function driverLi(d) {
   const o = driverOverall(d.id), score = o.overall, bus = byId(S.cache.buses, d.busId);
-  const rv = can(S.user.role, 'dashboard') && o.n ? ` · ★${o.avg.toFixed(1)} (${o.n})` : '';
+  const rv = crewRatingTag(d.id);
   return `<div class="li" data-driver="${esc(d.id)}"><div class="ava">🧑‍✈️</div>
     <div class="main"><div class="t">${esc(d.name)}</div>
       <div class="s">${bus ? esc(bus.regNo) : 'unassigned'} · ${d.tripsLogged || 0} trips${rv}</div></div>
@@ -9109,7 +9131,7 @@ function viewAssignments() {
   body += crew.length ? crew.map((d) => {
     const bus = byId(buses, d.busId);
     return `<div class="li" data-act="assignBus" data-driver="${esc(d.id)}" style="cursor:pointer"><div class="ava">${CREW_ROLE_META[role][0]}</div>
-      <div class="main"><div class="t">${esc(d.name)}</div><div class="s">${bus ? esc(bus.regNo) + (role === 'driver' && driverSlotOf(d) === 2 ? ' · ' + t('asDriverN') + ' 2' : '') + ' · ' + esc(bus.company || '') : t('asNoBus')}</div></div>
+      <div class="main"><div class="t">${esc(d.name)}</div><div class="s">${bus ? esc(bus.regNo) + (role === 'driver' && driverSlotOf(d) === 2 ? ' · ' + t('asDriverN') + ' 2' : '') + ' · ' + esc(bus.company || '') : t('asNoBus')}${esc(crewRatingTag(d.id))}</div></div>
       <span class="badge ${bus ? 'b-green' : 'b-amber'}">${bus ? t('asAssigned') : t('asUnassigned')}</span></div>`;
   }).join('') : `<div class="empty">${t('asNobodyYet')}</div>`;
   body += `</div>`;
@@ -9892,7 +9914,7 @@ function rvSourcesBlock(tr) {
   const row = (label, val) => `<div class="row between small" style="padding:4px 0;gap:10px"><span class="muted">${label}</span><span style="text-align:right">${val}</span></div>`;
   const g = tr.sources.gate, r = tr.sources.redpro, i = tr.sources.its;
   let h = `<h3 style="margin-top:12px">${t('rvSources')}</h3>`;
-  h += row(t('rvSrcGate'), g ? `<b>${esc(g.regNo)}</b> · ${esc((driverById(g.driverId) || {}).name || '')} · ${hhmm(g.at)} <a href="#" data-act="rvOpenGate" data-id="${esc(g.checkId)}">›</a>` : '—');
+  h += row(t('rvSrcGate'), g ? `<b>${esc(g.regNo)}</b> · ${esc((driverById(g.driverId) || {}).name || '')} · ${hhmm(g.at)}${can(S.user.role, 'gateDecide') ? ` <a href="#" data-act="rvOpenGate" data-id="${esc(g.checkId)}">›</a>` : ''}` : '—');
   h += row(t('rvSrcRedpro'), r ? `<b>${esc(r.regNo)}</b>${r.driver1 ? ` · ${esc(r.driver1)} <span class="tiny muted">(${t('rvAsTyped')})</span>` : ''}${r.changed ? ` · <span class="tiny" style="color:var(--amber)">${t('rvSwapped')}</span>` : ''}` : '—');
   h += row(t('rvSrcIts'), i ? `${i.regNo ? `<b>${esc(i.regNo)}</b> · ` : ''}${esc((driverById(i.crewId) || {}).name || '')}` : '—');
   h += `<h3 style="margin-top:12px">${t('rvCrew')}</h3>`;
@@ -9958,9 +9980,15 @@ function driverOverall(id) {
   const passenger = st.n >= RV_MIN_SAMPLE ? Math.round(((st.avg - 1) / 4) * 100) : null;
   return { conduct, passenger, n: st.n, avg: st.avg, overall: passenger == null ? conduct : Math.round((conduct + passenger) / 2) };
 }
-let _dpRvWin = 30;   // driver page review window: 30, 90, or 0 = everything collected
+// " · ★3.8 (12)" beside a name wherever crew are listed or picked; '' when nothing is traced.
+function crewRatingTag(id) {
+  if (!can(S.user.role, 'crewReviews')) return '';
+  const o = driverOverall(id);
+  return o.n ? ` · ★${o.avg.toFixed(1)} (${o.n})` : '';
+}
+let _dpRvWin = 30, _dpRvMore = false;   // driver page review window: 30, 90, or 0 = everything collected
 function rvCrewCard(crewId) {
-  if (!can(S.user.role, 'dashboard') || !(S.cache.rbreviews || []).length) return '';
+  if (!can(S.user.role, 'crewReviews') || !(S.cache.rbreviews || []).length) return '';
   const since = _dpRvWin ? Date.now() - _dpRvWin * day : 0;
   const all = (rvCrewIndex().get(crewId) || []).filter((x) => rvBoard(x.r) >= since);
   const list = all.map((x) => x.r), st = rvStats(list);
@@ -9985,16 +10013,16 @@ function rvCrewCard(crewId) {
   low.forEach((r) => (r.tags || []).forEach((g) => { tags[g] = (tags[g] || 0) + 1; }));
   const top = Object.entries(tags).sort((a, b) => b[1] - a[1]).slice(0, 4);
   if (top.length) h += `<div class="row" style="gap:6px;flex-wrap:wrap;margin-top:6px"><span class="tiny muted">${t('dpComplaintsAbout')}</span>${top.map(([g, n]) => `<span class="badge b-amber">${esc(g)} ×${n}</span>`).join('')}</div>`;
-  h += `<div class="hr"></div>` + all.slice(0, 10).map(({ r, vias }) => `<div class="li" data-act="openReview" data-id="${esc(r.id)}" style="cursor:pointer">${rvStarsAva(r.stars)}
+  h += `<div class="hr"></div>` + all.slice(0, _dpRvMore ? 300 : 10).map(({ r, vias }) => `<div class="li" data-act="openReview" data-id="${esc(r.id)}" style="cursor:pointer">${rvStarsAva(r.stars)}
       <div class="main"><div class="t">${esc(r.source)} → ${esc(r.dest)}</div>
         <div class="s">${fmtDate(rvBoard(r))} · ${vias.map((v) => (RV_VIA[v] || ['•'])[0]).join('')} ${esc((traceOf(r).bus || {}).regNo || '')}</div>
         ${r.comment ? `<div class="tiny" style="margin-top:2px">“${esc(r.comment.length > 90 ? r.comment.slice(0, 90) + '…' : r.comment)}”</div>` : ''}</div></div>`).join('');
-  if (all.length > 10) h += `<div class="tiny" style="margin-top:6px;color:var(--accent);cursor:pointer" data-act="rvScopeCrew" data-crew-id="${esc(crewId)}">${t('dpSeeAll')} (${all.length}) ›</div>`;
+  if (all.length > 10) h += `<div class="tiny" style="margin-top:6px;color:var(--accent);cursor:pointer" data-act="dpRvMore">${_dpRvMore ? t('dpShowLess') : `${t('dpSeeAll')} (${all.length}) ›`}</div>`;
   return h + `</div>`;
 }
 // Top of the driver page: the one number, and the two halves it is made of.
 function overallCard(id) {
-  if (!can(S.user.role, 'dashboard') || !(S.cache.rbreviews || []).length) return '';
+  if (!can(S.user.role, 'crewReviews') || !(S.cache.rbreviews || []).length) return '';
   const o = driverOverall(id);
   const half = (v, lbl, sub) => `<div style="flex:1;text-align:center"><div style="font-weight:800;font-size:20px">${v == null ? '—' : v}</div><div class="tiny muted">${lbl}</div><div class="tiny muted">${sub}</div></div>`;
   return `<div class="card"><div class="row between"><h3>📊 ${t('dpOverall')}</h3><span class="badge ${scoreClass(o.overall)}" style="font-size:15px">${o.overall}/100</span></div>
@@ -10679,7 +10707,7 @@ function crewLi(d) {
     <div class="main"><div class="t">${esc(d.name)}</div>
       <div class="crewmeta"><span class="rolepill">${meta[0]} ${esc(crewRoleLabel(role))}</span>${
         bus ? `<span class="buschip">🚌 ${esc(bus)}</span>` : ''}</div>
-      <div class="s">${esc([d.phone || t('cbNoPhone'), crewLicenceNo(d)].filter(Boolean).join(' · '))}</div></div>
+      <div class="s">${esc([d.phone || t('cbNoPhone'), crewLicenceNo(d)].filter(Boolean).join(' · ') + crewRatingTag(d.id))}</div></div>
     ${badge}</div>`;
 }
 
@@ -11355,7 +11383,7 @@ function sheetAssignDriverToBus(busId, role, slot) {
   const cur = seat === 'conductor' ? conductorOfBus(busId) : driverSeatsOf(busId)[n - 1];
   const title = seat === 'conductor' ? t('asAssignConductor') : `${t('asAssignDriver')} · ${t('asSeat')} ${n}`;
   openSheet(title, `<label class="field"><span class="lbl">${esc(crewRoleLabel(seat))} — ${t('asForThisBus')}</span>
-    <select id="f-adrv"><option value="">${esc(t('asNone'))}</option>${ds.map((d) => `<option value="${d.id}" ${cur && cur.id === d.id ? 'selected' : ''}>${esc(d.name)}</option>`).join('')}</select></label>
+    <select id="f-adrv"><option value="">${esc(t('asNone'))}</option>${ds.map((d) => `<option value="${d.id}" ${cur && cur.id === d.id ? 'selected' : ''}>${esc(d.name + crewRatingTag(d.id))}</option>`).join('')}</select></label>
     <button class="btn primary" data-act="saveAssignDriver" data-bus="${esc(busId)}" data-role="${esc(seat)}" data-slot="${seat === 'driver' ? n : ''}">${t('save')}</button>`);
 }
 async function saveAssignDriver(busId, role, slot) {
@@ -12476,6 +12504,7 @@ const _dispatchClick = async (e) => {
       case 'rvScopeCrew': _rvCrew = el.getAttribute('data-crew-id'); _rvBus = null; _rvFilter = 'all'; return push({ name: 'reviews' });
       case 'openReview': return openReview(el.getAttribute('data-id'));
       case 'dpRvWin': _dpRvWin = Number(el.getAttribute('data-w')) || 0; return rerender();
+      case 'dpRvMore': _dpRvMore = !_dpRvMore; return rerender();
       case 'openComplaint': return openComplaint(el.getAttribute('data-id'));
       case 'rvOpenCrew': closeSheet(); return push({ name: 'drivers', id: el.getAttribute('data-id') });
       case 'rvOpenGate': if (e && e.preventDefault) e.preventDefault(); closeSheet(); return push({ name: 'gate', id: el.getAttribute('data-id') });
