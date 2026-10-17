@@ -64,13 +64,16 @@ until mkdir "$LOCK" 2>/dev/null; do
      { [ -z "$_holder" ] && [ $(( $(date +%s) - $(stat -f %m "$LOCK" 2>/dev/null || stat -c %Y "$LOCK" 2>/dev/null || date +%s) )) -gt 60 ]; }; then
     rm -rf "$LOCK"; continue
   fi
-  [ "$_waited" -eq 0 ] && echo "… another gate run (pid ${_holder:-?}) is using the test browser — waiting for it to finish"
+  # The /g-saathi QA skill takes this same lock (its bin/lock), and says so.
+  _who="$(cat "$LOCK/who" 2>/dev/null || echo "another gate run")"
+  [ "$_waited" -eq 0 ] && echo "… the test browser is in use by $_who (pid ${_holder:-?}) — waiting for it to finish"
   _waited=$((_waited+1))
-  if [ "$_waited" -gt 900 ]; then echo "❌ g-saathi gate: still locked by pid ${_holder:-?} after 15 min ($LOCK)"; exit 1; fi
+  if [ "$_waited" -gt 900 ]; then echo "❌ g-saathi gate: still locked by $_who (pid ${_holder:-?}) after 15 min ($LOCK)"; exit 1; fi
   sleep 1
 done
 HAVE_LOCK=1
 echo "$$" > "$LOCK/pid"
+echo "pre-deploy gate, started $(date '+%d %b %H:%M')" > "$LOCK/who"
 
 # Serve the app.
 python3 -m http.server "$PORT" --bind 127.0.0.1 --directory "$REPO" >/dev/null 2>&1 &
