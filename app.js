@@ -332,6 +332,10 @@ const I18N = {
     rbnToConfirm: 'To confirm', rbnConfirmed: 'Confirmed', rbnAllDone: 'Every name redBus has shown is confirmed.', rbnDay: 'day seen', rbnDays: 'days seen',
     rbnWhyBefore: 'confirmed on another bus', rbnWhyBoard: 'on the duty board', rbnWhyName: 'similar name', rbnSomeoneElse: 'Someone else…', rbnNotAName: 'Not a real name',
     rbnNotInFleet: 'not in the fleet list', rbnWho: 'Who is this?', rbnSaved: 'Saved', rbnBanner: 'redBus names to confirm', rbViaDuty: 'duty board', rbViaRedpro: 'redBus name',
+    dpRvTitle: 'redBus reviews mapped to them', dp30: '30 d', dp90: '90 d', dpAll: 'All', dpRvNone: 'No review traced to them in this period.', dpAvg: 'average', dpReviews: 'reviews',
+    dpMappedBy: 'Mapped by', dpComplaintsAbout: 'Low ratings mention', dpSeeAll: 'All their reviews', dpOverall: 'Total performance', dpConduct: 'Conduct',
+    dpConductSub: 'incidents + GPS', dpPassenger: 'Passengers', dpRated: 'rated', dpOverallHow: 'Half conduct, half passenger stars (1★ = 0, 5★ = 100), last 90 days.',
+    dpOverallWait: 'Conduct only for now. Passenger stars count once 10 rated trips are traced to them in 90 days.',
     rvBusCard: 'redBus reviews (30 days)', rvCrewReviews: 'redBus reviews on their trips (30 days)', rvMinSample: 'fewer than 10 rated trips, too few to judge', cmpNotes: 'redBus agent notes',
     gcHomeTitle: 'Gate checks today', gcNoCheckShort: 'no check yet', gcHistory: 'Earlier decisions', hmGateWaiting: 'Bus waiting at the gate', hmGateWaitingSub: 'A check failed — go or hold?', asGateLine: 'Gate check',
     gi_ac: 'AC cooling', gi_blankets: 'Blanket and pillow on every berth', gi_cabin: 'Berths, floor and washroom clean', gi_charging: 'Charging points work', gi_water: 'Water bottles loaded',
@@ -680,6 +684,10 @@ const I18N = {
     rbnToConfirm: 'पक्का करना है', rbnConfirmed: 'पक्के', rbnAllDone: 'redBus के सभी नाम पक्के हो चुके।', rbnDay: 'दिन दिखा', rbnDays: 'दिन दिखा',
     rbnWhyBefore: 'दूसरी बस पर पक्का', rbnWhyBoard: 'ड्यूटी में', rbnWhyName: 'मिलता नाम', rbnSomeoneElse: 'कोई और…', rbnNotAName: 'असली नाम नहीं',
     rbnNotInFleet: 'बेड़े की सूची में नहीं', rbnWho: 'यह कौन है?', rbnSaved: 'सेव हुआ', rbnBanner: 'पक्के करने वाले redBus नाम', rbViaDuty: 'ड्यूटी', rbViaRedpro: 'redBus नाम',
+    dpRvTitle: 'इनसे जुड़े redBus रिव्यू', dp30: '30 दिन', dp90: '90 दिन', dpAll: 'सब', dpRvNone: 'इस अवधि में कोई रिव्यू इनसे नहीं जुड़ा।', dpAvg: 'औसत', dpReviews: 'रिव्यू',
+    dpMappedBy: 'कैसे जुड़ा', dpComplaintsAbout: 'कम रेटिंग में', dpSeeAll: 'इनके सारे रिव्यू', dpOverall: 'कुल प्रदर्शन', dpConduct: 'आचरण',
+    dpConductSub: 'घटनाएँ + GPS', dpPassenger: 'यात्री', dpRated: 'रेटिंग', dpOverallHow: 'आधा आचरण, आधा यात्री स्टार (1★ = 0, 5★ = 100), पिछले 90 दिन।',
+    dpOverallWait: 'अभी सिर्फ़ आचरण। 90 दिन में 10 रेटेड यात्राएँ जुड़ने पर यात्री स्टार भी गिने जाएँगे।',
     rvBusCard: 'redBus रिव्यू (30 दिन)', rvCrewReviews: 'इनकी यात्राओं के redBus रिव्यू (30 दिन)', rvMinSample: '10 से कम रेटिंग, अभी फ़ैसला नहीं', cmpNotes: 'redBus एजेंट नोट',
     gcHomeTitle: 'आज के गेट चेक', gcNoCheckShort: 'बिना चेक', gcHistory: 'पहले के फ़ैसले', hmGateWaiting: 'बस गेट पर इंतज़ार में', hmGateWaitingSub: 'जाँच में दिक्कत — चलो या रुको?', asGateLine: 'गेट चेक',
     gi_ac: 'AC ठंडा कर रहा है', gi_blankets: 'हर बर्थ पर कंबल और तकिया', gi_cabin: 'बर्थ, फ़र्श और वॉशरूम साफ़', gi_charging: 'चार्जिंग पॉइंट चालू', gi_water: 'पानी की बोतलें रखीं',
@@ -2447,7 +2455,7 @@ function viewUsage() {
 }
 
 function viewPeople() {
-  const drivers = activeDrivers().map((d) => ({ d, score: driverScore(d.id) })).sort((a, b) => a.score - b.score);
+  const drivers = activeDrivers().map((d) => ({ d, score: driverOverall(d.id).overall })).sort((a, b) => a.score - b.score);
   const inToday = (S.cache.att || []).filter((a) => a.type === 'in' && isToday(a.at)).map((a) => a.userId);
   const presentCount = new Set(inToday).size;
 
@@ -8961,15 +8969,16 @@ async function confirmLogService(busId) {
 
 /* ------------------------------- Drivers ---------------------------------- */
 function driverLi(d) {
-  const score = driverScore(d.id), bus = byId(S.cache.buses, d.busId);
+  const o = driverOverall(d.id), score = o.overall, bus = byId(S.cache.buses, d.busId);
+  const rv = can(S.user.role, 'dashboard') && o.n ? ` · ★${o.avg.toFixed(1)} (${o.n})` : '';
   return `<div class="li" data-driver="${esc(d.id)}"><div class="ava">🧑‍✈️</div>
     <div class="main"><div class="t">${esc(d.name)}</div>
-      <div class="s">${bus ? esc(bus.regNo) : 'unassigned'} · ${d.tripsLogged || 0} trips</div></div>
+      <div class="s">${bus ? esc(bus.regNo) : 'unassigned'} · ${d.tripsLogged || 0} trips${rv}</div></div>
     <div style="text-align:right"><span class="badge ${scoreClass(score)}">${score}</span>
       <div class="stars">${starStr(scoreStars(score))}</div></div></div>`;
 }
 function viewDrivers() {
-  const list = [...activeDrivers()].sort((a, b) => driverScore(a.id) - driverScore(b.id)); // worst first
+  const list = [...activeDrivers()].sort((a, b) => driverOverall(a.id).overall - driverOverall(b.id).overall); // worst first
   let body = '';
   if (can(S.user.role, 'assignDriver')) {
     body += `<button class="btn" data-act="openAssignments" style="margin-bottom:12px">🔁 Driver ↔ Bus assignments</button>`;
@@ -9117,7 +9126,7 @@ function viewAssignments() {
 function viewDriverDetail(id) {
   const d = driverById(id);
   if (!d) return viewDrivers();
-  const bus = byId(S.cache.buses, d.busId), score = driverScore(id);
+  const bus = byId(S.cache.buses, d.busId), score = driverOverall(id).overall;
   const incs = driverIncidents(id).sort((a, b) => b.at - a.at);
   const reps = (S.cache.driverreports || []).filter((r) => r.driverId === id).sort((a, b) => b.at - a.at);
   const byType = {}; incs.forEach((i) => { byType[i.type] = (byType[i.type] || 0) + 1; });
@@ -9173,6 +9182,7 @@ function viewDriverDetail(id) {
 
   // Document vault summary (tap to manage)
   const ds = driverDocStatus(d);
+  body += overallCard(d.id);
   body += rvCrewCard(d.id);
   body += `<div class="card" data-act="openDriverDocs" data-driver="${esc(d.id)}" style="cursor:pointer"><div class="row between">
     <div class="row" style="gap:12px;align-items:center">${progressRing(ds.pct)}
@@ -9920,14 +9930,75 @@ function rvBusCard(busId) {
     <div class="small" style="margin-top:4px">${st.n ? `★${st.avg.toFixed(1)} · ${st.n} · ${low} ≤3★` : t('rvNoneHere')}</div></div>`;
 }
 const RV_MIN_SAMPLE = 10;
+// Every review traced to each crew member, built once per cache: crewId -> [{ r, vias }].
+let _rvCrewMemo = { key: null, map: null };
+function rvCrewIndex() {
+  if (_rvCrewMemo.key === S.cache && _rvCrewMemo.map) return _rvCrewMemo.map;
+  const map = new Map();
+  for (const r of S.cache.rbreviews || []) {
+    for (const c of traceOf(r).crew) {
+      if (!c.crewId) continue;
+      if (!map.has(c.crewId)) map.set(c.crewId, []);
+      map.get(c.crewId).push({ r, vias: c.vias || [c.via] });
+    }
+  }
+  for (const l of map.values()) l.sort((a, b) => rvBoard(b.r) - rvBoard(a.r));
+  _rvCrewMemo = { key: S.cache, map };
+  return map;
+}
+const RV_VIA = { gate: ['🚦', 'rvSrcGate'], duty: ['📋', 'rbViaDuty'], redpro: ['🏷️', 'rbViaRedpro'], its: ['📞', 'rvViaIts'] };
+/* Total performance = conduct (incidents + GPS, the existing score) blended half and half with
+ * what passengers said (redBus stars, 1★ = 0 and 5★ = 100), both over the last 90 days. The
+ * passenger half only counts from RV_MIN_SAMPLE rated trips: a few reviews judge nobody. */
+function driverOverall(id) {
+  const conduct = driverScore(id);
+  const since = Date.now() - 90 * day;
+  const st = rvStats((rvCrewIndex().get(id) || []).filter((x) => rvBoard(x.r) >= since).map((x) => x.r));
+  const passenger = st.n >= RV_MIN_SAMPLE ? Math.round(((st.avg - 1) / 4) * 100) : null;
+  return { conduct, passenger, n: st.n, avg: st.avg, overall: passenger == null ? conduct : Math.round((conduct + passenger) / 2) };
+}
+let _dpRvWin = 30;   // driver page review window: 30, 90, or 0 = everything collected
 function rvCrewCard(crewId) {
   if (!can(S.user.role, 'dashboard') || !(S.cache.rbreviews || []).length) return '';
-  const list = rvForCrew(crewId, Date.now() - 30 * day), st = rvStats(list);
-  const low = list.filter((r) => r.stars && r.stars <= 3).length;
-  // Too few rated trips to judge anyone: show the count, not an average.
-  const line = !st.n ? t('rvNoneHere') : st.n < RV_MIN_SAMPLE ? `${st.n} · ${low} ≤3★ — ${t('rvMinSample')}` : `★${st.avg.toFixed(1)} · ${st.n} · ${low} ≤3★`;
-  return `<div class="card" data-act="rvScopeCrew" data-crew-id="${esc(crewId)}" style="cursor:pointer"><div class="row between"><h3>⭐ ${t('rvCrewReviews')}</h3><span class="tc muted">›</span></div>
-    <div class="small" style="margin-top:4px">${line}</div></div>`;
+  const since = _dpRvWin ? Date.now() - _dpRvWin * day : 0;
+  const all = (rvCrewIndex().get(crewId) || []).filter((x) => rvBoard(x.r) >= since);
+  const list = all.map((x) => x.r), st = rvStats(list);
+  const low = list.filter((r) => r.stars && r.stars <= 3);
+  const safety = list.filter((r) => rvClassOf(r) === 'safety').length;
+  const chip = (w, label) => `<button class="chip${_dpRvWin === w ? ' active' : ''}" style="padding:4px 10px;font-size:12px" data-act="dpRvWin" data-w="${w}">${label}</button>`;
+  let h = `<div class="card"><div class="row between"><h3>⭐ ${t('dpRvTitle')}</h3>
+    <div class="row" style="gap:4px">${chip(30, t('dp30'))}${chip(90, t('dp90'))}${chip(0, t('dpAll'))}</div></div>`;
+  if (!list.length) return h + `<div class="small muted" style="margin-top:6px">${t('dpRvNone')}</div></div>`;
+  const avgTxt = st.n >= RV_MIN_SAMPLE ? '★' + st.avg.toFixed(1) : st.n ? '★' + st.avg.toFixed(1) + '*' : '—';
+  const kpi = (v, lbl, bad) => `<div style="text-align:center;flex:1"><div style="font-weight:800;font-size:18px;color:${bad ? 'var(--red)' : 'var(--text)'}">${v}</div><div class="tiny muted">${lbl}</div></div>`;
+  h += `<div class="row" style="margin-top:10px">${kpi(avgTxt, t('dpAvg'), st.n >= RV_MIN_SAMPLE && st.avg < 3.5)}${kpi(list.length, t('dpReviews'))}${
+    kpi(low.length, '≤3★', low.length > 0)}${kpi(st.one == null ? '—' : Math.round(st.one * 100) + '%', '1★', st.one > 0.15)}${kpi(safety, t('rvSafetyK'), safety > 0)}</div>`;
+  if (st.n && st.n < RV_MIN_SAMPLE) h += `<div class="tiny muted" style="margin-top:4px">* ${t('rvMinSample')}</div>`;
+  // How each review reached him: the office can see which proof the picture rests on.
+  const byVia = {};
+  all.forEach((x) => x.vias.forEach((v) => { byVia[v] = (byVia[v] || 0) + 1; }));
+  h += `<div class="row" style="gap:6px;flex-wrap:wrap;margin-top:10px"><span class="tiny muted">${t('dpMappedBy')}</span>${
+    Object.keys(RV_VIA).filter((v) => byVia[v]).map((v) => `<span class="badge b-low">${RV_VIA[v][0]} ${t(RV_VIA[v][1])} ×${byVia[v]}</span>`).join('')}</div>`;
+  // What the unhappy passengers keep naming.
+  const tags = {};
+  low.forEach((r) => (r.tags || []).forEach((g) => { tags[g] = (tags[g] || 0) + 1; }));
+  const top = Object.entries(tags).sort((a, b) => b[1] - a[1]).slice(0, 4);
+  if (top.length) h += `<div class="row" style="gap:6px;flex-wrap:wrap;margin-top:6px"><span class="tiny muted">${t('dpComplaintsAbout')}</span>${top.map(([g, n]) => `<span class="badge b-amber">${esc(g)} ×${n}</span>`).join('')}</div>`;
+  h += `<div class="hr"></div>` + all.slice(0, 10).map(({ r, vias }) => `<div class="li" data-act="openReview" data-id="${esc(r.id)}" style="cursor:pointer">${rvStarsAva(r.stars)}
+      <div class="main"><div class="t">${esc(r.source)} → ${esc(r.dest)}</div>
+        <div class="s">${fmtDate(rvBoard(r))} · ${vias.map((v) => (RV_VIA[v] || ['•'])[0]).join('')} ${esc((traceOf(r).bus || {}).regNo || '')}</div>
+        ${r.comment ? `<div class="tiny" style="margin-top:2px">“${esc(r.comment.length > 90 ? r.comment.slice(0, 90) + '…' : r.comment)}”</div>` : ''}</div></div>`).join('');
+  if (all.length > 10) h += `<div class="tiny" style="margin-top:6px;color:var(--accent);cursor:pointer" data-act="rvScopeCrew" data-crew-id="${esc(crewId)}">${t('dpSeeAll')} (${all.length}) ›</div>`;
+  return h + `</div>`;
+}
+// Top of the driver page: the one number, and the two halves it is made of.
+function overallCard(id) {
+  if (!can(S.user.role, 'dashboard') || !(S.cache.rbreviews || []).length) return '';
+  const o = driverOverall(id);
+  const half = (v, lbl, sub) => `<div style="flex:1;text-align:center"><div style="font-weight:800;font-size:20px">${v == null ? '—' : v}</div><div class="tiny muted">${lbl}</div><div class="tiny muted">${sub}</div></div>`;
+  return `<div class="card"><div class="row between"><h3>📊 ${t('dpOverall')}</h3><span class="badge ${scoreClass(o.overall)}" style="font-size:15px">${o.overall}/100</span></div>
+    <div class="row" style="margin-top:8px">${half(o.conduct, t('dpConduct'), t('dpConductSub'))}${half(o.passenger, t('dpPassenger'), o.passenger == null ? `${o.n}/${RV_MIN_SAMPLE} ${t('dpRated')}` : `★${o.avg.toFixed(1)} · ${o.n} ${t('dpRated')}`)}</div>
+    <div class="tiny muted" style="margin-top:6px">${t(o.passenger == null ? 'dpOverallWait' : 'dpOverallHow')}</div></div>`;
 }
 
 // Gate check: which redBus service is this bus leaving on?
@@ -12403,6 +12474,7 @@ const _dispatchClick = async (e) => {
       case 'rvScopeBus': _rvBus = el.getAttribute('data-bus-id'); _rvCrew = null; _rvFilter = 'all'; return push({ name: 'reviews' });
       case 'rvScopeCrew': _rvCrew = el.getAttribute('data-crew-id'); _rvBus = null; _rvFilter = 'all'; return push({ name: 'reviews' });
       case 'openReview': return openReview(el.getAttribute('data-id'));
+      case 'dpRvWin': _dpRvWin = Number(el.getAttribute('data-w')) || 0; return rerender();
       case 'openComplaint': return openComplaint(el.getAttribute('data-id'));
       case 'rvOpenCrew': closeSheet(); return push({ name: 'drivers', id: el.getAttribute('data-id') });
       case 'rvOpenGate': if (e && e.preventDefault) e.preventDefault(); closeSheet(); return push({ name: 'gate', id: el.getAttribute('data-id') });
