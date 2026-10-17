@@ -3115,8 +3115,16 @@ async function cleanupFleet(silent) {
   // Strip demo/test buses ONLY once a real fleet exists to replace them — otherwise
   // the background auto-reconcile would wipe the seeded demo fleet to nothing
   // (offline/local installs have no AirFi import to bring buses back).
+  // And, unattended, only a demo bus with nothing on it — the same rule as a
+  // duplicate above. Stripping them regardless left their job cards, drivers,
+  // incidents and parts pointing at a bus that no longer existed, and the
+  // delete synced to every phone. Work logged against a demo bus is still work.
   const realCount = buses.filter((b) => !demoIds.has(b.id) && b.source !== 'demo').length;
-  if (realCount > 0) buses.forEach((b) => { if (demoIds.has(b.id) || b.source === 'demo') toDel.add(b.id); });            // demo/test
+  if (realCount > 0) buses.forEach((b) => {
+    if (!(demoIds.has(b.id) || b.source === 'demo')) return;
+    if (silent && (refs[b.id] || 0) > 0) return;
+    toDel.add(b.id);                                                                // demo/test
+  });
   for (const id of toDel) await DB.softDel('buses', id);
   if (toDel.size) { await load(); Sync.kick(); }
   if (!silent) { toast(toDel.size ? `Removed ${toDel.size} test/duplicate bus(es) ✓` : 'Fleet already clean 👍'); rerender(); }

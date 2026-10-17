@@ -338,6 +338,15 @@ ck "an ambiguous plate is left as written"    "$(j "_normReg('RJ14123')")" "RJ14
 j "window.__g='';(async function(){var n=Date.now();await DB.put('buses',{id:'g-ph',regNo:'QQ44ZD0471',source:'airfi',docs:[],createdAt:n});await DB.put('buses',{id:'g-real',regNo:'QQ44ZD471',source:'route-import',docs:[],createdAt:n-9e8});await DB.put('jobcards',{id:'g-job',busId:'g-real',problem:'x',status:'open',createdAt:n,updatedAt:n});await load();await cleanupFleet(true);window.__g=(byId(S.cache.buses,'g-real')?'kept':'LOST')+'/'+(byId(S.cache.buses,'g-ph')?'phantom-stays':'phantom-gone');})().catch(function(e){window.__g='ERR'})" >/dev/null
 settle "window.__g||''" "kept/phantom-gone" 30 >/dev/null
 ck "de-dupe keeps the real bus, drops the import" "$(j "window.__g")" "kept/phantom-gone"
+# The same rule for demo buses. Once a real fleet existed, the background pass
+# stripped every demo bus on a two-minute timer, history or not, and synced
+# the delete: their job cards, drivers, incidents and parts were left pointing
+# at a bus that was gone (a job showed bus "—", a driver turned "unassigned").
+# Unattended, a demo bus with records on it stays; a bare one still goes.
+j "window.__dm='';(async function(){var n=Date.now();await DB.put('buses',{id:'g-dm-hist',regNo:'QQ01DM0001',source:'demo',docs:[],createdAt:n});await DB.put('buses',{id:'g-dm-bare',regNo:'QQ01DM0002',source:'demo',docs:[],createdAt:n});await DB.put('jobcards',{id:'g-dm-job',busId:'g-dm-hist',problem:'Gate demo history',status:'open',priority:'low',createdAt:n,updatedAt:n,assignees:[],partsUsed:[],beforePhotos:[],afterPhotos:[]});await load();await cleanupFleet(true);var r=(byId(S.cache.buses,'g-dm-hist')?'kept':'LOST')+'/'+(byId(S.cache.buses,'g-dm-bare')?'bare-stays':'bare-gone');await DB.softDel('jobcards','g-dm-job');await DB.softDel('buses','g-dm-hist');await load();window.__dm=r})().catch(function(e){window.__dm='ERR '+e.message})" >/dev/null
+settle "window.__dm||''" "kept/bare-gone" 30 >/dev/null
+ck "a demo bus with history survives the background cleanup" "$(j "(window.__dm||'').split('/')[0]")" "kept"
+ck "and a demo bus with none is still removed"               "$(j "(window.__dm||'').split('/')[1]")" "bare-gone"
 
 # 2g) Several mechanics on one job: each sees it, nobody else does.
 login supervisor u-sup 2 2 2 2
