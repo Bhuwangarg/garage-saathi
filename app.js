@@ -334,7 +334,7 @@ const I18N = {
     rbnNotInFleet: 'not in the fleet list', rbnWho: 'Who is this?', rbnSaved: 'Saved', rbnBanner: 'redBus names to confirm', rbViaDuty: 'duty board', rbViaRedpro: 'redBus name',
     dpRvTitle: 'redBus reviews mapped to them', dp30: '30 d', dp90: '90 d', dpAll: 'All', dpRvNone: 'No review traced to them in this period.', dpAvg: 'average', dpReviews: 'reviews',
     dpMappedBy: 'Mapped by', dpComplaintsAbout: 'Low ratings mention', dpSeeAll: 'All their reviews', dpOverall: 'Total performance', dpConduct: 'Conduct',
-    dpConductSub: 'incidents + GPS', dpPassenger: 'Passengers', dpRated: 'rated', dpOverallHow: 'Half conduct, half passenger stars (1★ = 0, 5★ = 100), last 90 days.',
+    dpConductSub: 'incidents + GPS', dpConductSubC: 'incidents', dpPassenger: 'Passengers', dpRated: 'rated', dpOverallHow: 'Half conduct, half passenger stars (1★ = 0, 5★ = 100), last 90 days.',
     dpOverallWait: 'Conduct only for now. Passenger stars count once 10 rated trips are traced to them in 90 days.',
     rvBusCard: 'redBus reviews (30 days)', rvCrewReviews: 'redBus reviews on their trips (30 days)', rvMinSample: 'fewer than 10 rated trips, too few to judge', cmpNotes: 'redBus agent notes',
     gcHomeTitle: 'Gate checks today', gcNoCheckShort: 'no check yet', gcHistory: 'Earlier decisions', hmGateWaiting: 'Bus waiting at the gate', hmGateWaitingSub: 'A check failed — go or hold?', asGateLine: 'Gate check',
@@ -686,7 +686,7 @@ const I18N = {
     rbnNotInFleet: 'बेड़े की सूची में नहीं', rbnWho: 'यह कौन है?', rbnSaved: 'सेव हुआ', rbnBanner: 'पक्के करने वाले redBus नाम', rbViaDuty: 'ड्यूटी', rbViaRedpro: 'redBus नाम',
     dpRvTitle: 'इनसे जुड़े redBus रिव्यू', dp30: '30 दिन', dp90: '90 दिन', dpAll: 'सब', dpRvNone: 'इस अवधि में कोई रिव्यू इनसे नहीं जुड़ा।', dpAvg: 'औसत', dpReviews: 'रिव्यू',
     dpMappedBy: 'कैसे जुड़ा', dpComplaintsAbout: 'कम रेटिंग में', dpSeeAll: 'इनके सारे रिव्यू', dpOverall: 'कुल प्रदर्शन', dpConduct: 'आचरण',
-    dpConductSub: 'घटनाएँ + GPS', dpPassenger: 'यात्री', dpRated: 'रेटिंग', dpOverallHow: 'आधा आचरण, आधा यात्री स्टार (1★ = 0, 5★ = 100), पिछले 90 दिन।',
+    dpConductSub: 'घटनाएँ + GPS', dpConductSubC: 'घटनाएँ', dpPassenger: 'यात्री', dpRated: 'रेटिंग', dpOverallHow: 'आधा आचरण, आधा यात्री स्टार (1★ = 0, 5★ = 100), पिछले 90 दिन।',
     dpOverallWait: 'अभी सिर्फ़ आचरण। 90 दिन में 10 रेटेड यात्राएँ जुड़ने पर यात्री स्टार भी गिने जाएँगे।',
     rvBusCard: 'redBus रिव्यू (30 दिन)', rvCrewReviews: 'इनकी यात्राओं के redBus रिव्यू (30 दिन)', rvMinSample: '10 से कम रेटिंग, अभी फ़ैसला नहीं', cmpNotes: 'redBus एजेंट नोट',
     gcHomeTitle: 'आज के गेट चेक', gcNoCheckShort: 'बिना चेक', gcHistory: 'पहले के फ़ैसले', hmGateWaiting: 'बस गेट पर इंतज़ार में', hmGateWaitingSub: 'जाँच में दिक्कत — चलो या रुको?', asGateLine: 'गेट चेक',
@@ -1929,7 +1929,8 @@ function driverScore(driverId) {
   let pen = driverIncidents(driverId).filter((i) => i.at >= since)
     .reduce((s, i) => s + ((INCIDENT[i.type] || INCIDENT.other).pen), 0);
   const drv = driverById(driverId);
-  if (drv && drv.busId) {           // auto GPS events on the driver's bus also count (capped)
+  // Auto GPS events on the bus count against its driver (capped), never its conductor: they are driving.
+  if (drv && drv.busId && crewRoleOf(drv) === 'driver') {
     const gp = gpsEventsForBus(drv.busId).filter((e) => e.at >= since)
       .reduce((s, e) => s + ((GPS_EVENT[e.type] || {}).pen || 0), 0);
     pen += Math.min(40, gp);
@@ -9202,7 +9203,7 @@ function viewDriverDetail(id) {
   body += `</div>`;
 
   // Safety events auto-detected from the assigned bus's live GPS (last 90 days)
-  if (d.busId) {
+  if (d.busId && crole === 'driver') {
     const since = Date.now() - 90 * day;
     const evs = gpsEventsForBus(d.busId).filter((e) => e.at >= since);
     const byT = {}; evs.forEach((e) => { byT[e.type] = (byT[e.type] || 0) + 1; });
@@ -9997,7 +9998,7 @@ function overallCard(id) {
   const o = driverOverall(id);
   const half = (v, lbl, sub) => `<div style="flex:1;text-align:center"><div style="font-weight:800;font-size:20px">${v == null ? '—' : v}</div><div class="tiny muted">${lbl}</div><div class="tiny muted">${sub}</div></div>`;
   return `<div class="card"><div class="row between"><h3>📊 ${t('dpOverall')}</h3><span class="badge ${scoreClass(o.overall)}" style="font-size:15px">${o.overall}/100</span></div>
-    <div class="row" style="margin-top:8px">${half(o.conduct, t('dpConduct'), t('dpConductSub'))}${half(o.passenger, t('dpPassenger'), o.passenger == null ? `${o.n}/${RV_MIN_SAMPLE} ${t('dpRated')}` : `★${o.avg.toFixed(1)} · ${o.n} ${t('dpRated')}`)}</div>
+    <div class="row" style="margin-top:8px">${half(o.conduct, t('dpConduct'), t(crewRoleOf(driverById(id)) === 'conductor' ? 'dpConductSubC' : 'dpConductSub'))}${half(o.passenger, t('dpPassenger'), o.passenger == null ? `${o.n}/${RV_MIN_SAMPLE} ${t('dpRated')}` : `★${o.avg.toFixed(1)} · ${o.n} ${t('dpRated')}`)}</div>
     <div class="tiny muted" style="margin-top:6px">${t(o.passenger == null ? 'dpOverallWait' : 'dpOverallHow')}</div></div>`;
 }
 
