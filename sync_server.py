@@ -29,6 +29,7 @@ import urllib.request
 import uuid
 
 import crew_trace
+import bill_ai
 import gate_ai
 import name_ai
 import review_ai
@@ -2493,6 +2494,44 @@ def gate_ai_tick(call=None):
     return 200, out
 
 
+# ----------------------------- Supplier bills ---------------------------------------------------
+# Claude reads a photographed bill (bill_ai.py); the code checks its arithmetic; the store person
+# reviews the pre-filled purchase form and saves. Nothing is stored here: the bill is saved by the
+# app, as before, with the photo.
+AI_BILL_DAILY = int(os.environ.get("AI_BILL_DAILY", "60"))     # bills read per person per day
+
+
+def read_bill(actor, photo, call=None):
+    if not ANTHROPIC_API_KEY and call is None:
+        return 501, {"error": "AI not configured on server (ANTHROPIC_API_KEY)"}
+    if actor.get("role") not in ("owner", "supervisor", "store"):
+        return 403, {"error": "forbidden"}
+    image = gate_ai.image_block(photo)
+    if not image or len(photo) > 7_000_000:
+        return 400, {"error": "send the bill photo as a link or a JPEG/PNG data URL under 5 MB"}
+    key = "bill:%s:%s" % (actor["id"], datetime.utcnow().strftime("%Y-%m-%d"))
+    with _lock:
+        c = db()
+        try:
+            row = c.execute("SELECT n FROM aiusage WHERE k=?", (key,)).fetchone()
+            n = int(row[0]) if row else 0
+            if n >= AI_BILL_DAILY:
+                return 429, {"error": "daily bill-reading limit reached"}
+            c.execute("INSERT INTO aiusage(k,n) VALUES(?,?) ON CONFLICT(k) DO UPDATE SET n=excluded.n", (key, n + 1))
+            c.commit()
+        finally:
+            c.close()
+    try:
+        bill = bill_ai.parse_message((call or _anthropic)("POST", "/messages", bill_ai.params_for(image, AI_MODEL)))
+    except urllib.error.HTTPError as e:
+        if e.code == 400:
+            return 422, {"error": "Claude could not open the photo"}
+        raise
+    if not bill:
+        return 422, {"error": "Claude could not read a bill in this photo"}
+    return 200, {"ok": True, "bill": bill, "checks": bill_ai.checks(bill), "model": AI_MODEL}
+
+
 def its_lookup_diag(pnrs):
     """Owner only: look ONE PNR up and return the shape of ITS's answer (field names, messages),
     never its values, and store nothing."""
@@ -4842,6 +4881,17 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(*its_lookup_diag(b.get("pnrs")))
             code, res = its_lookup_batch((b or {}).get("pnrs") if isinstance(b, dict) else None, me)
             return self._send(code, res)
+
+        if u.path == "/ai/bill":                     # read a supplier bill photo (store/owner/supervisor)
+            me = self._auth_user()
+            if not me:
+                return self._send(401, {"error": "unauthorized"})
+            try:
+                return self._send(*read_bill(me, str((self._body() or {}).get("photo") or "")))
+            except urllib.error.HTTPError as e:
+                return self._send(502, {"error": "Claude answered %s" % e.code})
+            except Exception as e:
+                return self._send(502, {"error": "AI upstream error: %s" % type(e).__name__})
 
         if u.path == "/ai/gate":                     # look at gate check photos (extension or office)
             h = self.headers.get("Authorization") or ""

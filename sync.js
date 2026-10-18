@@ -425,6 +425,15 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
       return res.ok ? j : { error: j.error || ('failed (' + res.status + ')') };
     } catch (e) { return { error: 'No connection to the server' }; }
   }
+  // Read a supplier bill photo with Claude (store/owner/supervisor): {bill, checks} or {error}.
+  async function aiBill(photo) {
+    try {
+      const res = await fetch(baseUrl() + '/ai/bill', { method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ photo }) });
+      let j = {};
+      try { j = await res.json(); } catch (e) { /* not JSON */ }
+      return res.ok ? j : { error: j.error || ('failed (' + res.status + ')'), status: res.status };
+    } catch (e) { return { error: 'No connection to the server' }; }
+  }
   // A driver/conductor's own redBus reviews, traced on the server (their phone is not sent the
   // reviews themselves). null when offline or signed out: the app keeps showing the last copy.
   async function myReviews() {
@@ -985,7 +994,7 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
     } catch (e) { return null; }
   }
 
-  return { start, tick, kick, setUrl, reset, info, login, logout, warmUp, roster, pendingIds, addStaff, deleteStaff, renameStaff, registerRoster, setPin, gps, validSyncUrl, backfillContacts, setActor, tokenUser, now, deleteUploads, ai, aiVision, challans, itsLookup, myReviews, aiReviews, aiNames, aiGate, fleet, latest, uploadPhoto,
+  return { start, tick, kick, setUrl, reset, info, login, logout, warmUp, roster, pendingIds, addStaff, deleteStaff, renameStaff, registerRoster, setPin, gps, validSyncUrl, backfillContacts, setActor, tokenUser, now, deleteUploads, ai, aiVision, challans, itsLookup, myReviews, aiReviews, aiNames, aiGate, aiBill, fleet, latest, uploadPhoto,
            queuePhoto, uploadError, remove, clearQuarantine, subscribePush, pushTest, flagOn, flagList,
            get status() { return status; } };
 })();

@@ -339,6 +339,13 @@ const I18N = {
     myRvNone: 'No review is linked to you yet. Do the gate check before every departure, with the service picked: that is what links passengers\' reviews to you.',
     myRvNoneC: 'No review is linked to you yet. They link to you through the duty board, so make sure the office has you on the right bus.',
     myRvLoading: 'Fetching your reviews…', myRvOffline: 'Could not fetch your reviews. They will show once the phone is online.', myRvFew: 'Fewer than 10 rated trips: not counted in your rating yet.', myRvWork: 'Low ratings mention', myRvNoText: 'No comment, only stars.',
+    billScanHint: 'Snap a printed or handwritten (kachaa) bill. Claude reads the supplier, bill number, every line and the totals; you check and save.',
+    billReading: 'Claude is reading the bill…', billFallback: 'reading it on the phone instead', billAsWritten: 'on the bill', billQtyRate: 'qty × rate', billWritten: 'bill says',
+    billNoTotal: 'No total could be read: type the amount', billSumTotal: 'Subtotal + GST does not equal the total', billSumLines: 'Lines do not add up to the subtotal',
+    billLineSums: 'Some lines do not add up (marked in red)', billDup: 'This bill number from this supplier was already entered on', billNewVendor: 'Supplier not in your vendor list',
+    billUnmatched: 'lines not matched to a part: pick the part or remove the line', billLegible_partial: 'Parts of the bill were hard to read', billLegible_poor: 'The bill was hard to read: check every figure',
+    billReadTitle: 'Read by Claude', billLines: 'lines', billSubtotal: 'subtotal', billTotal: 'total', billHandwritten: 'handwritten', billAllAdds: 'Everything adds up.',
+    billCheckSave: 'Check the supplier, parts and amount, then Save. Nothing is saved until you do.', billReadToast: 'Bill read, check and save',
     gai_ok: 'photo looks right', gai_doubt: 'photo doubtful', gai_wrong: 'photo does not show this', gaiSameAs: 'same photo as', gaiReused: 'photo reused from an earlier check',
     gaiUnreadable: 'Claude could not open the photos', gaiDoubt1: 'photo to look at', gaiDoubts: 'photos to look at', gaiHomeChip: 'with photo doubts',
     rbnAiTitle: 'Claude matches names', rbnAiMatched: 'matched by Claude', rbnAiGeneric: 'marked not a name', rbnAiSuggested: 'suggested',
@@ -711,6 +718,13 @@ const I18N = {
     myRvNone: 'अभी कोई रिव्यू आपसे नहीं जुड़ा। हर रवानगी से पहले सर्विस चुनकर गेट चेक करें: इसी से यात्रियों के रिव्यू आपसे जुड़ते हैं।',
     myRvNoneC: 'अभी कोई रिव्यू आपसे नहीं जुड़ा। ये ड्यूटी बोर्ड से जुड़ते हैं, ऑफिस से पक्का करें कि आप सही बस पर दर्ज हैं।',
     myRvLoading: 'आपके रिव्यू आ रहे हैं…', myRvOffline: 'रिव्यू नहीं आ सके। फ़ोन ऑनलाइन होने पर दिखेंगे।', myRvFew: '10 से कम रेटिंग: अभी आपकी रेटिंग में नहीं गिने गए।', myRvWork: 'कम रेटिंग में', myRvNoText: 'कोई टिप्पणी नहीं, सिर्फ़ स्टार।',
+    billScanHint: 'छपा या हाथ से लिखा (कच्चा) बिल खींचें। Claude सप्लायर, बिल नंबर, हर लाइन और टोटल पढ़ता है; आप जाँचें और सेव करें।',
+    billReading: 'Claude बिल पढ़ रहा है…', billFallback: 'फ़ोन पर पढ़ रहे हैं', billAsWritten: 'बिल पर', billQtyRate: 'मात्रा × रेट', billWritten: 'बिल में',
+    billNoTotal: 'टोटल नहीं पढ़ा गया: रकम लिखें', billSumTotal: 'सबटोटल + GST टोटल के बराबर नहीं', billSumLines: 'लाइनें सबटोटल के बराबर नहीं',
+    billLineSums: 'कुछ लाइनों का जोड़ नहीं मिलता (लाल में)', billDup: 'इस सप्लायर का यह बिल नंबर पहले ही दर्ज है:', billNewVendor: 'सप्लायर आपकी सूची में नहीं',
+    billUnmatched: 'लाइनें किसी पार्ट से नहीं मिलीं: पार्ट चुनें या लाइन हटाएँ', billLegible_partial: 'बिल का कुछ हिस्सा पढ़ना मुश्किल था', billLegible_poor: 'बिल पढ़ना मुश्किल था: हर आँकड़ा जाँचें',
+    billReadTitle: 'Claude ने पढ़ा', billLines: 'लाइनें', billSubtotal: 'सबटोटल', billTotal: 'टोटल', billHandwritten: 'हाथ से लिखा', billAllAdds: 'सब जोड़ सही है।',
+    billCheckSave: 'सप्लायर, पार्ट और रकम जाँचें, फिर सेव करें। आपके सेव करने तक कुछ दर्ज नहीं होता।', billReadToast: 'बिल पढ़ा, जाँचें और सेव करें',
     gai_ok: 'फ़ोटो सही लगती है', gai_doubt: 'फ़ोटो पर शक', gai_wrong: 'फ़ोटो में यह नहीं है', gaiSameAs: 'वही फ़ोटो जो', gaiReused: 'पिछले चेक की फ़ोटो दोबारा',
     gaiUnreadable: 'Claude फ़ोटो नहीं खोल सका', gaiDoubt1: 'फ़ोटो देखनी है', gaiDoubts: 'फ़ोटो देखनी हैं', gaiHomeChip: 'फ़ोटो पर शक',
     rbnAiTitle: 'Claude नाम मिलाता है', rbnAiMatched: 'Claude ने मिलाए', rbnAiGeneric: 'नाम नहीं माने', rbnAiSuggested: 'सुझाए',
@@ -6277,22 +6291,26 @@ async function confirmAddStock() {
   closeSheet(); rerender();
 }
 
-function purchaseLineRow() {
+function purchaseLineRow(pre) {
+  const p = pre || {};
   // A bill line is repeated, so each one gets its own picker key; the hidden
   // input keeps the .f-lpart class that savePurchase() reads off the row.
   return `<div class="row f-line" style="gap:6px;align-items:flex-end;margin-bottom:6px;flex-wrap:wrap">
     <label class="field" style="flex:2 1 100%;margin:0"><span class="lbl tiny">Part</span>
-      ${partPickerHtml({ hiddenClass: 'f-lpart' })}</label>
-    <label class="field" style="flex:1;margin:0"><span class="lbl tiny">Qty</span><input class="f-lqty" type="number" inputmode="numeric"></label>
-    <label class="field" style="flex:1;margin:0"><span class="lbl tiny">₹/unit</span><input class="f-lcost" type="number" inputmode="numeric"></label>
+      ${p.read ? `<div class="tiny" style="margin:-2px 0 4px">🤖 ${t('billAsWritten')}: <b>${esc(p.read)}</b>${p.partNo ? ' · ' + esc(p.partNo) : ''}${p.flag ? ` <span style="color:var(--red);font-weight:700">· ${esc(p.flag)}</span>` : ''}</div>` : ''}
+      ${partPickerHtml({ hiddenClass: 'f-lpart', value: p.partId || '' })}</label>
+    <label class="field" style="flex:1;margin:0"><span class="lbl tiny">Qty</span><input class="f-lqty" type="number" inputmode="numeric" value="${p.qty != null ? esc(p.qty) : ''}"></label>
+    <label class="field" style="flex:1;margin:0"><span class="lbl tiny">₹/unit</span><input class="f-lcost" type="number" inputmode="numeric" value="${p.rate != null ? esc(p.rate) : ''}"></label>
     <button type="button" class="btn sm f-lrm" style="width:auto" title="Remove line">✕</button>
   </div>`;
 }
 function sheetAddPurchase() {
+  _billRead = null;
   const hasParts = S.cache.parts.length > 0;
   openSheet(t('purchases'), `
     <button class="btn" data-act="scanBill" style="margin-bottom:10px">📷 Scan bill — auto-fill</button>
-    <div class="tiny muted" style="margin:-4px 0 10px">Snap a printed or handwritten (kachaa) bill; it reads the amount &amp; supplier on-device.</div>
+    <div class="tiny muted" style="margin:-4px 0 10px">${t('billScanHint')}</div>
+    <div id="f-billread"></div>
     <label class="field"><span class="lbl">Supplier</span><input id="f-sup" list="f-suplist" placeholder="Jaipur Auto Spares" autocomplete="off">
       <datalist id="f-suplist">${vendorNames().map((n) => `<option value="${esc(n)}">`).join('')}</datalist></label>
     <label class="field"><span class="lbl">Amount (₹)</span><input id="f-amt" type="number" inputmode="numeric"></label>
@@ -6318,7 +6336,7 @@ function sheetAddPurchase() {
       lines.addEventListener('click', (e) => { const rm = e.target.closest('.f-lrm'); if (rm) rm.closest('.f-line').remove(); });
     });
 }
-let _billPhoto = '';
+let _billPhoto = '', _billRead = null;
 async function savePurchase() {
   const sup = $('#f-sup').value.trim();
   if (!sup) return toast('Enter supplier');
@@ -6332,8 +6350,10 @@ async function savePurchase() {
   })).filter((l) => l.partId && l.qty > 0);
   // Reconcile: if the part lines have costs, warn when they don't match the bill.
   const lineTotal = lines.reduce((s, l) => s + l.qty * l.cost, 0);
-  if (lineTotal > 0 && Math.abs(lineTotal - amount) > Math.max(50, amount * 0.05)) {
-    if (!confirm(`Part lines add up to ${money(lineTotal)} but the bill says ${money(amount)}. Save anyway?`)) return;
+  // Line rates are before tax: against a bill Claude read, compare with its subtotal, not the GST total.
+  const against = _billRead && _billRead.subtotal != null && Math.abs((_billRead.total || 0) - amount) < 1 ? _billRead.subtotal : amount;
+  if (lineTotal > 0 && Math.abs(lineTotal - against) > Math.max(50, against * 0.05)) {
+    if (!confirm(`Part lines add up to ${money(lineTotal)} but the bill says ${money(against)}${against !== amount ? ' before GST' : ''}. Save anyway?`)) return;
   }
   const lineText = lines.map((l) => { const p = byId(S.cache.parts, l.partId); return `${p ? p.name : l.partId} ×${l.qty}`; }).join(', ');
   const notes = $('#f-items') ? $('#f-items').value.trim() : '';
@@ -6344,7 +6364,11 @@ async function savePurchase() {
     id: uid('pur-'), supplier: sup, vendorId: vend ? vend.id : null, amount,
     items: [lineText, notes].filter(Boolean).join(' · '), lines,
     paymentStatus: pay, paidAt: pay === 'paid' ? Date.now() : null, billPhoto: _billPhoto, at: Date.now(),
+    // What Claude read off the bill, when it was scanned: kept with the bill for checking later.
+    ...(_billRead ? { billNo: _billRead.billNo || '', billDate: _billRead.date || '', gstin: _billRead.gstin || '',
+      gst: _billRead.gst, readByAi: { lines: _billRead.lines, subtotal: _billRead.subtotal, total: _billRead.total, model: _billRead.model } } : {}),
   });
+  _billRead = null;
   for (const l of lines) await receiveStock({ partId: l.partId, qty: l.qty, cost: l.cost, reason: `Purchase from ${sup}`, silent: true });
   _billPhoto = '';
   await load(); closeSheet(); toast(lines.length ? `Bill saved · ${lines.length} part line(s) received` : 'Bill saved'); rerender();
@@ -6379,10 +6403,93 @@ function parseBill(text) {
   const supplier = v ? v.name : (lines.find((l) => /[a-z]/i.test(l) && l.replace(/[^a-z]/gi, '').length >= 4) || '');
   return { amount, date, supplier, vendor: v };
 }
+/* Claude reads the bill (bill_ai.py on the server); the code checks the sums, matches each line to
+ * the parts list (part number, or a name that clearly fits one part only) and the supplier to the
+ * vendor list, and warns about a bill number already entered. The person checks and saves. */
+const _normCode = (s) => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+const _words = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').split(' ').filter((w) => w.length > 1);
+function billMatchPart(line) {
+  const parts = S.cache.parts || [];
+  const code = _normCode(line.partNo);
+  if (code.length >= 3) {
+    const hit = parts.filter((p) => _normCode(p.code) === code || _normCode(p.partNo) === code);
+    if (hit.length === 1) return hit[0];
+  }
+  const w = new Set(_words(line.name));
+  if (!w.size) return null;
+  const scored = parts.map((p) => {
+    const pw = new Set(_words(p.name));
+    const both = [...w].filter((x) => pw.has(x)).length;
+    return { p, s: both / Math.max(w.size, pw.size || 1) };
+  }).filter((x) => x.s >= 0.75).sort((a, b) => b.s - a.s);
+  // Only a clear winner: two parts that fit equally well is the store's call.
+  return scored.length && (scored.length === 1 || scored[0].s > scored[1].s) ? scored[0].p : null;
+}
+function billMatchVendor(bill) {
+  const vs = S.cache.vendors || [];
+  if (bill.gstin) { const v = vs.find((x) => _normCode(x.gstin) === bill.gstin); if (v) return v; }
+  return matchVendor(bill.supplier || '');
+}
 async function scanBill() {
   const shot = await capturePhoto(); if (!shot) return;
   _billPhoto = await Sync.uploadPhoto(shot) || shot;
   const tb = $('#f-billthumb'); if (tb) tb.innerHTML = `<img class="thumb" src="${_billPhoto}">`;
+  if (Sync.aiBill) {
+    const stop = showBusyOverlay(t('billReading'));
+    const j = await Sync.aiBill(_billPhoto);
+    if (stop) stop();
+    if (j && j.bill) return billFill(j.bill, j.checks || [], j.model);
+    if (j && j.status && j.status !== 501) toast('🤖 ' + (j.error || '') + ' · ' + t('billFallback'));
+  }
+  return scanBillOnDevice(shot);
+}
+function billFill(bill, checks, model) {
+  _billRead = Object.assign({}, bill, { model });
+  const v = billMatchVendor(bill);
+  const sup = $('#f-sup'), amt = $('#f-amt'), notes = $('#f-items');
+  if (sup) sup.value = v ? v.name : (bill.supplier || sup.value);
+  if (amt && bill.total != null) amt.value = bill.total;
+  const lineFlag = (i) => { const c = checks.find((x) => x.line === i); return c ? `${t('billQtyRate')} = ${money(c.expected)}, ${t('billWritten')} ${money(c.written)}` : ''; };
+  const box = $('#f-lines');
+  const unmatched = [];
+  if (box) {
+    box.innerHTML = '';
+    bill.lines.forEach((ln, i) => {
+      const p = billMatchPart(ln);
+      if (!p) unmatched.push(ln.name);
+      box.insertAdjacentHTML('beforeend', purchaseLineRow({ partId: p ? p.id : '', qty: ln.qty, rate: ln.rate, read: ln.name, partNo: ln.partNo, flag: lineFlag(i) }));
+      mountPartPickers(box);
+      if (!p) {   // no clear match: show the parts that look like it, for the store to pick
+        const rows = box.querySelectorAll('.f-line'), s = rows[rows.length - 1].querySelector('.pp-search');
+        if (s) { s.value = _words(ln.name).slice(0, 2).join(' '); s.dispatchEvent(new Event('input')); }
+      }
+    });
+    if (!bill.lines.length) box.insertAdjacentHTML('beforeend', purchaseLineRow()), mountPartPickers(box);
+  } else if (notes) {
+    notes.value = bill.lines.map((l) => `${l.name}${l.qty != null ? ' ×' + l.qty : ''}${l.rate != null ? ' @' + l.rate : ''}`).join(', ');
+  }
+  // What to look at before saving.
+  const warn = [];
+  checks.filter((c) => c.line == null).forEach((c) => warn.push(c.what === 'no total read' ? t('billNoTotal')
+    : `${c.what === 'subtotal + GST vs total' ? t('billSumTotal') : t('billSumLines')}: ${money(c.expected)} ≠ ${money(c.written)}`));
+  if (checks.some((c) => c.line != null)) warn.push(t('billLineSums'));
+  const dup = bill.billNo && (S.cache.purchases || []).find((p) => p.billNo && p.billNo.toLowerCase() === bill.billNo.toLowerCase()
+    && (p.supplier || '').toLowerCase() === ($('#f-sup') || {}).value.toLowerCase());
+  if (dup) warn.push(`${t('billDup')} ${fmtDate(dup.at)} (${money(dup.amount)})`);
+  if (!v && bill.supplier) warn.push(t('billNewVendor'));
+  if (unmatched.length) warn.push(`${unmatched.length} ${t('billUnmatched')}`);
+  if (bill.legible !== 'good') warn.push(t('billLegible_' + bill.legible));
+  if (bill.notes) warn.push('🤖 ' + bill.notes);
+  const read = $('#f-billread');
+  if (read) read.innerHTML = `<div class="card" style="box-shadow:none;background:var(--tile);padding:10px 12px">
+    <div class="small"><b>🤖 ${t('billReadTitle')}</b>${bill.billNo ? ' · #' + esc(bill.billNo) : ''}${bill.date ? ' · ' + esc(bill.date) : ''}${bill.gstin ? ' · GSTIN ' + esc(bill.gstin) : ''}</div>
+    <div class="tiny muted">${bill.lines.length} ${t('billLines')}${bill.subtotal != null ? ' · ' + t('billSubtotal') + ' ' + money(bill.subtotal) : ''}${bill.gst != null ? ' · GST ' + money(bill.gst) : ''}${bill.total != null ? ' · ' + t('billTotal') + ' ' + money(bill.total) : ''}${bill.handwritten ? ' · ' + t('billHandwritten') : ''}</div>
+    ${warn.length ? `<div class="tiny" style="margin-top:6px;color:var(--amber);font-weight:700">⚠️ ${warn.map(esc).join('<br>⚠️ ')}</div>` : `<div class="tiny" style="margin-top:6px;color:var(--green);font-weight:700">✓ ${t('billAllAdds')}</div>`}
+    <div class="tiny muted" style="margin-top:4px">${t('billCheckSave')}</div></div>`;
+  toast(`🤖 ${t('billReadToast')}${bill.total != null ? ' · ' + money(bill.total) : ''}`);
+}
+// The old on-phone reader: when Claude is not set up or cannot be reached.
+async function scanBillOnDevice(shot) {
   const stop = showBusyOverlay('Reading the bill…');
   const text = await localOcr(shot);
   if (stop) stop();
