@@ -1772,6 +1772,17 @@ def _read_secret(env_name, filename):
 
 REDPRO_INGEST_TOKEN = _read_secret("REDPRO_INGEST_TOKEN", ".redpro_ingest_token")
 _REDPRO_TOKEN_OK = len(REDPRO_INGEST_TOKEN) >= 24
+# The scheduler's token (GitHub Actions, .github/workflows/ai-jobs.yml): it can only START the AI
+# jobs (/ai/reviews, /ai/names, /ai/gate, /ai/core, /ai/reports, /ai/coaching, /ai/digest), never
+# write data, so a leak of it costs at most some Claude calls, which each job caps per day.
+AI_CRON_TOKEN = os.environ.get("AI_CRON_TOKEN", "").strip()
+
+
+def _ai_trigger_ok(auth_header):
+    """A machine allowed to start the AI jobs: the redPro extension or the scheduler."""
+    if _REDPRO_TOKEN_OK and hmac.compare_digest(auth_header, "Bearer " + REDPRO_INGEST_TOKEN):
+        return True
+    return len(AI_CRON_TOKEN) >= 24 and hmac.compare_digest(auth_header, "Bearer " + AI_CRON_TOKEN)
 REDPRO_STORES = ("rbservices", "rbreviews", "rbcomplaints", "rbassign")
 _REDPRO_MAX_ROWS = 2000           # one request; the collector pages bigger pulls
 
@@ -5324,7 +5335,7 @@ class Handler(BaseHTTPRequestHandler):
         if u.path == "/ai/digest":                   # the Monday summary (extension weekly, or the owner now)
             h = self.headers.get("Authorization") or ""
             force = False
-            if not (_REDPRO_TOKEN_OK and hmac.compare_digest(h, "Bearer " + REDPRO_INGEST_TOKEN)):
+            if not (_ai_trigger_ok(h)):
                 me = self._auth_user()
                 if not me:
                     return self._send(401, {"error": "unauthorized"})
@@ -5340,7 +5351,7 @@ class Handler(BaseHTTPRequestHandler):
 
         if u.path == "/ai/coaching":                 # draft this week's coaching notes (extension or office)
             h = self.headers.get("Authorization") or ""
-            if not (_REDPRO_TOKEN_OK and hmac.compare_digest(h, "Bearer " + REDPRO_INGEST_TOKEN)):
+            if not (_ai_trigger_ok(h)):
                 me = self._auth_user()
                 if not me:
                     return self._send(401, {"error": "unauthorized"})
@@ -5361,7 +5372,7 @@ class Handler(BaseHTTPRequestHandler):
 
         if u.path == "/ai/reports":                  # draft job cards from driver reports (extension or office)
             h = self.headers.get("Authorization") or ""
-            if not (_REDPRO_TOKEN_OK and hmac.compare_digest(h, "Bearer " + REDPRO_INGEST_TOKEN)):
+            if not (_ai_trigger_ok(h)):
                 me = self._auth_user()
                 if not me:
                     return self._send(401, {"error": "unauthorized"})
@@ -5376,7 +5387,7 @@ class Handler(BaseHTTPRequestHandler):
 
         if u.path == "/ai/core":                     # look at returned old-part photos (extension or office)
             h = self.headers.get("Authorization") or ""
-            if not (_REDPRO_TOKEN_OK and hmac.compare_digest(h, "Bearer " + REDPRO_INGEST_TOKEN)):
+            if not (_ai_trigger_ok(h)):
                 me = self._auth_user()
                 if not me:
                     return self._send(401, {"error": "unauthorized"})
@@ -5391,7 +5402,7 @@ class Handler(BaseHTTPRequestHandler):
 
         if u.path == "/ai/gate":                     # look at gate check photos (extension or office)
             h = self.headers.get("Authorization") or ""
-            if not (_REDPRO_TOKEN_OK and hmac.compare_digest(h, "Bearer " + REDPRO_INGEST_TOKEN)):
+            if not (_ai_trigger_ok(h)):
                 me = self._auth_user()
                 if not me:
                     return self._send(401, {"error": "unauthorized"})
@@ -5406,7 +5417,7 @@ class Handler(BaseHTTPRequestHandler):
 
         if u.path == "/ai/names":                    # match typed redBus names to crew (extension or office)
             h = self.headers.get("Authorization") or ""
-            if not (_REDPRO_TOKEN_OK and hmac.compare_digest(h, "Bearer " + REDPRO_INGEST_TOKEN)):
+            if not (_ai_trigger_ok(h)):
                 me = self._auth_user()
                 if not me:
                     return self._send(401, {"error": "unauthorized"})
@@ -5421,7 +5432,7 @@ class Handler(BaseHTTPRequestHandler):
 
         if u.path == "/ai/reviews":                  # read new reviews for whose fault (extension or owner)
             h = self.headers.get("Authorization") or ""
-            by_token = _REDPRO_TOKEN_OK and hmac.compare_digest(h, "Bearer " + REDPRO_INGEST_TOKEN)
+            by_token = _ai_trigger_ok(h)
             if not by_token:
                 me = self._auth_user()
                 if not me:

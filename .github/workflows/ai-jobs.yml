@@ -1,0 +1,43 @@
+name: AI jobs
+
+# Starts Garage Saathi's Claude jobs every ~10 minutes, so they run whether or not the office
+# laptop (and its redPro extension) is on. Each job does nothing when there is nothing new, and
+# caps its own Claude calls per day on the server:
+#   reviews   whose fault each new redBus review is
+#   names     match typed redBus driver names to crew (strong matches only)
+#   gate      look at new gate check photos
+#   core      look at returned old-part photos
+#   reports   draft a job card from each new driver report (and alert on an unsafe bus)
+#   coaching  draft this week's coaching notes, a few at a time
+#   digest    the Monday summary, once, from Monday 07:00 IST
+# The token (repo secret AI_CRON_TOKEN, same value as the Vercel env var) can only start these
+# jobs; it cannot write any data. redPro itself is still read by the extension.
+on:
+  schedule:
+    - cron: '3-59/10 * * * *'
+  workflow_dispatch: {}
+
+concurrency:
+  group: ai-jobs
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Start each job
+        env:
+          AI_CRON_TOKEN: ${{ secrets.AI_CRON_TOKEN }}
+        run: |
+          if [ -z "$AI_CRON_TOKEN" ]; then echo "AI_CRON_TOKEN secret is not set"; exit 1; fi
+          BASE="https://garage-saathi-sync.vercel.app"
+          failed=0
+          for job in reviews names gate core reports coaching digest; do
+            code=$(curl -s -o /tmp/out.json -w "%{http_code}" --max-time 75 -X POST "$BASE/ai/$job" \
+              -H "Authorization: Bearer $AI_CRON_TOKEN" -H "Content-Type: application/json" -d '{}' || echo 000)
+            echo "$job: HTTP $code $(head -c 300 /tmp/out.json)"
+            # 200 = ran (or nothing to do). Anything else is reported but does not stop the other jobs.
+            [ "$code" = "200" ] || failed=$((failed+1))
+          done
+          if [ "$failed" -gt 0 ]; then echo "$failed job(s) did not answer 200"; exit 1; fi

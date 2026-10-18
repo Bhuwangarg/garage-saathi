@@ -40,3 +40,4 @@ crew-backup-*.json
 
 # The Chrome extension is installed on the office laptop, not served by the app.
 redpro-extension/
+.ai_cron_token
