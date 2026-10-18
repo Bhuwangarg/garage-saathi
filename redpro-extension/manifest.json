@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Mahalaxmi redPro Sync",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "Sends Mahalaxmi's own redPro reviews, complaints and bus assignments to Garage Saathi, through the redPro tab you are signed in to.",
   "background": { "service_worker": "background.js" },
   "action": { "default_popup": "popup.html", "default_title": "Mahalaxmi redPro Sync" },

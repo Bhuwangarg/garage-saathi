@@ -33,6 +33,7 @@ import bill_ai
 import core_ai
 import gate_ai
 import name_ai
+import report_ai
 import review_ai
 import wa_client
 from datetime import datetime
@@ -1184,7 +1185,9 @@ SERVER_INGEST_ONLY = {"gpsevents", "gpslive", "challans", "odometerlogs", "wacon
                       # Claude's look at each gate check's photos (gate_ai.py), written only by /ai/gate.
                       "gateai",
                       # Claude's look at each returned old part's photo (core_ai.py), written only by /ai/core.
-                      "coreai"}
+                      "coreai",
+                      # Claude's draft job card for each driver report (report_ai.py), written only by /ai/reports.
+                      "reportai"}
 
 # A phone with a wrong clock is normal; a record dated 2100 is not. Without a
 # bound, last-write-wins makes a far-future write permanent — the owner's
@@ -2614,6 +2617,87 @@ def core_ai_tick(call=None):
     return 200, out
 
 
+# ----------------------------- Driver reports -> draft job cards --------------------------------
+# Claude reads each new open driver report with the bus's recent repairs (report_ai.py) and drafts
+# the job card. Office phones only; the supervisor opens the card pre-filled and decides.
+AI_REPORT_DAYS = 14
+AI_REPORT_PER_CALL = 3
+AI_REPORT_DAILY_CALLS = int(os.environ.get("AI_REPORT_DAILY_CALLS", "300"))
+
+
+def report_ai_tick(call=None):
+    if not ANTHROPIC_API_KEY and call is None:
+        return 501, {"error": "AI not configured on server (ANTHROPIC_API_KEY)"}
+    call = call or _anthropic
+    with _lock:
+        c = db()
+        try:
+            reports = list(_store_rows(c, "driverreports").values())
+            buses = _store_rows(c, "buses")
+            jobs = list(_store_rows(c, "jobcards").values())
+            readings = _store_rows(c, "reportai")
+        finally:
+            c.close()
+    since = now_ms() - AI_REPORT_DAYS * 86400000
+    todo = []
+    for r in reports:
+        if not report_ai.needs_reading(r) or (r.get("at") or 0) < since:
+            continue
+        old = readings.get("ra-" + r["id"])
+        if old and old.get("v") == report_ai.PROMPT_V and old.get("h") == report_ai.report_hash(r):
+            continue
+        todo.append(r)
+    todo.sort(key=lambda r: -(r.get("at") or 0))
+    out = {"ok": True, "drafted": 0, "unsafe": 0}
+    for r in todo[:AI_REPORT_PER_CALL]:
+        with _lock:
+            c = db()
+            try:
+                key = "report:%s" % datetime.utcnow().strftime("%Y-%m-%d")
+                row = c.execute("SELECT n FROM aiusage WHERE k=?", (key,)).fetchone()
+                n = int(row[0]) if row else 0
+                if n >= AI_REPORT_DAILY_CALLS:
+                    out["limited"] = True
+                    break
+                c.execute("INSERT INTO aiusage(k,n) VALUES(?,?) ON CONFLICT(k) DO UPDATE SET n=excluded.n", (key, n + 1))
+                c.commit()
+            finally:
+                c.close()
+        bus = buses.get(r.get("busId") or "")
+        image = gate_ai.image_block(r.get("photo")) if r.get("photo") else None
+        params = report_ai.params_for(r, bus, report_ai.history(bus, jobs, now_ms()), image, AI_MODEL)
+        try:
+            draft = report_ai.parse_message(call("POST", "/messages", params))
+        except urllib.error.HTTPError as e:
+            if e.code != 400 or not image:
+                raise
+            # The photo could not be opened: draft from the words alone.
+            draft = report_ai.parse_message(call("POST", "/messages", report_ai.params_for(
+                r, bus, report_ai.history(bus, jobs, now_ms()), None, AI_MODEL)))
+        if not draft:
+            continue                      # no answer through the tool: asked again next time
+        rec = dict(draft, id="ra-" + r["id"], report=r["id"], busId=r.get("busId"), v=report_ai.PROMPT_V,
+                   h=report_ai.report_hash(r), model=AI_MODEL, at=now_ms())
+        with _lock:
+            c = db()
+            try:
+                rev = c.execute("SELECT COALESCE(MAX(rev),0) FROM records").fetchone()[0]
+                _upsert_record(c, "reportai", rec["id"], rec, now_ms(), rev)
+                c.commit()
+            finally:
+                c.close()
+        out["drafted"] += 1
+        if draft["unsafe"]:
+            out["unsafe"] += 1
+            try:   # the people who decide hear about an unsafe bus now, not at their next look
+                send_push("Garage Saathi", "⚠️ %s: %s" % ((bus or {}).get("regNo") or "Bus", draft["title"]), "/",
+                          roles=("owner", "supervisor"))
+            except Exception:
+                pass
+    out["pending"] = max(0, len(todo) - out["drafted"])
+    return 200, out
+
+
 def its_lookup_diag(pnrs):
     """Owner only: look ONE PNR up and return the shape of ITS's answer (field names, messages),
     never its values, and store nothing."""
@@ -3151,7 +3235,7 @@ def redact_for(actor, rec):
         return rec
     if st == "waconv":                    # keyed by a crew member's phone number
         return None
-    if st in ("rbreviews", "rbcomplaints", "rbassign", "itslookup", "rbreviewai", "rbaliasai", "gateai", "coreai"):
+    if st in ("rbreviews", "rbcomplaints", "rbassign", "itslookup", "rbreviewai", "rbaliasai", "gateai", "coreai", "reportai"):
         # Reviews, complaints and redBus's driver names are for the people who act
         # on them. A driver's phone does not need every passenger's comment about
         # every colleague. (rbservices holds no names: drivers need it to pick the
@@ -4970,6 +5054,21 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(401, {"error": "unauthorized"})
             try:
                 return self._send(*read_bill(me, str((self._body() or {}).get("photo") or "")))
+            except urllib.error.HTTPError as e:
+                return self._send(502, {"error": "Claude answered %s" % e.code})
+            except Exception as e:
+                return self._send(502, {"error": "AI upstream error: %s" % type(e).__name__})
+
+        if u.path == "/ai/reports":                  # draft job cards from driver reports (extension or office)
+            h = self.headers.get("Authorization") or ""
+            if not (_REDPRO_TOKEN_OK and hmac.compare_digest(h, "Bearer " + REDPRO_INGEST_TOKEN)):
+                me = self._auth_user()
+                if not me:
+                    return self._send(401, {"error": "unauthorized"})
+                if me["role"] not in ("owner", "supervisor"):
+                    return self._send(403, {"error": "forbidden"})
+            try:
+                return self._send(*report_ai_tick())
             except urllib.error.HTTPError as e:
                 return self._send(502, {"error": "Claude answered %s" % e.code})
             except Exception as e:

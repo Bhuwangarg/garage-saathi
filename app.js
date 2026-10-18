@@ -339,6 +339,9 @@ const I18N = {
     myRvNone: 'No review is linked to you yet. Do the gate check before every departure, with the service picked: that is what links passengers\' reviews to you.',
     myRvNoneC: 'No review is linked to you yet. They link to you through the duty board, so make sure the office has you on the right bus.',
     myRvLoading: 'Fetching your reviews…', myRvOffline: 'Could not fetch your reviews. They will show once the phone is online.', myRvFew: 'Fewer than 10 rated trips: not counted in your rating yet.', myRvWork: 'Low ratings mention', myRvNoText: 'No comment, only stars.',
+    raiUnsafe: 'may be unsafe to run', rai_high: 'high', rai_medium: 'medium', rai_low: 'low', raiRepeat: 'repeat problem', raiInStock: 'in stock',
+    raiDraftBy: 'Draft by Claude from the driver\'s report: check before work starts.', raiCause: 'Likely cause', raiCheck: 'Check first', raiParts: 'May need',
+    raiRepeatNote: 'This looks like a problem fixed recently on this bus: check the last job.', raiDriverSaid: 'Driver said',
     caiWorn: 'worn', cai_worn: 'worn out', cai_partial: 'part-worn', cai_looks_new: 'looks new', cai_unclear: 'photo unclear', caiUnreadable: 'Claude could not open this photo',
     caiF_not_this_part: 'not the part fitted', caiF_looks_new: 'looks new', caiF_claim_mismatch: 'said worn out, looks little used', caiF_dup_photo: 'same photo as another return',
     billScanHint: 'Snap a printed or handwritten (kachaa) bill. Claude reads the supplier, bill number, every line and the totals; you check and save.',
@@ -720,6 +723,9 @@ const I18N = {
     myRvNone: 'अभी कोई रिव्यू आपसे नहीं जुड़ा। हर रवानगी से पहले सर्विस चुनकर गेट चेक करें: इसी से यात्रियों के रिव्यू आपसे जुड़ते हैं।',
     myRvNoneC: 'अभी कोई रिव्यू आपसे नहीं जुड़ा। ये ड्यूटी बोर्ड से जुड़ते हैं, ऑफिस से पक्का करें कि आप सही बस पर दर्ज हैं।',
     myRvLoading: 'आपके रिव्यू आ रहे हैं…', myRvOffline: 'रिव्यू नहीं आ सके। फ़ोन ऑनलाइन होने पर दिखेंगे।', myRvFew: '10 से कम रेटिंग: अभी आपकी रेटिंग में नहीं गिने गए।', myRvWork: 'कम रेटिंग में', myRvNoText: 'कोई टिप्पणी नहीं, सिर्फ़ स्टार।',
+    raiUnsafe: 'चलाना असुरक्षित हो सकता है', rai_high: 'ज़्यादा', rai_medium: 'मध्यम', rai_low: 'कम', raiRepeat: 'दोबारा आई समस्या', raiInStock: 'स्टॉक में',
+    raiDraftBy: 'ड्राइवर की रिपोर्ट से Claude का ड्राफ़्ट: काम शुरू करने से पहले जाँचें।', raiCause: 'संभावित कारण', raiCheck: 'पहले जाँचें', raiParts: 'शायद चाहिए',
+    raiRepeatNote: 'यह इस बस पर हाल ही में ठीक हुई समस्या जैसी लगती है: पिछला जॉब देखें।', raiDriverSaid: 'ड्राइवर ने कहा',
     caiWorn: 'घिसा', cai_worn: 'पूरा घिसा', cai_partial: 'आधा घिसा', cai_looks_new: 'नया लगता है', cai_unclear: 'फ़ोटो साफ़ नहीं', caiUnreadable: 'Claude यह फ़ोटो नहीं खोल सका',
     caiF_not_this_part: 'लगाया गया पार्ट नहीं', caiF_looks_new: 'नया लगता है', caiF_claim_mismatch: 'कहा घिसा, दिखता कम इस्तेमाल', caiF_dup_photo: 'दूसरी वापसी वाली फ़ोटो',
     billScanHint: 'छपा या हाथ से लिखा (कच्चा) बिल खींचें। Claude सप्लायर, बिल नंबर, हर लाइन और टोटल पढ़ता है; आप जाँचें और सेव करें।',
@@ -1354,8 +1360,8 @@ async function load() {
   const gatepasses = await DB.all('gatepasses').catch(() => []);
   const dutylog = await DB.all('dutylog').catch(() => []);
   const gatechecks = await DB.all('gatechecks').catch(() => []);
-  const [rbservices, rbreviews, rbcomplaints, rbassign, rbalias, itslookup, rbreviewai, rbaliasai, gateai, coreai] = await Promise.all(['rbservices', 'rbreviews', 'rbcomplaints', 'rbassign', 'rbalias', 'itslookup', 'rbreviewai', 'rbaliasai', 'gateai', 'coreai'].map((n) => DB.all(n).catch(() => [])));
-  S.cache = { users, buses, parts, jobs, ledger, att, purchases, drivers, incidents, driverreports, routes, triplog, fuel, gpsevents, audits, components, def, vendors, trips, challans, usage, stockmoves, breakdowns, gatepasses, dutylog, gatechecks, rbservices, rbreviews, rbcomplaints, rbassign, rbalias, itslookup, rbreviewai, rbaliasai, gateai, coreai, garage };
+  const [rbservices, rbreviews, rbcomplaints, rbassign, rbalias, itslookup, rbreviewai, rbaliasai, gateai, coreai, reportai] = await Promise.all(['rbservices', 'rbreviews', 'rbcomplaints', 'rbassign', 'rbalias', 'itslookup', 'rbreviewai', 'rbaliasai', 'gateai', 'coreai', 'reportai'].map((n) => DB.all(n).catch(() => [])));
+  S.cache = { users, buses, parts, jobs, ledger, att, purchases, drivers, incidents, driverreports, routes, triplog, fuel, gpsevents, audits, components, def, vendors, trips, challans, usage, stockmoves, breakdowns, gatepasses, dutylog, gatechecks, rbservices, rbreviews, rbcomplaints, rbassign, rbalias, itslookup, rbreviewai, rbaliasai, gateai, coreai, reportai, garage };
   refreshBiz();   // keep the displayed business name in sync with garage config
 }
 const byId = (arr, id) => arr.find((x) => x.id === id);
@@ -2927,6 +2933,7 @@ function viewSupervisorHome() {
 }
 
 function viewHome() {
+  reportAiNudge();
   if (S.user.role === 'owner') return viewOwnerHome();
   if (S.user.role === 'supervisor') return viewSupervisorHome();
   if (S.user.role === 'crewmanager') return viewCrewManagerHome();
@@ -3570,7 +3577,7 @@ function viewBusDetail(id) {
     body += `<div class="card"><div class="row between"><h3>Driver-reported issues</h3><span class="badge b-amber">${openReps.length}</span></div>
       <div class="tiny muted" style="margin-bottom:6px">What the driver felt on the road — fix these first.</div>`;
     body += openReps.map((r) => `<div class="li"><div class="ava">🟠</div>
-      <div class="main"><div class="t">${esc(r.problem)}</div><div class="s">${esc(r.category || '')} · ${esc(driverName(r.driverId))} · ${fmtDate(r.at)}</div></div>
+      <div class="main"><div class="t">${esc(r.problem)}</div><div class="s">${esc(r.category || '')} · ${esc(driverName(r.driverId))} · ${fmtDate(r.at)}</div>${reportAiLine(r)}</div>
       ${can(S.user.role, 'addJob') ? `<button class="btn sm" data-act="reportToJob" data-report="${esc(r.id)}">→ Job</button>` : ''}</div>`).join('');
     body += `</div>`;
   }
@@ -5600,7 +5607,7 @@ function reportPicklistRich(busId) {
   const head = `<div class="row between" style="margin-bottom:8px"><b class="small">🧑‍✈️ ${t('driverReportsWaiting')}</b><span class="badge b-amber">${reps.length}</span></div>`;
   return head + reps.map((r) => `<label class="repcheck">
     <input type="checkbox" class="f-rep" value="${r.id}" checked>
-    <span data-act="useReport" data-rprob="${esc(r.problem)}" style="cursor:pointer"><b>${esc(driverName(r.driverId))}</b> · ${esc(r.category || '')} — ${esc(r.problem)} <span class="tiny" style="color:var(--brand2)">${t('useThisReport')}</span></span>
+    <span data-act="useReport" data-rprob="${esc(reportAiOf(r) ? reportAiOf(r).title + '\n' + t('raiDriverSaid') + ': "' + r.problem + '"' : r.problem)}" style="cursor:pointer"><b>${esc(driverName(r.driverId))}</b> · ${esc(r.category || '')} — ${esc(r.problem)} <span class="tiny" style="color:var(--brand2)">${t('useThisReport')}</span>${reportAiLine(r)}</span>
   </label>`).join('');
 }
 // Opens the new-job form as its own full-screen page (pushed route) — see viewNewJob.
@@ -5758,6 +5765,7 @@ function clearJobDraft() { try { localStorage.removeItem(JOB_DRAFT_KEY); } catch
 function discardJobDraft() { clearJobDraft(); toast('Draft discarded'); push({ name: 'newjob' }); }
 
 function viewNewJob(prefill = {}) {
+  reportAiNudge();
   const buses = S.cache.buses || [];
   if (!buses.length) {
     return shell('New job card', `<div class="card"><div class="empty">Add a bus first — a job card belongs to a bus.</div>
@@ -5828,7 +5836,7 @@ function viewNewJob(prefill = {}) {
           <label class="field"><span class="lbl">₹ Outside cost</span><input id="f-extcost" type="number" inputmode="numeric"></label>
           <label class="field"><span class="lbl">⏱️ Labour hours</span><input id="f-hrs" type="number" inputmode="decimal"></label></div></div>
       <div class="card"><label class="field"><span class="lbl">📝 Notes (optional)</span>
-        <textarea id="f-notes" placeholder="Any extra detail about the work"></textarea></label></div>
+        <textarea id="f-notes" placeholder="Any extra detail about the work">${esc(prefill.notes || '')}</textarea></label></div>
       <div class="card" id="f-summary"></div>
     </section>
 
@@ -9413,7 +9421,7 @@ function viewDriverDetail(id) {
   body += `<div class="card"><h3>Trip reports</h3>`;
   body += reps.length ? reps.map((r) => `<div class="li" ${r.jobId ? `data-job="${esc(r.jobId)}"` : ''}>
       <div class="ava">${r.status === 'open' ? '🟠' : '✅'}</div>
-      <div class="main"><div class="t">${esc(r.problem)}</div><div class="s">${esc(r.category || '')} · ${fmtDate(r.at)}</div></div>
+      <div class="main"><div class="t">${esc(r.problem)}</div><div class="s">${esc(r.category || '')} · ${fmtDate(r.at)}</div>${r.status === 'open' ? reportAiLine(r) : ''}</div>
       ${r.status !== 'open' ? '<span class="badge b-green">fixed</span>'
         : r.jobId ? '<span class="badge b-amber">linked</span>'
         : `<button class="btn sm" data-act="reportToJob" data-report="${esc(r.id)}">→ Job</button>`}</div>`).join('')
@@ -11873,10 +11881,40 @@ async function cancelReport(reportId) {
   await DB.put('driverreports', r);
   await load(); toast(t('drvCancelled')); rerender();
 }
+/* Claude's draft job card for a driver report (report_ai.py on the server): office phones only.
+ * "→ Job" opens the card pre-filled from it; the supervisor edits and saves as before. */
+let _raiMemo = { key: null, map: null };
+function reportAiOf(r) {
+  if (_raiMemo.key !== S.cache) _raiMemo = { key: S.cache, map: new Map((S.cache.reportai || []).map((a) => [a.report, a])) };
+  return _raiMemo.map.get(r.id) || null;
+}
+function reportAiLine(r) {
+  const a = reportAiOf(r); if (!a) return '';
+  const pc = { high: 'var(--red)', medium: 'var(--amber)', low: 'var(--green)' }[a.priority];
+  return `<div class="tiny" style="margin-top:3px">${a.unsafe ? `<span class="badge b-red">⚠️ ${t('raiUnsafe')}</span> ` : ''}🤖 <b>${esc(LANG === 'hi' ? a.hi || a.title : a.title)}</b> · ${esc(a.trade)} · <span style="color:${pc};font-weight:700">${t('rai_' + a.priority)}</span>${a.repeat ? ` · <span style="color:var(--amber);font-weight:700">${t('raiRepeat')}</span>` : ''}</div>
+    ${a.cause ? `<div class="tiny muted">${esc(a.cause)}</div>` : ''}`;
+}
+// The job card's notes, written from the draft: cause, what to check, parts (with stock).
+function reportAiNotes(a) {
+  const parts = (a.parts || []).map((p) => { const m = billMatchPart({ name: p.name }); return `${p.name}${p.why ? ' (' + p.why + ')' : ''}${m ? ` · ${t('raiInStock')}: ${m.qty} ${m.unit || ''}` : ''}`; });
+  return [`🤖 ${t('raiDraftBy')}`, a.cause ? `${t('raiCause')}: ${a.cause}` : '', (a.checks || []).length ? `${t('raiCheck')}: ${a.checks.join('; ')}` : '',
+    parts.length ? `${t('raiParts')}: ${parts.join('; ')}` : '', a.repeat ? t('raiRepeatNote') : ''].filter(Boolean).join('\n');
+}
+let _raiLast = 0;
+function reportAiNudge() {
+  if (!['owner', 'supervisor'].includes(S.user.role) || !Sync.aiReports || Date.now() - _raiLast < 120000) return;
+  if (!(S.cache.driverreports || []).some((r) => r.status === 'open' && !reportAiOf(r))) return;
+  _raiLast = Date.now();
+  Sync.aiReports().then((j) => { if (j && j.drafted) { if (Sync.kick) Sync.kick(); load().then(rerender); } });
+}
 function createJobFromReport(reportId) {
   const r = byId(S.cache.driverreports, reportId);
   if (!r) return;
-  sheetAddJob({ busId: r.busId, problem: r.problem, reportId, category: r.category });
+  const a = reportAiOf(r);
+  if (!a) return sheetAddJob({ busId: r.busId, problem: r.problem, reportId, category: r.category });
+  // The driver's own words stay on the card under the draft title.
+  sheetAddJob({ busId: r.busId, problem: `${a.title}\n${t('raiDriverSaid')}: "${r.problem}"`, priority: a.priority,
+    notes: reportAiNotes(a), reportId, category: r.category });
 }
 
 /* ===================== On-Time Pickup: routes, geofences, ETA, punctuality ==
@@ -12169,10 +12207,15 @@ function computeInsights() {
     nav: { name: 'buses', id: a.bus.id } }));
 
   // Driver-reported issues still open — early warning straight from the road
-  (S.cache.driverreports || []).filter((r) => r.status === 'open').slice(0, 3)
-    .forEach((r) => out.push({ sev: 'med', icon: '🗣️', title: `Driver report open — ${busName(r.busId)}`,
-      detail: `"${r.problem}" (${driverName(r.driverId)}). Catch it at the next service before it becomes a breakdown.`,
-      nav: { name: 'buses', id: r.busId } }));
+  // Claude's "may be unsafe to run" first, all of them; then the rest as before.
+  const openReps = (S.cache.driverreports || []).filter((r) => r.status === 'open');
+  openReps.filter((r) => (reportAiOf(r) || {}).unsafe).forEach((r) => { const a = reportAiOf(r);
+    out.push({ sev: 'high', icon: '⚠️', title: `May be unsafe to run — ${busName(r.busId)}`,
+      detail: `🤖 ${a.title}. ${a.cause} Driver: "${r.problem}" (${driverName(r.driverId)}).`, nav: { name: 'buses', id: r.busId } }); });
+  openReps.filter((r) => !(reportAiOf(r) || {}).unsafe).slice(0, 3)
+    .forEach((r) => { const a = reportAiOf(r); out.push({ sev: a && a.priority === 'high' ? 'high' : 'med', icon: '🗣️', title: `Driver report open — ${busName(r.busId)}`,
+      detail: a ? `🤖 ${a.title} (${a.trade}, ${a.priority}). Driver: "${r.problem}".` : `"${r.problem}" (${driverName(r.driverId)}). Catch it at the next service before it becomes a breakdown.`,
+      nav: { name: 'buses', id: r.busId } }); });
 
   // Low driver ratings — damage/cost risk, coaching opportunity
   activeDrivers().map((d) => ({ d, s: driverScore(d.id) })).filter((x) => x.s < 75)

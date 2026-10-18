@@ -67,7 +67,9 @@ const Sync = (function () {
                   // Claude's look at each gate check's photos (server-written by /ai/gate).
                   'gateai',
                   // Claude's look at each returned old part's photo (server-written by /ai/core).
-                  'coreai'];
+                  'coreai',
+                  // Claude's draft job card for each driver report (server-written by /ai/reports).
+                  'reportai'];
 
   const ls = window.localStorage;
   // Default sync backend: a device's explicit setting always wins. Otherwise, on
@@ -431,6 +433,15 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
   async function aiCore() {
     try {
       const res = await fetch(baseUrl() + '/ai/core', { method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }), body: '{}' });
+      let j = {};
+      try { j = await res.json(); } catch (e) { /* not JSON */ }
+      return res.ok ? j : { error: j.error || ('failed (' + res.status + ')') };
+    } catch (e) { return { error: 'No connection to the server' }; }
+  }
+  // Ask the server to have Claude draft job cards from new driver reports (owner/supervisor).
+  async function aiReports() {
+    try {
+      const res = await fetch(baseUrl() + '/ai/reports', { method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }), body: '{}' });
       let j = {};
       try { j = await res.json(); } catch (e) { /* not JSON */ }
       return res.ok ? j : { error: j.error || ('failed (' + res.status + ')') };
@@ -1005,7 +1016,7 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
     } catch (e) { return null; }
   }
 
-  return { start, tick, kick, setUrl, reset, info, login, logout, warmUp, roster, pendingIds, addStaff, deleteStaff, renameStaff, registerRoster, setPin, gps, validSyncUrl, backfillContacts, setActor, tokenUser, now, deleteUploads, ai, aiVision, challans, itsLookup, myReviews, aiReviews, aiNames, aiGate, aiBill, aiCore, fleet, latest, uploadPhoto,
+  return { start, tick, kick, setUrl, reset, info, login, logout, warmUp, roster, pendingIds, addStaff, deleteStaff, renameStaff, registerRoster, setPin, gps, validSyncUrl, backfillContacts, setActor, tokenUser, now, deleteUploads, ai, aiVision, challans, itsLookup, myReviews, aiReviews, aiNames, aiGate, aiBill, aiCore, aiReports, fleet, latest, uploadPhoto,
            queuePhoto, uploadError, remove, clearQuarantine, subscribePush, pushTest, flagOn, flagList,
            get status() { return status; } };
 })();

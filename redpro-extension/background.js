@@ -152,6 +152,13 @@ async function checkGatePhotos(settings, state) {
     let j2 = {};
     try { j2 = await r2.json(); } catch (e) { /* not JSON */ }
     if (r2.ok && j2.checked) state.coreParts = { last: Date.now(), result: `${j2.checked} old parts looked at, ${j2.flagged} flagged` };
+    // Driver reports: Claude drafts the job card (and alerts on an unsafe bus) within ten minutes.
+    const r3 = await fetch((settings.gsUrl || DEFAULTS.gsUrl).replace(/\/$/, '') + '/ai/reports', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + settings.token }, body: '{}',
+    });
+    let j3 = {};
+    try { j3 = await r3.json(); } catch (e) { /* not JSON */ }
+    if (r3.ok && j3.drafted) state.reports = { last: Date.now(), result: `${j3.drafted} driver reports drafted${j3.unsafe ? `, ${j3.unsafe} may be unsafe` : ''}` };
   } catch (e) { /* offline: try again next tick */ }
 }
 
