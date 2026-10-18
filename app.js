@@ -22,7 +22,12 @@ const I18N = {
     notStored: 'This phone could not save {n} record(s) others can see — free up space, then Me → Device & server → Re-download everything',
     notStoredRow: 'Records this phone could not save',
     aiInsights: 'AI Insights', aiInsightsSub: 'Pilferage radar, cost savings & the advisor',
-    aiFooter: 'Answered by Claude, through your own server — ask about costs, a bus, a mechanic or a month.',
+    aiFooter: 'Answered by Claude from your own records (it can only read them) — ask about costs, a bus, a driver, reviews or a month.',
+    advPh: 'Ask about your buses, drivers, costs, reviews…', advLooking: 'Looking through your records…', advLooked: 'Looked at',
+    advEx1: 'Which bus cost the most this month, and why?', advEx2: 'Which drivers have the worst passenger ratings that were their fault?',
+    advEx3: 'What do passengers complain about most on the Indore route?', advEx4: 'Which buses had no gate check this week?',
+    advTool_find: 'search', advTool_bus_overview: 'bus record', advTool_crew_overview: 'crew record', advTool_rank: 'ranking', advTool_reviews: 'reviews',
+    advTool_stock: 'stock', advTool_money: 'money',
     aiAsk60: '60 questions a day each.',
     aiServerOn: 'AI advisor: set up on the server — everyone signed in can use it',
     aiServerOff: 'AI advisor: not set up on the server. Set ANTHROPIC_API_KEY in the hosting settings and it works for everybody, on every phone.',
@@ -412,6 +417,11 @@ const I18N = {
     notStoredRow: 'जो रिकॉर्ड यह फ़ोन सेव नहीं कर पाया',
     aiInsights: 'AI विश्लेषण', aiInsightsSub: 'चोरी की पकड़, खर्च की बचत, और सलाहकार',
     aiFooter: 'जवाब क्लॉड देता है, आपके अपने सर्वर से — खर्च, किसी बस, किसी मैकेनिक या किसी महीने के बारे में पूछिए।',
+    advPh: 'अपनी बसों, ड्राइवरों, ख़र्च, रिव्यू के बारे में पूछें…', advLooking: 'आपके रिकॉर्ड देख रहे हैं…', advLooked: 'देखा',
+    advEx1: 'इस महीने किस बस पर सबसे ज़्यादा ख़र्च हुआ, और क्यों?', advEx2: 'किन ड्राइवरों की अपनी गलती वाली रेटिंग सबसे ख़राब है?',
+    advEx3: 'इंदौर रूट पर यात्री सबसे ज़्यादा किस बात की शिकायत करते हैं?', advEx4: 'इस हफ़्ते किन बसों का गेट चेक नहीं हुआ?',
+    advTool_find: 'खोज', advTool_bus_overview: 'बस रिकॉर्ड', advTool_crew_overview: 'स्टाफ़ रिकॉर्ड', advTool_rank: 'रैंकिंग', advTool_reviews: 'रिव्यू',
+    advTool_stock: 'स्टॉक', advTool_money: 'पैसा',
     aiAsk60: 'हर आदमी को रोज़ 60 सवाल।',
     aiServerOn: 'AI सलाहकार: सर्वर पर लगा है — जो भी लॉगिन करेगा उसे मिलेगा',
     aiServerOff: 'AI सलाहकार: सर्वर पर नहीं लगा। होस्टिंग सेटिंग में ANTHROPIC_API_KEY डालिए, फिर हर फ़ोन पर सबके लिए चलेगा।',
@@ -12459,8 +12469,10 @@ function viewInsights() {
       <div class="tiny" style="opacity:.85">${items.length} findings · ${high} need attention</div></div></div>`;
 
   body += `<div class="card"><h3>Ask the advisor</h3>
-    <div class="row" style="gap:8px"><input id="ai-q" placeholder="e.g. How do I cut my brake costs?">
+    <div class="row" style="gap:8px"><input id="ai-q" placeholder="${esc(t('advPh'))}">
       <button class="btn sm primary" data-act="askAi" style="width:auto">Ask</button></div>
+    <div class="row" style="gap:6px;flex-wrap:wrap;margin-top:8px">${['advEx1', 'advEx2', 'advEx3', 'advEx4'].map((k) =>
+      `<button class="chip" style="padding:4px 10px;font-size:12px" data-act="askAiEx" data-q="${esc(t(k))}">${esc(t(k))}</button>`).join('')}</div>
     <div id="ai-ans" class="small" style="margin-top:11px"></div>
     <!-- This used to tell every reader to put an API key on their phone. The
          key belongs on the server, where one of them serves everybody; the
@@ -12524,11 +12536,14 @@ async function askAi() {
   const q = ($('#ai-q').value || '').trim();
   if (!q) return;
   const ans = document.getElementById('ai-ans');
-  ans.innerHTML = `<span class="muted">Thinking…</span>`;
+  ans.innerHTML = `<span class="muted">${t('advLooking')}</span>`;
   const r = await callClaude(q);
+  // What it looked up, so the owner can tell an answer from the records from a general one.
+  const looked = (r.looked || []).map((x) => t('advTool_' + x.tool) + (x.args && x.args.metric ? ': ' + String(x.args.metric).replace(/_/g, ' ') : ''));
   ans.innerHTML = r.error
     ? `<span style="color:#b9740a">${esc(r.error)}</span>`
-    : esc(r.text).replace(/\n/g, '<br>');
+    : esc(r.text).replace(/\*\*(.+?)\*\*/g, '$1').replace(/\n/g, '<br>')
+      + (looked.length ? `<div class="tiny muted" style="margin-top:8px">🔎 ${t('advLooked')}: ${esc([...new Set(looked)].join(' · '))}</div>` : '');
 }
 
 /* ------------------------------- Router -----------------------------------
@@ -12985,6 +13000,7 @@ const _dispatchClick = async (e) => {
       case 'shareBill': return shareBill(el.getAttribute('data-company'));
       case 'moneyWin': _moneyWin = el.getAttribute('data-win') || 'month'; return rerender();
       case 'askAi': return askAi();
+      case 'askAiEx': { const i = $('#ai-q'); if (i) i.value = el.getAttribute('data-q'); return askAi(); }
       case 'openPurchases': return push({ name: 'purchases' });
       case 'openAlerts': return push({ name: 'alerts' });
       case 'openChallans': return push({ name: 'challans' });

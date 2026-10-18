@@ -367,7 +367,8 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
       if (res.status === 429) return { configured: true, error: 'Daily AI limit reached — try again tomorrow' };
       if (res.status === 403) return { configured: true, error: 'The AI advisor is for the owner and supervisors' };
       if (!res.ok) return { configured: true, error: 'AI server error ' + res.status };
-      return { text: (await res.json()).text || '' };
+      const j = await res.json();
+      return { text: j.text || '', looked: j.looked || [] };
     } catch (e) { return { configured: false }; }
   }
   // eChallan lookup for one registration. Server-side proxy — the API key never

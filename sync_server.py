@@ -29,6 +29,7 @@ import urllib.request
 import uuid
 
 import crew_trace
+import advisor_ai
 import bill_ai
 import coach_ai
 import core_ai
@@ -2823,6 +2824,69 @@ def my_coaching(user_id):
     return {"notes": [{"week": n["week"], "hi": n["hi"], "en": n.get("en"), "at": n.get("decidedAt")} for n in mine[:6]]}
 
 
+# ----------------------------- The advisor, with tools ------------------------------------------
+# Opus answers the owner's question by calling read-only tools over the records (advisor_ai.py),
+# inside Vercel's 60 s: past AI_ADVISOR_BUDGET_S it is told to answer from what it has.
+AI_ADVISOR_BUDGET_S = 30
+AI_ADVISOR_TURNS = 6
+_ADV_STORES = ("buses", "drivers", "jobcards", "parts", "purchases", "vendors", "incidents", "gatechecks",
+               "driverreports", "fuel", "challans", "coachai", "gateai", "meta")
+_ADV_RV_MEMO = {"key": None, "rows": None}
+
+
+def advise(actor, question, biz, call=None, clock=time.monotonic):
+    if actor.get("role") not in ("owner", "supervisor"):
+        return 403, {"error": "forbidden"}
+    if not ANTHROPIC_API_KEY and call is None:
+        return 501, {"error": "AI not configured on server"}
+    call = call or (lambda m, p, b: _anthropic(m, p, b, timeout=max(10, 55 - (clock() - t0))))
+    t0 = clock()
+    with _lock:
+        c = db()
+        try:
+            stores = {st: _store_rows(c, st) for st in _ADV_STORES}
+            _ix, ctx = _crew_review_index(c)
+            if _ADV_RV_MEMO["key"] != _CREW_RV_MEMO["key"]:
+                ai = _store_rows(c, "rbreviewai")
+                _ADV_RV_MEMO.update(key=_CREW_RV_MEMO["key"], rows=advisor_ai.review_rows(
+                    list(_store_rows(c, "rbreviews").values()), ctx, ai, CT_day(now_ms() - 365 * 86400000)))
+        finally:
+            c.close()
+    R = advisor_ai.Records(stores, now_ms(), _ADV_RV_MEMO["rows"] or [])
+    system = advisor_ai.SYSTEM.replace("{biz}", biz or "the company") + "\nToday is %s." % CT_day(now_ms())
+    messages = [{"role": "user", "content": question}]
+    looked = []
+    for turn in range(AI_ADVISOR_TURNS):
+        last = turn == AI_ADVISOR_TURNS - 1 or clock() - t0 > AI_ADVISOR_BUDGET_S
+        if last and turn:
+            # Out of time or turns: answer from what has been looked up (the tool definitions stay,
+            # since the conversation already holds tool calls).
+            messages[-1]["content"].append({"type": "text", "text": "Answer now from what you have; do not call more tools."})
+        msg = call("POST", "/messages", {"model": AI_MODEL, "max_tokens": 1500, "system": system, "tools": advisor_ai.TOOLS,
+                                         "tool_choice": {"type": "auto"}, "messages": messages})
+        content = (msg or {}).get("content") or []
+        uses = [b for b in content if b.get("type") == "tool_use"]
+        text = "".join(b.get("text", "") for b in content if b.get("type") == "text").strip()
+        if not uses or last:
+            return 200, {"text": text or "I could not finish looking that up in time. Ask a narrower question.", "looked": looked}
+        messages.append({"role": "assistant", "content": content})
+        results = []
+        for b in uses:
+            try:
+                out = advisor_ai.run_tool(R, b.get("name"), b.get("input"))
+            except Exception as e:                  # a tool bug is reported to the model, not to the user as a 500
+                out = {"error": "tool failed: %s" % type(e).__name__}
+            looked.append({"tool": b.get("name"), "args": {k: v for k, v in (b.get("input") or {}).items() if k != "text"}})
+            results.append({"type": "tool_result", "tool_use_id": b.get("id"), "content": advisor_ai.clip(out)})
+        messages.append({"role": "user", "content": results})
+    return 200, {"text": "", "looked": looked}
+
+
+def CT_day(ms):
+    import crew_trace
+    return crew_trace.day_key(ms)
+
+
 def its_lookup_diag(pnrs):
     """Owner only: look ONE PNR up and return the shape of ITS's answer (field names, messages),
     never its values, and store nothing."""
@@ -5094,11 +5158,17 @@ class Handler(BaseHTTPRequestHandler):
             if not ANTHROPIC_API_KEY:
                 return self._send(501, {"error": "AI not configured on server"})
             b = self._body()
-            question = (b.get("question") or "").strip()
+            question = (b.get("question") or "").strip()[:2000]
             context = (b.get("context") or "").strip()
-            biz = (b.get("biz") or "the garage").strip()
+            biz = (b.get("biz") or "the garage").strip()[:80]
             if not question:
                 return self._send(400, {"error": "question required"})
+            # The advisor with tools over the records (#7). The old one-shot answer below stays as the
+            # fallback if the tool loop fails.
+            try:
+                return self._send(*advise(me, question, biz))
+            except Exception as e:
+                print("advisor with tools failed, answering without:", type(e).__name__)
             try:
                 payload = json.dumps({
                     "model": AI_MODEL,           # never the caller's choice — it sets the bill
