@@ -158,6 +158,13 @@ async function checkGatePhotos(settings, state) {
     });
     let j3 = {};
     try { j3 = await r3.json(); } catch (e) { /* not JSON */ }
+    // Weekly coaching notes: a few drafted each tick until everyone with something to say has one.
+    const r4 = await fetch((settings.gsUrl || DEFAULTS.gsUrl).replace(/\/$/, '') + '/ai/coaching', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + settings.token }, body: '{}',
+    });
+    let j4 = {};
+    try { j4 = await r4.json(); } catch (e) { /* not JSON */ }
+    if (r4.ok && j4.drafted) state.coaching = { last: Date.now(), result: `${j4.drafted} coaching notes drafted (week of ${j4.week})` };
     if (r3.ok && j3.drafted) state.reports = { last: Date.now(), result: `${j3.drafted} driver reports drafted${j3.unsafe ? `, ${j3.unsafe} may be unsafe` : ''}` };
   } catch (e) { /* offline: try again next tick */ }
 }

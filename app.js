@@ -339,6 +339,11 @@ const I18N = {
     myRvNone: 'No review is linked to you yet. Do the gate check before every departure, with the service picked: that is what links passengers\' reviews to you.',
     myRvNoneC: 'No review is linked to you yet. They link to you through the duty board, so make sure the office has you on the right bus.',
     myRvLoading: 'Fetching your reviews…', myRvOffline: 'Could not fetch your reviews. They will show once the phone is online.', myRvFew: 'Fewer than 10 rated trips: not counted in your rating yet.', myRvWork: 'Low ratings mention', myRvNoText: 'No comment, only stars.',
+    coTitle: 'Weekly coaching notes', coToApprove: 'to approve', coNotTheirs: 'not theirs', coGates: 'gate checks', coReported: 'reported',
+    coHint: 'Claude drafts a three-line note for each driver and conductor from last week (reviews that were theirs, incidents, GPS, gate checks). Read it, change any line, then approve. Only approved notes reach their app.',
+    coWeekOf: 'Week of', coDraftNow: 'Draft now', co_good: '👍 Went well', co_fix: '🎯 To fix', co_tip: '💡 Tip', coApprove: 'Approve', coSkip: 'Skip',
+    coAllDone: 'All of this week\'s notes are decided.', coNone: 'No notes yet this week. They are drafted through the week, a few at a time.', coDecided: 'Decided this week',
+    coDrafted: 'notes drafted', coMore: 'more to come', coApproved: 'Approved: it is on their phone now', coSkipped: 'Skipped', coMine: 'Your note for this week',
     raiUnsafe: 'may be unsafe to run', rai_high: 'high', rai_medium: 'medium', rai_low: 'low', raiRepeat: 'repeat problem', raiInStock: 'in stock',
     raiDraftBy: 'Draft by Claude from the driver\'s report: check before work starts.', raiCause: 'Likely cause', raiCheck: 'Check first', raiParts: 'May need',
     raiRepeatNote: 'This looks like a problem fixed recently on this bus: check the last job.', raiDriverSaid: 'Driver said',
@@ -723,6 +728,11 @@ const I18N = {
     myRvNone: 'अभी कोई रिव्यू आपसे नहीं जुड़ा। हर रवानगी से पहले सर्विस चुनकर गेट चेक करें: इसी से यात्रियों के रिव्यू आपसे जुड़ते हैं।',
     myRvNoneC: 'अभी कोई रिव्यू आपसे नहीं जुड़ा। ये ड्यूटी बोर्ड से जुड़ते हैं, ऑफिस से पक्का करें कि आप सही बस पर दर्ज हैं।',
     myRvLoading: 'आपके रिव्यू आ रहे हैं…', myRvOffline: 'रिव्यू नहीं आ सके। फ़ोन ऑनलाइन होने पर दिखेंगे।', myRvFew: '10 से कम रेटिंग: अभी आपकी रेटिंग में नहीं गिने गए।', myRvWork: 'कम रेटिंग में', myRvNoText: 'कोई टिप्पणी नहीं, सिर्फ़ स्टार।',
+    coTitle: 'हफ़्ते की सलाह', coToApprove: 'मंज़ूरी बाक़ी', coNotTheirs: 'इनकी नहीं', coGates: 'गेट चेक', coReported: 'रिपोर्ट',
+    coHint: 'Claude हर ड्राइवर और कंडक्टर के लिए पिछले हफ़्ते (उनके रिव्यू, घटनाएँ, GPS, गेट चेक) से तीन लाइन की सलाह लिखता है। पढ़ें, कोई भी लाइन बदलें, फिर मंज़ूर करें। सिर्फ़ मंज़ूर सलाह उनके फ़ोन पर जाती है।',
+    coWeekOf: 'हफ़्ता', coDraftNow: 'अभी लिखें', co_good: '👍 अच्छा रहा', co_fix: '🎯 सुधारें', co_tip: '💡 सुझाव', coApprove: 'मंज़ूर', coSkip: 'छोड़ें',
+    coAllDone: 'इस हफ़्ते की सब सलाह तय हो गई।', coNone: 'इस हफ़्ते अभी कोई सलाह नहीं। हफ़्ते भर में थोड़ी-थोड़ी लिखी जाती है।', coDecided: 'इस हफ़्ते तय',
+    coDrafted: 'सलाह लिखी', coMore: 'और बाक़ी', coApproved: 'मंज़ूर: अब उनके फ़ोन पर है', coSkipped: 'छोड़ी', coMine: 'इस हफ़्ते आपके लिए सलाह',
     raiUnsafe: 'चलाना असुरक्षित हो सकता है', rai_high: 'ज़्यादा', rai_medium: 'मध्यम', rai_low: 'कम', raiRepeat: 'दोबारा आई समस्या', raiInStock: 'स्टॉक में',
     raiDraftBy: 'ड्राइवर की रिपोर्ट से Claude का ड्राफ़्ट: काम शुरू करने से पहले जाँचें।', raiCause: 'संभावित कारण', raiCheck: 'पहले जाँचें', raiParts: 'शायद चाहिए',
     raiRepeatNote: 'यह इस बस पर हाल ही में ठीक हुई समस्या जैसी लगती है: पिछला जॉब देखें।', raiDriverSaid: 'ड्राइवर ने कहा',
@@ -1360,8 +1370,8 @@ async function load() {
   const gatepasses = await DB.all('gatepasses').catch(() => []);
   const dutylog = await DB.all('dutylog').catch(() => []);
   const gatechecks = await DB.all('gatechecks').catch(() => []);
-  const [rbservices, rbreviews, rbcomplaints, rbassign, rbalias, itslookup, rbreviewai, rbaliasai, gateai, coreai, reportai] = await Promise.all(['rbservices', 'rbreviews', 'rbcomplaints', 'rbassign', 'rbalias', 'itslookup', 'rbreviewai', 'rbaliasai', 'gateai', 'coreai', 'reportai'].map((n) => DB.all(n).catch(() => [])));
-  S.cache = { users, buses, parts, jobs, ledger, att, purchases, drivers, incidents, driverreports, routes, triplog, fuel, gpsevents, audits, components, def, vendors, trips, challans, usage, stockmoves, breakdowns, gatepasses, dutylog, gatechecks, rbservices, rbreviews, rbcomplaints, rbassign, rbalias, itslookup, rbreviewai, rbaliasai, gateai, coreai, reportai, garage };
+  const [rbservices, rbreviews, rbcomplaints, rbassign, rbalias, itslookup, rbreviewai, rbaliasai, gateai, coreai, reportai, coachai] = await Promise.all(['rbservices', 'rbreviews', 'rbcomplaints', 'rbassign', 'rbalias', 'itslookup', 'rbreviewai', 'rbaliasai', 'gateai', 'coreai', 'reportai', 'coachai'].map((n) => DB.all(n).catch(() => [])));
+  S.cache = { users, buses, parts, jobs, ledger, att, purchases, drivers, incidents, driverreports, routes, triplog, fuel, gpsevents, audits, components, def, vendors, trips, challans, usage, stockmoves, breakdowns, gatepasses, dutylog, gatechecks, rbservices, rbreviews, rbcomplaints, rbassign, rbalias, itslookup, rbreviewai, rbaliasai, gateai, coreai, reportai, coachai, garage };
   refreshBiz();   // keep the displayed business name in sync with garage config
 }
 const byId = (arr, id) => arr.find((x) => x.id === id);
@@ -2428,10 +2438,94 @@ function viewCrewManagerHome() {
     <div class="trow" data-act="openCrewBank"><div class="ti">🗂️</div><div class="tm"><div class="tt">${t('cbTitle')}</div>
       <div class="tiny muted">${activeCrew().length} ${t('cbOnRoll')}</div></div><div class="tc">›</div></div></div>`;
   body += crewRatingsCard();
+  body += coachHomeCard();
   shell(t('today'), body);
 }
 /* The crew manager's view of the reviews: who passengers rate lowest, among crew with enough
  * rated trips to judge (90 days), so the next assignment is made knowing it. */
+/* ===== Weekly coaching notes (coach_ai.py) ================================
+ * Claude drafts a three-line note per crew member from last week's facts; the crew manager (or
+ * owner/supervisor) reads, edits and approves it here. Only an approved note reaches the crew
+ * member's app, through /my/coaching. */
+const coachThisWeek = () => { const all = (S.cache.coachai || []).map((n) => n.week).sort(); return all[all.length - 1] || ''; };
+const coachDrafts = () => (S.cache.coachai || []).filter((n) => n.status === 'draft');
+let _coRun = false, _coLast = 0;
+function coachHomeCard() {
+  if (!can(S.user.role, 'manageDrivers')) return '';
+  const n = coachDrafts().length;
+  if (!n && !(S.cache.coachai || []).length) return '';
+  return `<div class="card" data-nav="coaching" style="cursor:pointer"><div class="row between"><h3>📝 ${t('coTitle')}</h3>
+    <span class="badge ${n ? 'b-amber' : 'b-green'}">${n} ${t('coToApprove')}</span></div></div>`;
+}
+const _coFacts = (f) => [
+  f.reviews ? `⭐ ${f.reviews}${f.avgStars ? ' · ★' + f.avgStars : ''}${f.low ? ' · ' + f.low + ' ≤3★' : ''}${f.notTheirs ? ' · ' + f.notTheirs + ' ' + t('coNotTheirs') : ''}` : '',
+  Object.keys(f.incidents || {}).length ? '⚠️ ' + Object.entries(f.incidents).map(([k, v]) => `${(INCIDENT[k] || INCIDENT.other).label} ×${v}`).join(', ') : '',
+  Object.keys(f.gps || {}).length ? '📡 ' + Object.entries(f.gps).map(([k, v]) => `${(GPS_EVENT[k] || { label: k }).label} ×${v}`).join(', ') : '',
+  f.role === 'driver' ? `🚦 ${f.gateChecks} ${t('coGates')}` : '', f.reported ? `🛠️ ${f.reported} ${t('coReported')}` : '',
+].filter(Boolean).join(' · ');
+function viewCoaching() {
+  if (!_coRun && Date.now() - _coLast > 120000 && Sync.aiCoaching) setTimeout(coachRun, 0, true);
+  const week = coachThisWeek();
+  const notes = (S.cache.coachai || []).filter((n) => n.week === week);
+  const drafts = notes.filter((n) => n.status === 'draft').sort((a, b) => (driverName(a.crewId) || '').localeCompare(driverName(b.crewId) || ''));
+  let body = `<div class="card"><div class="tiny muted">${t('coHint')}</div>
+    <div class="row between" style="margin-top:8px"><span class="small">${week ? t('coWeekOf') + ' ' + esc(week) : ''}</span>
+    ${_coRun ? `<span class="tiny muted">${t('aiRvRunning')}</span>` : `<button class="btn sm" data-act="coachRun">${t('coDraftNow')}</button>`}</div></div>`;
+  body += drafts.length ? drafts.map((n) => `<div class="card" id="co-${esc(n.id)}"><div class="row between"><b data-driver="${esc(n.crewId)}" style="cursor:pointer">${esc(driverName(n.crewId))}</b><span class="tiny muted">${esc(crewRoleLabel(n.role))}</span></div>
+      <div class="tiny muted" style="margin:4px 0 8px">${esc(_coFacts(n.facts || {}))}</div>
+      ${['good', 'fix', 'tip'].map((k) => `<label class="field"><span class="lbl tiny">${t('co_' + k)}</span><input class="co-in" data-k="${k}" value="${esc(n.hi[k])}"><span class="tiny muted">${esc((n.en || {})[k] || '')}</span></label>`).join('')}
+      <div class="btnrow"><button class="btn sm primary" data-act="coachDecide" data-id="${esc(n.id)}" data-d="approve">✓ ${t('coApprove')}</button>
+        <button class="btn sm ghost" data-act="coachDecide" data-id="${esc(n.id)}" data-d="skip">${t('coSkip')}</button></div></div>`).join('')
+    : `<div class="card"><div class="muted small">${notes.length ? t('coAllDone') : t('coNone')}</div></div>`;
+  const decided = notes.filter((n) => n.status !== 'draft');
+  if (decided.length) body += `<details class="card"><summary class="row between" style="cursor:pointer"><h3>${t('coDecided')}</h3><span class="badge b-low">${decided.length}</span></summary>${
+    decided.map((n) => `<div class="li"><div class="ava">${n.status === 'approved' ? '✅' : '⏭️'}</div><div class="main"><div class="t">${esc(driverName(n.crewId))}</div>
+      <div class="s">${esc(n.hi.fix)} · ${esc(userName(n.decidedBy))}</div></div></div>`).join('')}</details>`;
+  shell(t('coTitle'), body, null, NARROW);
+}
+async function coachRun(quiet) {
+  if (_coRun || !Sync.aiCoaching) return;
+  _coRun = true; _coLast = Date.now(); rerender();
+  const j = await Sync.aiCoaching();
+  _coRun = false;
+  if (j.error) { if (!quiet) toast('🤖 ' + j.error); }
+  else { if (!quiet || j.drafted) toast(`🤖 ${j.drafted || 0} ${t('coDrafted')}${j.pending ? ' · ' + j.pending + ' ' + t('coMore') : ''}`); if (Sync.kick) Sync.kick(); await load(); }
+  rerender();
+}
+async function coachDecideRun(id, decision) {
+  const card = document.getElementById('co-' + id);
+  const hi = {};
+  if (card) card.querySelectorAll('.co-in').forEach((i) => { hi[i.getAttribute('data-k')] = i.value; });
+  const j = await Sync.coachDecide(id, decision, hi);
+  if (j.error) return toast(j.error);
+  toast(decision === 'approve' ? t('coApproved') : t('coSkipped'));
+  if (Sync.kick) Sync.kick();
+  await load(); rerender();
+}
+// The crew member's own latest approved note, kept on the phone so it shows offline.
+let _myCoBusy = false, _myCoTry = 0;
+function myCoachCard() {
+  const key = 'gs.mycoach.' + ((S.user || {}).id || '');
+  let v = null;
+  try { v = JSON.parse(localStorage.getItem(key) || 'null'); } catch (e) { v = null; }
+  if (!_myCoBusy && Date.now() - _myCoTry > 15 * 60000 && Sync.myCoaching) {
+    _myCoBusy = true; _myCoTry = Date.now();
+    Sync.myCoaching().then((j) => {
+      _myCoBusy = false;
+      if (!j || !Array.isArray(j.notes)) return;
+      const changed = JSON.stringify(j.notes) !== JSON.stringify((v || {}).notes || []);
+      try { localStorage.setItem(key, JSON.stringify({ notes: j.notes })); } catch (e) { /* storage blocked */ }
+      if (changed && S.route && S.route.name === 'home') rerender();
+    });
+  }
+  const n = ((v || {}).notes || [])[0];
+  if (!n) return '';
+  const L = LANG === 'hi' || !n.en ? n.hi : n.en;
+  return `<div class="card"><h3>📝 ${t('coMine')}</h3><div class="tiny muted">${t('coWeekOf')} ${esc(n.week)}</div>
+    <div class="small" style="margin-top:8px">👍 ${esc(L.good)}</div>
+    <div class="small" style="margin-top:6px">🎯 ${esc(L.fix)}</div>
+    <div class="small" style="margin-top:6px">💡 ${esc(L.tip)}</div></div>`;
+}
 function crewRatingsCard() {
   if (!can(S.user.role, 'crewReviews') || !(S.cache.rbreviews || []).length) return '';
   const rows = activeCrew().map((d) => ({ d, o: driverOverall(d.id) })).filter((x) => x.o.n);
@@ -2561,6 +2655,7 @@ function viewPeople() {
     <div class="trow" data-act="openSafety"><div class="ti">🛡️</div><div class="tm"><div class="tt">Safety & GPS events</div></div><div class="tc">›</div></div>
     <div class="trow" data-act="openScoreboard"><div class="ti">🏆</div><div class="tm"><div class="tt">Scoreboard</div></div><div class="tc">›</div></div>
     <div class="trow" data-act="openCrewBank"><div class="ti">🗂️</div><div class="tm"><div class="tt">Crew data bank — drivers &amp; conductors</div><div class="tiny muted">Licence, Aadhaar, phone, photo · joining &amp; leaving</div></div><div class="tc">›</div></div>
+    <div class="trow" data-nav="coaching"><div class="ti">📝</div><div class="tm"><div class="tt">${t('coTitle')}</div><div class="tiny muted">${coachDrafts().length} ${t('coToApprove')}</div></div><div class="tc">›</div></div>
     <div class="trow" data-act="openCrewPins"><div class="ti">🔑</div><div class="tm"><div class="tt">Crew logins & PINs</div></div><div class="tc">›</div></div>
     <div class="trow" data-act="openStaff"><div class="ti">🧑‍🔧</div><div class="tm"><div class="tt">Staff</div></div><div class="tc">›</div></div></div>`;
   shell(t('people'), body);
@@ -9463,6 +9558,7 @@ function viewDriverHome() {
       <div style="text-align:right"><div class="stars big">${starStr(scoreStars(score))}</div><div class="tiny muted">${d.tripsLogged || 0} ${t('trips')}</div></div></div>
       <div class="tiny muted" style="margin-top:8px">${recent.length ? `${t('drvLast90')}: ${reasons}. ` : ''}${tip}</div></div>`;
   body += gateHomeCard(d);    // departure checklist — first thing before the bus leaves
+  body += myCoachCard();
   body += myReviewsCard('driver');
   body += driverTripCard();   // trip cash + expenses
   if (d.busId) {
@@ -9507,6 +9603,7 @@ function viewConductorHome() {
     if (bus.crewPhone) body += `<div class="row between small" style="padding:3px 0"><span class="muted">Contact</span><a href="tel:${esc((bus.crewPhone || '').replace(/\s/g, ''))}"><b>${esc(bus.crewPhone)}</b></a></div>`;
     body += `</div>`;
   } else body += `<div class="card"><div class="empty">No bus assigned yet. Ask your supervisor.</div></div>`;
+  body += myCoachCard();
   body += myReviewsCard('conductor');
   shell(t('myTrips'), body);
 }
@@ -12445,7 +12542,7 @@ const current = () => S.stack[S.stack.length - 1];
 const ROUTE_PERM = { money: 'money', fleet: 'fleet', people: 'people', bills: 'bills', insights: 'insights', drivers: 'manageDrivers', assignments: 'assignDriver', routes: 'manageRoutes', reports: 'dashboard', busreport: 'dashboard', livemap: 'liveMap', track: 'liveMap', fuel: 'addFuel', safety: 'dashboard', breakdowns: 'logIncident', warranty: 'viewWarranty', storehealth: 'issuePart', linkgps: 'addBus', newjob: 'addJob', forecast: 'dashboard', pilferage: 'insights', components: 'manageComponents', def: 'addFuel', vendors: 'addPurchase', import: 'addPurchase', crewpins: 'manageCrewLogins', crewbank: 'manageDrivers', usage: 'dashboard', accounting: 'dashboard', busacct: 'dashboard',
   // `purchases` renders the same view as `bills`; without its own entry the
   // `bills` permission was bypassable just by using the other route name.
-  purchases: 'bills', alerts: 'dashboard', buses: 'fleet', gate: 'gateCheck', gatechecks: 'gateDecide', reviews: 'dashboard', rbnames: 'manageDrivers', whynodriver: 'dashboard',
+  purchases: 'bills', alerts: 'dashboard', buses: 'fleet', gate: 'gateCheck', gatechecks: 'gateDecide', reviews: 'dashboard', rbnames: 'manageDrivers', whynodriver: 'dashboard', coaching: 'manageDrivers',
   store: 'viewStore', jobs: 'viewJobs', scoreboard: 'viewScoreboard',
   challans: 'challans', buschallans: 'challans',
   // Company billing and another person's scorecard rendered for any role because
@@ -12479,6 +12576,7 @@ function render(r) {
     case 'reviews': return viewReviews();
     case 'rbnames': return viewRbNames();
     case 'whynodriver': return viewWhyNoDriver();
+    case 'coaching': return viewCoaching();
     case 'jobs': return r.id ? viewJobDetail(r.id) : viewJobs();
     case 'store': return r.id ? viewPartDetail(r.id) : viewStore();
     case 'me': return viewMe();
@@ -12928,6 +13026,8 @@ const _dispatchClick = async (e) => {
       case 'dpRvWin': _dpRvWin = Number(el.getAttribute('data-w')) || 0; return rerender();
       case 'dpRvMore': _dpRvMore = !_dpRvMore; return rerender();
       case 'aiReviewsRun': return aiReviewsRun(false);
+      case 'coachRun': return coachRun(false);
+      case 'coachDecide': return coachDecideRun(el.getAttribute('data-id'), el.getAttribute('data-d'));
       case 'myRvMore': _myRvMore = !_myRvMore; return rerender();
       case 'myRvOpen': return openMyReview(el.getAttribute('data-id'));
       case 'openComplaint': return openComplaint(el.getAttribute('data-id'));

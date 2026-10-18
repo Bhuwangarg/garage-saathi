@@ -30,6 +30,7 @@ import uuid
 
 import crew_trace
 import bill_ai
+import coach_ai
 import core_ai
 import gate_ai
 import name_ai
@@ -1187,7 +1188,10 @@ SERVER_INGEST_ONLY = {"gpsevents", "gpslive", "challans", "odometerlogs", "wacon
                       # Claude's look at each returned old part's photo (core_ai.py), written only by /ai/core.
                       "coreai",
                       # Claude's draft job card for each driver report (report_ai.py), written only by /ai/reports.
-                      "reportai"}
+                      "reportai",
+                      # The weekly coaching notes (coach_ai.py): drafted by /ai/coaching, approved through
+                      # /ai/coaching/decide, read by the crew member through /my/coaching.
+                      "coachai"}
 
 # A phone with a wrong clock is normal; a record dated 2100 is not. Without a
 # bound, last-write-wins makes a far-future write permanent — the owner's
@@ -1264,32 +1268,39 @@ _CREW_RV_STORES = ("rbreviews", "rbservices", "gatechecks", "rbassign", "buses",
 _CREW_RV_MEMO = {"key": None, "ix": None}
 
 
-def crew_reviews_for(user_id):
+def _crew_review_index(c):
+    """crewId -> their traced reviews (crew_trace.index_by_crew), and the trace context; rebuilt only
+    when one of the stores changed or the day turned. Call with `_lock` held."""
     import crew_trace
     inlist = ",".join("'%s'" % st for st in _CREW_RV_STORES)
+    # Re-traced only when one of the stores changed (or the day turned, for the window).
+    key = (tuple(c.execute("SELECT COUNT(*), COALESCE(MAX(rev),0) FROM records WHERE store IN (%s)" % inlist).fetchone()),
+           int(now_ms() // 86400000))
+    if _CREW_RV_MEMO["key"] != key:
+        rows = {st: [] for st in _CREW_RV_STORES}
+        for st, raw in c.execute("SELECT store, data FROM records WHERE store IN (%s)" % inlist).fetchall():
+            try:
+                d = json.loads(raw)
+            except Exception:
+                continue
+            if isinstance(d, dict) and not d.get("_deleted"):
+                rows[st].append(d)
+        ctx = crew_trace.Context(rows["rbservices"], rows["gatechecks"], rows["rbassign"], rows["buses"],
+                                 rows["dutylog"], rows["itslookup"], rows["rbalias"])
+        _CREW_RV_MEMO.update(key=key, ctx=ctx, ix=crew_trace.index_by_crew(
+            rows["rbreviews"], ctx, now_ms() - CREW_REVIEW_DAYS * 86400000,
+            {a.get("id"): a for a in rows["rbreviewai"]}))
+    return _CREW_RV_MEMO["ix"] or {}, _CREW_RV_MEMO.get("ctx")
+
+
+def crew_reviews_for(user_id):
     with _lock:
         c = db()
         try:
             me = _crew_record_for(c, user_id)
             if not me:
                 return {"crewId": None, "reviews": [], "days": CREW_REVIEW_DAYS}
-            # Re-traced only when one of the stores changed (or the day turned, for the window).
-            key = (tuple(c.execute("SELECT COUNT(*), COALESCE(MAX(rev),0) FROM records WHERE store IN (%s)" % inlist).fetchone()),
-                   int(now_ms() // 86400000))
-            if _CREW_RV_MEMO["key"] != key:
-                rows = {st: [] for st in _CREW_RV_STORES}
-                for st, raw in c.execute("SELECT store, data FROM records WHERE store IN (%s)" % inlist).fetchall():
-                    try:
-                        d = json.loads(raw)
-                    except Exception:
-                        continue
-                    if isinstance(d, dict) and not d.get("_deleted"):
-                        rows[st].append(d)
-                ctx = crew_trace.Context(rows["rbservices"], rows["gatechecks"], rows["rbassign"], rows["buses"],
-                                         rows["dutylog"], rows["itslookup"], rows["rbalias"])
-                _CREW_RV_MEMO.update(key=key, ix=crew_trace.index_by_crew(
-                    rows["rbreviews"], ctx, now_ms() - CREW_REVIEW_DAYS * 86400000,
-                    {a.get("id"): a for a in rows["rbreviewai"]}))
+            _crew_review_index(c)
         finally:
             c.close()
     return {"crewId": me.get("id"), "reviews": (_CREW_RV_MEMO["ix"] or {}).get(me.get("id"), [])[:300],
@@ -2698,6 +2709,116 @@ def report_ai_tick(call=None):
     return 200, out
 
 
+# ----------------------------- Weekly coaching notes --------------------------------------------
+AI_COACH_PER_CALL = 4
+AI_COACH_DAILY_CALLS = int(os.environ.get("AI_COACH_DAILY_CALLS", "400"))
+COACH_DECIDERS = ("owner", "supervisor", "crewmanager")
+
+
+def coach_ai_tick(call=None):
+    """Draft this week's note for crew who have something in last week's facts, a few per call."""
+    if not ANTHROPIC_API_KEY and call is None:
+        return 501, {"error": "AI not configured on server (ANTHROPIC_API_KEY)"}
+    call = call or _anthropic
+    week, frm, to = coach_ai.week_of(now_ms())
+    with _lock:
+        c = db()
+        try:
+            ix, ctx = _crew_review_index(c)
+            crew = [d for d in _store_rows(c, "drivers").values() if (d.get("status") or "active") == "active"]
+            notes = _store_rows(c, "coachai")
+            incidents = list(_store_rows(c, "incidents").values())
+            gps = [e for e in _store_rows(c, "gpsevents").values() if frm <= (e.get("at") or 0) < to]
+            gates = list(_store_rows(c, "gatechecks").values())
+            reports = list(_store_rows(c, "driverreports").values())
+        finally:
+            c.close()
+    todo, quiet = [], 0
+    for d in sorted(crew, key=lambda x: str(x.get("name") or "")):
+        nid = "co-%s-%s" % (week, d["id"])
+        if nid in notes:
+            continue
+        f = coach_ai.facts_for(d, frm, to, ix.get(d["id"]), incidents, gps, gates, reports, ctx)
+        if coach_ai.has_something(f):
+            todo.append((d, f, nid))
+        else:
+            quiet += 1
+    out = {"ok": True, "week": week, "drafted": 0}
+    for d, f, nid in todo[:AI_COACH_PER_CALL]:
+        with _lock:
+            c = db()
+            try:
+                key = "coach:%s" % datetime.utcnow().strftime("%Y-%m-%d")
+                row = c.execute("SELECT n FROM aiusage WHERE k=?", (key,)).fetchone()
+                n = int(row[0]) if row else 0
+                if n >= AI_COACH_DAILY_CALLS:
+                    out["limited"] = True
+                    break
+                c.execute("INSERT INTO aiusage(k,n) VALUES(?,?) ON CONFLICT(k) DO UPDATE SET n=excluded.n", (key, n + 1))
+                c.commit()
+            finally:
+                c.close()
+        note = coach_ai.parse_message(call("POST", "/messages", coach_ai.params_for(d, f, AI_MODEL)))
+        if not note:
+            continue
+        rec = dict(note, id=nid, week=week, crewId=d["id"], role=f["role"], facts=f, status="draft",
+                   model=AI_MODEL, at=now_ms())
+        with _lock:
+            c = db()
+            try:
+                rev = c.execute("SELECT COALESCE(MAX(rev),0) FROM records").fetchone()[0]
+                _upsert_record(c, "coachai", nid, rec, now_ms(), rev)
+                c.commit()
+            finally:
+                c.close()
+        out["drafted"] += 1
+    out["pending"] = max(0, len(todo) - out["drafted"])
+    out["nothingToSay"] = quiet
+    return 200, out
+
+
+def coach_decide(actor, b):
+    """Approve (as written or edited) or skip a draft. Only an approved note reaches the crew member."""
+    if actor.get("role") not in COACH_DECIDERS:
+        return 403, {"error": "forbidden"}
+    nid, decision = str((b or {}).get("id") or ""), (b or {}).get("decision")
+    if decision not in ("approve", "skip"):
+        return 400, {"error": "decision must be approve or skip"}
+    with _lock:
+        c = db()
+        try:
+            note = _store_rows(c, "coachai").get(nid)
+            if not note:
+                return 404, {"error": "no such note"}
+            if decision == "approve":
+                edit = (b or {}).get("hi") or {}
+                hi = {k: (str(edit.get(k)).strip()[:200] if str(edit.get(k) or "").strip() else note["hi"][k]) for k in ("good", "fix", "tip")}
+                if hi != note["hi"]:
+                    note["aiHi"] = note.get("aiHi") or note["hi"]     # what Claude wrote, kept
+                note["hi"] = hi
+            note.update(status="approved" if decision == "approve" else "skipped", decidedBy=actor["id"], decidedAt=now_ms())
+            rev = c.execute("SELECT COALESCE(MAX(rev),0) FROM records").fetchone()[0]
+            _upsert_record(c, "coachai", nid, note, now_ms(), rev)
+            c.commit()
+        finally:
+            c.close()
+    return 200, {"ok": True, "status": note["status"]}
+
+
+def my_coaching(user_id):
+    """The crew member's own approved notes, newest first: the three lines and the week, nothing else."""
+    with _lock:
+        c = db()
+        try:
+            me = _crew_record_for(c, user_id)
+            notes = list(_store_rows(c, "coachai").values()) if me else []
+        finally:
+            c.close()
+    mine = [n for n in notes if n.get("crewId") == (me or {}).get("id") and n.get("status") == "approved"]
+    mine.sort(key=lambda n: n.get("week") or "", reverse=True)
+    return {"notes": [{"week": n["week"], "hi": n["hi"], "en": n.get("en"), "at": n.get("decidedAt")} for n in mine[:6]]}
+
+
 def its_lookup_diag(pnrs):
     """Owner only: look ONE PNR up and return the shape of ITS's answer (field names, messages),
     never its values, and store nothing."""
@@ -3235,7 +3356,7 @@ def redact_for(actor, rec):
         return rec
     if st == "waconv":                    # keyed by a crew member's phone number
         return None
-    if st in ("rbreviews", "rbcomplaints", "rbassign", "itslookup", "rbreviewai", "rbaliasai", "gateai", "coreai", "reportai"):
+    if st in ("rbreviews", "rbcomplaints", "rbassign", "itslookup", "rbreviewai", "rbaliasai", "gateai", "coreai", "reportai", "coachai"):
         # Reviews, complaints and redBus's driver names are for the people who act
         # on them. A driver's phone does not need every passenger's comment about
         # every colleague. (rbservices holds no names: drivers need it to pick the
@@ -4513,6 +4634,13 @@ class Handler(BaseHTTPRequestHandler):
                 rows = c.execute("SELECT id,name,role FROM users ORDER BY role,name").fetchall()
                 c.close()
             return self._send(200, {"users": [{"id": r[0], "name": r[1], "role": r[2]} for r in rows]})
+        if u.path == "/my/coaching":                 # a driver/conductor's own approved weekly notes
+            me = self._auth_user()
+            if not me:
+                return self._send(401, {"error": "unauthorized"})
+            if self._rate_limited(me, "sync"):
+                return None
+            return self._send(200, my_coaching(me["id"]), cache="no-store")
         if u.path == "/my/reviews":                  # a driver/conductor's own redBus reviews
             me = self._auth_user()
             if not me:
@@ -5058,6 +5186,27 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(502, {"error": "Claude answered %s" % e.code})
             except Exception as e:
                 return self._send(502, {"error": "AI upstream error: %s" % type(e).__name__})
+
+        if u.path == "/ai/coaching":                 # draft this week's coaching notes (extension or office)
+            h = self.headers.get("Authorization") or ""
+            if not (_REDPRO_TOKEN_OK and hmac.compare_digest(h, "Bearer " + REDPRO_INGEST_TOKEN)):
+                me = self._auth_user()
+                if not me:
+                    return self._send(401, {"error": "unauthorized"})
+                if me["role"] not in COACH_DECIDERS:
+                    return self._send(403, {"error": "forbidden"})
+            try:
+                return self._send(*coach_ai_tick())
+            except urllib.error.HTTPError as e:
+                return self._send(502, {"error": "Claude answered %s" % e.code})
+            except Exception as e:
+                return self._send(502, {"error": "AI upstream error: %s" % type(e).__name__})
+
+        if u.path == "/ai/coaching/decide":          # approve or skip a note (crew manager / owner / supervisor)
+            me = self._auth_user()
+            if not me:
+                return self._send(401, {"error": "unauthorized"})
+            return self._send(*coach_decide(me, self._body()))
 
         if u.path == "/ai/reports":                  # draft job cards from driver reports (extension or office)
             h = self.headers.get("Authorization") or ""

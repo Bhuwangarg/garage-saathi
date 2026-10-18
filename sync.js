@@ -69,7 +69,9 @@ const Sync = (function () {
                   // Claude's look at each returned old part's photo (server-written by /ai/core).
                   'coreai',
                   // Claude's draft job card for each driver report (server-written by /ai/reports).
-                  'reportai'];
+                  'reportai',
+                  // Weekly coaching notes (server-written by /ai/coaching and /ai/coaching/decide).
+                  'coachai'];
 
   const ls = window.localStorage;
   // Default sync backend: a device's explicit setting always wins. Otherwise, on
@@ -446,6 +448,23 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
       try { j = await res.json(); } catch (e) { /* not JSON */ }
       return res.ok ? j : { error: j.error || ('failed (' + res.status + ')') };
     } catch (e) { return { error: 'No connection to the server' }; }
+  }
+  // Weekly coaching notes: draft (office), decide (office), and the crew member's own approved ones.
+  async function _post(path, body) {
+    try {
+      const res = await fetch(baseUrl() + path, { method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify(body || {}) });
+      let j = {};
+      try { j = await res.json(); } catch (e) { /* not JSON */ }
+      return res.ok ? j : { error: j.error || ('failed (' + res.status + ')') };
+    } catch (e) { return { error: 'No connection to the server' }; }
+  }
+  const aiCoaching = () => _post('/ai/coaching');
+  const coachDecide = (id, decision, hi) => _post('/ai/coaching/decide', { id, decision, hi });
+  async function myCoaching() {
+    try {
+      const res = await fetch(baseUrl() + '/my/coaching', { headers: authHeaders(), cache: 'no-store' });
+      return res.ok ? await res.json() : null;
+    } catch (e) { return null; }
   }
   // Read a supplier bill photo with Claude (store/owner/supervisor): {bill, checks} or {error}.
   async function aiBill(photo) {
@@ -1016,7 +1035,7 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
     } catch (e) { return null; }
   }
 
-  return { start, tick, kick, setUrl, reset, info, login, logout, warmUp, roster, pendingIds, addStaff, deleteStaff, renameStaff, registerRoster, setPin, gps, validSyncUrl, backfillContacts, setActor, tokenUser, now, deleteUploads, ai, aiVision, challans, itsLookup, myReviews, aiReviews, aiNames, aiGate, aiBill, aiCore, aiReports, fleet, latest, uploadPhoto,
+  return { start, tick, kick, setUrl, reset, info, login, logout, warmUp, roster, pendingIds, addStaff, deleteStaff, renameStaff, registerRoster, setPin, gps, validSyncUrl, backfillContacts, setActor, tokenUser, now, deleteUploads, ai, aiVision, challans, itsLookup, myReviews, aiReviews, aiNames, aiGate, aiBill, aiCore, aiReports, aiCoaching, coachDecide, myCoaching, fleet, latest, uploadPhoto,
            queuePhoto, uploadError, remove, clearQuarantine, subscribePush, pushTest, flagOn, flagList,
            get status() { return status; } };
 })();
