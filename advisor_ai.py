@@ -250,10 +250,20 @@ def _count(items):
 
 
 def _latest_challans(R):
+    """One snapshot per bus, by app.js challanSnapshots' rule, so the advisor and the Challans
+    screen give the same total: the snapshot keyed by the exact registration wins; an older,
+    differently keyed one counts only if it found something; otherwise the newest."""
     best = {}
     for c in R.challans:
-        k = CT.norm_reg(c.get("rc"))
-        if k and (k not in best or (c.get("fetchedAt") or 0) > (best[k].get("fetchedAt") or 0)):
+        if not c or not c.get("rc"):
+            continue
+        k = CT.norm_reg(c["rc"])
+        exact = c["rc"] == k
+        if not exact and not (c.get("total") or 0) > 0:
+            continue
+        cur = best.get(k)
+        cur_exact = bool(cur) and cur.get("rc") == k
+        if not cur or (exact and not cur_exact) or (exact == cur_exact and (c.get("fetchedAt") or 0) > (cur.get("fetchedAt") or 0)):
             best[k] = c
     return list(best.values())
 

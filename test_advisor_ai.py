@@ -84,6 +84,10 @@ check("review listing has no PNR, seat or passenger text", lst["total"] == 8 and
 put("buses", {"id": "b3", "regNo": "RJ09PA6141"})
 check("gate checks: the buses with none are listed", AD.run_tool(AD.Records(dict(stores, buses=dict(stores["buses"], b3={"id": "b3", "regNo": "RJ09PA6141"})), now, rows),
       "rank", {"metric": "gate_checks_by_bus", "days": 7})["buses_with_no_check"] == ["RJ09PA6141"])
+R2 = AD.Records(dict(stores, challans={"a": {"rc": "MP44ZD0471", "pendingCount": 2, "pendingFine": 1000, "total": 2, "fetchedAt": 1},
+                                       "b": {"rc": "MP44ZD471", "pendingCount": 9, "pendingFine": 90000, "total": 9, "fetchedAt": 5},
+                                       "c": {"rc": "RJ 14 PB 1218", "pendingCount": 0, "pendingFine": 0, "total": 0, "fetchedAt": 9}}), now, rows)
+check("challans: one snapshot per bus by the app's rule (exact registration wins)", AD.run_tool(R2, "money", {})["challan_fines_pending"] == 1000)
 check("bus overview", AD.run_tool(R, "bus_overview", {"bus_id": "b1"})["gate_checks"]["done"] == 8)
 check("crew overview", AD.run_tool(R, "crew_overview", {"crew_id": "d-sym"})["reviews"] == {"theirs": 0, "avg": None, "low": 0, "not_theirs": 8, "low_topics": {}})
 check("low stock", AD.run_tool(R, "stock", {"low_only": True})["parts"][0]["name"] == "Brake pad set")
