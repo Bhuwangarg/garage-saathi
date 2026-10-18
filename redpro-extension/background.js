@@ -135,6 +135,19 @@ async function matchNames(settings) {
   } catch (e) { return '; names: Claude not reachable'; }
 }
 
+async function checkGatePhotos(settings, state) {
+  try {
+    step('Gate checks: Claude is looking at new photos…');
+    const res = await fetch((settings.gsUrl || DEFAULTS.gsUrl).replace(/\/$/, '') + '/ai/gate', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + settings.token }, body: '{}',
+    });
+    let j = {};
+    try { j = await res.json(); } catch (e) { /* not JSON */ }
+    if (res.ok && j.checked) state.gatePhotos = { last: Date.now(), result: `${j.checked} checks looked at, ${j.flagged} flagged` };
+    else if (!res.ok) state.gatePhotos = Object.assign({}, state.gatePhotos, { error: j.error || String(res.status), errorAt: Date.now() });
+  } catch (e) { /* offline: try again next tick */ }
+}
+
 async function runJob(job, tabId, settings, state, cap) {
   if (job === 'assignments') {
     const j = await call(tabId, '/win/api/vehicleAssignment/getVehicleAssignmentServiceList');
@@ -212,6 +225,9 @@ async function tick(manual) {
   const out = {};
   try {
     if (!settings.token) { state.problem = 'Paste the Garage Saathi token in this extension (click its icon)'; return out; }
+    // Every tick: ask Garage Saathi to have Claude look at new gate check photos. It needs no
+    // redPro tab, costs nothing when there is nothing new, and never stops the redPro jobs.
+    await checkGatePhotos(settings, state);
     const now = Date.now();
     const jobs = RP.JOBS.filter((j) => manual || RP.due(j, now, state));
     if (!jobs.length) return out;

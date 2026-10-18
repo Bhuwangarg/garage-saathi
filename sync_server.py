@@ -29,6 +29,7 @@ import urllib.request
 import uuid
 
 import crew_trace
+import gate_ai
 import name_ai
 import review_ai
 import wa_client
@@ -1177,7 +1178,9 @@ SERVER_INGEST_ONLY = {"gpsevents", "gpslive", "challans", "odometerlogs", "wacon
                       # aimeta is that job's own bookkeeping and is never sent to any phone.
                       "rbreviewai", "aimeta",
                       # Claude's answer for each typed redBus name (name_ai.py), written only by /ai/names.
-                      "rbaliasai"}
+                      "rbaliasai",
+                      # Claude's look at each gate check's photos (gate_ai.py), written only by /ai/gate.
+                      "gateai"}
 
 # A phone with a wrong clock is normal; a record dated 2100 is not. Without a
 # bound, last-write-wins makes a far-future write permanent — the owner's
@@ -2154,11 +2157,24 @@ def review_ai_diag(call=None):
         finally:
             c.close()
     bid = meta.get("batchId") or meta.get("lastBatch")
+    # Counts only, no text: how the readings split by whose fault.
+    with _lock:
+        c = db()
+        try:
+            got = list(_store_rows(c, "rbreviewai").values())
+        finally:
+            c.close()
+    summary = {"read": len(got), "noComplaint": sum(1 for a in got if not a.get("faults")), "safety": sum(1 for a in got if a.get("safety")),
+               "crewFault": sum(1 for a in got if set(a.get("faults") or []) & {"driver", "conductor", "crew"}),
+               "notCrew": sum(1 for a in got if a.get("faults") and not set(a["faults"]) & {"driver", "conductor", "crew"})}
+    for a in got:
+        for f in a.get("faults") or []:
+            summary["f_" + f] = summary.get("f_" + f, 0) + 1
     if not bid:
-        return 200, {"ok": True, "batch": None}
+        return 200, {"ok": True, "batch": None, "summary": summary}
     st = call("GET", "/messages/batches/" + bid, None)
     out = {"ok": True, "batch": bid, "status": st.get("processing_status"), "counts": st.get("request_counts"),
-           "lastError": meta.get("lastError"), "pauseUntil": meta.get("pauseUntil"), "errors": []}
+           "lastError": meta.get("lastError"), "pauseUntil": meta.get("pauseUntil"), "errors": [], "summary": summary}
     if st.get("processing_status") == "ended":
         for line in (call("GET", "/messages/batches/%s/results" % bid, None) or "").splitlines()[:400]:
             try:
@@ -2391,6 +2407,89 @@ def names_ai_tick(call=None):
                 c.close()
         todo = todo[len(items):]
     out["pending"] = len(todo)
+    return 200, out
+
+
+# ----------------------------- Gate check photos -----------------------------------------------
+# Claude looks at each submitted gate check's AC, blanket and cabin photos (gate_ai.py) and says
+# whether each shows what it must; the code flags a photo used twice. The office sees the flags; no
+# check is held or released because of them. Run by the redPro extension's 10-minute tick and by
+# the office's gate screens.
+AI_GATE_DAYS = 7
+AI_GATE_PER_CALL = 2                  # checks per request: ~3 images each, well inside 60 s
+AI_GATE_DAILY_CALLS = int(os.environ.get("AI_GATE_DAILY_CALLS", "300"))
+
+
+def gate_ai_tick(call=None):
+    if not ANTHROPIC_API_KEY and call is None:
+        return 501, {"error": "AI not configured on server (ANTHROPIC_API_KEY)"}
+    call = call or _anthropic
+    with _lock:
+        c = db()
+        try:
+            checks = list(_store_rows(c, "gatechecks").values())
+            readings = _store_rows(c, "gateai")
+        finally:
+            c.close()
+    # Every photo ever used, earliest first: a photo seen again later is a repeat.
+    earlier = {}
+    for ch in sorted(checks, key=lambda x: x.get("startedAt") or 0):
+        for k, p in gate_ai.photos_of(ch).items():
+            earlier.setdefault(p, (ch.get("id"), k))
+    since = now_ms() - AI_GATE_DAYS * 86400000
+    todo = []
+    for ch in checks:
+        if not gate_ai.is_submitted(ch) or (ch.get("startedAt") or 0) < since:
+            continue
+        photos = gate_ai.photos_of(ch)
+        if not photos:
+            continue
+        old = readings.get("ga-" + ch["id"])
+        if old and old.get("v") == gate_ai.PROMPT_V and old.get("h") == gate_ai.photos_hash(photos):
+            continue
+        todo.append(ch)
+    todo.sort(key=lambda x: -(x.get("startedAt") or 0))
+    out = {"ok": True, "checked": 0, "flagged": 0}
+    for ch in todo[:AI_GATE_PER_CALL]:
+        with _lock:
+            c = db()
+            try:
+                key = "gate:%s" % datetime.utcnow().strftime("%Y-%m-%d")
+                row = c.execute("SELECT n FROM aiusage WHERE k=?", (key,)).fetchone()
+                n = int(row[0]) if row else 0
+                if n >= AI_GATE_DAILY_CALLS:
+                    out["limited"] = True
+                    break
+                c.execute("INSERT INTO aiusage(k,n) VALUES(?,?) ON CONFLICT(k) DO UPDATE SET n=excluded.n", (key, n + 1))
+                c.commit()
+            finally:
+                c.close()
+        params, keys = gate_ai.params_for(ch, AI_MODEL)
+        err = None
+        try:
+            items = gate_ai.parse_message(call("POST", "/messages", params), keys) if params else {}
+        except urllib.error.HTTPError as e:
+            if e.code != 400:
+                raise
+            # Claude could not open a photo (a broken link): say so once, not every ten minutes.
+            items, err = {}, "photos could not be opened"
+        if params and not err and len(items) < len(keys):
+            continue                      # an incomplete answer is asked again next time
+        dup = gate_ai.duplicates(ch, earlier)
+        rec = {"id": "ga-" + ch["id"], "check": ch["id"], "busId": ch.get("busId"), "v": gate_ai.PROMPT_V,
+               "h": gate_ai.photos_hash(gate_ai.photos_of(ch)), "items": items, "dup": dup, "error": err, "model": AI_MODEL, "at": now_ms()}
+        with _lock:
+            c = db()
+            try:
+                rev = c.execute("SELECT COALESCE(MAX(rev),0) FROM records").fetchone()[0]
+                _upsert_record(c, "gateai", rec["id"], rec, now_ms(), rev)
+                c.commit()
+            finally:
+                c.close()
+        out["checked"] += 1
+        if dup or any(v["verdict"] != "ok" for v in items.values()):
+            out["flagged"] += 1
+    out["pending"] = max(0, len(todo) - out["checked"])
     return 200, out
 
 
@@ -2931,7 +3030,7 @@ def redact_for(actor, rec):
         return rec
     if st == "waconv":                    # keyed by a crew member's phone number
         return None
-    if st in ("rbreviews", "rbcomplaints", "rbassign", "itslookup", "rbreviewai", "rbaliasai"):
+    if st in ("rbreviews", "rbcomplaints", "rbassign", "itslookup", "rbreviewai", "rbaliasai", "gateai"):
         # Reviews, complaints and redBus's driver names are for the people who act
         # on them. A driver's phone does not need every passenger's comment about
         # every colleague. (rbservices holds no names: drivers need it to pick the
@@ -4743,6 +4842,21 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(*its_lookup_diag(b.get("pnrs")))
             code, res = its_lookup_batch((b or {}).get("pnrs") if isinstance(b, dict) else None, me)
             return self._send(code, res)
+
+        if u.path == "/ai/gate":                     # look at gate check photos (extension or office)
+            h = self.headers.get("Authorization") or ""
+            if not (_REDPRO_TOKEN_OK and hmac.compare_digest(h, "Bearer " + REDPRO_INGEST_TOKEN)):
+                me = self._auth_user()
+                if not me:
+                    return self._send(401, {"error": "unauthorized"})
+                if me["role"] not in ("owner", "supervisor"):
+                    return self._send(403, {"error": "forbidden"})
+            try:
+                return self._send(*gate_ai_tick())
+            except urllib.error.HTTPError as e:
+                return self._send(502, {"error": "Claude answered %s" % e.code})
+            except Exception as e:
+                return self._send(502, {"error": "AI upstream error: %s" % type(e).__name__})
 
         if u.path == "/ai/names":                    # match typed redBus names to crew (extension or office)
             h = self.headers.get("Authorization") or ""

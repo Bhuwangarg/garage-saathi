@@ -63,7 +63,9 @@ const Sync = (function () {
                   // Claude's reading of whose fault each review is (server-written by /ai/reviews).
                   'rbreviewai',
                   // Claude's answer for each typed redBus name (server-written by /ai/names).
-                  'rbaliasai'];
+                  'rbaliasai',
+                  // Claude's look at each gate check's photos (server-written by /ai/gate).
+                  'gateai'];
 
   const ls = window.localStorage;
   // Default sync backend: a device's explicit setting always wins. Otherwise, on
@@ -409,6 +411,15 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
   async function aiNames() {
     try {
       const res = await fetch(baseUrl() + '/ai/names', { method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }), body: '{}' });
+      let j = {};
+      try { j = await res.json(); } catch (e) { /* not JSON */ }
+      return res.ok ? j : { error: j.error || ('failed (' + res.status + ')') };
+    } catch (e) { return { error: 'No connection to the server' }; }
+  }
+  // Ask the server to have Claude look at new gate check photos (owner/supervisor).
+  async function aiGate() {
+    try {
+      const res = await fetch(baseUrl() + '/ai/gate', { method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }), body: '{}' });
       let j = {};
       try { j = await res.json(); } catch (e) { /* not JSON */ }
       return res.ok ? j : { error: j.error || ('failed (' + res.status + ')') };
@@ -974,7 +985,7 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
     } catch (e) { return null; }
   }
 
-  return { start, tick, kick, setUrl, reset, info, login, logout, warmUp, roster, pendingIds, addStaff, deleteStaff, renameStaff, registerRoster, setPin, gps, validSyncUrl, backfillContacts, setActor, tokenUser, now, deleteUploads, ai, aiVision, challans, itsLookup, myReviews, aiReviews, aiNames, fleet, latest, uploadPhoto,
+  return { start, tick, kick, setUrl, reset, info, login, logout, warmUp, roster, pendingIds, addStaff, deleteStaff, renameStaff, registerRoster, setPin, gps, validSyncUrl, backfillContacts, setActor, tokenUser, now, deleteUploads, ai, aiVision, challans, itsLookup, myReviews, aiReviews, aiNames, aiGate, fleet, latest, uploadPhoto,
            queuePhoto, uploadError, remove, clearQuarantine, subscribePush, pushTest, flagOn, flagList,
            get status() { return status; } };
 })();

@@ -339,6 +339,8 @@ const I18N = {
     myRvNone: 'No review is linked to you yet. Do the gate check before every departure, with the service picked: that is what links passengers\' reviews to you.',
     myRvNoneC: 'No review is linked to you yet. They link to you through the duty board, so make sure the office has you on the right bus.',
     myRvLoading: 'Fetching your reviews…', myRvOffline: 'Could not fetch your reviews. They will show once the phone is online.', myRvFew: 'Fewer than 10 rated trips: not counted in your rating yet.', myRvWork: 'Low ratings mention', myRvNoText: 'No comment, only stars.',
+    gai_ok: 'photo looks right', gai_doubt: 'photo doubtful', gai_wrong: 'photo does not show this', gaiSameAs: 'same photo as', gaiReused: 'photo reused from an earlier check',
+    gaiUnreadable: 'Claude could not open the photos', gaiDoubt1: 'photo to look at', gaiDoubts: 'photos to look at', gaiHomeChip: 'with photo doubts',
     rbnAiTitle: 'Claude matches names', rbnAiMatched: 'matched by Claude', rbnAiGeneric: 'marked not a name', rbnAiSuggested: 'suggested',
     rbnAiRule: 'Claude confirms a name by itself only when it is sure AND the duty log had that person on that bus on most of those nights. Everything else waits for you below.',
     rbnAiNights: 'nights on this bus per duty log', rbnAiConf_high: 'sure', rbnAiConf_medium: 'probably', rbnAiConf_low: 'unsure',
@@ -709,6 +711,8 @@ const I18N = {
     myRvNone: 'अभी कोई रिव्यू आपसे नहीं जुड़ा। हर रवानगी से पहले सर्विस चुनकर गेट चेक करें: इसी से यात्रियों के रिव्यू आपसे जुड़ते हैं।',
     myRvNoneC: 'अभी कोई रिव्यू आपसे नहीं जुड़ा। ये ड्यूटी बोर्ड से जुड़ते हैं, ऑफिस से पक्का करें कि आप सही बस पर दर्ज हैं।',
     myRvLoading: 'आपके रिव्यू आ रहे हैं…', myRvOffline: 'रिव्यू नहीं आ सके। फ़ोन ऑनलाइन होने पर दिखेंगे।', myRvFew: '10 से कम रेटिंग: अभी आपकी रेटिंग में नहीं गिने गए।', myRvWork: 'कम रेटिंग में', myRvNoText: 'कोई टिप्पणी नहीं, सिर्फ़ स्टार।',
+    gai_ok: 'फ़ोटो सही लगती है', gai_doubt: 'फ़ोटो पर शक', gai_wrong: 'फ़ोटो में यह नहीं है', gaiSameAs: 'वही फ़ोटो जो', gaiReused: 'पिछले चेक की फ़ोटो दोबारा',
+    gaiUnreadable: 'Claude फ़ोटो नहीं खोल सका', gaiDoubt1: 'फ़ोटो देखनी है', gaiDoubts: 'फ़ोटो देखनी हैं', gaiHomeChip: 'फ़ोटो पर शक',
     rbnAiTitle: 'Claude नाम मिलाता है', rbnAiMatched: 'Claude ने मिलाए', rbnAiGeneric: 'नाम नहीं माने', rbnAiSuggested: 'सुझाए',
     rbnAiRule: 'Claude ख़ुद तभी पक्का करता है जब वह निश्चित हो और ड्यूटी लॉग में वही व्यक्ति उन ज़्यादातर रातों उस बस पर हो। बाक़ी आपके लिए नीचे हैं।',
     rbnAiNights: 'रातें इस बस पर (ड्यूटी लॉग)', rbnAiConf_high: 'पक्का', rbnAiConf_medium: 'शायद', rbnAiConf_low: 'पता नहीं',
@@ -1332,8 +1336,8 @@ async function load() {
   const gatepasses = await DB.all('gatepasses').catch(() => []);
   const dutylog = await DB.all('dutylog').catch(() => []);
   const gatechecks = await DB.all('gatechecks').catch(() => []);
-  const [rbservices, rbreviews, rbcomplaints, rbassign, rbalias, itslookup, rbreviewai, rbaliasai] = await Promise.all(['rbservices', 'rbreviews', 'rbcomplaints', 'rbassign', 'rbalias', 'itslookup', 'rbreviewai', 'rbaliasai'].map((n) => DB.all(n).catch(() => [])));
-  S.cache = { users, buses, parts, jobs, ledger, att, purchases, drivers, incidents, driverreports, routes, triplog, fuel, gpsevents, audits, components, def, vendors, trips, challans, usage, stockmoves, breakdowns, gatepasses, dutylog, gatechecks, rbservices, rbreviews, rbcomplaints, rbassign, rbalias, itslookup, rbreviewai, rbaliasai, garage };
+  const [rbservices, rbreviews, rbcomplaints, rbassign, rbalias, itslookup, rbreviewai, rbaliasai, gateai] = await Promise.all(['rbservices', 'rbreviews', 'rbcomplaints', 'rbassign', 'rbalias', 'itslookup', 'rbreviewai', 'rbaliasai', 'gateai'].map((n) => DB.all(n).catch(() => [])));
+  S.cache = { users, buses, parts, jobs, ledger, att, purchases, drivers, incidents, driverreports, routes, triplog, fuel, gpsevents, audits, components, def, vendors, trips, challans, usage, stockmoves, breakdowns, gatepasses, dutylog, gatechecks, rbservices, rbreviews, rbcomplaints, rbassign, rbalias, itslookup, rbreviewai, rbaliasai, gateai, garage };
   refreshBiz();   // keep the displayed business name in sync with garage config
 }
 const byId = (arr, id) => arr.find((x) => x.id === id);
@@ -9376,11 +9380,45 @@ const GATE_STATUS = {   // status → [badge class, i18n key]
   approved: ['b-amber', 'gcApproved'], released: ['b-green', 'gcReleased'],
 };
 const gateBadge = (c) => { const m = GATE_STATUS[c.status] || GATE_STATUS.open; return `<span class="badge ${m[0]}">${t(m[1])}</span>`; };
+/* Claude's look at the AC / blanket / cabin photos (gate_ai.py), for the office only: the server
+ * does not send it to drivers. A flag never holds or releases a bus; the office judges. */
+let _gaiMemo = { key: null, map: null };
+function gateAiOf(c) {
+  if (_gaiMemo.key !== S.cache) _gaiMemo = { key: S.cache, map: new Map((S.cache.gateai || []).map((a) => [a.check, a])) };
+  return _gaiMemo.map.get(c.id) || null;
+}
+// Photos Claude doubted or rejected, plus repeats; 0 when nothing was read yet.
+function gateAiDoubts(c) {
+  const a = gateAiOf(c); if (!a) return 0;
+  const bad = new Set(Object.keys(a.items || {}).filter((k) => a.items[k].verdict !== 'ok'));
+  Object.keys(a.dup || {}).forEach((k) => bad.add(k));
+  return bad.size;
+}
+function gateAiLine(c, k) {
+  const a = gateAiOf(c); if (!a || !can(S.user.role, 'gateDecide')) return '';
+  const v = (a.items || {})[k], d = (a.dup || {})[k], out = [];
+  if (v) {
+    const col = v.verdict === 'ok' ? 'var(--green)' : v.verdict === 'doubt' ? 'var(--amber)' : 'var(--red)';
+    out.push(`<span style="color:${col};font-weight:700">🤖 ${t('gai_' + v.verdict)}</span>${v.verdict === 'ok' ? '' : ': ' + esc((LANG === 'hi' ? v.hi : v.reason) || v.reason || '')}`);
+  }
+  if (d) out.push(`<span style="color:var(--red);font-weight:700">📸 ${d.sameAs ? t('gaiSameAs') + ' ' + esc(gateItemLabel(d.sameAs)) : t('gaiReused')}</span>`);
+  if (!v && a.error && Gate.GATE_ITEMS.find((s) => s.k === k && s.photo)) out.push(`<span class="muted">🤖 ${t('gaiUnreadable')}</span>`);
+  return out.length ? `<div class="tiny" style="margin-top:2px">${out.join(' · ')}</div>` : '';
+}
+// Opening an office gate screen nudges the photo check along (the extension also runs it every 10 min).
+let _gaiLast = 0;
+function gateAiNudge() {
+  if (!can(S.user.role, 'gateDecide') || !Sync.aiGate || Date.now() - _gaiLast < 120000) return;
+  _gaiLast = Date.now();
+  Sync.aiGate().then((j) => { if (j && j.checked) { if (Sync.kick) Sync.kick(); load().then(rerender); } });
+}
 function gateFlags(c) {
   const f = [];
   if (c.lat == null) f.push(t('gcNoLocation'));
   if (!c.faceVerified) f.push(t('gcFaceNo'));
   if (c.onDutyBoard === false) f.push(t('gcNotOnBoardShort'));
+  const n = gateAiDoubts(c);
+  if (n) f.push(`🤖 ${n} ${t(n === 1 ? 'gaiDoubt1' : 'gaiDoubts')}`);
   return f.length ? `<div class="tiny" style="color:var(--amber);font-weight:700">⚠️ ${f.map(esc).join(' · ')}</div>` : '';
 }
 
@@ -9428,6 +9466,7 @@ async function gateStart() {
 const _gateMine = (c) => { const d = S.user.role === 'driver' ? driverForUser(S.user.id) : null; return !!(d && c && c.driverId === d.id); };
 
 function viewGate(id) {
+  gateAiNudge();
   const c = gateChecks().find((x) => x.id === id);
   if (!c) return shell(t('gcTitle'), `<div class="card"><div class="empty">${t('gcNotFound')}</div></div>`);
   const mine = _gateMine(c), editable = mine && c.status === 'open';
@@ -9461,7 +9500,8 @@ function viewGate(id) {
       : `<span class="badge ${state === 'ok' ? 'b-green' : state === 'bad' ? 'b-red' : 'b-low'}">${state === 'ok' ? '✓' : state === 'bad' ? '✗' : '—'}</span>`;
     return `<div class="gc-row ${state}"><div class="gc-main"><div class="t">${esc(gateItemLabel(spec.k))}${spec.photo && !it.photo && state !== 'bad' ? ` <span class="tiny muted">· ${t('gcPhotoNeeded')}</span>` : ''}</div>
         ${it.ok === false && it.note ? `<div class="s gc-note">${esc(it.note)}</div>` : ''}
-        ${before.has(spec.k) && it.ok !== false ? `<div class="tiny" style="color:var(--amber)">${t('gcFailedEarlier')}</div>` : ''}</div>${thumb}${right}</div>`;
+        ${before.has(spec.k) && it.ok !== false ? `<div class="tiny" style="color:var(--amber)">${t('gcFailedEarlier')}</div>` : ''}
+        ${spec.photo && it.photo ? gateAiLine(c, spec.k) : ''}</div>${thumb}${right}</div>`;
   }).join('') + `</div>`;
   if (editable) {
     // Once the service list exists, a check must say which service it is for.
@@ -9590,6 +9630,7 @@ async function gateDecideSave(id, v) {
 }
 
 function viewGateChecks() {
+  gateAiNudge();
   const g = gateToday(), recent = g.recent;
   const waiting = recent.filter((c) => c.status === 'awaiting').sort((a, b) => (a.sentAt || a.updatedAt) - (b.sentAt || b.updatedAt));
   const row = (c) => {
@@ -9638,6 +9679,7 @@ function gateHomeSummaryCard() {
       ${g.held ? chip(g.held, 'gcHeld', 'crit') : ''}
       ${g.open ? chip(g.open, 'gcOpen', 'mute') : ''}
       ${chip(g.none.length, 'gcNoCheckShort', g.none.length ? 'warn' : 'ok')}
+      ${(() => { const n = g.recent.filter((c) => gateAiDoubts(c)).length; return n ? chip(n, 'gaiHomeChip', 'warn') : ''; })()}
     </div></div>`;
 }
 
