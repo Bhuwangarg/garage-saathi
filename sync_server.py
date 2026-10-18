@@ -28,6 +28,8 @@ import urllib.parse
 import urllib.request
 import uuid
 
+import crew_trace
+import name_ai
 import review_ai
 import wa_client
 from datetime import datetime
@@ -1173,7 +1175,9 @@ SERVER_INGEST_ONLY = {"gpsevents", "gpslive", "challans", "odometerlogs", "wacon
                       "rbservices", "rbreviews", "rbcomplaints", "rbassign",
                       # Claude's reading of each review (whose fault), written only by /ai/reviews;
                       # aimeta is that job's own bookkeeping and is never sent to any phone.
-                      "rbreviewai", "aimeta"}
+                      "rbreviewai", "aimeta",
+                      # Claude's answer for each typed redBus name (name_ai.py), written only by /ai/names.
+                      "rbaliasai"}
 
 # A phone with a wrong clock is normal; a record dated 2100 is not. Without a
 # bound, last-write-wins makes a far-future write permanent — the owner's
@@ -1937,7 +1941,10 @@ def _guard_rbalias(data, actor, old, c):
     if data.get("role") not in ("driver", "conductor"):
         return "invalid seat"
     status = data.get("status")
-    if status == "generic":
+    # Written by a person: whatever Claude decided before is theirs now (history keeps Claude's).
+    for k in ("auto", "reason", "evidence"):
+        data.pop(k, None)
+    if status in ("generic", "unsure"):
         data["crewId"] = None
     elif status == "crew":
         cid = data.get("crewId")
@@ -1954,7 +1961,7 @@ def _guard_rbalias(data, actor, old, c):
     data["decidedAt"] = now_ms()
     if old and (old.get("crewId") != data.get("crewId") or old.get("status") != status):
         hist = list(old.get("history") or [])
-        hist.append({k: old.get(k) for k in ("crewId", "status", "decidedBy", "decidedAt")})
+        hist.append({k: old.get(k) for k in ("crewId", "status", "decidedBy", "decidedAt", "reason")})
         data["history"] = hist[-20:]
     elif old:
         data["history"] = old.get("history") or []
@@ -2137,6 +2144,48 @@ def _save_readings(c, reviews_by_id, readings, model):
     return len(readings)
 
 
+def review_ai_diag(call=None):
+    """The errors Anthropic gave for the last batch: for finding out why it failed. No review text."""
+    call = call or _anthropic
+    with _lock:
+        c = db()
+        try:
+            meta = _store_rows(c, "aimeta").get("rv-batch") or {}
+        finally:
+            c.close()
+    bid = meta.get("batchId") or meta.get("lastBatch")
+    if not bid:
+        return 200, {"ok": True, "batch": None}
+    st = call("GET", "/messages/batches/" + bid, None)
+    out = {"ok": True, "batch": bid, "status": st.get("processing_status"), "counts": st.get("request_counts"),
+           "lastError": meta.get("lastError"), "pauseUntil": meta.get("pauseUntil"), "errors": []}
+    if st.get("processing_status") == "ended":
+        for line in (call("GET", "/messages/batches/%s/results" % bid, None) or "").splitlines()[:400]:
+            try:
+                res = (json.loads(line).get("result") or {})
+            except Exception:
+                continue
+            if res.get("type") != "succeeded" and len(out["errors"]) < 3:
+                out["errors"].append(json.dumps(res.get("error") or res)[:400])
+    return 200, out
+
+
+def review_ai_retry():
+    """Clear a pause, so the next tick sends the backlog again (after a fix ships)."""
+    with _lock:
+        c = db()
+        try:
+            meta = _store_rows(c, "aimeta").get("rv-batch") or {"id": "rv-batch"}
+            if meta.get("batchId"):
+                return 409, {"error": "a batch is still open"}
+            rev = c.execute("SELECT COALESCE(MAX(rev),0) FROM records").fetchone()[0]
+            _upsert_record(c, "aimeta", "rv-batch", dict(meta, pauseUntil=None), now_ms(), rev)
+            c.commit()
+        finally:
+            c.close()
+    return 200, {"ok": True}
+
+
 def review_ai_tick(call=None):
     """One step of the job. Returns (status, body). `call(method, path, payload)` is the API (tests
     pass a fake)."""
@@ -2159,7 +2208,7 @@ def review_ai_tick(call=None):
         st = call("GET", "/messages/batches/" + meta["batchId"], None)
         if st.get("processing_status") == "ended":
             text = call("GET", "/messages/batches/%s/results" % meta["batchId"], None)
-            got = {}
+            got, ok_n, bad_n, first_err = {}, 0, 0, None
             for line in (text or "").splitlines():
                 try:
                     row = json.loads(line)
@@ -2168,7 +2217,13 @@ def review_ai_tick(call=None):
                 ids = (meta.get("chunks") or {}).get(row.get("custom_id")) or []
                 res = row.get("result") or {}
                 if res.get("type") != "succeeded":
+                    bad_n += 1
+                    if first_err is None:
+                        err = (res.get("error") or {})
+                        err = err.get("error") or err          # {"type": "error", "error": {type, message}}
+                        first_err = ("%s: %s" % (err.get("type") or res.get("type"), err.get("message") or ""))[:300]
                     continue
+                ok_n += 1
                 chunk = [reviews[i] for i in ids if i in reviews]
                 # Only a reading of the text that was sent: a review edited since is asked again.
                 hashes = (meta.get("hashes") or {})
@@ -2179,19 +2234,30 @@ def review_ai_tick(call=None):
                 try:
                     out["classified"] += _save_readings(c, reviews, got, meta.get("model") or AI_MODEL)
                     rev = c.execute("SELECT COALESCE(MAX(rev),0) FROM records").fetchone()[0]
+                    # A batch that mostly failed is never sent again by itself: the job pauses and says why.
+                    failed = bad_n and bad_n >= ok_n
                     _upsert_record(c, "aimeta", "rv-batch", {"id": "rv-batch", "batchId": None, "lastBatch": meta["batchId"],
-                                                             "lastCollected": len(got), "at": now_ms()}, now_ms(), rev)
+                                                             "lastCollected": len(got), "lastOk": ok_n, "lastFailed": bad_n,
+                                                             "lastError": first_err, "at": now_ms(),
+                                                             "pauseUntil": now_ms() + 6 * 3600000 if failed else None}, now_ms(), rev)
                     c.commit()
                 finally:
                     c.close()
             readings = dict(readings, **{"ai-" + k: {"v": review_ai.PROMPT_V, "h": review_ai.content_hash(reviews[k])} for k in got})
-            out["batch"] = {"collected": len(got), "id": meta["batchId"]}
+            out["batch"] = {"collected": len(got), "id": meta["batchId"], "ok": ok_n, "failed": bad_n, "error": first_err}
+            meta = {"pauseUntil": now_ms() + 6 * 3600000 if (bad_n and bad_n >= ok_n) else None, "lastError": first_err}
         else:
             in_batch = {i for ids in (meta.get("chunks") or {}).values() for i in ids}
             out["batch"] = {"id": meta["batchId"], "status": st.get("processing_status"),
                             "counts": st.get("request_counts"), "reviews": len(in_batch)}
 
     todo = review_ai.pending(list(reviews.values()), readings, skip=in_batch)
+    paused = bool(meta and meta.get("pauseUntil") and meta["pauseUntil"] > now_ms())
+    if paused:
+        # The last batch failed: no new batch and no direct calls until the pause ends (or a fix ships
+        # and the owner clears it with {"retry": true}).
+        out.update(paused=True, error=meta.get("lastError"), pending=len(todo))
+        return 200, out
 
     # 2. A backlog and no batch open: send it all as one batch.
     if len(todo) >= AI_REVIEW_BATCH_MIN and not in_batch:
@@ -2240,6 +2306,91 @@ def review_ai_tick(call=None):
             todo = todo[len(chunk):] if got else todo
     out["pending"] = len(todo)
     out["done"] = sum(1 for r in reviews.values() if review_ai.has_text(r)) - len(todo) - len(in_batch)
+    return 200, out
+
+
+# ----------------------------- redBus name matching ---------------------------------------------
+# Claude reads each unconfirmed typed name against the crew bank and the duty log (name_ai.py). A
+# strong match is confirmed by itself (the owner's decision, 18 Oct 2026); the rest are suggestions
+# on the Confirm redBus names screen. A name a person has decided is never touched.
+AI_NAMES_DAILY_CALLS = int(os.environ.get("AI_NAMES_DAILY_CALLS", "60"))
+
+
+def names_ai_tick(call=None):
+    if not ANTHROPIC_API_KEY and call is None:
+        return 501, {"error": "AI not configured on server (ANTHROPIC_API_KEY)"}
+    call = call or _anthropic
+    with _lock:
+        c = db()
+        try:
+            assign = list(_store_rows(c, "rbassign").values())
+            aliases = _store_rows(c, "rbalias")
+            answers = _store_rows(c, "rbaliasai")
+            crew = [d for d in _store_rows(c, "drivers").values() if (d.get("status") or "active") == "active"]
+            ctx = crew_trace.Context([], [], [], list(_store_rows(c, "buses").values()),
+                                     list(_store_rows(c, "dutylog").values()), [], [])
+        finally:
+            c.close()
+    todo = []
+    for pid, pair in name_ai.pairs_from(assign).items():
+        if pid in aliases:
+            continue
+        cands, nights = name_ai.evidence(pair, ctx, crew)
+        eh = name_ai.evidence_hash(pair, cands, nights)
+        old = answers.get(pid)
+        # Asked again when the evidence changes (more nights, a new duty-log entry) or the prompt does.
+        if old and old.get("v") == name_ai.PROMPT_V and old.get("eh") == eh:
+            continue
+        todo.append({"pair": pair, "cands": cands, "nights": nights, "eh": eh})
+    todo.sort(key=lambda it: -it["nights"])
+    out = {"ok": True, "asked": 0, "confirmed": 0, "generic": 0, "suggested": 0}
+    if todo:
+        key = "names:%s" % datetime.utcnow().strftime("%Y-%m-%d")
+        with _lock:
+            c = db()
+            try:
+                row = c.execute("SELECT n FROM aiusage WHERE k=?", (key,)).fetchone()
+                n = int(row[0]) if row else 0
+                if n >= AI_NAMES_DAILY_CALLS:
+                    out["limited"] = True
+                else:
+                    c.execute("INSERT INTO aiusage(k,n) VALUES(?,?) ON CONFLICT(k) DO UPDATE SET n=excluded.n", (key, n + 1))
+                    c.commit()
+            finally:
+                c.close()
+    if todo and not out.get("limited"):
+        items = todo[:name_ai.CHUNK]
+        got = name_ai.parse_message(call("POST", "/messages", name_ai.params_for(items, AI_MODEL)), items)
+        now = now_ms()
+        with _lock:
+            c = db()
+            try:
+                rev = c.execute("SELECT COALESCE(MAX(rev),0) FROM records").fetchone()[0]
+                for it in items:
+                    a = got.get(it["pair"]["id"])
+                    if not a:
+                        continue
+                    out["asked"] += 1
+                    pid = it["pair"]["id"]
+                    on = next((x["onBus"] for x in it["cands"] if x["crewId"] == a["pick"]), 0)
+                    rev = _upsert_record(c, "rbaliasai", pid, dict(a, id=pid, v=name_ai.PROMPT_V, eh=it["eh"], at=now,
+                                                                   model=AI_MODEL, nights=it["nights"], onBus=on), now, rev)
+                    verdict = name_ai.decide(a, it["cands"], it["nights"])
+                    exists = c.execute("SELECT 1 FROM records WHERE store='rbalias' AND id=?", (pid,)).fetchone()
+                    if verdict and not exists:
+                        p = it["pair"]
+                        rev = _upsert_record(c, "rbalias", pid, {
+                            "id": pid, "name": p["name"], "regNo": p["regNo"], "role": p["role"], "status": verdict,
+                            "crewId": a["pick"] if verdict == "crew" else None, "decidedBy": "claude", "decidedAt": now,
+                            "auto": True, "reason": a["reason"], "evidence": {"nights": it["nights"], "onBus": on}}, now, rev)
+                        out["confirmed" if verdict == "crew" else "generic"] += 1
+                    else:
+                        out["suggested"] += 1
+                c.commit()
+            finally:
+                c.close()
+        todo = todo[len(items):]
+    out["pending"] = len(todo)
     return 200, out
 
 
@@ -2780,7 +2931,7 @@ def redact_for(actor, rec):
         return rec
     if st == "waconv":                    # keyed by a crew member's phone number
         return None
-    if st in ("rbreviews", "rbcomplaints", "rbassign", "itslookup", "rbreviewai"):
+    if st in ("rbreviews", "rbcomplaints", "rbassign", "itslookup", "rbreviewai", "rbaliasai"):
         # Reviews, complaints and redBus's driver names are for the people who act
         # on them. A driver's phone does not need every passenger's comment about
         # every colleague. (rbservices holds no names: drivers need it to pick the
@@ -4593,6 +4744,21 @@ class Handler(BaseHTTPRequestHandler):
             code, res = its_lookup_batch((b or {}).get("pnrs") if isinstance(b, dict) else None, me)
             return self._send(code, res)
 
+        if u.path == "/ai/names":                    # match typed redBus names to crew (extension or office)
+            h = self.headers.get("Authorization") or ""
+            if not (_REDPRO_TOKEN_OK and hmac.compare_digest(h, "Bearer " + REDPRO_INGEST_TOKEN)):
+                me = self._auth_user()
+                if not me:
+                    return self._send(401, {"error": "unauthorized"})
+                if me["role"] not in ("owner", "supervisor", "crewmanager"):
+                    return self._send(403, {"error": "forbidden"})
+            try:
+                return self._send(*names_ai_tick())
+            except urllib.error.HTTPError as e:
+                return self._send(502, {"error": "Claude answered %s" % e.code})
+            except Exception as e:
+                return self._send(502, {"error": "AI upstream error: %s" % type(e).__name__})
+
         if u.path == "/ai/reviews":                  # read new reviews for whose fault (extension or owner)
             h = self.headers.get("Authorization") or ""
             by_token = _REDPRO_TOKEN_OK and hmac.compare_digest(h, "Bearer " + REDPRO_INGEST_TOKEN)
@@ -4602,7 +4768,12 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(401, {"error": "unauthorized"})
                 if me["role"] not in ("owner", "supervisor"):
                     return self._send(403, {"error": "forbidden"})
+            b = self._body()
             try:
+                if isinstance(b, dict) and b.get("diag"):
+                    return self._send(*review_ai_diag())
+                if isinstance(b, dict) and b.get("retry"):
+                    return self._send(*review_ai_retry())
                 return self._send(*review_ai_tick())
             except urllib.error.HTTPError as e:
                 return self._send(502, {"error": "Claude answered %s" % e.code})

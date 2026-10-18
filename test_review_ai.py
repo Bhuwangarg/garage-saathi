@@ -107,6 +107,30 @@ r = rows("rbreviewai")
 check("the finished batch is collected", res["batch"]["collected"] == 40 and r["ai-rv-b1"]["faults"] == ["bus"] and r["ai-rv-b2"]["faults"] == ["driver"])
 check("…and nothing is pending", res["pending"] == 0)
 
+# A batch that comes back failed is never sent again by itself.
+class Failing(FakeClaude):
+    def __call__(self, method, path, payload):
+        if path.endswith("/results"):
+            self.calls.append((method, path))
+            return "\n".join(json.dumps({"custom_id": r["custom_id"], "result": {"type": "errored", "error": {"type": "error",
+                              "error": {"type": "invalid_request_error", "message": "bad tool"}}}}) for r in self.batch)
+        return FakeClaude.__call__(self, method, path, payload)
+
+
+for n in range(30):
+    put("rbreviews", {"id": "rv-f%d" % n, "stars": 2, "comment": "late %d" % n, "tags": [], "boardAt": "2026-08-01 22:00:00"})
+f = Failing()
+S.review_ai_tick(call=f)
+f.status = "ended"
+code, res = S.review_ai_tick(call=f)
+check("a failed batch reports Claude's error", res["batch"]["failed"] == 3 and "bad tool" in (res["batch"]["error"] or ""))
+check("…and does not send the backlog again", res.get("paused") and sum(1 for m, p in f.calls if p == "/messages/batches") == 1)
+code, res = S.review_ai_tick(call=f)
+check("…nor on the next call (paused, nothing sent)", res.get("paused") and f.calls[-1][1].endswith("/results"))
+code, d = S.review_ai_diag(call=f)
+check("the diagnostic shows the error", d["errors"] and "bad tool" in d["errors"][0])
+check("retry clears the pause", S.review_ai_retry()[0] == 200 and S.review_ai_tick(call=Failing())[1]["batch"]["started"])
+
 # Who receives what.
 driver = {"id": "u-d", "role": "driver"}
 owner = {"id": "u-o", "role": "owner"}

@@ -115,12 +115,33 @@ async function readFaults(settings) {
   } catch (e) { return '; Claude: not reachable'; }
 }
 
+// After redPro's assignments (the typed driver names) come in, ask Garage Saathi to have Claude match
+// new names to crew. A couple of rounds at most; never fails the sync.
+async function matchNames(settings) {
+  let matched = 0, suggested = 0;
+  try {
+    for (let round = 0; round < 3; round++) {
+      step('Bus & driver: Claude is matching driver names…');
+      const res = await fetch((settings.gsUrl || DEFAULTS.gsUrl).replace(/\/$/, '') + '/ai/names', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + settings.token }, body: '{}',
+      });
+      let j = {};
+      try { j = await res.json(); } catch (e) { /* not JSON */ }
+      if (!res.ok) return `; names: ${j.error || res.status}`;
+      matched += j.confirmed || 0; suggested += j.suggested || 0;
+      if (!j.pending || !j.asked || j.limited) break;
+    }
+    return matched || suggested ? `; Claude matched ${matched} names, suggested ${suggested}` : '';
+  } catch (e) { return '; names: Claude not reachable'; }
+}
+
 async function runJob(job, tabId, settings, state, cap) {
   if (job === 'assignments') {
     const j = await call(tabId, '/win/api/vehicleAssignment/getVehicleAssignmentServiceList');
     const rows = (j.data || []).map(RP.mapAssignment).filter((r) => r.serviceId);
     const n = await post(settings, 'assignments', rows, cap);
-    return `${rows.length} services, ${rows.filter((r) => r.vehicleNo).length} with a bus, ${n} changes`;
+    const names = await matchNames(settings);
+    return `${rows.length} services, ${rows.filter((r) => r.vehicleNo).length} with a bus, ${n} changes${names}`;
   }
   if (job === 'reviews') {
     const win = RP.reviewWindow(Date.now(), state), body = RP.reviewsBody(win);

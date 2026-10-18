@@ -328,7 +328,7 @@ const I18N = {
     itsDiagNote: 'Field names and messages only — no names, numbers or values are sent or kept.',
     itsTitle: 'Look up in ITS', itsSub: 'untraced 1–3★ reviews — ITS can name the driver from the PNR', itsBtn: 'Look up', itsRunning: 'Looking up in ITS…',
     itsFound: 'found in ITS', itsDriver: 'driver matched', itsDone: 'ITS lookup done', itsOff: 'ITS lookups are not set up yet (lookup user missing in Vercel)', rvViaIts: 'ITS driver',
-    rbnTitle: 'redBus names', rbnHint: 'redBus shows who drove each bus by a typed name. Confirm once which crew member each name is on each bus; reviews of that bus are then traced to them. Nothing is matched on its own.',
+    rbnTitle: 'redBus names', rbnHint: 'redBus shows who drove each bus by a typed name. Confirm once which crew member each name is on each bus; reviews of that bus are then traced to them. Claude matches only the clear ones by itself (see below); a person decides the rest, and can undo any of Claude\'s.',
     rbnToConfirm: 'To confirm', rbnConfirmed: 'Confirmed', rbnAllDone: 'Every name redBus has shown is confirmed.', rbnDay: 'day seen', rbnDays: 'days seen',
     rbnWhyBefore: 'confirmed on another bus', rbnWhyBoard: 'on the duty board', rbnWhyName: 'similar name', rbnSomeoneElse: 'Someone else…', rbnNotAName: 'Not a real name',
     rbnNotInFleet: 'not in the fleet list', rbnWho: 'Who is this?', rbnSaved: 'Saved', rbnBanner: 'redBus names to confirm', rbViaDuty: 'duty board', rbViaRedpro: 'redBus name',
@@ -339,6 +339,10 @@ const I18N = {
     myRvNone: 'No review is linked to you yet. Do the gate check before every departure, with the service picked: that is what links passengers\' reviews to you.',
     myRvNoneC: 'No review is linked to you yet. They link to you through the duty board, so make sure the office has you on the right bus.',
     myRvLoading: 'Fetching your reviews…', myRvOffline: 'Could not fetch your reviews. They will show once the phone is online.', myRvFew: 'Fewer than 10 rated trips: not counted in your rating yet.', myRvWork: 'Low ratings mention', myRvNoText: 'No comment, only stars.',
+    rbnAiTitle: 'Claude matches names', rbnAiMatched: 'matched by Claude', rbnAiGeneric: 'marked not a name', rbnAiSuggested: 'suggested',
+    rbnAiRule: 'Claude confirms a name by itself only when it is sure AND the duty log had that person on that bus on most of those nights. Everything else waits for you below.',
+    rbnAiNights: 'nights on this bus per duty log', rbnAiConf_high: 'sure', rbnAiConf_medium: 'probably', rbnAiConf_low: 'unsure',
+    rbnByClaude: 'by Claude', rbnUndo: 'Undo', rbnUnsure: 'Leave unmatched',
     aiNotTheirs: 'not counted: Claude reads them as the bus\'s, the office\'s or redBus\'s fault', aiNotYours: 'not counted against you: the bus, office or redBus was at fault',
     aiNotCounted: 'not counted', aiNoComplaint: 'no complaint', aiWhose: 'Whose fault', aiByClaude: 'Read by Claude. Only staff faults count in a crew member\'s score.',
     aiRvTitle: 'Whose fault (Claude)', aiRvBtn: 'Read now', aiRvRead: 'reviews with text read', aiRvNotCrew: 'not the crew\'s fault', aiRvRunning: 'reading…',
@@ -694,7 +698,7 @@ const I18N = {
     itsDiagNote: 'सिर्फ़ खानों के नाम और संदेश — कोई नाम, नंबर या मान नहीं भेजा या रखा जाता।',
     itsTitle: 'ITS में देखें', itsSub: 'बिना बस वाले 1–3★ रिव्यू — ITS PNR से ड्राइवर बता सकता है', itsBtn: 'देखें', itsRunning: 'ITS में देख रहे हैं…',
     itsFound: 'ITS में मिले', itsDriver: 'ड्राइवर मिला', itsDone: 'ITS खोज पूरी', itsOff: 'ITS खोज अभी चालू नहीं (Vercel में लुकअप यूज़र नहीं)', rvViaIts: 'ITS ड्राइवर',
-    rbnTitle: 'redBus नाम', rbnHint: 'redBus हर बस का ड्राइवर लिखे हुए नाम से दिखाता है। हर बस पर हर नाम एक बार पक्का करें कि वह कौन है; फिर उस बस के रिव्यू उन्हीं से जुड़ेंगे। अपने-आप कुछ नहीं जुड़ता।',
+    rbnTitle: 'redBus नाम', rbnHint: 'redBus हर बस का ड्राइवर लिखे हुए नाम से दिखाता है। हर बस पर हर नाम एक बार पक्का करें कि वह कौन है; फिर उस बस के रिव्यू उन्हीं से जुड़ेंगे। Claude सिर्फ़ साफ़ मामले ख़ुद मिलाता है (नीचे देखें); बाक़ी इंसान तय करता है, और Claude का कोई भी मिलान वापस ले सकता है।',
     rbnToConfirm: 'पक्का करना है', rbnConfirmed: 'पक्के', rbnAllDone: 'redBus के सभी नाम पक्के हो चुके।', rbnDay: 'दिन दिखा', rbnDays: 'दिन दिखा',
     rbnWhyBefore: 'दूसरी बस पर पक्का', rbnWhyBoard: 'ड्यूटी में', rbnWhyName: 'मिलता नाम', rbnSomeoneElse: 'कोई और…', rbnNotAName: 'असली नाम नहीं',
     rbnNotInFleet: 'बेड़े की सूची में नहीं', rbnWho: 'यह कौन है?', rbnSaved: 'सेव हुआ', rbnBanner: 'पक्के करने वाले redBus नाम', rbViaDuty: 'ड्यूटी', rbViaRedpro: 'redBus नाम',
@@ -705,6 +709,10 @@ const I18N = {
     myRvNone: 'अभी कोई रिव्यू आपसे नहीं जुड़ा। हर रवानगी से पहले सर्विस चुनकर गेट चेक करें: इसी से यात्रियों के रिव्यू आपसे जुड़ते हैं।',
     myRvNoneC: 'अभी कोई रिव्यू आपसे नहीं जुड़ा। ये ड्यूटी बोर्ड से जुड़ते हैं, ऑफिस से पक्का करें कि आप सही बस पर दर्ज हैं।',
     myRvLoading: 'आपके रिव्यू आ रहे हैं…', myRvOffline: 'रिव्यू नहीं आ सके। फ़ोन ऑनलाइन होने पर दिखेंगे।', myRvFew: '10 से कम रेटिंग: अभी आपकी रेटिंग में नहीं गिने गए।', myRvWork: 'कम रेटिंग में', myRvNoText: 'कोई टिप्पणी नहीं, सिर्फ़ स्टार।',
+    rbnAiTitle: 'Claude नाम मिलाता है', rbnAiMatched: 'Claude ने मिलाए', rbnAiGeneric: 'नाम नहीं माने', rbnAiSuggested: 'सुझाए',
+    rbnAiRule: 'Claude ख़ुद तभी पक्का करता है जब वह निश्चित हो और ड्यूटी लॉग में वही व्यक्ति उन ज़्यादातर रातों उस बस पर हो। बाक़ी आपके लिए नीचे हैं।',
+    rbnAiNights: 'रातें इस बस पर (ड्यूटी लॉग)', rbnAiConf_high: 'पक्का', rbnAiConf_medium: 'शायद', rbnAiConf_low: 'पता नहीं',
+    rbnByClaude: 'Claude द्वारा', rbnUndo: 'वापस लें', rbnUnsure: 'बिना मिलाए छोड़ें',
     aiNotTheirs: 'नहीं गिने: Claude के अनुसार बस, ऑफिस या redBus की गलती', aiNotYours: 'आपके ख़िलाफ़ नहीं गिने: गलती बस, ऑफिस या redBus की थी',
     aiNotCounted: 'नहीं गिना', aiNoComplaint: 'कोई शिकायत नहीं', aiWhose: 'किसकी गलती', aiByClaude: 'Claude ने पढ़ा। स्टाफ़ के स्कोर में सिर्फ़ स्टाफ़ की गलती गिनी जाती है।',
     aiRvTitle: 'किसकी गलती (Claude)', aiRvBtn: 'अभी पढ़ें', aiRvRead: 'टिप्पणी वाले रिव्यू पढ़े', aiRvNotCrew: 'स्टाफ़ की गलती नहीं', aiRvRunning: 'पढ़ रहे हैं…',
@@ -1324,8 +1332,8 @@ async function load() {
   const gatepasses = await DB.all('gatepasses').catch(() => []);
   const dutylog = await DB.all('dutylog').catch(() => []);
   const gatechecks = await DB.all('gatechecks').catch(() => []);
-  const [rbservices, rbreviews, rbcomplaints, rbassign, rbalias, itslookup, rbreviewai] = await Promise.all(['rbservices', 'rbreviews', 'rbcomplaints', 'rbassign', 'rbalias', 'itslookup', 'rbreviewai'].map((n) => DB.all(n).catch(() => [])));
-  S.cache = { users, buses, parts, jobs, ledger, att, purchases, drivers, incidents, driverreports, routes, triplog, fuel, gpsevents, audits, components, def, vendors, trips, challans, usage, stockmoves, breakdowns, gatepasses, dutylog, gatechecks, rbservices, rbreviews, rbcomplaints, rbassign, rbalias, itslookup, rbreviewai, garage };
+  const [rbservices, rbreviews, rbcomplaints, rbassign, rbalias, itslookup, rbreviewai, rbaliasai] = await Promise.all(['rbservices', 'rbreviews', 'rbcomplaints', 'rbassign', 'rbalias', 'itslookup', 'rbreviewai', 'rbaliasai'].map((n) => DB.all(n).catch(() => [])));
+  S.cache = { users, buses, parts, jobs, ledger, att, purchases, drivers, incidents, driverreports, routes, triplog, fuel, gpsevents, audits, components, def, vendors, trips, challans, usage, stockmoves, breakdowns, gatepasses, dutylog, gatechecks, rbservices, rbreviews, rbcomplaints, rbassign, rbalias, itslookup, rbreviewai, rbaliasai, garage };
   refreshBiz();   // keep the displayed business name in sync with garage config
 }
 const byId = (arr, id) => arr.find((x) => x.id === id);
@@ -10255,22 +10263,28 @@ function viewRbNames() {
   const todo = pairs.filter((p) => !byId.has(p.id));
   const done = rbAliases().slice().sort((a, b) => (b.decidedAt || 0) - (a.decidedAt || 0));
   let body = `<div class="card"><div class="tiny muted">${t('rbnHint')}</div></div>`;
+  body += aiNamesCard(todo.length, done);
   body += `<div class="card"><div class="row between"><h3>${t('rbnToConfirm')}</h3><span class="badge ${todo.length ? 'b-amber' : 'b-green'}">${todo.length}</span></div>`;
   body += todo.length ? todo.map((p) => {
-    const sug = Trace.isGenericName(p.name) ? [] : rbSuggestions(p);
+    // Claude's pick first, with its reason; then the app's own hints.
+    const ai = rbAiOf(p.id);
+    const sug = (Trace.isGenericName(p.name) ? [] : rbSuggestions(p)).filter((x) => !ai || x.crewId !== ai.pick);
     const busTxt = rbBusByReg(p.regNo) ? '' : ` · <span style="color:var(--amber)">${t('rbnNotInFleet')}</span>`;
     return `<div class="rbn-row"><div class="rbn-head"><b>${esc(p.name)}</b> <span class="muted small">· ${esc(crewRoleLabel(p.role))}</span></div>
       <div class="tiny muted">🚌 ${esc(p.regNo)}${busTxt} · ${p.days.size} ${t(p.days.size === 1 ? 'rbnDay' : 'rbnDays')}</div>
-      <div class="rbn-acts">${sug.map((x) => `<button class="btn sm" data-act="rbnSet" data-pair="${esc(p.id)}" data-crew="${esc(x.crewId)}">${esc(x.name)}<span class="tiny muted"> · ${esc(x.why)}</span></button>`).join('')}
+      ${ai && (ai.pick || ai.generic) ? `<div class="tiny" style="margin-top:4px">🤖 ${esc(ai.reason || '')}${ai.pick ? ` · ${ai.onBus}/${ai.nights} ${t('rbnAiNights')}` : ''}</div>` : ''}
+      <div class="rbn-acts">${ai && ai.pick && driverById(ai.pick) ? `<button class="btn sm primary" data-act="rbnSet" data-pair="${esc(p.id)}" data-crew="${esc(ai.pick)}">🤖 ${esc(driverById(ai.pick).name)}<span class="tiny"> · ${t('rbnAiConf_' + ai.conf)}</span></button>` : ''}${
+        ai && ai.generic ? `<button class="btn sm primary" data-act="rbnGeneric" data-pair="${esc(p.id)}">🤖 ${t('rbnNotAName')}</button>` : ''}${sug.map((x) => `<button class="btn sm" data-act="rbnSet" data-pair="${esc(p.id)}" data-crew="${esc(x.crewId)}">${esc(x.name)}<span class="tiny muted"> · ${esc(x.why)}</span></button>`).join('')}
         <button class="btn sm ghost" data-act="rbnPick" data-pair="${esc(p.id)}">${t('rbnSomeoneElse')}</button>
-        <button class="btn sm ghost" data-act="rbnGeneric" data-pair="${esc(p.id)}">${t('rbnNotAName')}</button></div></div>`;
+        ${ai && ai.generic ? '' : `<button class="btn sm ghost" data-act="rbnGeneric" data-pair="${esc(p.id)}">${t('rbnNotAName')}</button>`}</div></div>`;
   }).join('') : `<div class="muted small">${t('rbnAllDone')}</div>`;
   body += `</div>`;
   if (done.length) {
     body += `<details class="card"><summary class="row between" style="cursor:pointer"><h3>${t('rbnConfirmed')}</h3><span class="badge b-low">${done.length}</span></summary>` +
       done.map((a) => `<div class="li" data-act="rbnPick" data-pair="${esc(a.id)}" style="cursor:pointer"><div class="ava">${a.status === 'generic' ? '∅' : CREW_ROLE_META[a.role === 'conductor' ? 'conductor' : 'driver'][0]}</div>
-        <div class="main"><div class="t">${esc(a.name)} → ${a.status === 'generic' ? t('rbnNotAName') : esc((driverById(a.crewId) || {}).name || '?')}</div>
-        <div class="s">🚌 ${esc(a.regNo)} · ${esc(userName(a.decidedBy))} · ${fmtDate(a.decidedAt)}</div></div></div>`).join('') + `</details>`;
+        <div class="main"><div class="t">${esc(a.name)} → ${a.status === 'generic' ? t('rbnNotAName') : a.status === 'unsure' ? t('rbnUnsure') : esc((driverById(a.crewId) || {}).name || '?')}</div>
+        <div class="s">🚌 ${esc(a.regNo)} · ${a.decidedBy === 'claude' ? `🤖 ${t('rbnByClaude')}${a.reason ? ': ' + esc(a.reason) : ''}` : esc(userName(a.decidedBy))} · ${fmtDate(a.decidedAt)}</div></div>
+        ${a.decidedBy === 'claude' ? `<button class="btn sm ghost" data-act="rbnPick" data-pair="${esc(a.id)}" style="width:auto">${t('rbnUndo')}</button>` : ''}</div>`).join('') + `</details>`;
   }
   shell(t('rbnTitle'), body, null, NARROW);
 }
@@ -10295,7 +10309,32 @@ function rbnPick(id) {
   openSheet(`${p.name} · ${p.regNo}`, `<label class="field"><span class="lbl">${t('rbnWho')}</span>
     <select id="rbn-crew">${crew.map((d) => `<option value="${esc(d.id)}" ${d.id === cur ? 'selected' : ''}>${esc(d.name)}${d.busId ? ' · ' + esc(busName(d.busId)) : ''}</option>`).join('')}</select></label>
     <button class="btn primary" data-act="rbnPickSave" data-pair="${esc(id)}">${t('save')}</button>
-    <div class="spacer"></div><button class="btn ghost" data-act="rbnGeneric" data-pair="${esc(id)}">${t('rbnNotAName')}</button>`);
+    <div class="spacer"></div><button class="btn ghost" data-act="rbnGeneric" data-pair="${esc(id)}">${t('rbnNotAName')}</button>
+    <button class="btn ghost" data-act="rbnUnsure" data-pair="${esc(id)}">${t('rbnUnsure')}</button>`);
+}
+const rbAiOf = (id) => (S.cache.rbaliasai || []).find((x) => x.id === id) || null;
+// Claude's matching: what it did by itself, and a nudge to read new names when the screen opens.
+let _aiNmRun = false, _aiNmLast = 0;
+function aiNamesCard(todo, done) {
+  const auto = done.filter((a) => a.decidedBy === 'claude');
+  if (todo && !_aiNmRun && Date.now() - _aiNmLast > 120000) setTimeout(() => aiNamesRun(true), 0);
+  return `<div class="card"><div class="row between"><b>🤖 ${t('rbnAiTitle')}</b>${todo && !_aiNmRun ? `<button class="btn sm" data-act="aiNamesRun">${t('aiRvBtn')}</button>` : ''}</div>
+    <div class="tiny muted">${auto.filter((a) => a.status === 'crew').length} ${t('rbnAiMatched')} · ${auto.filter((a) => a.status === 'generic').length} ${t('rbnAiGeneric')}${_aiNmRun ? ' · ' + t('aiRvRunning') : ''}</div>
+    <div class="tiny muted" style="margin-top:4px">${t('rbnAiRule')}</div></div>`;
+}
+async function aiNamesRun(quiet) {
+  if (_aiNmRun || !Sync.aiNames) return;
+  _aiNmLast = Date.now(); _aiNmRun = true; rerender();
+  const j = await Sync.aiNames();
+  _aiNmRun = false;
+  if (j.error) { if (!quiet) toast('🤖 ' + j.error); }
+  else {
+    if (!quiet || j.confirmed || j.suggested) toast(`🤖 ${j.confirmed || 0} ${t('rbnAiMatched')} · ${j.suggested || 0} ${t('rbnAiSuggested')}`);
+    if (Sync.kick) Sync.kick();
+    _traceMemo = { key: null, ctx: null, map: new Map() };
+    await load();
+  }
+  rerender();
 }
 
 /* ===== Trip cash & expenses → per-bus accounting ==========================
@@ -12647,6 +12686,8 @@ const _dispatchClick = async (e) => {
       case 'rbnSet': return rbnSave(el.getAttribute('data-pair'), 'crew', el.getAttribute('data-crew'));
       case 'rbnGeneric': return rbnSave(el.getAttribute('data-pair'), 'generic', null);
       case 'rbnPick': return rbnPick(el.getAttribute('data-pair'));
+      case 'rbnUnsure': return rbnSave(el.getAttribute('data-pair'), 'unsure', null);
+      case 'aiNamesRun': return aiNamesRun(false);
       case 'rbnPickSave': return rbnSave(el.getAttribute('data-pair'), 'crew', ($('#rbn-crew') || {}).value);
       case 'gateService': return gateServiceSheet(el.getAttribute('data-id'));
       case 'gateServiceSet': return gateServiceSet(el.getAttribute('data-id'), el.getAttribute('data-svc'));
