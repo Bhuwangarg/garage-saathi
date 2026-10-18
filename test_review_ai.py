@@ -60,7 +60,7 @@ class FakeClaude:
     def __call__(self, method, path, payload):
         self.calls.append((method, path))
         if path == "/messages":
-            assert payload["tool_choice"]["name"] == "record_reviews" and payload["model"] == S.AI_MODEL
+            assert payload["tool_choice"] == {"type": "auto"} and payload["model"] == S.AI_MODEL
             return self.answer(payload)
         if path == "/messages/batches" and method == "POST":
             self.batch = payload["requests"]
