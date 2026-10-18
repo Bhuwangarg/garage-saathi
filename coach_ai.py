@@ -117,7 +117,7 @@ def params_for(crew, f, model):
         lines.append("GPS driving events while they were driving: " + (", ".join("%s x%d" % kv for kv in f["gps"].items()) or "none"))
         lines.append("Gate checks done before departure: %d%s" % (f["gateChecks"], " (%d held by the office)" % f["gateHeld"] if f["gateHeld"] else ""))
     lines.append("Problems they reported about the bus: %d" % f["reported"])
-    return {"model": model, "max_tokens": 600, "system": SYSTEM, "tools": [TOOL], "tool_choice": {"type": "auto"},
+    return {"model": model, "max_tokens": 2500, "system": SYSTEM, "tools": [TOOL], "tool_choice": {"type": "auto"},
             "messages": [{"role": "user", "content": "\n".join(lines)}]}
 
 

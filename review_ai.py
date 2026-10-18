@@ -88,7 +88,7 @@ def params_for(reviews, model):
     rows = [{"i": n, "stars": r.get("stars"), "tags": list(r.get("tags") or [])[:12],
              "comment": (r.get("comment") or "")[:1500], "route": "%s to %s" % (r.get("source") or "", r.get("dest") or "")}
             for n, r in enumerate(reviews)]
-    return {"model": model, "max_tokens": 220 * len(reviews) + 200, "system": SYSTEM,
+    return {"model": model, "max_tokens": 400 * len(reviews) + 400, "system": SYSTEM,
             "tools": [TOOL], "tool_choice": {"type": "auto"},
             "messages": [{"role": "user", "content": "Reviews (JSON):\n" + json.dumps(rows, ensure_ascii=False)}]}
 

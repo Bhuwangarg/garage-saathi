@@ -83,7 +83,7 @@ def params_for(report, bus, hist, image, model):
     content = [{"type": "text", "text": "\n".join(lines)}]
     if image:
         content.append(image)
-    return {"model": model, "max_tokens": 700, "system": SYSTEM, "tools": [TOOL], "tool_choice": {"type": "auto"},
+    return {"model": model, "max_tokens": 1600, "system": SYSTEM, "tools": [TOOL], "tool_choice": {"type": "auto"},
             "messages": [{"role": "user", "content": content}]}
 
 

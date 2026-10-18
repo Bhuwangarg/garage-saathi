@@ -2758,8 +2758,12 @@ def coach_ai_tick(call=None):
                 c.commit()
             finally:
                 c.close()
-        note = coach_ai.parse_message(call("POST", "/messages", coach_ai.params_for(d, f, AI_MODEL)))
+        msg = call("POST", "/messages", coach_ai.params_for(d, f, AI_MODEL))
+        note = coach_ai.parse_message(msg)
         if not note:
+            # Why it could not be read (no text): asked again next time.
+            out.setdefault("unread", []).append({"stop": (msg or {}).get("stop_reason"),
+                                                 "blocks": [b.get("type") for b in (msg or {}).get("content") or []]})
             continue
         rec = dict(note, id=nid, week=week, crewId=d["id"], role=f["role"], facts=f, status="draft",
                    model=AI_MODEL, at=now_ms())

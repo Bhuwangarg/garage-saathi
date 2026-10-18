@@ -77,7 +77,7 @@ def describe_part(part, cr):
 
 
 def params_for(image, part_text, claimed, model):
-    return {"model": model, "max_tokens": 400, "system": SYSTEM, "tools": [TOOL], "tool_choice": {"type": "auto"},
+    return {"model": model, "max_tokens": 1200, "system": SYSTEM, "tools": [TOOL], "tool_choice": {"type": "auto"},
             "messages": [{"role": "user", "content": [
                 {"type": "text", "text": "It should be: %s. The person returning it said: %s." % (part_text, claimed)},
                 image]}]}

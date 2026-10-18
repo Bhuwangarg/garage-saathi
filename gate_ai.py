@@ -103,7 +103,7 @@ def params_for(check, model):
         keys.append(k)
     if not keys:
         return None, []
-    return {"model": model, "max_tokens": 600, "system": SYSTEM, "tools": [TOOL], "tool_choice": {"type": "auto"},
+    return {"model": model, "max_tokens": 1500, "system": SYSTEM, "tools": [TOOL], "tool_choice": {"type": "auto"},
             "messages": [{"role": "user", "content": content}]}, keys
 
 
