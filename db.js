@@ -5,7 +5,7 @@
  */
 
 const DB_NAME = 'garage-saathi';
-const DB_VERSION = 23;  // v23 adds gateai; v22 adds rbaliasai; v21 adds rbreviewai; v20 adds itslookup; v19 adds rbalias; v18 adds the redPro stores; v17 adds gatechecks; v16 adds dutylog (dated crew seat changes); v12 adds the usage store (daily per-person feature counters) — onupgradeneeded creates any missing
+const DB_VERSION = 24;  // v24 adds coreai; v23 adds gateai; v22 adds rbaliasai; v21 adds rbreviewai; v20 adds itslookup; v19 adds rbalias; v18 adds the redPro stores; v17 adds gatechecks; v16 adds dutylog (dated crew seat changes); v12 adds the usage store (daily per-person feature counters) — onupgradeneeded creates any missing
 
 const STORES = {
   users: 'id',
@@ -43,7 +43,8 @@ const STORES = {
   itslookup: 'id',
   rbreviewai: 'id',
   rbaliasai: 'id',
-  gateai: 'id',        // Claude's look at each gate check's photos (server-written)     // Claude's answer for each typed redBus name (server-written)    // Claude's reading of whose fault each review is (server-written)     // ITS PNR lookups: trip + crew matched by the driver's number (server-written)
+  gateai: 'id',
+  coreai: 'id',        // Claude's look at each returned old part's photo (server-written)        // Claude's look at each gate check's photos (server-written)     // Claude's answer for each typed redBus name (server-written)    // Claude's reading of whose fault each review is (server-written)     // ITS PNR lookups: trip + crew matched by the driver's number (server-written)
   rbalias: 'id',       // "this redBus name on this bus is this crew member", confirmed once by the office
   gatechecks: 'id',    // departure checklist: one per bus departure — selfie, items, release / office decision
   dutylog: 'id',       // append-only: one row per crew seat change, with when. The duty board

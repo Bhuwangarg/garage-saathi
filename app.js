@@ -339,6 +339,8 @@ const I18N = {
     myRvNone: 'No review is linked to you yet. Do the gate check before every departure, with the service picked: that is what links passengers\' reviews to you.',
     myRvNoneC: 'No review is linked to you yet. They link to you through the duty board, so make sure the office has you on the right bus.',
     myRvLoading: 'Fetching your reviews…', myRvOffline: 'Could not fetch your reviews. They will show once the phone is online.', myRvFew: 'Fewer than 10 rated trips: not counted in your rating yet.', myRvWork: 'Low ratings mention', myRvNoText: 'No comment, only stars.',
+    caiWorn: 'worn', cai_worn: 'worn out', cai_partial: 'part-worn', cai_looks_new: 'looks new', cai_unclear: 'photo unclear', caiUnreadable: 'Claude could not open this photo',
+    caiF_not_this_part: 'not the part fitted', caiF_looks_new: 'looks new', caiF_claim_mismatch: 'said worn out, looks little used', caiF_dup_photo: 'same photo as another return',
     billScanHint: 'Snap a printed or handwritten (kachaa) bill. Claude reads the supplier, bill number, every line and the totals; you check and save.',
     billReading: 'Claude is reading the bill…', billFallback: 'reading it on the phone instead', billAsWritten: 'on the bill', billQtyRate: 'qty × rate', billWritten: 'bill says',
     billNoTotal: 'No total could be read: type the amount', billSumTotal: 'Subtotal + GST does not equal the total', billSumLines: 'Lines do not add up to the subtotal',
@@ -718,6 +720,8 @@ const I18N = {
     myRvNone: 'अभी कोई रिव्यू आपसे नहीं जुड़ा। हर रवानगी से पहले सर्विस चुनकर गेट चेक करें: इसी से यात्रियों के रिव्यू आपसे जुड़ते हैं।',
     myRvNoneC: 'अभी कोई रिव्यू आपसे नहीं जुड़ा। ये ड्यूटी बोर्ड से जुड़ते हैं, ऑफिस से पक्का करें कि आप सही बस पर दर्ज हैं।',
     myRvLoading: 'आपके रिव्यू आ रहे हैं…', myRvOffline: 'रिव्यू नहीं आ सके। फ़ोन ऑनलाइन होने पर दिखेंगे।', myRvFew: '10 से कम रेटिंग: अभी आपकी रेटिंग में नहीं गिने गए।', myRvWork: 'कम रेटिंग में', myRvNoText: 'कोई टिप्पणी नहीं, सिर्फ़ स्टार।',
+    caiWorn: 'घिसा', cai_worn: 'पूरा घिसा', cai_partial: 'आधा घिसा', cai_looks_new: 'नया लगता है', cai_unclear: 'फ़ोटो साफ़ नहीं', caiUnreadable: 'Claude यह फ़ोटो नहीं खोल सका',
+    caiF_not_this_part: 'लगाया गया पार्ट नहीं', caiF_looks_new: 'नया लगता है', caiF_claim_mismatch: 'कहा घिसा, दिखता कम इस्तेमाल', caiF_dup_photo: 'दूसरी वापसी वाली फ़ोटो',
     billScanHint: 'छपा या हाथ से लिखा (कच्चा) बिल खींचें। Claude सप्लायर, बिल नंबर, हर लाइन और टोटल पढ़ता है; आप जाँचें और सेव करें।',
     billReading: 'Claude बिल पढ़ रहा है…', billFallback: 'फ़ोन पर पढ़ रहे हैं', billAsWritten: 'बिल पर', billQtyRate: 'मात्रा × रेट', billWritten: 'बिल में',
     billNoTotal: 'टोटल नहीं पढ़ा गया: रकम लिखें', billSumTotal: 'सबटोटल + GST टोटल के बराबर नहीं', billSumLines: 'लाइनें सबटोटल के बराबर नहीं',
@@ -1350,8 +1354,8 @@ async function load() {
   const gatepasses = await DB.all('gatepasses').catch(() => []);
   const dutylog = await DB.all('dutylog').catch(() => []);
   const gatechecks = await DB.all('gatechecks').catch(() => []);
-  const [rbservices, rbreviews, rbcomplaints, rbassign, rbalias, itslookup, rbreviewai, rbaliasai, gateai] = await Promise.all(['rbservices', 'rbreviews', 'rbcomplaints', 'rbassign', 'rbalias', 'itslookup', 'rbreviewai', 'rbaliasai', 'gateai'].map((n) => DB.all(n).catch(() => [])));
-  S.cache = { users, buses, parts, jobs, ledger, att, purchases, drivers, incidents, driverreports, routes, triplog, fuel, gpsevents, audits, components, def, vendors, trips, challans, usage, stockmoves, breakdowns, gatepasses, dutylog, gatechecks, rbservices, rbreviews, rbcomplaints, rbassign, rbalias, itslookup, rbreviewai, rbaliasai, gateai, garage };
+  const [rbservices, rbreviews, rbcomplaints, rbassign, rbalias, itslookup, rbreviewai, rbaliasai, gateai, coreai] = await Promise.all(['rbservices', 'rbreviews', 'rbcomplaints', 'rbassign', 'rbalias', 'itslookup', 'rbreviewai', 'rbaliasai', 'gateai', 'coreai'].map((n) => DB.all(n).catch(() => [])));
+  S.cache = { users, buses, parts, jobs, ledger, att, purchases, drivers, incidents, driverreports, routes, triplog, fuel, gpsevents, audits, components, def, vendors, trips, challans, usage, stockmoves, breakdowns, gatepasses, dutylog, gatechecks, rbservices, rbreviews, rbcomplaints, rbassign, rbalias, itslookup, rbreviewai, rbaliasai, gateai, coreai, garage };
   refreshBiz();   // keep the displayed business name in sync with garage config
 }
 const byId = (arr, id) => arr.find((x) => x.id === id);
@@ -3734,6 +3738,7 @@ function photoStrip(job, field, editable) {
 }
 
 function viewJobDetail(id) {
+  coreAiNudge();
   const j = byId(S.cache.jobs, id);
   if (!j) return viewJobs();
   const cost = jobCost(j);
@@ -3798,8 +3803,9 @@ function viewJobDetail(id) {
     const missing = coreMissing(j);
     body += `<div class="card"><div class="row between"><h3>🔧 Old parts returned</h3>${editable && (j.partsUsed || []).length ? `<button class="btn sm" data-act="returnCore" data-job="${esc(j.id)}">📦 Return old part</button>` : ''}</div>`;
     body += crs.map((c) => { const p = byId(S.cache.parts, c.partId); const cc = CORE_COND[c.condition] || CORE_COND.worn;
-      const ai = c.ai ? `<div class="tiny" style="margin-top:4px;color:${c.ai.verdict === 'suspect' ? '#ef4444' : '#5d6675'}">🤖 ${c.ai.wear}% worn · ${esc(c.ai.verdict)}${c.ai.note ? ' — ' + esc(c.ai.note) : ''}</div>` : '';
-      const gradeBtn = (!c.ai && ['owner', 'supervisor'].includes(S.user.role)) ? `<div style="margin-top:6px"><button class="btn sm ghost" data-act="aiGradeCore" data-job="${esc(j.id)}" data-cr="${esc(c.id)}">📷 Grade wear</button></div>` : '';
+      // Claude's reading when there is one; the old on-phone grade otherwise.
+      const ai = coreAiOf(c) ? coreAiLine(c) : c.ai ? `<div class="tiny" style="margin-top:4px;color:${c.ai.verdict === 'suspect' ? '#ef4444' : '#5d6675'}">📱 ${c.ai.wear}% worn · ${esc(c.ai.verdict)}${c.ai.note ? ' — ' + esc(c.ai.note) : ''}</div>` : '';
+      const gradeBtn = (!c.ai && !coreAiOf(c) && ['owner', 'supervisor'].includes(S.user.role)) ? `<div style="margin-top:6px"><button class="btn sm ghost" data-act="aiGradeCore" data-job="${esc(j.id)}" data-cr="${esc(c.id)}">📷 Grade wear</button></div>` : '';
       return `<div class="li"><img class="thumb" src="${esc(c.photo)}" data-act="viewPhoto" data-src="${esc(c.photo)}">
         <div class="main"><div class="t">${esc(p ? p.name : (c.note || 'Old part'))}</div><div class="s">${fmtDate(c.at)} · ${esc(userName(c.by))}</div>${ai}</div>
         <div style="text-align:right"><span class="badge ${cc[1]}">${cc[0]}</span>${gradeBtn}</div></div>`; }).join('');
@@ -4078,6 +4084,30 @@ async function saveJobBus(jobId) {
  * be returned to store and photographed. The returner grades its wear; a part
  * billed as worn-out that looks new is the fraud signal the owner reviews.
  * (An on-device wear grade — see gradePartWear — gives a second opinion; no key.) */
+/* Claude's look at a returned part's photo (core_ai.py on the server): office phones only. A flag
+ * says why to look (not this part, looks new, the claim and the photo disagree, a reused photo);
+ * nothing is decided by it. */
+let _caiMemo = { key: null, map: null };
+function coreAiOf(cr) {
+  if (_caiMemo.key !== S.cache) _caiMemo = { key: S.cache, map: new Map((S.cache.coreai || []).map((a) => [a.cr, a])) };
+  return _caiMemo.map.get(cr.id) || null;
+}
+const coreAiFlagged = (cr) => !!((coreAiOf(cr) || {}).flags || []).length;
+function coreAiLine(cr) {
+  const a = coreAiOf(cr);
+  if (!a) return '';
+  if (a.error && !a.verdict) return `<div class="tiny muted" style="margin-top:4px">🤖 ${t('caiUnreadable')}</div>`;
+  const bad = (a.flags || []).length;
+  return `<div class="tiny" style="margin-top:4px;color:${bad ? 'var(--red)' : 'var(--green)'};font-weight:700">🤖 ${esc(a.what || '')}${a.wear != null ? ` · ${a.wear}% ${t('caiWorn')}` : ''} · ${t('cai_' + a.verdict)}${a.partNo ? ' · #' + esc(a.partNo) : ''}</div>
+    <div class="tiny muted">${esc((LANG === 'hi' ? a.hi : a.reason) || a.reason || '')}</div>
+    ${bad ? `<div class="row" style="gap:4px;flex-wrap:wrap;margin-top:3px">${a.flags.map((f) => `<span class="badge b-red">${t('caiF_' + f)}</span>`).join('')}</div>` : ''}`;
+}
+let _caiLast = 0;
+function coreAiNudge() {
+  if (!['owner', 'supervisor'].includes(S.user.role) || !Sync.aiCore || Date.now() - _caiLast < 120000) return;
+  _caiLast = Date.now();
+  Sync.aiCore().then((j) => { if (j && j.checked) { if (Sync.kick) Sync.kick(); load().then(rerender); } });
+}
 const CORE_COND = { worn: ['Worn out ✓', 'b-green'], partial: ['Part-worn', 'b-amber'], suspect: ['Looks new ⚠️', 'b-red'] };
 const coreMissing = (j) => {
   const ret = new Set((j.coreReturns || []).map((c) => c.partId).filter(Boolean));
@@ -7837,7 +7867,7 @@ function pilferageRadar() {
     js.forEach((j) => {
       if (!(j.afterPhotos || []).length && jobCost(j).parts > 0) add('proof', j.id);
       if (coreMissing(j).length) add('core', j.id);
-      if ((j.coreReturns || []).some((c) => c.condition === 'suspect' || (c.ai && c.ai.verdict === 'suspect'))) add('suspect', j.id);
+      if ((j.coreReturns || []).some((c) => c.condition === 'suspect' || (c.ai && c.ai.verdict === 'suspect') || coreAiFlagged(c))) add('suspect', j.id);
       (j.partsUsed || []).some((l) => { if ((l.cost || 0) <= 0) return false; const at = j.closedAt || j.createdAt; const st = warrantyStatus(j.busId, l.partId, at, at); if (st && st.underWarranty) { add('warranty', j.id); return true; } return false; });
     });
     (prematureJobs[u.id] || []).filter((id) => js.some((j) => j.id === id)).forEach((id) => add('premature', id));
@@ -12180,6 +12210,11 @@ function computeInsights() {
       detail: `${coreMissing(j).length} replaced part(s) with no old core returned — possible swap or warranty fraud.`, nav: { name: 'jobs', id: j.id } });
     if ((j.coreReturns || []).some((c) => c.condition === 'suspect')) out.push({ sev: 'high', icon: '🚩', title: `Suspicious old part — ${busName(j.busId)}`,
       detail: `A returned "old" part looks nearly new. Inspect before paying.`, nav: { name: 'jobs', id: j.id } });
+    else {
+      const fl = (j.coreReturns || []).map((c) => coreAiOf(c)).filter((a) => a && (a.flags || []).length);
+      if (fl.length) out.push({ sev: 'high', icon: '🤖', title: `Old part photo flagged by Claude — ${busName(j.busId)}`,
+        detail: `${fl.map((a) => (a.flags || []).map((f) => t('caiF_' + f)).join(', ')).join('; ')}. Look at the part before paying.`, nav: { name: 'jobs', id: j.id } });
+    }
     // Charged for a part that was still under supplier warranty
     (j.partsUsed || []).forEach((l) => {
       if ((l.cost || 0) <= 0) return;

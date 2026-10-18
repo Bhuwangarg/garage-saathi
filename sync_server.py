@@ -30,6 +30,7 @@ import uuid
 
 import crew_trace
 import bill_ai
+import core_ai
 import gate_ai
 import name_ai
 import review_ai
@@ -1181,7 +1182,9 @@ SERVER_INGEST_ONLY = {"gpsevents", "gpslive", "challans", "odometerlogs", "wacon
                       # Claude's answer for each typed redBus name (name_ai.py), written only by /ai/names.
                       "rbaliasai",
                       # Claude's look at each gate check's photos (gate_ai.py), written only by /ai/gate.
-                      "gateai"}
+                      "gateai",
+                      # Claude's look at each returned old part's photo (core_ai.py), written only by /ai/core.
+                      "coreai"}
 
 # A phone with a wrong clock is normal; a record dated 2100 is not. Without a
 # bound, last-write-wins makes a far-future write permanent — the owner's
@@ -2532,6 +2535,85 @@ def read_bill(actor, photo, call=None):
     return 200, {"ok": True, "bill": bill, "checks": bill_ai.checks(bill), "model": AI_MODEL}
 
 
+# ----------------------------- Returned old parts -----------------------------------------------
+# Claude looks at each returned part's photo (core_ai.py), told which part it should be; the code
+# flags a photo used twice and a claim the photo contradicts. Office-only; nothing is decided by it.
+AI_CORE_DAYS = 30
+AI_CORE_PER_CALL = 3
+AI_CORE_DAILY_CALLS = int(os.environ.get("AI_CORE_DAILY_CALLS", "300"))
+
+
+def core_ai_tick(call=None):
+    if not ANTHROPIC_API_KEY and call is None:
+        return 501, {"error": "AI not configured on server (ANTHROPIC_API_KEY)"}
+    call = call or _anthropic
+    with _lock:
+        c = db()
+        try:
+            jobs = list(_store_rows(c, "jobcards").values())
+            parts = _store_rows(c, "parts")
+            readings = _store_rows(c, "coreai")
+        finally:
+            c.close()
+    every = core_ai.returns_of(jobs, 0)
+    first_use = {}
+    for j, cr in sorted(every, key=lambda x: x[1].get("at") or 0):
+        first_use.setdefault(cr["photo"], cr["id"])
+    todo = []
+    for j, cr in core_ai.returns_of(jobs, now_ms() - AI_CORE_DAYS * 86400000):
+        old = readings.get("ca-" + cr["id"])
+        if old and old.get("v") == core_ai.PROMPT_V and old.get("h") == core_ai.photo_hash(cr):
+            continue
+        todo.append((j, cr))
+    out = {"ok": True, "checked": 0, "flagged": 0}
+    for j, cr in todo[:AI_CORE_PER_CALL]:
+        with _lock:
+            c = db()
+            try:
+                key = "core:%s" % datetime.utcnow().strftime("%Y-%m-%d")
+                row = c.execute("SELECT n FROM aiusage WHERE k=?", (key,)).fetchone()
+                n = int(row[0]) if row else 0
+                if n >= AI_CORE_DAILY_CALLS:
+                    out["limited"] = True
+                    break
+                c.execute("INSERT INTO aiusage(k,n) VALUES(?,?) ON CONFLICT(k) DO UPDATE SET n=excluded.n", (key, n + 1))
+                c.commit()
+            finally:
+                c.close()
+        part = parts.get(cr.get("partId") or "")
+        image = gate_ai.image_block(cr["photo"])
+        reading, err = None, None
+        if image:
+            try:
+                reading = core_ai.parse_message(call("POST", "/messages", core_ai.params_for(
+                    image, core_ai.describe_part(part, cr), core_ai.CLAIM.get(cr.get("condition"), "not said"), AI_MODEL)))
+            except urllib.error.HTTPError as e:
+                if e.code != 400:
+                    raise
+                err = "photo could not be opened"
+            if reading is None and not err:
+                continue                  # no answer through the tool: asked again next time
+        else:
+            err = "photo is not a link Claude can open"
+        dup = first_use.get(cr["photo"]) not in (None, cr["id"])
+        rec = dict(reading or {}, id="ca-" + cr["id"], cr=cr["id"], job=j.get("id"), partId=cr.get("partId") or "",
+                   by=cr.get("by"), claimed=cr.get("condition") or "", dupOf=first_use.get(cr["photo"]) if dup else None,
+                   flags=core_ai.flags(reading, cr.get("condition"), dup), error=err, v=core_ai.PROMPT_V,
+                   h=core_ai.photo_hash(cr), model=AI_MODEL, at=now_ms())
+        with _lock:
+            c = db()
+            try:
+                rev = c.execute("SELECT COALESCE(MAX(rev),0) FROM records").fetchone()[0]
+                _upsert_record(c, "coreai", rec["id"], rec, now_ms(), rev)
+                c.commit()
+            finally:
+                c.close()
+        out["checked"] += 1
+        out["flagged"] += 1 if rec["flags"] else 0
+    out["pending"] = max(0, len(todo) - out["checked"])
+    return 200, out
+
+
 def its_lookup_diag(pnrs):
     """Owner only: look ONE PNR up and return the shape of ITS's answer (field names, messages),
     never its values, and store nothing."""
@@ -3069,7 +3151,7 @@ def redact_for(actor, rec):
         return rec
     if st == "waconv":                    # keyed by a crew member's phone number
         return None
-    if st in ("rbreviews", "rbcomplaints", "rbassign", "itslookup", "rbreviewai", "rbaliasai", "gateai"):
+    if st in ("rbreviews", "rbcomplaints", "rbassign", "itslookup", "rbreviewai", "rbaliasai", "gateai", "coreai"):
         # Reviews, complaints and redBus's driver names are for the people who act
         # on them. A driver's phone does not need every passenger's comment about
         # every colleague. (rbservices holds no names: drivers need it to pick the
@@ -4888,6 +4970,21 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(401, {"error": "unauthorized"})
             try:
                 return self._send(*read_bill(me, str((self._body() or {}).get("photo") or "")))
+            except urllib.error.HTTPError as e:
+                return self._send(502, {"error": "Claude answered %s" % e.code})
+            except Exception as e:
+                return self._send(502, {"error": "AI upstream error: %s" % type(e).__name__})
+
+        if u.path == "/ai/core":                     # look at returned old-part photos (extension or office)
+            h = self.headers.get("Authorization") or ""
+            if not (_REDPRO_TOKEN_OK and hmac.compare_digest(h, "Bearer " + REDPRO_INGEST_TOKEN)):
+                me = self._auth_user()
+                if not me:
+                    return self._send(401, {"error": "unauthorized"})
+                if me["role"] not in ("owner", "supervisor"):
+                    return self._send(403, {"error": "forbidden"})
+            try:
+                return self._send(*core_ai_tick())
             except urllib.error.HTTPError as e:
                 return self._send(502, {"error": "Claude answered %s" % e.code})
             except Exception as e:

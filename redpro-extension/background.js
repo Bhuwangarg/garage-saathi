@@ -145,6 +145,13 @@ async function checkGatePhotos(settings, state) {
     try { j = await res.json(); } catch (e) { /* not JSON */ }
     if (res.ok && j.checked) state.gatePhotos = { last: Date.now(), result: `${j.checked} checks looked at, ${j.flagged} flagged` };
     else if (!res.ok) state.gatePhotos = Object.assign({}, state.gatePhotos, { error: j.error || String(res.status), errorAt: Date.now() });
+    // Returned old parts: same idea, same tick.
+    const r2 = await fetch((settings.gsUrl || DEFAULTS.gsUrl).replace(/\/$/, '') + '/ai/core', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + settings.token }, body: '{}',
+    });
+    let j2 = {};
+    try { j2 = await r2.json(); } catch (e) { /* not JSON */ }
+    if (r2.ok && j2.checked) state.coreParts = { last: Date.now(), result: `${j2.checked} old parts looked at, ${j2.flagged} flagged` };
   } catch (e) { /* offline: try again next tick */ }
 }
 
