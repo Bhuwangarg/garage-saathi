@@ -2972,7 +2972,8 @@ def gps_telemetry(bus_id, odo, reg=None):
 
 # The AI advisor is an owner/supervisor screen, and every call is billed to the
 # operator's key. Any login could use it as a general proxy, with any model.
-AI_MODEL = "claude-haiku-4-5-20251001"
+# Opus by the owner's decision (18 Oct 2026): every AI call in the app uses it. AI_MODEL overrides.
+AI_MODEL = os.environ.get("AI_MODEL", "").strip() or "claude-opus-5-5"
 AI_DAILY_LIMIT = int(os.environ.get("AI_DAILY_LIMIT", "60"))
 
 
@@ -3197,7 +3198,7 @@ VISION_MODEL = os.environ.get("VISION_MODEL", "").strip()
 VISION_BASE = os.environ.get("VISION_BASE", "").strip().rstrip("/")
 
 _VISION_DEFAULT_MODEL = {
-    "anthropic": "claude-sonnet-5",
+    "anthropic": AI_MODEL,
     "gemini": "gemini-2.5-flash",
     "openai": "gpt-4o-mini",
 }
@@ -3206,10 +3207,14 @@ _VISION_DEFAULT_MODEL = {
 def vision_config():
     """Resolve the provider actually in effect, so /health can report it and the
     operator can see which key is being used without reading the logs."""
+    # Anthropic (Opus) first whenever its key is set, by the owner's decision of 18 Oct 2026; the
+    # VISION_* provider stays as the fallback. A VISION_MODEL naming another provider's model
+    # (gemini-2.5-flash) is never sent to Anthropic.
+    if ANTHROPIC_API_KEY:
+        own = VISION_MODEL if VISION_MODEL.startswith("claude-") else ""
+        return "anthropic", ANTHROPIC_API_KEY, (own or _VISION_DEFAULT_MODEL["anthropic"])
     if VISION_PROVIDER and VISION_KEY:
         return VISION_PROVIDER, VISION_KEY, (VISION_MODEL or _VISION_DEFAULT_MODEL.get(VISION_PROVIDER, ""))
-    if ANTHROPIC_API_KEY:
-        return "anthropic", ANTHROPIC_API_KEY, (VISION_MODEL or _VISION_DEFAULT_MODEL["anthropic"])
     return "", "", ""
 
 

@@ -12064,7 +12064,7 @@ async function callClaude(question) {
         'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true',
       },
       body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001', max_tokens: 500,
+        model: 'claude-opus-5-5', max_tokens: 500,
         system: `You are the operations advisor for ${BIZ}, a bus maintenance garage in Jaipur, India. Be concise and practical, use rupee (₹) figures, focus on cutting cost and pilferage. Max 6 sentences.`,
         messages: [{ role: 'user', content: `Current garage data:\n${aiContext()}\n\nQuestion: ${question}` }],
       }),
