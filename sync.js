@@ -71,7 +71,9 @@ const Sync = (function () {
                   // Claude's draft job card for each driver report (server-written by /ai/reports).
                   'reportai',
                   // Weekly coaching notes (server-written by /ai/coaching and /ai/coaching/decide).
-                  'coachai'];
+                  'coachai',
+                  // The Monday summary (server-written by /ai/digest; owner and supervisor phones only).
+                  'digest'];
 
   const ls = window.localStorage;
   // Default sync backend: a device's explicit setting always wins. Otherwise, on
@@ -460,6 +462,7 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
     } catch (e) { return { error: 'No connection to the server' }; }
   }
   const aiCoaching = () => _post('/ai/coaching');
+  const aiDigest = (now) => _post('/ai/digest', now ? { now: true } : {});
   const coachDecide = (id, decision, hi) => _post('/ai/coaching/decide', { id, decision, hi });
   async function myCoaching() {
     try {
@@ -1036,7 +1039,7 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
     } catch (e) { return null; }
   }
 
-  return { start, tick, kick, setUrl, reset, info, login, logout, warmUp, roster, pendingIds, addStaff, deleteStaff, renameStaff, registerRoster, setPin, gps, validSyncUrl, backfillContacts, setActor, tokenUser, now, deleteUploads, ai, aiVision, challans, itsLookup, myReviews, aiReviews, aiNames, aiGate, aiBill, aiCore, aiReports, aiCoaching, coachDecide, myCoaching, fleet, latest, uploadPhoto,
+  return { start, tick, kick, setUrl, reset, info, login, logout, warmUp, roster, pendingIds, addStaff, deleteStaff, renameStaff, registerRoster, setPin, gps, validSyncUrl, backfillContacts, setActor, tokenUser, now, deleteUploads, ai, aiVision, challans, itsLookup, myReviews, aiReviews, aiNames, aiGate, aiBill, aiCore, aiReports, aiCoaching, coachDecide, myCoaching, aiDigest, fleet, latest, uploadPhoto,
            queuePhoto, uploadError, remove, clearQuarantine, subscribePush, pushTest, flagOn, flagList,
            get status() { return status; } };
 })();

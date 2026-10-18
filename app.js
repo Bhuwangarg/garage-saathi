@@ -344,6 +344,9 @@ const I18N = {
     myRvNone: 'No review is linked to you yet. Do the gate check before every departure, with the service picked: that is what links passengers\' reviews to you.',
     myRvNoneC: 'No review is linked to you yet. They link to you through the duty board, so make sure the office has you on the right bus.',
     myRvLoading: 'Fetching your reviews…', myRvOffline: 'Could not fetch your reviews. They will show once the phone is online.', myRvFew: 'Fewer than 10 rated trips: not counted in your rating yet.', myRvWork: 'Low ratings mention', myRvNoText: 'No comment, only stars.',
+    dgTitle: 'Monday summary', dgHint: 'Written by Claude every Monday morning from last week\'s records. Every figure comes from your records.',
+    dgNow: 'Write now', dgNone: 'No summary yet. The first one is written on Monday morning, or press Write now.', dgActions: 'This week',
+    dgBy: 'Figures from your records; words by Claude.', dgEarlier: 'Earlier weeks',
     coTitle: 'Weekly coaching notes', coToApprove: 'to approve', coNotTheirs: 'not theirs', coGates: 'gate checks', coReported: 'reported',
     coHint: 'Claude drafts a three-line note for each driver and conductor from last week (reviews that were theirs, incidents, GPS, gate checks). Read it, change any line, then approve. Only approved notes reach their app.',
     coWeekOf: 'Week of', coDraftNow: 'Draft now', co_good: '👍 Went well', co_fix: '🎯 To fix', co_tip: '💡 Tip', coApprove: 'Approve', coSkip: 'Skip',
@@ -738,6 +741,9 @@ const I18N = {
     myRvNone: 'अभी कोई रिव्यू आपसे नहीं जुड़ा। हर रवानगी से पहले सर्विस चुनकर गेट चेक करें: इसी से यात्रियों के रिव्यू आपसे जुड़ते हैं।',
     myRvNoneC: 'अभी कोई रिव्यू आपसे नहीं जुड़ा। ये ड्यूटी बोर्ड से जुड़ते हैं, ऑफिस से पक्का करें कि आप सही बस पर दर्ज हैं।',
     myRvLoading: 'आपके रिव्यू आ रहे हैं…', myRvOffline: 'रिव्यू नहीं आ सके। फ़ोन ऑनलाइन होने पर दिखेंगे।', myRvFew: '10 से कम रेटिंग: अभी आपकी रेटिंग में नहीं गिने गए।', myRvWork: 'कम रेटिंग में', myRvNoText: 'कोई टिप्पणी नहीं, सिर्फ़ स्टार।',
+    dgTitle: 'सोमवार सारांश', dgHint: 'हर सोमवार सुबह Claude पिछले हफ़्ते के रिकॉर्ड से लिखता है। हर आँकड़ा आपके रिकॉर्ड से है।',
+    dgNow: 'अभी लिखें', dgNone: 'अभी कोई सारांश नहीं। पहला सोमवार सुबह लिखा जाएगा, या अभी लिखें दबाएँ।', dgActions: 'इस हफ़्ते',
+    dgBy: 'आँकड़े आपके रिकॉर्ड से; शब्द Claude के।', dgEarlier: 'पिछले हफ़्ते',
     coTitle: 'हफ़्ते की सलाह', coToApprove: 'मंज़ूरी बाक़ी', coNotTheirs: 'इनकी नहीं', coGates: 'गेट चेक', coReported: 'रिपोर्ट',
     coHint: 'Claude हर ड्राइवर और कंडक्टर के लिए पिछले हफ़्ते (उनके रिव्यू, घटनाएँ, GPS, गेट चेक) से तीन लाइन की सलाह लिखता है। पढ़ें, कोई भी लाइन बदलें, फिर मंज़ूर करें। सिर्फ़ मंज़ूर सलाह उनके फ़ोन पर जाती है।',
     coWeekOf: 'हफ़्ता', coDraftNow: 'अभी लिखें', co_good: '👍 अच्छा रहा', co_fix: '🎯 सुधारें', co_tip: '💡 सुझाव', coApprove: 'मंज़ूर', coSkip: 'छोड़ें',
@@ -1380,8 +1386,8 @@ async function load() {
   const gatepasses = await DB.all('gatepasses').catch(() => []);
   const dutylog = await DB.all('dutylog').catch(() => []);
   const gatechecks = await DB.all('gatechecks').catch(() => []);
-  const [rbservices, rbreviews, rbcomplaints, rbassign, rbalias, itslookup, rbreviewai, rbaliasai, gateai, coreai, reportai, coachai] = await Promise.all(['rbservices', 'rbreviews', 'rbcomplaints', 'rbassign', 'rbalias', 'itslookup', 'rbreviewai', 'rbaliasai', 'gateai', 'coreai', 'reportai', 'coachai'].map((n) => DB.all(n).catch(() => [])));
-  S.cache = { users, buses, parts, jobs, ledger, att, purchases, drivers, incidents, driverreports, routes, triplog, fuel, gpsevents, audits, components, def, vendors, trips, challans, usage, stockmoves, breakdowns, gatepasses, dutylog, gatechecks, rbservices, rbreviews, rbcomplaints, rbassign, rbalias, itslookup, rbreviewai, rbaliasai, gateai, coreai, reportai, coachai, garage };
+  const [rbservices, rbreviews, rbcomplaints, rbassign, rbalias, itslookup, rbreviewai, rbaliasai, gateai, coreai, reportai, coachai, digest] = await Promise.all(['rbservices', 'rbreviews', 'rbcomplaints', 'rbassign', 'rbalias', 'itslookup', 'rbreviewai', 'rbaliasai', 'gateai', 'coreai', 'reportai', 'coachai', 'digest'].map((n) => DB.all(n).catch(() => [])));
+  S.cache = { users, buses, parts, jobs, ledger, att, purchases, drivers, incidents, driverreports, routes, triplog, fuel, gpsevents, audits, components, def, vendors, trips, challans, usage, stockmoves, breakdowns, gatepasses, dutylog, gatechecks, rbservices, rbreviews, rbcomplaints, rbassign, rbalias, itslookup, rbreviewai, rbaliasai, gateai, coreai, reportai, coachai, digest, garage };
   refreshBiz();   // keep the displayed business name in sync with garage config
 }
 const byId = (arr, id) => arr.find((x) => x.id === id);
@@ -2954,6 +2960,7 @@ function viewOwnerHome() {
   else if (alerts.length) rows.push(triageRow('warn', '📄', t('hmDocsSoon'), t('hmDocsSoonSub'), 'data-act="openAlerts"', alerts.length));
   if (owed) rows.push(triageRow('warn', '🧾', t('hmOwed'), t('hmOwedSub'), 'data-act="openPurchases"', money(owed)));
   body += triageCard(rows);
+  body += digestHomeCard();
   body += gateHomeSummaryCard();
   body += reviewsHomeCard();
 
@@ -3009,6 +3016,7 @@ function viewSupervisorHome() {
   if (alerts.length) rows.push(triageRow(alerts.some((a) => a.st.dl <= 0) ? 'crit' : 'warn', '📄', t('hmDocsSoon'), t('hmDocsSoonSub'), 'data-act="openAlerts"', alerts.length));
   if (low.length) rows.push(triageRow('warn', '📦', t('hmLowStock'), t('hmLowStockSub'), 'data-nav="store"', low.length));
   body += triageCard(rows);
+  body += digestHomeCard();
   body += gateHomeSummaryCard();
   body += reviewsHomeCard();
 
@@ -10189,6 +10197,45 @@ function rvStats(list) {
 function rvForBus(busId, since) { return (S.cache.rbreviews || []).filter((r) => rvBoard(r) >= since && traceOf(r).bus && traceOf(r).bus.busId === busId); }
 function rvForCrew(crewId, since) { return (S.cache.rbreviews || []).filter((r) => rvBoard(r) >= since && traceOf(r).crew.some((c) => c.crewId === crewId)); }
 
+/* ===== The Monday summary (digest_ai.py) ==================================
+ * Written by the server every Monday from 07:00 IST from last week's figures; owner and
+ * supervisor only (it carries money). Kept week by week. */
+const digests = () => (S.cache.digest || []).slice().sort((a, b) => String(b.week).localeCompare(String(a.week)));
+function digestHomeCard() {
+  if (!can(S.user.role, 'dashboard')) return '';
+  const d = digests()[0];
+  if (!d) return '';
+  const fresh = Date.now() - (d.at || 0) < 7 * day;
+  return `<div class="card" data-nav="digest" style="cursor:pointer${fresh ? ';border-left:4px solid var(--accent)' : ''}"><div class="row between"><h3>📰 ${t('dgTitle')}</h3><span class="tc muted">›</span></div>
+    <div class="small" style="margin-top:4px;font-weight:700">${esc(LANG === 'hi' && d.hi ? d.hi : d.headline)}</div>
+    <div class="tiny muted" style="margin-top:2px">${t('coWeekOf')} ${esc(d.week)}</div></div>`;
+}
+let _dgRun = false;
+function viewDigest(week) {
+  const all = digests();
+  const d = all.find((x) => x.week === (week || _dgWeek)) || all[0];
+  let body = `<div class="card"><div class="row between"><span class="tiny muted">${t('dgHint')}</span>
+    ${_dgRun ? `<span class="tiny muted">${t('aiRvRunning')}</span>` : `<button class="btn sm" data-act="digestNow" style="width:auto">${t('dgNow')}</button>`}</div></div>`;
+  if (!d) return shell(t('dgTitle'), body + `<div class="card"><div class="muted small">${t('dgNone')}</div></div>`, null, NARROW);
+  body += `<div class="card"><div class="tiny muted">${t('coWeekOf')} ${esc(d.week)}</div>
+    <div style="font-weight:800;font-size:17px;margin-top:4px">${esc(d.headline)}</div>${d.hi ? `<div class="small muted" style="margin-top:2px">${esc(d.hi)}</div>` : ''}</div>`;
+  body += (d.sections || []).map((sec) => `<div class="card"><h3>${esc(sec.title)}</h3>${sec.lines.map((l) => `<div class="small" style="padding:3px 0">• ${esc(l)}</div>`).join('')}</div>`).join('');
+  if ((d.actions || []).length) body += `<div class="card"><h3>✅ ${t('dgActions')}</h3>${d.actions.map((a, i) => `<div class="small" style="padding:3px 0">${i + 1}. ${esc(a)}</div>`).join('')}</div>`;
+  body += `<div class="tiny muted" style="margin:0 4px 10px">${t('dgBy')}</div>`;
+  if (all.length > 1) body += `<details class="card"><summary class="row between" style="cursor:pointer"><h3>${t('dgEarlier')}</h3><span class="badge b-low">${all.length - 1}</span></summary>${
+    all.filter((x) => x !== d).map((x) => `<div class="li" data-act="digestWeek" data-w="${esc(x.week)}" style="cursor:pointer"><div class="ava">📰</div><div class="main"><div class="t">${esc(x.week)}</div><div class="s">${esc(x.headline)}</div></div></div>`).join('')}</details>`;
+  shell(t('dgTitle'), body, null, NARROW);
+}
+let _dgWeek = null;
+async function digestNow() {
+  if (_dgRun || !Sync.aiDigest) return;
+  _dgRun = true; rerender();
+  const j = await Sync.aiDigest(true);
+  _dgRun = false; _dgWeek = null;
+  if (j.error) toast('🤖 ' + j.error);
+  else { toast(j.written ? '📰 ' + (j.headline || '') : (j.why || '')); if (Sync.kick) Sync.kick(); await load(); }
+  rerender();
+}
 function reviewsHomeCard() {
   if (!can(S.user.role, 'dashboard')) return '';
   const since = Date.now() - 7 * day;
@@ -12557,7 +12604,7 @@ const current = () => S.stack[S.stack.length - 1];
 const ROUTE_PERM = { money: 'money', fleet: 'fleet', people: 'people', bills: 'bills', insights: 'insights', drivers: 'manageDrivers', assignments: 'assignDriver', routes: 'manageRoutes', reports: 'dashboard', busreport: 'dashboard', livemap: 'liveMap', track: 'liveMap', fuel: 'addFuel', safety: 'dashboard', breakdowns: 'logIncident', warranty: 'viewWarranty', storehealth: 'issuePart', linkgps: 'addBus', newjob: 'addJob', forecast: 'dashboard', pilferage: 'insights', components: 'manageComponents', def: 'addFuel', vendors: 'addPurchase', import: 'addPurchase', crewpins: 'manageCrewLogins', crewbank: 'manageDrivers', usage: 'dashboard', accounting: 'dashboard', busacct: 'dashboard',
   // `purchases` renders the same view as `bills`; without its own entry the
   // `bills` permission was bypassable just by using the other route name.
-  purchases: 'bills', alerts: 'dashboard', buses: 'fleet', gate: 'gateCheck', gatechecks: 'gateDecide', reviews: 'dashboard', rbnames: 'manageDrivers', whynodriver: 'dashboard', coaching: 'manageDrivers',
+  purchases: 'bills', alerts: 'dashboard', buses: 'fleet', gate: 'gateCheck', gatechecks: 'gateDecide', reviews: 'dashboard', rbnames: 'manageDrivers', whynodriver: 'dashboard', coaching: 'manageDrivers', digest: 'dashboard',
   store: 'viewStore', jobs: 'viewJobs', scoreboard: 'viewScoreboard',
   challans: 'challans', buschallans: 'challans',
   // Company billing and another person's scorecard rendered for any role because
@@ -12592,6 +12639,7 @@ function render(r) {
     case 'rbnames': return viewRbNames();
     case 'whynodriver': return viewWhyNoDriver();
     case 'coaching': return viewCoaching();
+    case 'digest': return viewDigest();
     case 'jobs': return r.id ? viewJobDetail(r.id) : viewJobs();
     case 'store': return r.id ? viewPartDetail(r.id) : viewStore();
     case 'me': return viewMe();
@@ -13043,6 +13091,8 @@ const _dispatchClick = async (e) => {
       case 'dpRvMore': _dpRvMore = !_dpRvMore; return rerender();
       case 'aiReviewsRun': return aiReviewsRun(false);
       case 'coachRun': return coachRun(false);
+      case 'digestNow': return digestNow();
+      case 'digestWeek': _dgWeek = el.getAttribute('data-w'); return rerender();
       case 'coachDecide': return coachDecideRun(el.getAttribute('data-id'), el.getAttribute('data-d'));
       case 'myRvMore': _myRvMore = !_myRvMore; return rerender();
       case 'myRvOpen': return openMyReview(el.getAttribute('data-id'));

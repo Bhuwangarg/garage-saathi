@@ -31,6 +31,7 @@ import uuid
 import crew_trace
 import advisor_ai
 import bill_ai
+import digest_ai
 import coach_ai
 import core_ai
 import gate_ai
@@ -1192,7 +1193,9 @@ SERVER_INGEST_ONLY = {"gpsevents", "gpslive", "challans", "odometerlogs", "wacon
                       "reportai",
                       # The weekly coaching notes (coach_ai.py): drafted by /ai/coaching, approved through
                       # /ai/coaching/decide, read by the crew member through /my/coaching.
-                      "coachai"}
+                      "coachai",
+                      # The Monday summary (digest_ai.py), written only by /ai/digest.
+                      "digest"}
 
 # A phone with a wrong clock is normal; a record dated 2100 is not. Without a
 # bound, last-write-wins makes a far-future write permanent — the owner's
@@ -2834,17 +2837,12 @@ _ADV_STORES = ("buses", "drivers", "jobcards", "parts", "purchases", "vendors", 
 _ADV_RV_MEMO = {"key": None, "rows": None}
 
 
-def advise(actor, question, biz, call=None, clock=time.monotonic):
-    if actor.get("role") not in ("owner", "supervisor"):
-        return 403, {"error": "forbidden"}
-    if not ANTHROPIC_API_KEY and call is None:
-        return 501, {"error": "AI not configured on server"}
-    call = call or (lambda m, p, b: _anthropic(m, p, b, timeout=max(10, 55 - (clock() - t0))))
-    t0 = clock()
+def _advisor_records(extra=()):
+    """The records the advisor's tools read (advisor_ai.Records), plus any `extra` stores raw."""
     with _lock:
         c = db()
         try:
-            stores = {st: _store_rows(c, st) for st in _ADV_STORES}
+            stores = {st: _store_rows(c, st) for st in tuple(_ADV_STORES) + tuple(extra)}
             _ix, ctx = _crew_review_index(c)
             if _ADV_RV_MEMO["key"] != _CREW_RV_MEMO["key"]:
                 ai = _store_rows(c, "rbreviewai")
@@ -2853,6 +2851,18 @@ def advise(actor, question, biz, call=None, clock=time.monotonic):
         finally:
             c.close()
     R = advisor_ai.Records(stores, now_ms(), _ADV_RV_MEMO["rows"] or [])
+    R.raw = stores
+    return R
+
+
+def advise(actor, question, biz, call=None, clock=time.monotonic):
+    if actor.get("role") not in ("owner", "supervisor"):
+        return 403, {"error": "forbidden"}
+    if not ANTHROPIC_API_KEY and call is None:
+        return 501, {"error": "AI not configured on server"}
+    call = call or (lambda m, p, b: _anthropic(m, p, b, timeout=max(10, 55 - (clock() - t0))))
+    t0 = clock()
+    R = _advisor_records()
     system = advisor_ai.SYSTEM.replace("{biz}", biz or "the company") + "\nToday is %s." % CT_day(now_ms())
     messages = [{"role": "user", "content": question}]
     looked = []
@@ -2885,6 +2895,54 @@ def advise(actor, question, biz, call=None, clock=time.monotonic):
 def CT_day(ms):
     import crew_trace
     return crew_trace.day_key(ms)
+
+
+# ----------------------------- The Monday summary -----------------------------------------------
+DIGEST_HOUR_IST = 7                   # written from 07:00 IST on Monday, once a week
+
+
+def digest_tick(force=False, biz="Mahalaxmi Travels", call=None, now=None):
+    if not ANTHROPIC_API_KEY and call is None:
+        return 501, {"error": "AI not configured on server (ANTHROPIC_API_KEY)"}
+    call = call or _anthropic
+    now = now or now_ms()
+    week, frm, to = coach_ai.week_of(now)
+    if not force and now < to + DIGEST_HOUR_IST * 3600000:
+        return 200, {"ok": True, "week": week, "written": False, "why": "not Monday 07:00 yet"}
+    R = _advisor_records(extra=("digest", "reportai", "coreai"))
+    if ("dg-" + week) in R.raw["digest"] and not force:
+        return 200, {"ok": True, "week": week, "written": False, "why": "already written"}
+    # The 7 days before it is written: on Monday 07:00 that is last week; a mid-week "Write now" is
+    # the past 7 days. (Every tool counts back from now, so the two never disagree.)
+    since, to = now - 7 * 86400000, now
+    R.now = now
+    reports = {r.get("id"): r for r in R.reports}
+    flags = {
+        "unsafe_bus_reports_open": [{"bus": R.reg.get(a.get("busId")), "what": a.get("title")} for a in R.raw["reportai"].values()
+                                    if a.get("unsafe") and (reports.get(a.get("report")) or {}).get("status") == "open"][:5],
+        "gate_photos_doubted_last_week": sum(1 for g in R.gates if since <= (g.get("startedAt") or 0) < to and any(
+            v.get("verdict") != "ok" for v in ((R.gateai.get(g.get("id")) or {}).get("items") or {}).values())),
+        "old_parts_flagged_last_week": sum(1 for a in R.raw["coreai"].values() if (a.get("flags") or []) and since <= (a.get("at") or 0) < now),
+        "coaching_notes_waiting_approval": sum(1 for n in R.coach if n.get("status") == "draft"),
+    }
+    f = digest_ai.facts(R, flags)
+    d = digest_ai.parse_message(call("POST", "/messages", digest_ai.params_for(f, biz, AI_MODEL)))
+    if not d:
+        return 502, {"error": "Claude's summary could not be read; try again"}
+    rec = dict(d, id="dg-" + week, week=week, model=AI_MODEL, at=now_ms())
+    with _lock:
+        c = db()
+        try:
+            rev = c.execute("SELECT COALESCE(MAX(rev),0) FROM records").fetchone()[0]
+            _upsert_record(c, "digest", rec["id"], rec, now_ms(), rev)
+            c.commit()
+        finally:
+            c.close()
+    try:
+        send_push("Monday summary", "📰 " + d["headline"], "/", roles=("owner", "supervisor"))
+    except Exception:
+        pass
+    return 200, {"ok": True, "week": week, "written": True, "headline": d["headline"]}
 
 
 def its_lookup_diag(pnrs):
@@ -3411,6 +3469,8 @@ def redact_for(actor, rec):
     # does not ask for them again.
     if st == "aimeta":                    # server bookkeeping (the open review batch), for no phone
         return None
+    if st == "digest" and (actor or {}).get("role") not in ("owner", "supervisor"):
+        return None                       # the Monday summary carries money: owner and supervisor only
     if st in HISTORY_DAYS:
         roles = HISTORY_ROLES.get(st)
         if roles and (actor or {}).get("role") not in roles:
@@ -5256,6 +5316,23 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(401, {"error": "unauthorized"})
             try:
                 return self._send(*read_bill(me, str((self._body() or {}).get("photo") or "")))
+            except urllib.error.HTTPError as e:
+                return self._send(502, {"error": "Claude answered %s" % e.code})
+            except Exception as e:
+                return self._send(502, {"error": "AI upstream error: %s" % type(e).__name__})
+
+        if u.path == "/ai/digest":                   # the Monday summary (extension weekly, or the owner now)
+            h = self.headers.get("Authorization") or ""
+            force = False
+            if not (_REDPRO_TOKEN_OK and hmac.compare_digest(h, "Bearer " + REDPRO_INGEST_TOKEN)):
+                me = self._auth_user()
+                if not me:
+                    return self._send(401, {"error": "unauthorized"})
+                if me["role"] not in ("owner", "supervisor"):
+                    return self._send(403, {"error": "forbidden"})
+                force = bool((self._body() or {}).get("now"))     # "Write now" from the app
+            try:
+                return self._send(*digest_tick(force=force))
             except urllib.error.HTTPError as e:
                 return self._send(502, {"error": "Claude answered %s" % e.code})
             except Exception as e:
