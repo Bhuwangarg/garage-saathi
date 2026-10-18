@@ -92,6 +92,29 @@ async function post(settings, kind, rows, capturedAt) {
   return written;
 }
 
+// After new reviews land, ask Garage Saathi to have Claude read them for whose fault they are. A few
+// small rounds at most; a big backlog goes to Claude as one batch and is collected on a later sync.
+// Never fails the review sync: a problem here is only reported.
+async function readFaults(settings) {
+  let read = 0;
+  try {
+    for (let round = 0; round < 6; round++) {
+      step(`Reviews: Claude is reading new ones${read ? ` (${read} so far)` : ''}…`);
+      const res = await fetch((settings.gsUrl || DEFAULTS.gsUrl).replace(/\/$/, '') + '/ai/reviews', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + settings.token }, body: '{}',
+      });
+      let j = {};
+      try { j = await res.json(); } catch (e) { /* not JSON */ }
+      if (!res.ok) return read ? `; Claude read ${read}` : `; Claude: ${j.error || res.status}`;
+      read += j.classified || 0;
+      const b = j.batch || {};
+      if (b.started) return `; ${b.reviews} sent to Claude as a batch`;
+      if (!j.pending || !j.classified || j.limited) break;
+    }
+    return read ? `; Claude read ${read}` : '';
+  } catch (e) { return '; Claude: not reachable'; }
+}
+
 async function runJob(job, tabId, settings, state, cap) {
   if (job === 'assignments') {
     const j = await call(tabId, '/win/api/vehicleAssignment/getVehicleAssignmentServiceList');
@@ -113,7 +136,8 @@ async function runJob(job, tabId, settings, state, cap) {
       if (!batch.length || (total != null && seen >= total)) break;
     }
     if (rows.length) written += await post(settings, 'reviews', rows, cap);
-    return `${seen}/${total == null ? '?' : total} reviews over ${win.days} days, ${written} new or changed`;
+    const ai = await readFaults(settings);
+    return `${seen}/${total == null ? '?' : total} reviews over ${win.days} days, ${written} new or changed${ai}`;
   }
   if (job === 'complaints') {
     const j = await call(tabId, '/win/api/newComplaints/getNewComplaintsData');

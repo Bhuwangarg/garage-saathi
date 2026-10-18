@@ -339,6 +339,14 @@ const I18N = {
     myRvNone: 'No review is linked to you yet. Do the gate check before every departure, with the service picked: that is what links passengers\' reviews to you.',
     myRvNoneC: 'No review is linked to you yet. They link to you through the duty board, so make sure the office has you on the right bus.',
     myRvLoading: 'Fetching your reviews…', myRvOffline: 'Could not fetch your reviews. They will show once the phone is online.', myRvFew: 'Fewer than 10 rated trips: not counted in your rating yet.', myRvWork: 'Low ratings mention', myRvNoText: 'No comment, only stars.',
+    aiNotTheirs: 'not counted: Claude reads them as the bus\'s, the office\'s or redBus\'s fault', aiNotYours: 'not counted against you: the bus, office or redBus was at fault',
+    aiNotCounted: 'not counted', aiNoComplaint: 'no complaint', aiWhose: 'Whose fault', aiByClaude: 'Read by Claude. Only staff faults count in a crew member\'s score.',
+    aiRvTitle: 'Whose fault (Claude)', aiRvBtn: 'Read now', aiRvRead: 'reviews with text read', aiRvNotCrew: 'not the crew\'s fault', aiRvRunning: 'reading…',
+    aiRvBatch: 'reviews sent to Claude in one batch; results within a few hours', aiRvBatchWait: 'the batch is still being read', aiRvDone: 'reviews read',
+    fltDriver: 'Driver', fltConductor: 'Conductor', fltCrew: 'Staff', fltBus: 'Bus', fltOffice: 'Office', fltRedbus: 'redBus', fltPassenger: 'Passenger',
+    top_driving: 'Driving', top_punctuality: 'Punctuality', top_staff_behaviour: 'Staff behaviour', top_cleanliness: 'Cleanliness', top_ac: 'AC', top_bus_condition: 'Bus condition',
+    top_seats: 'Seats', top_blankets: 'Blankets', top_boarding_point: 'Boarding point', top_breakdown: 'Breakdown', top_refund: 'Refund', top_booking: 'Booking',
+    top_amenities: 'Amenities', top_safety: 'Safety', top_other: 'Other',
     dpShowLess: 'Show fewer', cmRatings: 'Crew ratings from passengers', cmRatingsSub: 'Lowest first, 90 days, crew with 10+ rated trips. Tap to see their reviews.',
     cmRatingsWait: 'Nobody has 10 rated trips traced to them yet. Keeping the duty board right and confirming redBus names fills this in.',
     dpOverallWait: 'Conduct only for now. Passenger stars count once 10 rated trips are traced to them in 90 days.',
@@ -697,6 +705,14 @@ const I18N = {
     myRvNone: 'अभी कोई रिव्यू आपसे नहीं जुड़ा। हर रवानगी से पहले सर्विस चुनकर गेट चेक करें: इसी से यात्रियों के रिव्यू आपसे जुड़ते हैं।',
     myRvNoneC: 'अभी कोई रिव्यू आपसे नहीं जुड़ा। ये ड्यूटी बोर्ड से जुड़ते हैं, ऑफिस से पक्का करें कि आप सही बस पर दर्ज हैं।',
     myRvLoading: 'आपके रिव्यू आ रहे हैं…', myRvOffline: 'रिव्यू नहीं आ सके। फ़ोन ऑनलाइन होने पर दिखेंगे।', myRvFew: '10 से कम रेटिंग: अभी आपकी रेटिंग में नहीं गिने गए।', myRvWork: 'कम रेटिंग में', myRvNoText: 'कोई टिप्पणी नहीं, सिर्फ़ स्टार।',
+    aiNotTheirs: 'नहीं गिने: Claude के अनुसार बस, ऑफिस या redBus की गलती', aiNotYours: 'आपके ख़िलाफ़ नहीं गिने: गलती बस, ऑफिस या redBus की थी',
+    aiNotCounted: 'नहीं गिना', aiNoComplaint: 'कोई शिकायत नहीं', aiWhose: 'किसकी गलती', aiByClaude: 'Claude ने पढ़ा। स्टाफ़ के स्कोर में सिर्फ़ स्टाफ़ की गलती गिनी जाती है।',
+    aiRvTitle: 'किसकी गलती (Claude)', aiRvBtn: 'अभी पढ़ें', aiRvRead: 'टिप्पणी वाले रिव्यू पढ़े', aiRvNotCrew: 'स्टाफ़ की गलती नहीं', aiRvRunning: 'पढ़ रहे हैं…',
+    aiRvBatch: 'रिव्यू एक बैच में Claude को भेजे; नतीजे कुछ घंटों में', aiRvBatchWait: 'बैच अभी पढ़ा जा रहा है', aiRvDone: 'रिव्यू पढ़े',
+    fltDriver: 'ड्राइवर', fltConductor: 'कंडक्टर', fltCrew: 'स्टाफ़', fltBus: 'बस', fltOffice: 'ऑफिस', fltRedbus: 'redBus', fltPassenger: 'यात्री',
+    top_driving: 'ड्राइविंग', top_punctuality: 'समय', top_staff_behaviour: 'स्टाफ़ व्यवहार', top_cleanliness: 'सफ़ाई', top_ac: 'एसी', top_bus_condition: 'बस की हालत',
+    top_seats: 'सीट', top_blankets: 'कंबल', top_boarding_point: 'बोर्डिंग पॉइंट', top_breakdown: 'ब्रेकडाउन', top_refund: 'रिफ़ंड', top_booking: 'बुकिंग',
+    top_amenities: 'सुविधाएँ', top_safety: 'सुरक्षा', top_other: 'अन्य',
     dpShowLess: 'कम दिखाएँ', cmRatings: 'यात्रियों की नज़र में स्टाफ़', cmRatingsSub: 'सबसे कम पहले, 90 दिन, 10+ रेटेड यात्राओं वाले। रिव्यू देखने के लिए टैप करें।',
     cmRatingsWait: 'अभी किसी की 10 रेटेड यात्राएँ नहीं जुड़ीं। ड्यूटी बोर्ड सही रखने और redBus नाम पक्के करने से भरेगा।',
     dpOverallWait: 'अभी सिर्फ़ आचरण। 90 दिन में 10 रेटेड यात्राएँ जुड़ने पर यात्री स्टार भी गिने जाएँगे।',
@@ -1308,8 +1324,8 @@ async function load() {
   const gatepasses = await DB.all('gatepasses').catch(() => []);
   const dutylog = await DB.all('dutylog').catch(() => []);
   const gatechecks = await DB.all('gatechecks').catch(() => []);
-  const [rbservices, rbreviews, rbcomplaints, rbassign, rbalias, itslookup] = await Promise.all(['rbservices', 'rbreviews', 'rbcomplaints', 'rbassign', 'rbalias', 'itslookup'].map((n) => DB.all(n).catch(() => [])));
-  S.cache = { users, buses, parts, jobs, ledger, att, purchases, drivers, incidents, driverreports, routes, triplog, fuel, gpsevents, audits, components, def, vendors, trips, challans, usage, stockmoves, breakdowns, gatepasses, dutylog, gatechecks, rbservices, rbreviews, rbcomplaints, rbassign, rbalias, itslookup, garage };
+  const [rbservices, rbreviews, rbcomplaints, rbassign, rbalias, itslookup, rbreviewai] = await Promise.all(['rbservices', 'rbreviews', 'rbcomplaints', 'rbassign', 'rbalias', 'itslookup', 'rbreviewai'].map((n) => DB.all(n).catch(() => [])));
+  S.cache = { users, buses, parts, jobs, ledger, att, purchases, drivers, incidents, driverreports, routes, triplog, fuel, gpsevents, audits, components, def, vendors, trips, challans, usage, stockmoves, breakdowns, gatepasses, dutylog, gatechecks, rbservices, rbreviews, rbcomplaints, rbassign, rbalias, itslookup, rbreviewai, garage };
   refreshBiz();   // keep the displayed business name in sync with garage config
 }
 const byId = (arr, id) => arr.find((x) => x.id === id);
@@ -9708,6 +9724,32 @@ async function itsDiag() {
 }
 // Always on the reviews screen for owner/supervisor: what ITS has done, the next lookup, the
 // owner's "what did ITS answer", and the way into "Why no driver?".
+// Claude's fault reading: how far it has got. Opening the reviews screen nudges it along (the
+// redPro extension also runs it after every review sync), at most every two minutes.
+let _aiRvRun = null, _aiRvLast = 0;
+function aiReviewsCard() {
+  if (!can(S.user.role, 'dashboard')) return '';
+  const text = (S.cache.rbreviews || []).filter((r) => (r.comment || '').trim() || (r.tags || []).length);
+  const read = text.filter((r) => rvAiOf(r)).length;
+  if (text.length > read && !_aiRvRun && Date.now() - _aiRvLast > 120000) setTimeout(() => aiReviewsRun(true), 0);
+  const notTheirs = text.filter((r) => { const a = rvAiOf(r); return a && a.faults.length && !a.faults.some((f) => ['driver', 'conductor', 'crew'].includes(f)); }).length;
+  return `<div class="card"><div class="row between"><b>🤖 ${t('aiRvTitle')}</b>
+      ${text.length > read && !_aiRvRun ? `<button class="btn sm" data-act="aiReviewsRun">${t('aiRvBtn')}</button>` : ''}</div>
+    <div class="tiny muted">${read}/${text.length} ${t('aiRvRead')} · ${notTheirs} ${t('aiRvNotCrew')}${_aiRvRun ? ' · ' + esc(_aiRvRun) : ''}</div></div>`;
+}
+async function aiReviewsRun(quiet) {
+  if (_aiRvRun || !Sync.aiReviews) return;
+  _aiRvLast = Date.now(); _aiRvRun = t('aiRvRunning'); rerender();
+  const j = await Sync.aiReviews();
+  _aiRvRun = null;
+  if (j.error) { if (!quiet) toast('🤖 ' + j.error); }
+  else {
+    const b = j.batch || {};
+    if (!quiet || j.classified || b.started) toast(b.started ? `🤖 ${b.reviews} ${t('aiRvBatch')}` : b.status ? `🤖 ${t('aiRvBatchWait')}` : `🤖 ${j.classified} ${t('aiRvDone')}`);
+    if (Sync.kick) Sync.kick();
+  }
+  rerender();
+}
 function itsCard() {
   if (!can(S.user.role, 'dashboard')) return '';
   if (_itsRun) return `<div class="card"><div class="row between"><b>🔎 ${t('itsRunning')}</b><span class="muted small">${_itsRun.done}/${_itsRun.total}</span></div><div class="tiny muted">${_itsRun.found} ${t('itsFound')} · ${_itsRun.matched} ${t('itsDriver')}</div></div>`;
@@ -9824,7 +9866,7 @@ const RV_CONF = {   // confidence → [schip class, i18n key]
   high: ['ok', 'rvHigh'], medium: ['warn', 'rvMedium'], conflict: ['crit', 'rvConflictChip'], none: ['mute', 'rvNoneChip'],
 };
 const rvChip = (tr) => { const m = RV_CONF[tr.confidence] || RV_CONF.none; return `<span class="schip ${m[0]}"><i></i>${t(m[1])}</span>`; };
-const rvClassOf = (r) => Trace.classify({ stars: r.stars, comment: r.comment, tags: r.tags, issue: r.issue });
+const rvClassOf = (r) => { const a = r.id && rvAiOf(r); return a && a.safety ? 'safety' : Trace.classify({ stars: r.stars, comment: r.comment, tags: r.tags, issue: r.issue }); };
 const RV_CLASS = { safety: ['b-red', 'rvSafetyK'], genuine: ['b-amber', 'rvGenuine'], faq: ['b-low', 'rvFaq'], praise: ['b-green', 'rvPraise'] };
 const rvClassBadge = (k) => { const m = RV_CLASS[k] || RV_CLASS.genuine; return `<span class="badge ${m[0]}">${t(m[1])}</span>`; };
 const rvBoard = (r) => Trace.parseLocal(r.boardAt || r.doj) || 0;
@@ -9875,7 +9917,7 @@ function viewReviews() {
   if (scope) body += `<div class="banner" style="display:flex;justify-content:space-between">${scope}<button class="btn sm ghost" data-act="rvClearScope">✕</button></div>`;
   const rbn = rbnPendingCount();
   if (rbn) body += `<div class="card" data-act="openRbNames" style="cursor:pointer"><div class="row between"><b>🪪 ${t('rbnBanner')}</b><span class="badge b-amber">${rbn} ›</span></div></div>`;
-  if (_rvTab === 'reviews') body += itsCard();
+  if (_rvTab === 'reviews') body += aiReviewsCard() + itsCard();
   if (_rvTab === 'complaints') return viewComplaintsTab(body);
   if (!all.length) return shell(t('rvTitle'), body + `<div class="card"><div class="empty">${t('rvNone')}</div></div>`, null, NARROW);
 
@@ -9941,7 +9983,17 @@ function openReview(id) {
     <div class="small muted" style="margin-top:8px">${t('rvBoarded')} ${fmtDateTime(rvBoard(r))} · PNR ${esc(r.pnr)}${r.seats && r.seats.length ? ' · ' + esc(r.seats.join(', ')) : ''}</div>
     ${r.comment ? `<p style="margin:10px 0;font-size:15px;line-height:1.45">“${esc(r.comment)}”</p>` : ''}
     ${(r.tags || []).length ? `<div class="row" style="gap:6px;flex-wrap:wrap">${r.tags.map((x) => `<span class="badge b-low">${esc(x)}</span>`).join('')}</div>` : ''}
+    ${rvAiBlock(r)}
     ${rvSourcesBlock(tr)}`);
+}
+function rvAiBlock(r) {
+  const a = rvAiOf(r);
+  if (!a) return '';
+  return `<h3 style="margin-top:12px">🤖 ${t('aiWhose')}</h3>
+    <div class="small">${esc((LANG === 'hi' ? a.hi : a.en) || a.en || '')}</div>
+    <div class="row" style="gap:6px;flex-wrap:wrap;margin-top:6px">${a.faults.length ? rvFaultChips(a.faults) : `<span class="badge b-green">${t('aiNoComplaint')}</span>`}
+      ${(a.topics || []).map((k) => `<span class="badge b-low">${esc(rvTopicLabel(k))}</span>`).join('')}${a.safety ? `<span class="badge b-red">${t('rvSafetyK')}</span>` : ''}</div>
+    <div class="tiny muted" style="margin-top:4px">${t('aiByClaude')}</div>`;
 }
 function openComplaint(id) {
   const c = (S.cache.rbcomplaints || []).find((x) => x.id === id); if (!c) return;
@@ -9972,12 +10024,39 @@ function rvCrewIndex() {
     for (const c of traceOf(r).crew) {
       if (!c.crewId) continue;
       if (!map.has(c.crewId)) map.set(c.crewId, []);
-      map.get(c.crewId).push({ r, vias: c.vias || [c.via] });
+      map.get(c.crewId).push({ r, vias: c.vias || [c.via], role: c.role === 'conductor' ? 'conductor' : 'driver' });
     }
   }
   for (const l of map.values()) l.sort((a, b) => rvBoard(b.r) - rvBoard(a.r));
   _rvCrewMemo = { key: S.cache, map };
   return map;
+}
+/* Claude's reading of a review (review_ai.py on the server): who the complaint is about.
+ * A review counts in a crew member's passenger score unless it was read and every fault named
+ * is someone else's. Same rule as review_ai.counts_for (test_review_ai.py checks this exists). */
+let _rvAiMemo = { key: null, map: null };
+function rvAiOf(r) {
+  if (_rvAiMemo.key !== S.cache) _rvAiMemo = { key: S.cache, map: new Map((S.cache.rbreviewai || []).map((a) => [a.rv, a])) };
+  return _rvAiMemo.map.get(r.id) || null;
+}
+function rvCountsFor(faults, role) {
+  if (!faults || !faults.length) return true;
+  const mine = role === 'conductor' ? ['conductor', 'crew'] : ['driver', 'crew'];
+  return faults.some((f) => mine.includes(f));
+}
+const RV_FAULT = { driver: ['🧑‍✈️', 'fltDriver'], conductor: ['🎫', 'fltConductor'], crew: ['👥', 'fltCrew'], bus: ['🚌', 'fltBus'],
+  office: ['🏢', 'fltOffice'], redbus: ['📱', 'fltRedbus'], passenger: ['🧍', 'fltPassenger'] };
+const rvFaultChips = (faults) => (faults || []).map((f) => `<span class="badge b-low">${(RV_FAULT[f] || ['•'])[0]} ${t((RV_FAULT[f] || [0, f])[1])}</span>`).join('');
+const rvTopicLabel = (k) => t('top_' + k);
+// "Low ratings mention": Claude's topics where read, redBus's tags otherwise.
+function rvTopTopics(list, faultsOf, n) {
+  const m = {};
+  list.forEach((r) => {
+    const f = faultsOf(r);
+    const keys = f && f.topics && f.topics.length ? f.topics.map(rvTopicLabel) : (r.tags || []);
+    keys.forEach((g) => { m[g] = (m[g] || 0) + 1; });
+  });
+  return Object.entries(m).sort((a, b) => b[1] - a[1]).slice(0, n);
 }
 const RV_VIA = { gate: ['🚦', 'rvSrcGate'], duty: ['📋', 'rbViaDuty'], redpro: ['🏷️', 'rbViaRedpro'], its: ['📞', 'rvViaIts'] };
 /* Total performance = conduct (incidents + GPS, the existing score) blended half and half with
@@ -9986,7 +10065,7 @@ const RV_VIA = { gate: ['🚦', 'rvSrcGate'], duty: ['📋', 'rbViaDuty'], redpr
 function driverOverall(id) {
   const conduct = driverScore(id);
   const since = Date.now() - 90 * day;
-  return overallFrom(conduct, (rvCrewIndex().get(id) || []).filter((x) => rvBoard(x.r) >= since).map((x) => x.r));
+  return overallFrom(conduct, (rvCrewIndex().get(id) || []).filter((x) => rvBoard(x.r) >= since && rvCountsFor((rvAiOf(x.r) || {}).faults, x.role)).map((x) => x.r));
 }
 // The same blend from a list of reviews already limited to 90 days (a crew member's own copy).
 function overallFrom(conduct, reviews) {
@@ -10029,19 +10108,18 @@ async function myRvRefresh() {
 function myReviewsCard(role) {
   const v = myRv();
   setTimeout(myRvRefresh, 0);
-  const list = v.reviews || [], st = rvStats(list);
-  const low = list.filter((r) => r.stars && r.stars <= 3), good = list.filter((r) => r.stars >= 4).length;
+  const list = v.reviews || [], counted = list.filter((r) => rvCountsFor(r.faults, r.role || role)), st = rvStats(counted);
+  const low = counted.filter((r) => r.stars && r.stars <= 3), good = counted.filter((r) => r.stars >= 4).length;
   let h = `<div class="card"><h3>⭐ ${t('myRvTitle')}</h3><div class="tiny muted">${t('myRvSub')}</div>`;
   if (!list.length) return h + `<div class="small muted" style="margin-top:8px">${t(!v.at ? (_myRvFailed ? 'myRvOffline' : 'myRvLoading') : role === 'conductor' ? 'myRvNoneC' : 'myRvNone')}</div></div>`;
   const kpi = (val, lbl) => `<div style="text-align:center;flex:1"><div style="font-weight:800;font-size:20px">${val}</div><div class="tiny muted">${lbl}</div></div>`;
   h += `<div class="row" style="margin-top:10px">${kpi('★' + st.avg.toFixed(1), t('dpAvg'))}${kpi(list.length, t('dpReviews'))}${kpi(good, '4–5★')}${kpi(low.length, '≤3★')}</div>`;
   if (st.n < RV_MIN_SAMPLE) h += `<div class="tiny muted" style="margin-top:4px">${t('myRvFew')}</div>`;
-  const tags = {};
-  low.forEach((r) => (r.tags || []).forEach((g) => { tags[g] = (tags[g] || 0) + 1; }));
-  const top = Object.entries(tags).sort((a, b) => b[1] - a[1]).slice(0, 3);
+  if (list.length > counted.length) h += `<div class="tiny muted" style="margin-top:4px">🤖 ${list.length - counted.length} ${t('aiNotYours')}</div>`;
+  const top = rvTopTopics(low, (r) => r, 3);
   if (top.length) h += `<div class="row" style="gap:6px;flex-wrap:wrap;margin-top:8px"><span class="tiny muted">${t('myRvWork')}</span>${top.map(([g, n]) => `<span class="badge b-amber">${esc(g)} ×${n}</span>`).join('')}</div>`;
   h += `<div class="hr"></div>` + list.slice(0, _myRvMore ? 300 : 6).map((r) => `<div class="li" data-act="myRvOpen" data-id="${esc(r.id)}" style="cursor:pointer">${rvStarsAva(r.stars)}
-      <div class="main"><div class="t">${esc(r.source)} → ${esc(r.dest)}</div><div class="s">${esc(r.date)}${r.regNo ? ' · 🚌 ' + esc(r.regNo) : ''}</div>
+      <div class="main"><div class="t">${esc(r.source)} → ${esc(r.dest)}${rvCountsFor(r.faults, r.role || role) ? '' : ` <span class="badge b-low">${t('aiNotCounted')}</span>`}</div><div class="s">${esc(r.date)}${r.regNo ? ' · 🚌 ' + esc(r.regNo) : ''}</div>
         ${r.comment ? `<div class="tiny" style="margin-top:2px">“${esc(r.comment.length > 90 ? r.comment.slice(0, 90) + '…' : r.comment)}”</div>` : ''}</div></div>`).join('');
   if (list.length > 6) h += `<div class="tiny" style="margin-top:6px;color:var(--accent);cursor:pointer" data-act="myRvMore">${_myRvMore ? t('dpShowLess') : `${t('myRvAll')} (${list.length}) ›`}</div>`;
   return h + `</div>`;
@@ -10051,6 +10129,7 @@ function openMyReview(id) {
   openSheet(`${r.stars ? r.stars + '★ · ' : ''}${r.source} → ${r.dest}`, `
     <div class="small muted">${esc(r.date)}${r.regNo ? ' · 🚌 ' + esc(r.regNo) : ''}</div>
     ${r.comment ? `<p style="margin:10px 0;font-size:15px;line-height:1.45">“${esc(r.comment)}”</p>` : `<p class="muted small">${t('myRvNoText')}</p>`}
+    ${r.faults ? `<div class="small" style="margin:6px 0">🤖 ${esc((LANG === 'hi' ? r.hi : r.en) || r.en || '')}</div><div class="row" style="gap:6px;flex-wrap:wrap">${r.faults.length ? rvFaultChips(r.faults) : `<span class="badge b-green">${t('aiNoComplaint')}</span>`}${rvCountsFor(r.faults, r.role) ? '' : ` <span class="badge b-low">${t('aiNotCounted')}</span>`}</div>` : ''}
     ${(r.tags || []).length ? `<div class="row" style="gap:6px;flex-wrap:wrap">${r.tags.map((x) => `<span class="badge b-low">${esc(x)}</span>`).join('')}</div>` : ''}`);
 }
 // " · ★3.8 (12)" beside a name wherever crew are listed or picked; '' when nothing is traced.
@@ -10064,7 +10143,10 @@ function rvCrewCard(crewId) {
   if (!can(S.user.role, 'crewReviews') || !(S.cache.rbreviews || []).length) return '';
   const since = _dpRvWin ? Date.now() - _dpRvWin * day : 0;
   const all = (rvCrewIndex().get(crewId) || []).filter((x) => rvBoard(x.r) >= since);
-  const list = all.map((x) => x.r), st = rvStats(list);
+  // Stars count only what is theirs; the rest is listed, marked "not counted".
+  const counted = all.filter((x) => rvCountsFor((rvAiOf(x.r) || {}).faults, x.role)).map((x) => x.r);
+  const notTheirs = all.length - counted.length;
+  const list = all.map((x) => x.r), st = rvStats(counted);
   const low = list.filter((r) => r.stars && r.stars <= 3);
   const safety = list.filter((r) => rvClassOf(r) === 'safety').length;
   const chip = (w, label) => `<button class="chip${_dpRvWin === w ? ' active' : ''}" style="padding:4px 10px;font-size:12px" data-act="dpRvWin" data-w="${w}">${label}</button>`;
@@ -10076,18 +10158,17 @@ function rvCrewCard(crewId) {
   h += `<div class="row" style="margin-top:10px">${kpi(avgTxt, t('dpAvg'), st.n >= RV_MIN_SAMPLE && st.avg < 3.5)}${kpi(list.length, t('dpReviews'))}${
     kpi(low.length, '≤3★', low.length > 0)}${kpi(st.one == null ? '—' : Math.round(st.one * 100) + '%', '1★', st.one > 0.15)}${kpi(safety, t('rvSafetyK'), safety > 0)}</div>`;
   if (st.n && st.n < RV_MIN_SAMPLE) h += `<div class="tiny muted" style="margin-top:4px">* ${t('rvMinSample')}</div>`;
+  if (notTheirs) h += `<div class="tiny muted" style="margin-top:4px">🤖 ${notTheirs} ${t('aiNotTheirs')}</div>`;
   // How each review reached him: the office can see which proof the picture rests on.
   const byVia = {};
   all.forEach((x) => x.vias.forEach((v) => { byVia[v] = (byVia[v] || 0) + 1; }));
   h += `<div class="row" style="gap:6px;flex-wrap:wrap;margin-top:10px"><span class="tiny muted">${t('dpMappedBy')}</span>${
     Object.keys(RV_VIA).filter((v) => byVia[v]).map((v) => `<span class="badge b-low">${RV_VIA[v][0]} ${t(RV_VIA[v][1])} ×${byVia[v]}</span>`).join('')}</div>`;
   // What the unhappy passengers keep naming.
-  const tags = {};
-  low.forEach((r) => (r.tags || []).forEach((g) => { tags[g] = (tags[g] || 0) + 1; }));
-  const top = Object.entries(tags).sort((a, b) => b[1] - a[1]).slice(0, 4);
+  const top = rvTopTopics(counted.filter((r) => r.stars && r.stars <= 3), rvAiOf, 4);
   if (top.length) h += `<div class="row" style="gap:6px;flex-wrap:wrap;margin-top:6px"><span class="tiny muted">${t('dpComplaintsAbout')}</span>${top.map(([g, n]) => `<span class="badge b-amber">${esc(g)} ×${n}</span>`).join('')}</div>`;
-  h += `<div class="hr"></div>` + all.slice(0, _dpRvMore ? 300 : 10).map(({ r, vias }) => `<div class="li" data-act="openReview" data-id="${esc(r.id)}" style="cursor:pointer">${rvStarsAva(r.stars)}
-      <div class="main"><div class="t">${esc(r.source)} → ${esc(r.dest)}</div>
+  h += `<div class="hr"></div>` + all.slice(0, _dpRvMore ? 300 : 10).map(({ r, vias, role }) => `<div class="li" data-act="openReview" data-id="${esc(r.id)}" style="cursor:pointer">${rvStarsAva(r.stars)}
+      <div class="main"><div class="t">${esc(r.source)} → ${esc(r.dest)}${rvCountsFor((rvAiOf(r) || {}).faults, role) ? '' : ` <span class="badge b-low">${t('aiNotCounted')}: ${rvFaultChips((rvAiOf(r) || {}).faults).replace(/<[^>]+>/g, ' ').trim()}</span>`}</div>
         <div class="s">${fmtDate(rvBoard(r))} · ${vias.map((v) => (RV_VIA[v] || ['•'])[0]).join('')} ${esc((traceOf(r).bus || {}).regNo || '')}</div>
         ${r.comment ? `<div class="tiny" style="margin-top:2px">“${esc(r.comment.length > 90 ? r.comment.slice(0, 90) + '…' : r.comment)}”</div>` : ''}</div></div>`).join('');
   if (all.length > 10) h += `<div class="tiny" style="margin-top:6px;color:var(--accent);cursor:pointer" data-act="dpRvMore">${_dpRvMore ? t('dpShowLess') : `${t('dpSeeAll')} (${all.length}) ›`}</div>`;
@@ -12578,6 +12659,7 @@ const _dispatchClick = async (e) => {
       case 'openReview': return openReview(el.getAttribute('data-id'));
       case 'dpRvWin': _dpRvWin = Number(el.getAttribute('data-w')) || 0; return rerender();
       case 'dpRvMore': _dpRvMore = !_dpRvMore; return rerender();
+      case 'aiReviewsRun': return aiReviewsRun(false);
       case 'myRvMore': _myRvMore = !_myRvMore; return rerender();
       case 'myRvOpen': return openMyReview(el.getAttribute('data-id'));
       case 'openComplaint': return openComplaint(el.getAttribute('data-id'));

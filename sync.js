@@ -59,7 +59,9 @@ const Sync = (function () {
                   // Confirmed redBus-name -> crew matches, written by the office (not server-only).
                   'rbalias',
                   // ITS PNR lookups (server-written by /its/lookup; pulled, never pushed).
-                  'itslookup'];
+                  'itslookup',
+                  // Claude's reading of whose fault each review is (server-written by /ai/reviews).
+                  'rbreviewai'];
 
   const ls = window.localStorage;
   // Default sync backend: a device's explicit setting always wins. Otherwise, on
@@ -390,6 +392,15 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
       if (res.status === 403) return { error: 'Only the owner or a supervisor can look up in ITS' };
       if (!res.ok && !j.lookedUp) return { error: j.error || ('ITS lookup failed (' + res.status + ')') };
       return j;
+    } catch (e) { return { error: 'No connection to the server' }; }
+  }
+  // Ask the server to read new reviews for whose fault they are (owner/supervisor).
+  async function aiReviews() {
+    try {
+      const res = await fetch(baseUrl() + '/ai/reviews', { method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }), body: '{}' });
+      let j = {};
+      try { j = await res.json(); } catch (e) { /* not JSON */ }
+      return res.ok ? j : { error: j.error || ('failed (' + res.status + ')') };
     } catch (e) { return { error: 'No connection to the server' }; }
   }
   // A driver/conductor's own redBus reviews, traced on the server (their phone is not sent the
@@ -952,7 +963,7 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
     } catch (e) { return null; }
   }
 
-  return { start, tick, kick, setUrl, reset, info, login, logout, warmUp, roster, pendingIds, addStaff, deleteStaff, renameStaff, registerRoster, setPin, gps, validSyncUrl, backfillContacts, setActor, tokenUser, now, deleteUploads, ai, aiVision, challans, itsLookup, myReviews, fleet, latest, uploadPhoto,
+  return { start, tick, kick, setUrl, reset, info, login, logout, warmUp, roster, pendingIds, addStaff, deleteStaff, renameStaff, registerRoster, setPin, gps, validSyncUrl, backfillContacts, setActor, tokenUser, now, deleteUploads, ai, aiVision, challans, itsLookup, myReviews, aiReviews, fleet, latest, uploadPhoto,
            queuePhoto, uploadError, remove, clearQuarantine, subscribePush, pushTest, flagOn, flagList,
            get status() { return status; } };
 })();

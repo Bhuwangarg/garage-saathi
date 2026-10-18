@@ -240,16 +240,19 @@ def resolve(item, ctx):
 _LONG_NUMBER = re.compile(r"\d[\d\s-]{5,}\d")
 
 
-def crew_copy(review, trace):
+def crew_copy(review, trace, ai=None):
     """What a crew member is shown of a review: what was said and about which trip, never who said
     it. No PNR, seat or boarding time; a long number in the text (a phone) is masked."""
     return {"id": review.get("id"), "stars": review.get("stars"),
             "date": (review.get("boardAt") or "")[:10], "source": review.get("source") or "",
             "dest": review.get("dest") or "", "comment": _LONG_NUMBER.sub("••••", review.get("comment") or ""),
-            "tags": list(review.get("tags") or []), "regNo": ((trace.get("bus") or {}).get("regNo")) or ""}
+            "tags": list(review.get("tags") or []), "regNo": ((trace.get("bus") or {}).get("regNo")) or "",
+            # Claude's reading of whose fault it was (review_ai.py), when there is one.
+            **({"faults": list(ai.get("faults") or []), "topics": list(ai.get("topics") or []), "hi": ai.get("hi") or "",
+                "en": ai.get("en") or ""} if ai else {})}
 
 
-def index_by_crew(reviews, ctx, since):
+def index_by_crew(reviews, ctx, since, ai=None):
     """crewId -> [crew_copy + vias], newest first, for reviews boarded from `since`. A review whose
     sources disagree on the bus is left out: it is not yet known to be anyone's."""
     out = {}
@@ -263,7 +266,8 @@ def index_by_crew(reviews, ctx, since):
         if tr["confidence"] == "conflict":
             continue
         for c in tr["crew"]:
-            out.setdefault(c["crewId"], []).append(dict(crew_copy(rv, tr), vias=list(c["vias"]), _at=at))
+            out.setdefault(c["crewId"], []).append(dict(crew_copy(rv, tr, (ai or {}).get("ai-" + str(rv.get("id")))),
+                                                        vias=list(c["vias"]), role=c["role"], _at=at))
     for lst in out.values():
         lst.sort(key=lambda x: -x["_at"])
         for x in lst:

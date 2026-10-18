@@ -28,6 +28,7 @@ import urllib.parse
 import urllib.request
 import uuid
 
+import review_ai
 import wa_client
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -1169,7 +1170,10 @@ SERVER_INGEST_ONLY = {"gpsevents", "gpslive", "challans", "odometerlogs", "wacon
                       "itslookup",
                       "stockmoves",
                       # redPro data, written only by /redpro/ingest from the office collector.
-                      "rbservices", "rbreviews", "rbcomplaints", "rbassign"}
+                      "rbservices", "rbreviews", "rbcomplaints", "rbassign",
+                      # Claude's reading of each review (whose fault), written only by /ai/reviews;
+                      # aimeta is that job's own bookkeeping and is never sent to any phone.
+                      "rbreviewai", "aimeta"}
 
 # A phone with a wrong clock is normal; a record dated 2100 is not. Without a
 # bound, last-write-wins makes a far-future write permanent — the owner's
@@ -1242,7 +1246,7 @@ def _crew_record_for(c, user_id):
 # a trip (redact_for), so the server traces them (crew_trace.py, the same rules as trace.js) and
 # returns only the reviews of trips this login's crew record was on: no PNR, seat or time.
 CREW_REVIEW_DAYS = 90
-_CREW_RV_STORES = ("rbreviews", "rbservices", "gatechecks", "rbassign", "buses", "dutylog", "itslookup", "rbalias")
+_CREW_RV_STORES = ("rbreviews", "rbservices", "gatechecks", "rbassign", "buses", "dutylog", "itslookup", "rbalias", "rbreviewai")
 _CREW_RV_MEMO = {"key": None, "ix": None}
 
 
@@ -1270,7 +1274,8 @@ def crew_reviews_for(user_id):
                 ctx = crew_trace.Context(rows["rbservices"], rows["gatechecks"], rows["rbassign"], rows["buses"],
                                          rows["dutylog"], rows["itslookup"], rows["rbalias"])
                 _CREW_RV_MEMO.update(key=key, ix=crew_trace.index_by_crew(
-                    rows["rbreviews"], ctx, now_ms() - CREW_REVIEW_DAYS * 86400000))
+                    rows["rbreviews"], ctx, now_ms() - CREW_REVIEW_DAYS * 86400000,
+                    {a.get("id"): a for a in rows["rbreviewai"]}))
         finally:
             c.close()
     return {"crewId": me.get("id"), "reviews": (_CREW_RV_MEMO["ix"] or {}).get(me.get("id"), [])[:300],
@@ -2079,6 +2084,165 @@ def its_lookup_batch(pnrs, actor, session_factory=None, clock=time.monotonic):
     return (200 if error is None or done else 502), out
 
 
+# ----------------------------- Review fault reading -------------------------------------------
+# Claude reads each redBus review once and says whose fault the complaint is (review_ai.py). New
+# reviews go a chunk at a time; a backlog (the first 4,700) goes as one Message Batch, at half the
+# price, collected on a later call. Called by the redPro extension after each review sync and by
+# the owner's reviews screen, so it runs without anyone pressing a button.
+AI_REVIEW_BATCH_MIN = int(os.environ.get("AI_REVIEW_BATCH_MIN", "120"))   # backlog size that goes as a batch
+AI_REVIEW_BATCH_MAX = 6000
+AI_REVIEW_DAILY_CALLS = int(os.environ.get("AI_REVIEW_DAILY_CALLS", "200"))  # direct calls a day (15 reviews each)
+_ANTHROPIC = "https://api.anthropic.com/v1"
+
+
+def _anthropic(method, path, payload=None, timeout=50):
+    req = urllib.request.Request(_ANTHROPIC + path, method=method,
+                                 data=json.dumps(payload).encode() if payload is not None else None,
+                                 headers={"content-type": "application/json", "x-api-key": ANTHROPIC_API_KEY,
+                                          "anthropic-version": "2023-06-01"})
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        raw = resp.read().decode("utf-8", "replace")
+    return raw if path.endswith("/results") else json.loads(raw)
+
+
+def _ai_day_count(c, bump=0):
+    key = "reviews:%s" % datetime.utcnow().strftime("%Y-%m-%d")
+    row = c.execute("SELECT n FROM aiusage WHERE k=?", (key,)).fetchone()
+    n = int(row[0]) if row else 0
+    if bump:
+        c.execute("INSERT INTO aiusage(k,n) VALUES(?,?) ON CONFLICT(k) DO UPDATE SET n=excluded.n", (key, n + bump))
+    return n
+
+
+def _store_rows(c, store):
+    out = {}
+    for rid, raw in c.execute("SELECT id, data FROM records WHERE store=?", (store,)).fetchall():
+        try:
+            d = json.loads(raw)
+        except Exception:
+            continue
+        if isinstance(d, dict) and not d.get("_deleted"):
+            out[rid] = d
+    return out
+
+
+def _save_readings(c, reviews_by_id, readings, model):
+    rev = c.execute("SELECT COALESCE(MAX(rev),0) FROM records").fetchone()[0]
+    now = now_ms()
+    for rid, reading in readings.items():
+        rv = reviews_by_id.get(rid)
+        if rv:
+            rec = review_ai.record_for(rv, reading, model, now)
+            rev = _upsert_record(c, "rbreviewai", rec["id"], rec, now, rev)
+    return len(readings)
+
+
+def review_ai_tick(call=None):
+    """One step of the job. Returns (status, body). `call(method, path, payload)` is the API (tests
+    pass a fake)."""
+    if not ANTHROPIC_API_KEY and call is None:
+        return 501, {"error": "AI not configured on server (ANTHROPIC_API_KEY)"}
+    call = call or _anthropic
+    out = {"ok": True, "classified": 0, "batch": None}
+    with _lock:
+        c = db()
+        try:
+            reviews = _store_rows(c, "rbreviews")
+            readings = _store_rows(c, "rbreviewai")
+            meta = _store_rows(c, "aimeta").get("rv-batch")
+        finally:
+            c.close()
+
+    # 1. An open batch: collect it once Anthropic has finished.
+    in_batch = set()
+    if meta and meta.get("batchId"):
+        st = call("GET", "/messages/batches/" + meta["batchId"], None)
+        if st.get("processing_status") == "ended":
+            text = call("GET", "/messages/batches/%s/results" % meta["batchId"], None)
+            got = {}
+            for line in (text or "").splitlines():
+                try:
+                    row = json.loads(line)
+                except Exception:
+                    continue
+                ids = (meta.get("chunks") or {}).get(row.get("custom_id")) or []
+                res = row.get("result") or {}
+                if res.get("type") != "succeeded":
+                    continue
+                chunk = [reviews[i] for i in ids if i in reviews]
+                # Only a reading of the text that was sent: a review edited since is asked again.
+                hashes = (meta.get("hashes") or {})
+                chunk = [r for r in chunk if hashes.get(r["id"]) == review_ai.content_hash(r)]
+                got.update(review_ai.parse_message(res.get("message"), chunk))
+            with _lock:
+                c = db()
+                try:
+                    out["classified"] += _save_readings(c, reviews, got, meta.get("model") or AI_MODEL)
+                    rev = c.execute("SELECT COALESCE(MAX(rev),0) FROM records").fetchone()[0]
+                    _upsert_record(c, "aimeta", "rv-batch", {"id": "rv-batch", "batchId": None, "lastBatch": meta["batchId"],
+                                                             "lastCollected": len(got), "at": now_ms()}, now_ms(), rev)
+                    c.commit()
+                finally:
+                    c.close()
+            readings = dict(readings, **{"ai-" + k: {"v": review_ai.PROMPT_V, "h": review_ai.content_hash(reviews[k])} for k in got})
+            out["batch"] = {"collected": len(got), "id": meta["batchId"]}
+        else:
+            in_batch = {i for ids in (meta.get("chunks") or {}).values() for i in ids}
+            out["batch"] = {"id": meta["batchId"], "status": st.get("processing_status"),
+                            "counts": st.get("request_counts"), "reviews": len(in_batch)}
+
+    todo = review_ai.pending(list(reviews.values()), readings, skip=in_batch)
+
+    # 2. A backlog and no batch open: send it all as one batch.
+    if len(todo) >= AI_REVIEW_BATCH_MIN and not in_batch:
+        todo = todo[:AI_REVIEW_BATCH_MAX]
+        parts = review_ai.chunks(todo)
+        reqs = [{"custom_id": "c%d" % n, "params": review_ai.params_for(ch, AI_MODEL)} for n, ch in enumerate(parts)]
+        b = call("POST", "/messages/batches", {"requests": reqs})
+        with _lock:
+            c = db()
+            try:
+                rev = c.execute("SELECT COALESCE(MAX(rev),0) FROM records").fetchone()[0]
+                _upsert_record(c, "aimeta", "rv-batch", {
+                    "id": "rv-batch", "batchId": b.get("id"), "model": AI_MODEL, "at": now_ms(),
+                    "chunks": {"c%d" % n: [r["id"] for r in ch] for n, ch in enumerate(parts)},
+                    "hashes": {r["id"]: review_ai.content_hash(r) for r in todo}}, now_ms(), rev)
+                c.commit()
+            finally:
+                c.close()
+        out["batch"] = {"id": b.get("id"), "status": b.get("processing_status"), "reviews": len(todo), "started": True}
+        out["pending"] = 0
+        return 200, out
+
+    # 3. A few new reviews: read one chunk now.
+    if todo:
+        with _lock:
+            c = db()
+            try:
+                if _ai_day_count(c) >= AI_REVIEW_DAILY_CALLS:
+                    out["limited"] = True
+                else:
+                    _ai_day_count(c, bump=1)
+                    c.commit()
+            finally:
+                c.close()
+        if not out.get("limited"):
+            chunk = todo[:review_ai.CHUNK]
+            msg = call("POST", "/messages", review_ai.params_for(chunk, AI_MODEL))
+            got = review_ai.parse_message(msg, chunk)
+            with _lock:
+                c = db()
+                try:
+                    out["classified"] += _save_readings(c, reviews, got, AI_MODEL)
+                    c.commit()
+                finally:
+                    c.close()
+            todo = todo[len(chunk):] if got else todo
+    out["pending"] = len(todo)
+    out["done"] = sum(1 for r in reviews.values() if review_ai.has_text(r)) - len(todo) - len(in_batch)
+    return 200, out
+
+
 def its_lookup_diag(pnrs):
     """Owner only: look ONE PNR up and return the shape of ITS's answer (field names, messages),
     never its values, and store nothing."""
@@ -2601,6 +2765,8 @@ def redact_for(actor, rec):
     # applies to the owner's phone as much as anyone's. Omitted records still
     # count as sent — pull() takes its cursor before redaction — so the client
     # does not ask for them again.
+    if st == "aimeta":                    # server bookkeeping (the open review batch), for no phone
+        return None
     if st in HISTORY_DAYS:
         roles = HISTORY_ROLES.get(st)
         if roles and (actor or {}).get("role") not in roles:
@@ -2614,7 +2780,7 @@ def redact_for(actor, rec):
         return rec
     if st == "waconv":                    # keyed by a crew member's phone number
         return None
-    if st in ("rbreviews", "rbcomplaints", "rbassign", "itslookup"):
+    if st in ("rbreviews", "rbcomplaints", "rbassign", "itslookup", "rbreviewai"):
         # Reviews, complaints and redBus's driver names are for the people who act
         # on them. A driver's phone does not need every passenger's comment about
         # every colleague. (rbservices holds no names: drivers need it to pick the
@@ -4426,6 +4592,22 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(*its_lookup_diag(b.get("pnrs")))
             code, res = its_lookup_batch((b or {}).get("pnrs") if isinstance(b, dict) else None, me)
             return self._send(code, res)
+
+        if u.path == "/ai/reviews":                  # read new reviews for whose fault (extension or owner)
+            h = self.headers.get("Authorization") or ""
+            by_token = _REDPRO_TOKEN_OK and hmac.compare_digest(h, "Bearer " + REDPRO_INGEST_TOKEN)
+            if not by_token:
+                me = self._auth_user()
+                if not me:
+                    return self._send(401, {"error": "unauthorized"})
+                if me["role"] not in ("owner", "supervisor"):
+                    return self._send(403, {"error": "forbidden"})
+            try:
+                return self._send(*review_ai_tick())
+            except urllib.error.HTTPError as e:
+                return self._send(502, {"error": "Claude answered %s" % e.code})
+            except Exception as e:
+                return self._send(502, {"error": "AI upstream error: %s" % type(e).__name__})
 
         if u.path == "/redpro/ingest":               # the office collector posts redPro data here
             if not _REDPRO_TOKEN_OK:
