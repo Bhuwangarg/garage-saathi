@@ -335,6 +335,10 @@ const I18N = {
     dpRvTitle: 'redBus reviews mapped to them', dp30: '30 d', dp90: '90 d', dpAll: 'All', dpRvNone: 'No review traced to them in this period.', dpAvg: 'average', dpReviews: 'reviews',
     dpMappedBy: 'Mapped by', dpComplaintsAbout: 'Low ratings mention', dpSeeAll: 'All their reviews', dpOverall: 'Total performance', dpConduct: 'Conduct',
     dpConductSub: 'incidents + GPS', dpConductSubC: 'incidents', dpPassenger: 'Passengers', dpRated: 'rated', dpOverallHow: 'Half conduct, half passenger stars (1★ = 0, 5★ = 100), last 90 days.',
+    myRvTitle: 'What passengers said about your trips', myRvSub: 'redBus reviews of trips you were on, last 90 days', myRvAll: 'All your reviews',
+    myRvNone: 'No review is linked to you yet. Do the gate check before every departure, with the service picked: that is what links passengers\' reviews to you.',
+    myRvNoneC: 'No review is linked to you yet. They link to you through the duty board, so make sure the office has you on the right bus.',
+    myRvLoading: 'Fetching your reviews…', myRvOffline: 'Could not fetch your reviews. They will show once the phone is online.', myRvFew: 'Fewer than 10 rated trips: not counted in your rating yet.', myRvWork: 'Low ratings mention', myRvNoText: 'No comment, only stars.',
     dpShowLess: 'Show fewer', cmRatings: 'Crew ratings from passengers', cmRatingsSub: 'Lowest first, 90 days, crew with 10+ rated trips. Tap to see their reviews.',
     cmRatingsWait: 'Nobody has 10 rated trips traced to them yet. Keeping the duty board right and confirming redBus names fills this in.',
     dpOverallWait: 'Conduct only for now. Passenger stars count once 10 rated trips are traced to them in 90 days.',
@@ -689,6 +693,10 @@ const I18N = {
     dpRvTitle: 'इनसे जुड़े redBus रिव्यू', dp30: '30 दिन', dp90: '90 दिन', dpAll: 'सब', dpRvNone: 'इस अवधि में कोई रिव्यू इनसे नहीं जुड़ा।', dpAvg: 'औसत', dpReviews: 'रिव्यू',
     dpMappedBy: 'कैसे जुड़ा', dpComplaintsAbout: 'कम रेटिंग में', dpSeeAll: 'इनके सारे रिव्यू', dpOverall: 'कुल प्रदर्शन', dpConduct: 'आचरण',
     dpConductSub: 'घटनाएँ + GPS', dpConductSubC: 'घटनाएँ', dpPassenger: 'यात्री', dpRated: 'रेटिंग', dpOverallHow: 'आधा आचरण, आधा यात्री स्टार (1★ = 0, 5★ = 100), पिछले 90 दिन।',
+    myRvTitle: 'यात्रियों ने आपकी यात्राओं पर क्या कहा', myRvSub: 'आपकी यात्राओं के redBus रिव्यू, पिछले 90 दिन', myRvAll: 'आपके सारे रिव्यू',
+    myRvNone: 'अभी कोई रिव्यू आपसे नहीं जुड़ा। हर रवानगी से पहले सर्विस चुनकर गेट चेक करें: इसी से यात्रियों के रिव्यू आपसे जुड़ते हैं।',
+    myRvNoneC: 'अभी कोई रिव्यू आपसे नहीं जुड़ा। ये ड्यूटी बोर्ड से जुड़ते हैं, ऑफिस से पक्का करें कि आप सही बस पर दर्ज हैं।',
+    myRvLoading: 'आपके रिव्यू आ रहे हैं…', myRvOffline: 'रिव्यू नहीं आ सके। फ़ोन ऑनलाइन होने पर दिखेंगे।', myRvFew: '10 से कम रेटिंग: अभी आपकी रेटिंग में नहीं गिने गए।', myRvWork: 'कम रेटिंग में', myRvNoText: 'कोई टिप्पणी नहीं, सिर्फ़ स्टार।',
     dpShowLess: 'कम दिखाएँ', cmRatings: 'यात्रियों की नज़र में स्टाफ़', cmRatingsSub: 'सबसे कम पहले, 90 दिन, 10+ रेटेड यात्राओं वाले। रिव्यू देखने के लिए टैप करें।',
     cmRatingsWait: 'अभी किसी की 10 रेटेड यात्राएँ नहीं जुड़ीं। ड्यूटी बोर्ड सही रखने और redBus नाम पक्के करने से भरेगा।',
     dpOverallWait: 'अभी सिर्फ़ आचरण। 90 दिन में 10 रेटेड यात्राएँ जुड़ने पर यात्री स्टार भी गिने जाएँगे।',
@@ -9267,7 +9275,7 @@ function coachingLine(score, byType) {
 function viewDriverHome() {
   const d = driverForUser(S.user.id);
   if (!d) { shell(t('myTrips'), `<div class="card"><div class="empty">${t('noBusAssigned')}</div></div>`); return; }
-  const bus = byId(S.cache.buses, d.busId), score = driverScore(d.id);
+  const bus = byId(S.cache.buses, d.busId), score = overallFrom(driverScore(d.id), myRv().reviews || []).overall;
   let body = `<div class="greet"><div class="greet-av">🧑‍✈️</div>
     <div><div class="greet-hi">${t('namaste')}, ${esc(d.name)} 👋</div><div class="muted small">${esc(BIZ)} · ${fmtToday()}</div></div></div>`;
   if (bus) body += `<div class="hero cover"><img src="${esc(busImg(bus))}" alt="">
@@ -9282,6 +9290,7 @@ function viewDriverHome() {
       <div style="text-align:right"><div class="stars big">${starStr(scoreStars(score))}</div><div class="tiny muted">${d.tripsLogged || 0} ${t('trips')}</div></div></div>
       <div class="tiny muted" style="margin-top:8px">${recent.length ? `${t('drvLast90')}: ${reasons}. ` : ''}${tip}</div></div>`;
   body += gateHomeCard(d);    // departure checklist — first thing before the bus leaves
+  body += myReviewsCard('driver');
   body += driverTripCard();   // trip cash + expenses
   if (d.busId) {
     body += `<button class="btn primary" data-act="reportProblem" data-bus="${esc(d.busId)}" data-driver="${esc(d.id)}">🛠️ ${t('reportProblem')}</button><div class="spacer"></div>`;
@@ -9325,6 +9334,7 @@ function viewConductorHome() {
     if (bus.crewPhone) body += `<div class="row between small" style="padding:3px 0"><span class="muted">Contact</span><a href="tel:${esc((bus.crewPhone || '').replace(/\s/g, ''))}"><b>${esc(bus.crewPhone)}</b></a></div>`;
     body += `</div>`;
   } else body += `<div class="card"><div class="empty">No bus assigned yet. Ask your supervisor.</div></div>`;
+  body += myReviewsCard('conductor');
   shell(t('myTrips'), body);
 }
 
@@ -9976,9 +9986,72 @@ const RV_VIA = { gate: ['🚦', 'rvSrcGate'], duty: ['📋', 'rbViaDuty'], redpr
 function driverOverall(id) {
   const conduct = driverScore(id);
   const since = Date.now() - 90 * day;
-  const st = rvStats((rvCrewIndex().get(id) || []).filter((x) => rvBoard(x.r) >= since).map((x) => x.r));
+  return overallFrom(conduct, (rvCrewIndex().get(id) || []).filter((x) => rvBoard(x.r) >= since).map((x) => x.r));
+}
+// The same blend from a list of reviews already limited to 90 days (a crew member's own copy).
+function overallFrom(conduct, reviews) {
+  const st = rvStats(reviews);
   const passenger = st.n >= RV_MIN_SAMPLE ? Math.round(((st.avg - 1) / 4) * 100) : null;
   return { conduct, passenger, n: st.n, avg: st.avg, overall: passenger == null ? conduct : Math.round((conduct + passenger) / 2) };
+}
+
+/* ---- A crew member's own reviews (driver and conductor home) ----
+ * Traced by the server (/my/reviews), which sends only this login's reviews, with no PNR, seat
+ * or boarding time. Kept on the phone so the card still shows offline; refreshed every 15 min. */
+const MYRV_TTL = 15 * 60000;
+let _myRvBusy = false, _myRvMore = false, _myRvTry = 0, _myRvFailed = false;
+const _myRvKey = () => 'gs.myrv.' + ((S.user || {}).id || '');
+function myRv() {
+  if (S._myRv && S._myRv.uid === (S.user || {}).id) return S._myRv;
+  let v = null;
+  try { v = JSON.parse(localStorage.getItem(_myRvKey()) || 'null'); } catch (e) { v = null; }
+  S._myRv = v && v.uid === (S.user || {}).id ? v : { uid: (S.user || {}).id, at: 0, reviews: [] };
+  return S._myRv;
+}
+async function myRvRefresh() {
+  const cur = myRv();
+  // At most one try a minute: offline, every render would otherwise ask again.
+  if (_myRvBusy || Date.now() - cur.at < MYRV_TTL || Date.now() - _myRvTry < 60000 || !Sync.myReviews) return;
+  _myRvBusy = true; _myRvTry = Date.now();
+  try {
+    const j = await Sync.myReviews();
+    if (!j || !Array.isArray(j.reviews)) {
+      if (!cur.at && !_myRvFailed) { _myRvFailed = true; if (S.route && S.route.name === 'home') rerender(); }
+      return;
+    }
+    _myRvFailed = false;
+    const changed = JSON.stringify(j.reviews) !== JSON.stringify(cur.reviews) || !cur.at;
+    S._myRv = { uid: cur.uid, at: Date.now(), reviews: j.reviews, linked: !!j.crewId };
+    try { localStorage.setItem(_myRvKey(), JSON.stringify(S._myRv)); } catch (e) { /* storage full or blocked */ }
+    if (changed && S.route && S.route.name === 'home') rerender();
+  } finally { _myRvBusy = false; }
+}
+function myReviewsCard(role) {
+  const v = myRv();
+  setTimeout(myRvRefresh, 0);
+  const list = v.reviews || [], st = rvStats(list);
+  const low = list.filter((r) => r.stars && r.stars <= 3), good = list.filter((r) => r.stars >= 4).length;
+  let h = `<div class="card"><h3>⭐ ${t('myRvTitle')}</h3><div class="tiny muted">${t('myRvSub')}</div>`;
+  if (!list.length) return h + `<div class="small muted" style="margin-top:8px">${t(!v.at ? (_myRvFailed ? 'myRvOffline' : 'myRvLoading') : role === 'conductor' ? 'myRvNoneC' : 'myRvNone')}</div></div>`;
+  const kpi = (val, lbl) => `<div style="text-align:center;flex:1"><div style="font-weight:800;font-size:20px">${val}</div><div class="tiny muted">${lbl}</div></div>`;
+  h += `<div class="row" style="margin-top:10px">${kpi('★' + st.avg.toFixed(1), t('dpAvg'))}${kpi(list.length, t('dpReviews'))}${kpi(good, '4–5★')}${kpi(low.length, '≤3★')}</div>`;
+  if (st.n < RV_MIN_SAMPLE) h += `<div class="tiny muted" style="margin-top:4px">${t('myRvFew')}</div>`;
+  const tags = {};
+  low.forEach((r) => (r.tags || []).forEach((g) => { tags[g] = (tags[g] || 0) + 1; }));
+  const top = Object.entries(tags).sort((a, b) => b[1] - a[1]).slice(0, 3);
+  if (top.length) h += `<div class="row" style="gap:6px;flex-wrap:wrap;margin-top:8px"><span class="tiny muted">${t('myRvWork')}</span>${top.map(([g, n]) => `<span class="badge b-amber">${esc(g)} ×${n}</span>`).join('')}</div>`;
+  h += `<div class="hr"></div>` + list.slice(0, _myRvMore ? 300 : 6).map((r) => `<div class="li" data-act="myRvOpen" data-id="${esc(r.id)}" style="cursor:pointer">${rvStarsAva(r.stars)}
+      <div class="main"><div class="t">${esc(r.source)} → ${esc(r.dest)}</div><div class="s">${esc(r.date)}${r.regNo ? ' · 🚌 ' + esc(r.regNo) : ''}</div>
+        ${r.comment ? `<div class="tiny" style="margin-top:2px">“${esc(r.comment.length > 90 ? r.comment.slice(0, 90) + '…' : r.comment)}”</div>` : ''}</div></div>`).join('');
+  if (list.length > 6) h += `<div class="tiny" style="margin-top:6px;color:var(--accent);cursor:pointer" data-act="myRvMore">${_myRvMore ? t('dpShowLess') : `${t('myRvAll')} (${list.length}) ›`}</div>`;
+  return h + `</div>`;
+}
+function openMyReview(id) {
+  const r = (myRv().reviews || []).find((x) => x.id === id); if (!r) return;
+  openSheet(`${r.stars ? r.stars + '★ · ' : ''}${r.source} → ${r.dest}`, `
+    <div class="small muted">${esc(r.date)}${r.regNo ? ' · 🚌 ' + esc(r.regNo) : ''}</div>
+    ${r.comment ? `<p style="margin:10px 0;font-size:15px;line-height:1.45">“${esc(r.comment)}”</p>` : `<p class="muted small">${t('myRvNoText')}</p>`}
+    ${(r.tags || []).length ? `<div class="row" style="gap:6px;flex-wrap:wrap">${r.tags.map((x) => `<span class="badge b-low">${esc(x)}</span>`).join('')}</div>` : ''}`);
 }
 // " · ★3.8 (12)" beside a name wherever crew are listed or picked; '' when nothing is traced.
 function crewRatingTag(id) {
@@ -12505,6 +12578,8 @@ const _dispatchClick = async (e) => {
       case 'openReview': return openReview(el.getAttribute('data-id'));
       case 'dpRvWin': _dpRvWin = Number(el.getAttribute('data-w')) || 0; return rerender();
       case 'dpRvMore': _dpRvMore = !_dpRvMore; return rerender();
+      case 'myRvMore': _myRvMore = !_myRvMore; return rerender();
+      case 'myRvOpen': return openMyReview(el.getAttribute('data-id'));
       case 'openComplaint': return openComplaint(el.getAttribute('data-id'));
       case 'rvOpenCrew': closeSheet(); return push({ name: 'drivers', id: el.getAttribute('data-id') });
       case 'rvOpenGate': if (e && e.preventDefault) e.preventDefault(); closeSheet(); return push({ name: 'gate', id: el.getAttribute('data-id') });

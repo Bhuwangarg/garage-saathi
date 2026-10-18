@@ -1238,6 +1238,45 @@ def _crew_record_for(c, user_id):
     return None
 
 
+# A crew member's own redBus reviews. Their phone is never sent the reviews or what links one to
+# a trip (redact_for), so the server traces them (crew_trace.py, the same rules as trace.js) and
+# returns only the reviews of trips this login's crew record was on: no PNR, seat or time.
+CREW_REVIEW_DAYS = 90
+_CREW_RV_STORES = ("rbreviews", "rbservices", "gatechecks", "rbassign", "buses", "dutylog", "itslookup", "rbalias")
+_CREW_RV_MEMO = {"key": None, "ix": None}
+
+
+def crew_reviews_for(user_id):
+    import crew_trace
+    inlist = ",".join("'%s'" % st for st in _CREW_RV_STORES)
+    with _lock:
+        c = db()
+        try:
+            me = _crew_record_for(c, user_id)
+            if not me:
+                return {"crewId": None, "reviews": [], "days": CREW_REVIEW_DAYS}
+            # Re-traced only when one of the stores changed (or the day turned, for the window).
+            key = (tuple(c.execute("SELECT COUNT(*), COALESCE(MAX(rev),0) FROM records WHERE store IN (%s)" % inlist).fetchone()),
+                   int(now_ms() // 86400000))
+            if _CREW_RV_MEMO["key"] != key:
+                rows = {st: [] for st in _CREW_RV_STORES}
+                for st, raw in c.execute("SELECT store, data FROM records WHERE store IN (%s)" % inlist).fetchall():
+                    try:
+                        d = json.loads(raw)
+                    except Exception:
+                        continue
+                    if isinstance(d, dict) and not d.get("_deleted"):
+                        rows[st].append(d)
+                ctx = crew_trace.Context(rows["rbservices"], rows["gatechecks"], rows["rbassign"], rows["buses"],
+                                         rows["dutylog"], rows["itslookup"], rows["rbalias"])
+                _CREW_RV_MEMO.update(key=key, ix=crew_trace.index_by_crew(
+                    rows["rbreviews"], ctx, now_ms() - CREW_REVIEW_DAYS * 86400000))
+        finally:
+            c.close()
+    return {"crewId": me.get("id"), "reviews": (_CREW_RV_MEMO["ix"] or {}).get(me.get("id"), [])[:300],
+            "days": CREW_REVIEW_DAYS}
+
+
 def _guard_write(store, rid, data, actor, existing, c=None):
     """Enforce, server-side, the rules the app promises.
 
@@ -3848,6 +3887,13 @@ class Handler(BaseHTTPRequestHandler):
                 rows = c.execute("SELECT id,name,role FROM users ORDER BY role,name").fetchall()
                 c.close()
             return self._send(200, {"users": [{"id": r[0], "name": r[1], "role": r[2]} for r in rows]})
+        if u.path == "/my/reviews":                  # a driver/conductor's own redBus reviews
+            me = self._auth_user()
+            if not me:
+                return self._send(401, {"error": "unauthorized"})
+            if self._rate_limited(me, "sync"):
+                return None
+            return self._send(200, crew_reviews_for(me["id"]), cache="no-store")
         if u.path == "/pull":
             me = self._auth_user()
             if not me:

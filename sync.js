@@ -392,6 +392,15 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
       return j;
     } catch (e) { return { error: 'No connection to the server' }; }
   }
+  // A driver/conductor's own redBus reviews, traced on the server (their phone is not sent the
+  // reviews themselves). null when offline or signed out: the app keeps showing the last copy.
+  async function myReviews() {
+    try {
+      const res = await fetch(baseUrl() + '/my/reviews', { headers: authHeaders(), cache: 'no-store' });
+      if (!res.ok) return null;
+      return await res.json();
+    } catch (e) { return null; }
+  }
   // Claude vision: send a photo (data URL) + prompt → text. For part-wear grading
   // and serial OCR. { text } on success, { configured:false } if no server key.
   async function aiVision(image, prompt) {
@@ -943,7 +952,7 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
     } catch (e) { return null; }
   }
 
-  return { start, tick, kick, setUrl, reset, info, login, logout, warmUp, roster, pendingIds, addStaff, deleteStaff, renameStaff, registerRoster, setPin, gps, validSyncUrl, backfillContacts, setActor, tokenUser, now, deleteUploads, ai, aiVision, challans, itsLookup, fleet, latest, uploadPhoto,
+  return { start, tick, kick, setUrl, reset, info, login, logout, warmUp, roster, pendingIds, addStaff, deleteStaff, renameStaff, registerRoster, setPin, gps, validSyncUrl, backfillContacts, setActor, tokenUser, now, deleteUploads, ai, aiVision, challans, itsLookup, myReviews, fleet, latest, uploadPhoto,
            queuePhoto, uploadError, remove, clearQuarantine, subscribePush, pushTest, flagOn, flagList,
            get status() { return status; } };
 })();
