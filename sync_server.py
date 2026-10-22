@@ -904,7 +904,12 @@ CREW_ROLES = ("driver", "conductor")
 _SEED_PIN = {uid: pin for uid, _n, _r, pin in SEED_USERS}
 
 
-ALL_ROLES = ("owner", "supervisor", "crewmanager", "store", "mechanic", "driver", "conductor")
+# `office` is a read-only login: how the drivers and conductors are performing
+# and what passengers said about them, and nothing else. It is deliberately
+# absent from PII_ROLES below, so the crew records it receives arrive with the
+# phone number, address, licence, documents and salary stripped out — an office
+# clerk comparing ratings has no business holding a driver's Aadhaar.
+ALL_ROLES = ("owner", "supervisor", "crewmanager", "office", "store", "mechanic", "driver", "conductor")
 # The accounts a supervisor may create or reset. Mirrors the app's rule that only
 # the owner creates supervisors, crew managers and owners (saveStaff in app.js).
 SUPERVISOR_MANAGES = ("store", "mechanic", "driver", "conductor")
@@ -1155,10 +1160,13 @@ WRITE_ROLES = {
     "trips":         {"owner", "supervisor", "driver"},
     "triplog":       {"owner", "supervisor", "driver"},
     # Operational stores every role legitimately writes:
-    "attendance":    {"owner", "supervisor", "crewmanager", "store", "mechanic", "driver", "conductor"},
+    # The office login writes two things and only two: its own attendance,
+    # and the usage counters every login writes. No crew record, no rating,
+    # no bus — it is a window, not a desk.
+    "attendance":    {"owner", "supervisor", "crewmanager", "office", "store", "mechanic", "driver", "conductor"},
     # Every role records its own daily usage counters; the report is read-only
     # aggregation over them, and nothing here carries business data.
-    "usage":         {"owner", "supervisor", "crewmanager", "store", "mechanic", "driver", "conductor"},
+    "usage":         {"owner", "supervisor", "crewmanager", "office", "store", "mechanic", "driver", "conductor"},
     "driverreports": {"owner", "supervisor", "store", "mechanic", "driver", "conductor"},
     # Server-ingest only — no client ever pushes these (AirFi → ingest_gps):
     "gpsevents":     set(),

@@ -397,6 +397,14 @@ const I18N = {
     asDriverAssigned: 'Driver assigned', asConductorAssigned: 'Conductor assigned', asForThisBus: 'for this bus',
     asNobodyYet: 'Nobody on the roster yet', asNobody: 'Nobody',
     cmToday: "Today's duty", cmNeedDriver: 'need a driver', cmNeedConductor: 'need a conductor',
+    // ---- The office login: crew performance and what passengers said ----
+    ofTitle: 'Crew performance', ofCrew: 'Crew', ofReviews: 'Reviews',
+    ofBlurb: 'Every driver and conductor, worst score first, with the passenger reviews behind it. This login cannot change a roster, a bus or a rating — it is here to read.',
+    ofAvgStars: 'Average rating · 90 days', ofOneStar: 'One-star reviews', ofRatedCrew: 'Crew with a rating',
+    ofNeedTalk: 'Worth a conversation', ofNeedTalkSub: 'Scoring under 60 out of 100 across conduct and passenger reviews together.',
+    ofLeaderboard: 'Everyone, worst first', ofReviewsWord: 'reviews', ofNoReviews: 'no reviews yet',
+    ofNoneYet: 'No crew has enough reviews to be scored yet.',
+    ofNotEnough: 'Not enough reviews to judge', ofNotEnoughSub: 'Fewer than {n} rated trips in 90 days. A handful of reviews judges nobody fairly, so these are listed rather than ranked.',
     cmFreeDrivers: 'Drivers with no bus', cmFreeConductors: 'Conductors with no bus', cmCanFill: 'can be filled',
     cmInWorkshop: 'in the workshop or away',
     cmShortHands: '{d} buses have no driver and {c} no conductor that filling the board cannot fix: there are {dp} drivers for {n} buses on the road. That is a hiring question, not a duty-board one.',
@@ -794,6 +802,14 @@ const I18N = {
     asDriverAssigned: 'ड्राइवर दे दिया', asConductorAssigned: 'कंडक्टर दे दिया', asForThisBus: 'इस बस के लिए',
     asNobodyYet: 'अभी रोल पर कोई नहीं', asNobody: 'कोई नहीं',
     cmToday: 'आज की ड्यूटी', cmNeedDriver: 'बसों को ड्राइवर चाहिए', cmNeedConductor: 'बसों को कंडक्टर चाहिए',
+    // ---- The office login ----
+    ofTitle: 'क्रू का प्रदर्शन', ofCrew: 'क्रू', ofReviews: 'समीक्षाएँ',
+    ofBlurb: 'हर ड्राइवर और कंडक्टर, सबसे कम अंक वाला पहले, और उसके पीछे यात्रियों की समीक्षाएँ। यह लॉगिन न रोस्टर बदल सकता है, न बस, न रेटिंग — यह सिर्फ़ पढ़ने के लिए है।',
+    ofAvgStars: 'औसत रेटिंग · 90 दिन', ofOneStar: 'एक-तारा समीक्षाएँ', ofRatedCrew: 'जिनकी रेटिंग है',
+    ofNeedTalk: 'इनसे बात करनी चाहिए', ofNeedTalkSub: 'व्यवहार और यात्री समीक्षा मिलाकर 100 में से 60 से कम।',
+    ofLeaderboard: 'सब लोग, सबसे कम पहले', ofReviewsWord: 'समीक्षाएँ', ofNoReviews: 'अभी कोई समीक्षा नहीं',
+    ofNoneYet: 'अभी किसी क्रू की इतनी समीक्षाएँ नहीं कि अंक दिए जा सकें।',
+    ofNotEnough: 'अंक देने लायक़ समीक्षाएँ नहीं', ofNotEnoughSub: '90 दिन में {n} से कम रेटेड ट्रिप। दो-चार समीक्षाओं से किसी को आँकना ठीक नहीं, इसलिए इन्हें क्रम में नहीं रखा गया।',
     cmFreeDrivers: 'बिना बस के ड्राइवर', cmFreeConductors: 'बिना बस के कंडक्टर', cmCanFill: 'भर सकते हैं',
     cmInWorkshop: 'वर्कशॉप या बाहर',
     cmShortHands: '{d} बसों पर ड्राइवर और {c} पर कंडक्टर नहीं — यह बोर्ड भरने से नहीं सुधरेगा: {n} बसों के लिए {dp} ड्राइवर ही हैं। यह भर्ती का सवाल है।',
@@ -1280,7 +1296,15 @@ const PERMS = {
   addPurchase: ['owner', 'supervisor', 'store'],
   dashboard: ['owner', 'supervisor'],
   // redBus reviews traced to a crew member: the crew manager assigns them, so sees them too.
-  crewReviews: ['owner', 'supervisor', 'crewmanager'],
+  crewReviews: ['owner', 'supervisor', 'crewmanager', 'office'],
+  /* Looking at how the crew are doing, without being able to change any of it.
+   *
+   * `manageDrivers` conflated two things — reading a crew member's record and
+   * editing it — so the only way to let the office see a scorecard was to let
+   * them rewrite the roster. They are separate now: `crewPerf` opens the list,
+   * the scorecard and the reviews; `manageDrivers` still guards every button
+   * that writes. The office login has the first and not the second. */
+  crewPerf: ['owner', 'supervisor', 'crewmanager', 'office'],
   insights: ['owner', 'supervisor'],         // AI Insights screen
   // 'crewmanager' is a single-job login: the daily duty board and the crew bank,
   // and nothing else. It deliberately has no money, fleet, jobs or store rights.
@@ -2100,6 +2124,7 @@ function bottomnav() {
     // Putting people on buses is half of what this login is for, and it was two
     // taps down inside Today. It gets a tab.
     crewmanager:[['home', '🔁', t('today')], ['assignments', '🚌', t('asTitle')], ['crewbank', '🗂️', t('cbTitle')], ['me', '👤', t('me')]],
+    office:     [['home', '⭐', t('ofTitle')], ['drivers', '🧑‍✈️', t('ofCrew')], ['reviews', '💬', t('ofReviews')], ['me', '👤', t('me')]],
     driver:     [['home', '🚌', t('myBus')], ['me', '👤', t('me')]],
     conductor:  [['home', '🚌', t('myDuty')], ['me', '👤', t('me')]],
   };
@@ -2403,6 +2428,82 @@ function viewFleet() {
 /* The crew manager's whole app: which buses are short a driver or a conductor
  * today, and a way into the bank. Nothing else is on this screen because
  * nothing else is his job. */
+/* ===== The office's whole app ============================================
+ *
+ * One question: how are the drivers and conductors doing, and what did
+ * passengers say. Nothing about money, buses, parts or the workshop is on this
+ * screen because none of it is this login's business — and the server agrees,
+ * so a crew record reaches this device with the phone number, address, licence,
+ * documents and salary already stripped out.
+ *
+ * Worst first, deliberately. A leaderboard sorted best-first is a trophy
+ * cabinet; the office opens this to find who needs a conversation this week.
+ */
+function viewOfficeHome() {
+  const since = Date.now() - 90 * day;
+  const crew = activeCrew().map((d) => ({ d, o: driverOverall(d.id) }));
+  const rated = crew.filter((x) => x.o.n > 0);
+  const judged = crew.filter((x) => x.o.passenger != null);      // enough reviews to be fair
+  const all = (S.cache.rbreviews || []).filter((r) => rvBoard(r) >= since);
+  const st = rvStats(all);
+  const ones = all.filter((r) => r.stars === 1).length;
+  const weak = judged.filter((x) => x.o.overall < 60).sort((a, b) => a.o.overall - b.o.overall);
+
+  let body = greetBlock('⭐') + notCheckedInBanner();
+  body += kpiRow([
+    { icon: '⭐', label: t('ofAvgStars'), value: st.avg == null ? '—' : st.avg.toFixed(1), unit: '/5',
+      delta: st.n ? st.n + ' ' + t('ofReviewsWord') : '', dir: 'flat' },
+    { icon: '😠', label: t('ofOneStar'), value: ones, dir: ones ? 'bad' : 'good', act: 'openReviews' },
+    { icon: '🧑‍✈️', label: t('ofRatedCrew'), value: judged.length, unit: 'of ' + crew.length },
+    { icon: '⚠️', label: t('ofNeedTalk'), value: weak.length, dir: weak.length ? 'bad' : 'good' },
+  ]);
+  body += `<div class="card"><div class="tiny muted">${esc(t('ofBlurb'))}</div></div>`;
+
+  if (weak.length) {
+    body += `<div class="card">${panelTitle(t('ofNeedTalk'),
+      `<span class="badge b-red">${weak.length}</span>`)}
+      <div class="tiny muted" style="margin-bottom:8px">${esc(t('ofNeedTalkSub'))}</div>`;
+    body += weak.slice(0, 8).map(({ d, o }) => officeCrewRow(d, o)).join('');
+    body += `</div>`;
+  }
+
+  // Everyone with a rating, worst first. The ones nobody has reviewed yet are
+  // listed apart rather than ranked last: no reviews is not a bad score.
+  const ranked = judged.slice().sort((a, b) => a.o.overall - b.o.overall);
+  body += `<div class="card">${panelTitle(t('ofLeaderboard'), `<span class="badge b-low">${ranked.length}</span>`)}`;
+  body += `<input id="of-search" class="searchbox" placeholder="${esc(t('drvSearch'))}" autocomplete="off" style="margin:0 0 8px">`;
+  body += `<div id="of-list">${ranked.length
+    ? ranked.map(({ d, o }) => officeCrewRow(d, o)).join('')
+    : `<div class="empty">${esc(t('ofNoneYet'))}</div>`}</div></div>`;
+
+  const unrated = crew.filter((x) => x.o.passenger == null);
+  if (unrated.length) {
+    body += `<div class="card">${panelTitle(t('ofNotEnough'), `<span class="badge b-low">${unrated.length}</span>`)}
+      <div class="tiny muted" style="margin-bottom:8px">${esc(t('ofNotEnoughSub').replace('{n}', RV_MIN_SAMPLE))}</div>`;
+    body += unrated.slice(0, 10).map(({ d, o }) => officeCrewRow(d, o)).join('');
+    body += `</div>`;
+  }
+
+  shell(t('ofTitle'), body);
+  attachSearch('of-search', 'of-list');
+}
+
+/* One crew member, as the office reads them: who, which bus, the blended score
+ * and the stars behind it. Tapping opens the scorecard, which is read-only for
+ * this login because every button on it asks `manageDrivers`. */
+function officeCrewRow(d, o) {
+  const face = crewFace(d);
+  const stars = o.n ? `★${o.avg.toFixed(1)} · ${o.n} ${t('ofReviewsWord')}` : t('ofNoReviews');
+  return `<div class="li" data-driver="${esc(d.id)}" style="cursor:pointer">
+    <div class="ava ava-round">${face ? `<img src="${esc(face)}" alt="">` : CREW_ROLE_META[crewRoleOf(d)][0]}</div>
+    <div class="main"><div class="t">${esc(d.name)}</div>
+      <div class="crewmeta"><span class="rolepill">${CREW_ROLE_META[crewRoleOf(d)][0]} ${esc(crewRoleLabel(crewRoleOf(d)))}</span>${
+        d.busId ? `<span class="buschip">🚌 ${esc(busName(d.busId))}</span>` : ''}</div>
+      <div class="s">${esc(stars)}</div></div>
+    ${o.passenger == null ? `<span class="badge b-low">—</span>`
+      : `<span class="badge ${scoreClass(o.overall)}">${o.overall}</span>`}</div>`;
+}
+
 function viewCrewManagerHome() {
   const buses = busesNeedingCrew();
   const covD = crewCoverage('driver'), covC = crewCoverage('conductor');
@@ -3050,6 +3151,7 @@ function viewHome() {
   if (S.user.role === 'owner') return viewOwnerHome();
   if (S.user.role === 'supervisor') return viewSupervisorHome();
   if (S.user.role === 'crewmanager') return viewCrewManagerHome();
+  if (S.user.role === 'office') return viewOfficeHome();
   if (S.user.role === 'driver') return viewDriverHome();
   if (S.user.role === 'conductor') return viewConductorHome();
   if (S.user.role === 'store') return viewStoreHome();
@@ -7098,7 +7200,7 @@ function sheetStaff() {
       <div class="grid2">
         <label class="field"><span class="lbl">Role</span><select id="f-srole">
           <option value="mechanic">Mechanic — no login, for assigning work</option><option value="store">Store</option><option value="driver">Driver</option>
-          ${S.user.role === 'owner' ? '<option value="crewmanager">Crew Manager — duty board + crew bank only</option><option value="supervisor">Supervisor</option>' : ''}</select></label>
+          ${S.user.role === 'owner' ? '<option value="crewmanager">Crew Manager — duty board + crew bank only</option><option value="office">Office — crew performance &amp; reviews, read-only</option><option value="supervisor">Supervisor</option>' : ''}</select></label>
         <label class="field" id="f-spinwrap"><span class="lbl">4-digit PIN</span><input id="f-spin" inputmode="numeric" maxlength="4" placeholder="0000"></label>
       </div>
       <div class="tiny muted" id="f-shint" style="margin-bottom:10px">Account is created on the server and appears on every device.</div>
@@ -12601,10 +12703,10 @@ async function askAi() {
  */
 const current = () => S.stack[S.stack.length - 1];
 // Role guard: routes restricted to certain roles fall back to home for others.
-const ROUTE_PERM = { money: 'money', fleet: 'fleet', people: 'people', bills: 'bills', insights: 'insights', drivers: 'manageDrivers', assignments: 'assignDriver', routes: 'manageRoutes', reports: 'dashboard', busreport: 'dashboard', livemap: 'liveMap', track: 'liveMap', fuel: 'addFuel', safety: 'dashboard', breakdowns: 'logIncident', warranty: 'viewWarranty', storehealth: 'issuePart', linkgps: 'addBus', newjob: 'addJob', forecast: 'dashboard', pilferage: 'insights', components: 'manageComponents', def: 'addFuel', vendors: 'addPurchase', import: 'addPurchase', crewpins: 'manageCrewLogins', crewbank: 'manageDrivers', usage: 'dashboard', accounting: 'dashboard', busacct: 'dashboard',
+const ROUTE_PERM = { money: 'money', fleet: 'fleet', people: 'people', bills: 'bills', insights: 'insights', drivers: 'crewPerf', assignments: 'assignDriver', routes: 'manageRoutes', reports: 'dashboard', busreport: 'dashboard', livemap: 'liveMap', track: 'liveMap', fuel: 'addFuel', safety: 'dashboard', breakdowns: 'logIncident', warranty: 'viewWarranty', storehealth: 'issuePart', linkgps: 'addBus', newjob: 'addJob', forecast: 'dashboard', pilferage: 'insights', components: 'manageComponents', def: 'addFuel', vendors: 'addPurchase', import: 'addPurchase', crewpins: 'manageCrewLogins', crewbank: 'manageDrivers', usage: 'dashboard', accounting: 'dashboard', busacct: 'dashboard',
   // `purchases` renders the same view as `bills`; without its own entry the
   // `bills` permission was bypassable just by using the other route name.
-  purchases: 'bills', alerts: 'dashboard', buses: 'fleet', gate: 'gateCheck', gatechecks: 'gateDecide', reviews: 'dashboard', rbnames: 'manageDrivers', whynodriver: 'dashboard', coaching: 'manageDrivers', digest: 'dashboard',
+  purchases: 'bills', alerts: 'dashboard', buses: 'fleet', gate: 'gateCheck', gatechecks: 'gateDecide', reviews: 'crewReviews', rbnames: 'manageDrivers', whynodriver: 'dashboard', coaching: 'manageDrivers', digest: 'dashboard',
   store: 'viewStore', jobs: 'viewJobs', scoreboard: 'viewScoreboard',
   challans: 'challans', buschallans: 'challans',
   // Company billing and another person's scorecard rendered for any role because
@@ -13198,7 +13300,7 @@ async function testNotification() {
   else toast('No subscribed devices yet — enable alerts first');
 }
 
-const ROLE_META = { owner: ['👑', 'Owner'], supervisor: ['🧑‍🔧', 'Supervisor'], crewmanager: ['🗂️', 'Crew Manager'], store: ['📦', 'Store'], mechanic: ['🔧', 'Mechanic'], driver: ['🧑‍✈️', 'Driver'], conductor: ['🎫', 'Conductor'] };
+const ROLE_META = { owner: ['👑', 'Owner'], supervisor: ['🧑‍🔧', 'Supervisor'], crewmanager: ['🗂️', 'Crew Manager'], office: ['⭐', 'Office'], store: ['📦', 'Store'], mechanic: ['🔧', 'Mechanic'], driver: ['🧑‍✈️', 'Driver'], conductor: ['🎫', 'Conductor'] };
 
 // Roles that exist as PEOPLE but not as logins.
 //
