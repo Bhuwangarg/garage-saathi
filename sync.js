@@ -19,6 +19,8 @@ const Sync = (function () {
                   // One aggregated row per person per day, so the owner can see which
                   // features are actually used across the fleet, not just on one phone.
                   'usage',
+                  // The office's conversation log. Append-only on the server.
+                  'crewnotes',
                   // Added 2026-07-29: these four shipped without a sync mapping, so the
                   // vendor registry, rotable components, DEF log and every trip cash
                   // session lived on exactly one phone with no backup. Now synced;

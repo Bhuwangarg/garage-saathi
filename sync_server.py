@@ -1157,6 +1157,10 @@ WRITE_ROLES = {
     "gatechecks":    {"owner", "supervisor", "driver"},
     # "This name redBus shows on this bus is this crew member", confirmed once by the office.
     "rbalias":       {"owner", "supervisor", "crewmanager"},
+    # The conversation log: "we spoke to this man about this, on this day".
+    # The office writes these — it is the whole reason that login can write at
+    # all — alongside the managers who also have the conversations.
+    "crewnotes":     {"owner", "supervisor", "crewmanager", "office"},
     "trips":         {"owner", "supervisor", "driver"},
     "triplog":       {"owner", "supervisor", "driver"},
     # Operational stores every role legitimately writes:
@@ -1477,6 +1481,22 @@ def _guard_write(store, rid, data, actor, existing, c=None):
         # between phones.
         if rid != "garage":
             return "only the garage settings are shared"
+        return None
+
+    if store == "crewnotes":
+        # A record of a conversation that can be edited afterwards is worth
+        # nothing: the note everybody remembers is the one that was changed
+        # after the argument. Written once, kept as written.
+        if old:
+            return "a conversation note cannot be edited once written"
+        if data.get("_deleted"):
+            return "a conversation note cannot be deleted"
+        if not str(data.get("crewId") or "").strip():
+            return "a note must say who it is about"
+        if not str(data.get("text") or "").strip():
+            return "a note must say what was said"
+        # The author is whoever is signed in, never whoever the body claims.
+        data["by"] = actor["id"]
         return None
 
     if store == "ledger":
@@ -3490,6 +3510,11 @@ def redact_for(actor, rec):
         return None
     if st == "digest" and (actor or {}).get("role") not in ("owner", "supervisor"):
         return None                       # the Monday summary carries money: owner and supervisor only
+    if st == "crewnotes" and (actor or {}).get("role") not in ("owner", "supervisor", "crewmanager", "office"):
+        # A note written knowing its subject will read it stops being a record
+        # and becomes a performance. The crew member has /my/coaching for what
+        # they are meant to see — approved, constructive, and written for them.
+        return None
     if st in HISTORY_DAYS:
         roles = HISTORY_ROLES.get(st)
         if roles and (actor or {}).get("role") not in roles:

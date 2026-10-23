@@ -398,6 +398,14 @@ const I18N = {
     asNobodyYet: 'Nobody on the roster yet', asNobody: 'Nobody',
     cmToday: "Today's duty", cmNeedDriver: 'need a driver', cmNeedConductor: 'need a conductor',
     // ---- The office login: crew performance and what passengers said ----
+    // ---- The conversation log ----
+    cnTitle: 'Conversations', cnNew: 'Add a note', cnKind: 'What kind',
+    cnTalked: 'Spoke to them', cnWarned: 'Warned', cnPraised: 'Praised', cnOther: 'Note',
+    cnWhat: 'What was said', cnWhatPh: 'e.g. Spoke about three one-star reviews for rash braking on the Delhi run. He says the brakes grab.',
+    cnOnce: 'A note cannot be edited or deleted once saved. Write it as you would want it read a year from now.',
+    cnNone: 'No conversation has been recorded with this person.',
+    cnSaved: 'Noted', cnNeedText: 'Write what was said', cnNotAllowed: 'This login cannot add notes',
+    cnScoreThen: 'score then', cnLogged: 'Notes this month',
     ofTitle: 'Crew performance', ofCrew: 'Crew', ofReviews: 'Reviews',
     ofBlurb: 'Every driver and conductor, worst score first, with the passenger reviews behind it. This login cannot change a roster, a bus or a rating — it is here to read.',
     ofAvgStars: 'Average rating · 90 days', ofOneStar: 'One-star reviews', ofRatedCrew: 'Crew with a rating',
@@ -803,6 +811,14 @@ const I18N = {
     asNobodyYet: 'अभी रोल पर कोई नहीं', asNobody: 'कोई नहीं',
     cmToday: 'आज की ड्यूटी', cmNeedDriver: 'बसों को ड्राइवर चाहिए', cmNeedConductor: 'बसों को कंडक्टर चाहिए',
     // ---- The office login ----
+    // ---- The conversation log ----
+    cnTitle: 'बातचीत का रिकॉर्ड', cnNew: 'नोट जोड़ें', cnKind: 'किस तरह की बात',
+    cnTalked: 'बात की', cnWarned: 'चेतावनी दी', cnPraised: 'तारीफ़ की', cnOther: 'नोट',
+    cnWhat: 'क्या बात हुई', cnWhatPh: 'जैसे: दिल्ली रूट पर झटके से ब्रेक लगाने की तीन एक-तारा शिकायतों पर बात हुई। इनका कहना है कि ब्रेक पकड़ते हैं।',
+    cnOnce: 'सेव होने के बाद नोट न बदला जा सकता है न मिटाया। वैसे ही लिखिए जैसे साल भर बाद पढ़ा जाना चाहिए।',
+    cnNone: 'इस व्यक्ति से किसी बातचीत का रिकॉर्ड नहीं है।',
+    cnSaved: 'दर्ज हो गया', cnNeedText: 'क्या बात हुई, लिखिए', cnNotAllowed: 'यह लॉगिन नोट नहीं जोड़ सकता',
+    cnScoreThen: 'तब अंक', cnLogged: 'इस महीने के नोट',
     ofTitle: 'क्रू का प्रदर्शन', ofCrew: 'क्रू', ofReviews: 'समीक्षाएँ',
     ofBlurb: 'हर ड्राइवर और कंडक्टर, सबसे कम अंक वाला पहले, और उसके पीछे यात्रियों की समीक्षाएँ। यह लॉगिन न रोस्टर बदल सकता है, न बस, न रेटिंग — यह सिर्फ़ पढ़ने के लिए है।',
     ofAvgStars: 'औसत रेटिंग · 90 दिन', ofOneStar: 'एक-तारा समीक्षाएँ', ofRatedCrew: 'जिनकी रेटिंग है',
@@ -1305,6 +1321,8 @@ const PERMS = {
    * the scorecard and the reviews; `manageDrivers` still guards every button
    * that writes. The office login has the first and not the second. */
   crewPerf: ['owner', 'supervisor', 'crewmanager', 'office'],
+  // Writing down that a conversation happened. The office's one write.
+  crewNote: ['owner', 'supervisor', 'crewmanager', 'office'],
   insights: ['owner', 'supervisor'],         // AI Insights screen
   // 'crewmanager' is a single-job login: the daily duty board and the crew bank,
   // and nothing else. It deliberately has no money, fleet, jobs or store rights.
@@ -1410,8 +1428,9 @@ async function load() {
   const gatepasses = await DB.all('gatepasses').catch(() => []);
   const dutylog = await DB.all('dutylog').catch(() => []);
   const gatechecks = await DB.all('gatechecks').catch(() => []);
+  const crewnotes = await DB.all('crewnotes').catch(() => []);
   const [rbservices, rbreviews, rbcomplaints, rbassign, rbalias, itslookup, rbreviewai, rbaliasai, gateai, coreai, reportai, coachai, digest] = await Promise.all(['rbservices', 'rbreviews', 'rbcomplaints', 'rbassign', 'rbalias', 'itslookup', 'rbreviewai', 'rbaliasai', 'gateai', 'coreai', 'reportai', 'coachai', 'digest'].map((n) => DB.all(n).catch(() => [])));
-  S.cache = { users, buses, parts, jobs, ledger, att, purchases, drivers, incidents, driverreports, routes, triplog, fuel, gpsevents, audits, components, def, vendors, trips, challans, usage, stockmoves, breakdowns, gatepasses, dutylog, gatechecks, rbservices, rbreviews, rbcomplaints, rbassign, rbalias, itslookup, rbreviewai, rbaliasai, gateai, coreai, reportai, coachai, digest, garage };
+  S.cache = { users, buses, parts, jobs, ledger, att, purchases, drivers, incidents, driverreports, routes, triplog, fuel, gpsevents, audits, components, def, vendors, trips, challans, usage, stockmoves, breakdowns, gatepasses, dutylog, gatechecks, crewnotes, rbservices, rbreviews, rbcomplaints, rbassign, rbalias, itslookup, rbreviewai, rbaliasai, gateai, coreai, reportai, coachai, digest, garage };
   refreshBiz();   // keep the displayed business name in sync with garage config
 }
 const byId = (arr, id) => arr.find((x) => x.id === id);
@@ -2448,6 +2467,8 @@ function viewOfficeHome() {
   const st = rvStats(all);
   const ones = all.filter((r) => r.stars === 1).length;
   const weak = judged.filter((x) => x.o.overall < 60).sort((a, b) => a.o.overall - b.o.overall);
+  const m = new Date(); m.setDate(1); m.setHours(0, 0, 0, 0);
+  const monthStart = m.getTime();
 
   let body = greetBlock('⭐') + notCheckedInBanner();
   body += kpiRow([
@@ -2456,6 +2477,8 @@ function viewOfficeHome() {
     { icon: '😠', label: t('ofOneStar'), value: ones, dir: ones ? 'bad' : 'good', act: 'openReviews' },
     { icon: '🧑‍✈️', label: t('ofRatedCrew'), value: judged.length, unit: 'of ' + crew.length },
     { icon: '⚠️', label: t('ofNeedTalk'), value: weak.length, dir: weak.length ? 'bad' : 'good' },
+    { icon: '💬', label: t('cnLogged'),
+      value: (S.cache.crewnotes || []).filter((n) => n && !n._deleted && (n.at || 0) >= monthStart).length },
   ]);
   body += `<div class="card"><div class="tiny muted">${esc(t('ofBlurb'))}</div></div>`;
 
@@ -2491,6 +2514,86 @@ function viewOfficeHome() {
 /* One crew member, as the office reads them: who, which bus, the blended score
  * and the stars behind it. Tapping opens the scorecard, which is read-only for
  * this login because every button on it asks `manageDrivers`. */
+/* ---- The conversation log -----------------------------------------------
+ *
+ * The office can now record that somebody was spoken to. Deliberately NOT the
+ * weekly coaching note: that one is drafted by Claude, approved by a manager
+ * and shown to the crew member through /my/coaching. This is the office's own
+ * record — what was said, by whom, on what day — and the crew member does not
+ * receive it, because a note written knowing its subject will read it stops
+ * being a record and becomes a performance.
+ *
+ * Append-only, enforced on the server. A note that can be edited after the
+ * argument is the note nobody can trust afterwards.
+ */
+const NOTE_KINDS = {
+  talked:  ['💬', 'cnTalked'],
+  warned:  ['⚠️', 'cnWarned'],
+  praised: ['👏', 'cnPraised'],
+  other:   ['📝', 'cnOther'],
+};
+const crewNotesFor = (crewId) => (S.cache.crewnotes || [])
+  .filter((n) => n && !n._deleted && n.crewId === crewId)
+  .sort((a, b) => (b.at || 0) - (a.at || 0));
+
+function sheetCrewNote(crewId) {
+  const d = driverById(crewId);
+  if (!d) return;
+  if (!can(S.user.role, 'crewNote')) return toast(t('cnNotAllowed'));
+  const o = driverOverall(crewId);
+  openSheet(t('cnNew'), `
+    <div class="li" style="border:none"><div class="ava ava-round">${crewFace(d)
+      ? `<img src="${esc(crewFace(d))}" alt="">` : CREW_ROLE_META[crewRoleOf(d)][0]}</div>
+      <div class="main"><div class="t">${esc(d.name)}</div>
+        <div class="s">${esc(crewRoleLabel(crewRoleOf(d)))}${d.busId ? ' · ' + esc(busName(d.busId)) : ''}</div></div>
+      ${o.passenger == null ? '' : `<span class="badge ${scoreClass(o.overall)}">${o.overall}</span>`}</div>
+    <label class="field"><span class="lbl">${t('cnKind')}</span>
+      <select id="cn-kind">${Object.entries(NOTE_KINDS)
+        .map(([k, m]) => `<option value="${k}">${m[0]} ${esc(t(m[1]))}</option>`).join('')}</select></label>
+    <label class="field"><span class="lbl">${t('cnWhat')}</span>
+      <textarea id="cn-text" placeholder="${esc(t('cnWhatPh'))}"></textarea></label>
+    <div class="banner warn">⚠️ ${esc(t('cnOnce'))}</div>
+    <button class="btn primary" data-act="saveCrewNote" data-id="${esc(crewId)}">${t('save')}</button>`);
+}
+
+async function saveCrewNote(crewId) {
+  if (!can(S.user.role, 'crewNote')) return toast(t('cnNotAllowed'));
+  const text = (($('#cn-text') || {}).value || '').trim();
+  if (!text) return toast(t('cnNeedText'));
+  const o = driverOverall(crewId);
+  const now = Date.now();
+  await DB.put('crewnotes', {
+    id: uid('cn-'), crewId, at: now, by: S.user.id,
+    kind: (($('#cn-kind') || {}).value) || 'talked', text,
+    // The score as it stood when the conversation happened. Without it a note
+    // read a year later says "we warned him" with no idea how bad it was.
+    scoreAt: o.passenger == null ? null : o.overall,
+    starsAt: o.n ? Number(o.avg.toFixed(2)) : null, reviewsAt: o.n || 0,
+    createdAt: now, updatedAt: now,
+  });
+  await load(); closeSheet(); toast(t('cnSaved')); rerender();
+}
+
+/* The log as it appears on a crew member's screen. Shown to the roles that can
+ * write one, and to nobody else — the server omits the records entirely for
+ * everybody else, so this is the second lock rather than the only one. */
+function crewNotesCard(crewId) {
+  if (!can(S.user.role, 'crewNote')) return '';
+  const notes = crewNotesFor(crewId);
+  let h = `<div class="card">${panelTitle(t('cnTitle'),
+    `<button class="btn sm" data-act="crewNote" data-id="${esc(crewId)}">+ ${t('cnNew')}</button>`)}`;
+  h += notes.length ? notes.slice(0, 20).map((n) => {
+    const m = NOTE_KINDS[n.kind] || NOTE_KINDS.other;
+    return `<div class="li" style="align-items:flex-start">
+      <div class="ava">${m[0]}</div>
+      <div class="main"><div class="t">${esc(t(m[1]))}</div>
+        <div class="s" style="white-space:pre-wrap">${esc(n.text)}</div>
+        <div class="tiny muted" style="margin-top:3px">${fmtDate(n.at)} · ${esc(userName(n.by))}${
+          n.scoreAt != null ? ` · ${t('cnScoreThen')} ${n.scoreAt}` : ''}</div></div></div>`;
+  }).join('') : `<div class="muted small">${esc(t('cnNone'))}</div>`;
+  return h + `</div>`;
+}
+
 function officeCrewRow(d, o) {
   const face = crewFace(d);
   const stars = o.n ? `★${o.avg.toFixed(1)} · ${o.n} ${t('ofReviewsWord')}` : t('ofNoReviews');
@@ -9642,6 +9745,9 @@ function viewDriverDetail(id) {
         : `<button class="btn sm" data-act="reportToJob" data-report="${esc(r.id)}">→ Job</button>`}</div>`).join('')
     : `<div class="muted small">No reports.</div>`;
   body += `</div>`;
+  // The conversation log lives with the person it is about, where somebody
+  // reading their record will actually see it.
+  body += crewNotesCard(id);
   shell(esc(d.name), body);
 }
 
@@ -13092,6 +13198,8 @@ const _dispatchClick = async (e) => {
       case 'wizBack': return wizBack();
       case 'wizGo': return wizGo(el.getAttribute('data-step'));
       case 'busFilter': _busFilter = el.getAttribute('data-v'); return renderBusList();
+      case 'crewNote': return sheetCrewNote(el.getAttribute('data-id'));
+      case 'saveCrewNote': return saveCrewNote(el.getAttribute('data-id'));
       case 'crewFilter': _crewFilter = el.getAttribute('data-v'); return renderCrewList();
       case 'openCrewBank': return push({ name: 'crewbank' });
       case 'addCrew': return sheetAddCrew();

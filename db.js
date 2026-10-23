@@ -5,7 +5,7 @@
  */
 
 const DB_NAME = 'garage-saathi';
-const DB_VERSION = 27;  // v27 adds digest; v26 adds coachai; v25 adds reportai; v24 adds coreai; v23 adds gateai; v22 adds rbaliasai; v21 adds rbreviewai; v20 adds itslookup; v19 adds rbalias; v18 adds the redPro stores; v17 adds gatechecks; v16 adds dutylog (dated crew seat changes); v12 adds the usage store (daily per-person feature counters) — onupgradeneeded creates any missing
+const DB_VERSION = 28;  // v28 adds crewnotes; v27 adds digest; v26 adds coachai; v25 adds reportai; v24 adds coreai; v23 adds gateai; v22 adds rbaliasai; v21 adds rbreviewai; v20 adds itslookup; v19 adds rbalias; v18 adds the redPro stores; v17 adds gatechecks; v16 adds dutylog (dated crew seat changes); v12 adds the usage store (daily per-person feature counters) — onupgradeneeded creates any missing
 
 const STORES = {
   users: 'id',
@@ -47,6 +47,7 @@ const STORES = {
   coreai: 'id',
   reportai: 'id',
   coachai: 'id',
+  crewnotes: 'id',     // the office's conversation log — append-only on the server
   digest: 'id',        // the Monday summary (server-written; owner and supervisor only)       // weekly coaching notes: Claude's drafts and their approval (server-written)      // Claude's draft job card for each driver report (server-written)        // Claude's look at each returned old part's photo (server-written)        // Claude's look at each gate check's photos (server-written)     // Claude's answer for each typed redBus name (server-written)    // Claude's reading of whose fault each review is (server-written)     // ITS PNR lookups: trip + crew matched by the driver's number (server-written)
   rbalias: 'id',       // "this redBus name on this bus is this crew member", confirmed once by the office
   gatechecks: 'id',    // departure checklist: one per bus departure — selfie, items, release / office decision
