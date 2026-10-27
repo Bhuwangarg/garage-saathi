@@ -567,6 +567,27 @@ for R in history outsidejobs gatepass; do
   ck "a driver cannot force open $R" "$(j "(function(){route({name:'$R'});return S.route.name})()")" "home"
 done
 
+# 2q) The expensive indexes are memoised on what they READ, not on the cache
+# object. A stale memo would be far worse than a slow app, so the tests that
+# matter are the invalidations, not the speed-up.
+login owner u-owner 1 1 1 1
+ck "a store signature moves when a row is added" \
+  "$(j "(function(){var a=[{id:'1',updatedAt:5}];var s1=storeSig(a);var s2=storeSig(a.concat([{id:'2',updatedAt:6}]));return String(s1!==s2)})()")" "true"
+ck "and when a row is edited in place" \
+  "$(j "(function(){var s1=storeSig([{id:'1',updatedAt:5}]);var s2=storeSig([{id:'1',updatedAt:9}]);return String(s1!==s2)})()")" "true"
+ck "and when a row is removed" \
+  "$(j "(function(){var s1=storeSig([{id:'1',updatedAt:5},{id:'2',updatedAt:5}]);var s2=storeSig([{id:'1',updatedAt:5}]);return String(s1!==s2)})()")" "true"
+ck "but not when nothing changed" \
+  "$(j "(function(){var a=[{id:'1',updatedAt:5}];return String(storeSig(a)===storeSig(a.slice()))})()")" "true"
+ck "an empty store has a stable signature" "$(j "storeSig([])+'/'+storeSig(null)")" "0/0"
+# The behaviour that caused the slowness: a new cache object with the same data.
+ck "insights are not recomputed for a new cache object" \
+  "$(j "(function(){var a=computeInsights();S.cache=Object.assign({},S.cache);return String(computeInsights()===a)})()")" "true"
+ck "but ARE recomputed when a job changes" \
+  "$(j "(function(){var a=computeInsights();S.cache.jobs=S.cache.jobs.concat([{id:'zperf',busId:S.cache.buses[0].id,problem:'p',status:'verified',afterPhotos:[],partsUsed:[{partId:(S.cache.parts[0]||{}).id,qty:1,cost:500}],createdAt:Date.now(),updatedAt:Date.now()}]);var b=computeInsights();S.cache.jobs=S.cache.jobs.slice(0,-1);return String(a!==b)})()")" "true"
+ck "the review index holds when an unrelated store changes" \
+  "$(j "(function(){var m=rvCrewIndex();S.cache.fuel=(S.cache.fuel||[]).concat([{id:'zperf-f',busId:S.cache.buses[0].id,litres:1,at:Date.now(),updatedAt:Date.now()}]);var r=rvCrewIndex()===m;S.cache.fuel=S.cache.fuel.slice(0,-1);return String(r)})()")" "true"
+
 # 3) Invariant sweep: form controls never navigate (owner's main tabs).
 login owner u-owner 1 1 1 1
 for SCREEN in home jobs store me; do

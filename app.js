@@ -1413,6 +1413,40 @@ function closeSheet() {
 }
 
 /* ------------------------------ Data ops ---------------------------------- */
+/* ---- Why the app got slow, and what this fixes --------------------------
+ *
+ * Every sync tick that applies a record calls load(), which rebuilds S.cache
+ * from IndexedDB. Each expensive index in this file was memoised on the
+ * IDENTITY of S.cache — so a tick that brought in one fuel entry threw away
+ * the review index, the trace context and the insight list, and the next
+ * render rebuilt all of them. Measured on a fleet-sized dataset (40k GPS
+ * events, 12k trips, 6k ledger rows, 4k reviews): insights 386ms, the review
+ * index 178ms, a home render 432ms — every four seconds, for ever. On a phone
+ * with a third of this laptop's processor it never stops working, which is
+ * exactly what "slow and unresponsive" feels like.
+ *
+ * The fix is to key those memos on what they actually READ rather than on the
+ * cache object: a store that did not change gives the same signature even
+ * though load() handed over a brand-new array, so the work is skipped.
+ *
+ * The signature is the row count and the newest timestamp. That is cheap
+ * (one pass, no allocation) and it moves whenever a record is added, removed
+ * or written — every write in this app stamps updatedAt, and the server
+ * stamps it again on push. An edit that changed nothing and left the
+ * timestamp alone would be missed, and such a write does not exist here.
+ */
+function storeSig(arr) {
+  if (!arr || !arr.length) return '0';
+  let max = 0;
+  for (let i = 0; i < arr.length; i++) {
+    const r = arr[i];
+    const t = (r && (r.updatedAt || r.at)) || 0;
+    if (t > max) max = t;
+  }
+  return arr.length + ':' + max;
+}
+const sigOf = (...names) => names.map((n) => storeSig(S.cache[n])).join('|');
+
 async function load() {
   const [users, buses, parts, jobs, ledger, att, purchases, drivers, incidents, driverreports, routes, triplog, fuel, gpsevents, audits, components, def, vendors, trips, garage] = await Promise.all([
     DB.all('users'), DB.all('buses'), DB.all('parts'), DB.all('jobcards'),
@@ -4414,7 +4448,8 @@ async function saveJobBus(jobId) {
  * nothing is decided by it. */
 let _caiMemo = { key: null, map: null };
 function coreAiOf(cr) {
-  if (_caiMemo.key !== S.cache) _caiMemo = { key: S.cache, map: new Map((S.cache.coreai || []).map((a) => [a.cr, a])) };
+  const _caiK = storeSig(S.cache.coreai);
+  if (_caiMemo.key !== _caiK) _caiMemo = { key: _caiK, map: new Map((S.cache.coreai || []).map((a) => [a.cr, a])) };
   return _caiMemo.map.get(cr.id) || null;
 }
 const coreAiFlagged = (cr) => !!((coreAiOf(cr) || {}).flags || []).length;
@@ -9852,7 +9887,8 @@ const gateBadge = (c) => { const m = GATE_STATUS[c.status] || GATE_STATUS.open; 
  * does not send it to drivers. A flag never holds or releases a bus; the office judges. */
 let _gaiMemo = { key: null, map: null };
 function gateAiOf(c) {
-  if (_gaiMemo.key !== S.cache) _gaiMemo = { key: S.cache, map: new Map((S.cache.gateai || []).map((a) => [a.check, a])) };
+  const _gaiK = storeSig(S.cache.gateai);
+  if (_gaiMemo.key !== _gaiK) _gaiMemo = { key: _gaiK, map: new Map((S.cache.gateai || []).map((a) => [a.check, a])) };
   return _gaiMemo.map.get(c.id) || null;
 }
 // Photos Claude doubted or rejected, plus repeats; 0 when nothing was read yet.
@@ -10356,7 +10392,8 @@ function viewWhyNoDriver() {
 }
 
 function traceCtx() {
-  if (_traceMemo.key === S.cache && _traceMemo.ctx) return _traceMemo.ctx;
+  const key = sigOf('rbservices', 'rbassign', 'rbalias', 'dutylog', 'buses', 'drivers', 'gatechecks', 'itslookup');
+  if (_traceMemo.key === key && _traceMemo.ctx) return _traceMemo.ctx;
   const log = S.cache.dutylog || [];
   const crewAt = (busId, at) => ['driver', 'conductor'].flatMap((role) => Duty.seatHoldersDuring(log, busId, role, at, at + 1)
     .map((w) => ({ crewId: w.crewId, name: (driverById(w.crewId) || {}).name || w.crewName, role })));
@@ -10366,7 +10403,7 @@ function traceCtx() {
     // Only names the office confirmed for that bus; never a guess.
     aliasCrew: ((m) => (name, reg) => m.get(Trace.aliasId(name, reg)) || null)(new Map((S.cache.rbalias || []).filter((a) => a.status === 'crew' && a.crewId).map((a) => [a.id, a.crewId]))),
   };
-  _traceMemo = { key: S.cache, ctx, map: new Map() };
+  _traceMemo = { key, ctx, map: new Map() };
   return ctx;
 }
 // A complaint carries no route id; borrow it from the same PNR's review if there is one.
@@ -10575,7 +10612,8 @@ const RV_MIN_SAMPLE = 10;
 // Every review traced to each crew member, built once per cache: crewId -> [{ r, vias }].
 let _rvCrewMemo = { key: null, map: null };
 function rvCrewIndex() {
-  if (_rvCrewMemo.key === S.cache && _rvCrewMemo.map) return _rvCrewMemo.map;
+  const key = sigOf('rbreviews', 'rbassign', 'rbalias', 'itslookup', 'dutylog', 'drivers', 'buses');
+  if (_rvCrewMemo.key === key && _rvCrewMemo.map) return _rvCrewMemo.map;
   const map = new Map();
   for (const r of S.cache.rbreviews || []) {
     for (const c of traceOf(r).crew) {
@@ -10585,7 +10623,7 @@ function rvCrewIndex() {
     }
   }
   for (const l of map.values()) l.sort((a, b) => rvBoard(b.r) - rvBoard(a.r));
-  _rvCrewMemo = { key: S.cache, map };
+  _rvCrewMemo = { key, map };
   return map;
 }
 /* Claude's reading of a review (review_ai.py on the server): who the complaint is about.
@@ -10593,7 +10631,8 @@ function rvCrewIndex() {
  * is someone else's. Same rule as review_ai.counts_for (test_review_ai.py checks this exists). */
 let _rvAiMemo = { key: null, map: null };
 function rvAiOf(r) {
-  if (_rvAiMemo.key !== S.cache) _rvAiMemo = { key: S.cache, map: new Map((S.cache.rbreviewai || []).map((a) => [a.rv, a])) };
+  const k = storeSig(S.cache.rbreviewai);
+  if (_rvAiMemo.key !== k) _rvAiMemo = { key: k, map: new Map((S.cache.rbreviewai || []).map((a) => [a.rv, a])) };
   return _rvAiMemo.map.get(r.id) || null;
 }
 function rvCountsFor(faults, role) {
@@ -12523,7 +12562,18 @@ async function delStop(busId, stopId) {
  * an owner can't eyeball from paper: undocumented work, parts diverted, money-pit
  * buses, services slipping, stock about to run out, expiring papers.
  */
+let _insMemo = { key: null, list: null };
 function computeInsights() {
+  /* 386ms on a fleet-sized dataset, and it ran on every render — which is
+   * every sync tick. It reads these nine stores and nothing else. */
+  const _k = sigOf('jobs', 'buses', 'parts', 'driverreports', 'ledger',
+                   'incidents', 'fuel', 'audits', 'components', 'gpsevents');
+  if (_insMemo.key === _k && _insMemo.list) return _insMemo.list;
+  const list = _computeInsights();
+  _insMemo = { key: _k, list };
+  return list;
+}
+function _computeInsights() {
   const out = [];
   const jobs = S.cache.jobs, buses = S.cache.buses, parts = S.cache.parts;
 
