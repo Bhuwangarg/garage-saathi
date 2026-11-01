@@ -715,10 +715,13 @@ function iconFailures(css, sheetsFn) {
   for (const n of ICON_FIXTURES) {
     const svg = F[n], parent = svg.parent;
     const disp = m.declared(parent, 'display'), items = m.declared(parent, 'align-items'), va = m.declared(svg, 'vertical-align');
-    const flexCentred = /^(inline-)?flex$/.test(disp || '') && items === 'center';
-    const baselineFixed = va !== undefined && va !== 'baseline';
-    if (!flexCentred && !baselineFixed) out.push(n + ': parent is ' + disp + '/' + items + ' and the svg has vertical-align ' + va + ', so the icon sits on the text baseline');
-    if (/^(inline-)?flex$/.test(disp || '') && m.declared(svg, 'flex-shrink') !== '0') out.push(n + ': a flex item that may shrink, so a long label squashes the icon');
+    if (/^(inline-)?flex$/.test(disp || '')) {
+      // In a flex host vertical-align does nothing, so it must not count: only align-items centres the icon.
+      if (items !== 'center') out.push(n + ': the flex host has align-items ' + items + ', so the icon is not centred on the text');
+      if (m.declared(svg, 'flex-shrink') !== '0') out.push(n + ': a flex item that may shrink, so a long label squashes the icon');
+    } else if (va === undefined || va === 'baseline') {
+      out.push(n + ': inline text host (' + disp + ') and the svg has vertical-align ' + va + ', so the icon sits on the text baseline');
+    }
   }
   return out;
 }
@@ -727,8 +730,14 @@ test('the icon checker goes red when the svg rule is removed and when the flex c
   hits(iconFailures(''), 'an empty component layer must leave icons on the baseline');
   hits(iconFailures(mutate(css, /vertical-align:[^;]+;/g, '')), 'removing every vertical-align was not caught');
   hits(iconFailures(mutate(css, /flex-shrink:\s*0;?/g, '')), 'removing flex-shrink was not caught');
+  // the flex hosts: losing align-items: center must be caught even though the svg rule still supplies vertical-align
+  hits(iconFailures(mutate(css, /(\[data-v2\] \.btn \{\n  display: inline-flex;\n)  align-items: center;/, '$1  align-items: baseline;')), '.btn with align-items: baseline was not caught');
+  hits(iconFailures(mutate(css, /(\[data-v2\] \.badge \{\n  display: inline-flex;\n)  align-items: center;/, '$1  align-items: flex-start;')), '.badge with align-items: flex-start was not caught');
+  hits(iconFailures(mutate(css, /(\[data-v2\] \.row > \.lead \{\n  grid-column: 1;\n  display: flex;\n)  align-items: center;/, '$1  align-items: baseline;')), '.lead with align-items: baseline was not caught');
+  // and the inline host: removing vertical-align leaves the baseline (already covered above); a flex host does not excuse it
+  assert.deepEqual(iconFailures(css), []);
 });
-test('a bare icon beside text is aligned by the component: centred in a flex host, or lifted off the baseline in inline text, and it never shrinks', () => {
+test('a bare icon beside text is aligned by the component: align-items: center in a flex host, vertical-align off the baseline in inline text, and flex-shrink: 0 in a flex host', () => {
   assert(ICON_FIXTURES.length >= 8);
   for (const [name, fn] of [['v2 alone', v2Sheets], ['live first', liveFirst]]) assert.deepEqual(iconFailures(need(), fn), [], name);
 });
@@ -855,6 +864,53 @@ test('yard is 48px controls, 56px rows and 16px text; desk is 32px controls and 
   assert(SIZES.length >= 15);
   assert.deepEqual(densityFailures(need()), []);
 });
+/* A 32px desk row or control must really BE 32px. min-height alone only says "at least": padding or a border on top
+ * of the content pushes it past (a border-bottom once made a desk row 33px). So at desk, for Latin text:
+ *   content height + vertical padding + vertical border  <=  the declared min-height / height,
+ * where content is one line (font-size x line-height) or, for a row, its tallest child (the action button).
+ * Rows additionally carry NO vertical padding and NO top/bottom border, so a row holding a 32px button is exactly 32px.
+ * Hindi is outside this check by design: at desk a Hindi line is 15px x 1.7 = 25.5px, so a Hindi button is
+ * 25.5 + 8 + 2 = 35.5px, taller than 32px. That is the price of not clipping Devanagari, not a bug. */
+const pxList = (v) => String(v).trim().split(/\s+/).map((t) => { const m = /^(-?[\d.]+)px$/.exec(t); if (m) return +m[1]; if (/^0$/.test(t)) return 0; return NaN; });
+function vPadding(m, el) { const l = pxList(m.computed(el, 'padding') || '0'); if (l.some(isNaN)) return NaN; return l.length === 1 ? 2 * l[0] : l.length === 2 ? 2 * l[0] : l[0] + l[2]; }
+function sideBorder(m, el, side) {
+  const v = m.computed(el, 'border-' + side);
+  if (v === undefined || /^(0|none)\b/.test(v.trim())) return 0;
+  const w = /(?:^|\s)(\d*\.?\d+)px\b/.exec(v);
+  return w ? +w[1] : NaN;
+}
+function deskFitFailures(css) {
+  const out = [];
+  for (const [label, o] of [['desk on root', { root: { 'data-density': 'desk' } }], ['desk container', { wrap: { 'data-density': 'desk' } }]]) {
+    const { F } = scene(o), m = model(v2Sheets(css));
+    const line = (el) => parseFloat(m.computed(el, 'font-size')) * parseFloat(m.computed(el, 'line-height'));
+    for (const n of ['btn', 'btn-primary', 'btn-quiet', 'btn-danger', 'a-btn', 'field', 'select', 'tab', 'tab-selected', 'row', 'row-button', 'row-link', 'td', 'th']) {
+      const el = F[n], want = parseFloat(m.computed(el, /^(td|th)$/.test(n) ? 'height' : 'min-height'));
+      const pad = vPadding(m, el), bor = sideBorder(m, el, 'top') + sideBorder(m, el, 'bottom');
+      if (isNaN(want) || isNaN(pad) || isNaN(bor) || isNaN(line(el))) { out.push(label + ': ' + n + ' could not be measured (min ' + want + ', padding ' + pad + ', border ' + bor + ', line ' + line(el) + ')'); continue; }
+      let content = line(el);
+      if (n === 'row') content = Math.max(content, parseFloat(m.computed(F['row-act-btn'], 'min-height')));
+      if (/^row/.test(n)) {
+        if (pad !== 0) out.push(label + ': ' + n + ' has ' + pad + 'px of vertical padding; a 32px row must have none');
+        if (bor !== 0) out.push(label + ': ' + n + ' has ' + bor + 'px of top/bottom border; a 32px row must have none (draw the hairline as a shadow)');
+      }
+      if (content + pad + bor > want + 1e-9) out.push(label + ': ' + n + ' is ' + (content + pad + bor) + 'px (content ' + content + ' + padding ' + pad + ' + border ' + bor + '), over its ' + want + 'px');
+    }
+  }
+  return out;
+}
+test('the desk-fit checker goes red for padding or a border that pushes a 32px row, button or cell past 32px', () => {
+  const css = need();
+  hits(deskFitFailures(mutate(css, /(\[data-v2\] \.row \{[^}]*?)padding: 0 var\(--pad\);/, '$1padding: var(--s1) var(--pad);')), '.row padding var(--s1) var(--pad) was not caught');
+  hits(deskFitFailures(mutate(css, /(\[data-v2\] \.row \{[^}]*?)box-shadow: inset 0 -1px 0 var\(--line\);/, '$1border-bottom: 1px solid var(--line);')), '.row with border-bottom was not caught');
+  hits(deskFitFailures(mutate(css, /(\[data-v2\] \.btn \{[^}]*?)padding: var\(--s1\) var\(--pad\);/, '$1padding: var(--s3);')), '.btn padding var(--s3) was not caught');
+  hits(deskFitFailures(mutate(css, /(\[data-v2\] \.table th,\n\[data-v2\] \.table td \{[^}]*?)padding: var\(--s1\) var\(--pad\);/, '$1padding: var(--s4);')), 'td padding var(--s4) was not caught');
+  hits(deskFitFailures(mutate(css, /(\[data-v2\] button\.row,\n\[data-v2\] a\.row \{\n  width: 100%;\n)  border: 0;/, '$1  border: 1px solid var(--line);')), 'button.row with a border was not caught');
+  assert.deepEqual(pxList('4px 8px'), [4, 8]); assert.strictEqual(vPadding({ computed: () => '4px 8px' }, {}), 8); assert.strictEqual(vPadding({ computed: () => '1px 2px 3px 4px' }, {}), 4);
+});
+test('at desk a 32px control, row or cell fits one Latin line plus its padding and borders in 32px, and a row has no vertical padding or border (Hindi lines are taller by design)', () => {
+  assert.deepEqual(deskFitFailures(need()), []);
+});
 test('every component changes size between yard and desk: none ignores data-density (.select and .table included)', () => {
   const props = ['min-height', 'height', 'padding', 'font-size', 'gap'];
   const sig = (o) => { const { F } = scene(o), m = model(v2Sheets(need())); const r = {}; for (const n of COMPONENT_FIXTURES) r[n] = props.map((p) => m.computed(F[n], p)).join('|'); return r; };
@@ -953,10 +1009,33 @@ test('the three button kinds and the three badge kinds each look different from 
     assert.strictEqual(new Set(looks).size, group.length, 'two of these look the same:\n' + group.map((n, i) => n + ': ' + looks[i]).join('\n'));
   }
 });
-test('an invalid field has a different border colour from a valid one', () => {
-  const { F } = scene(), m = model(v2Sheets(need()));
-  assert(m.declared(F['field-invalid'], 'border-color') !== undefined);
-  assert(m.declared(F['field-invalid'], 'border-color') !== m.declared(F.field, 'border-color'));
+// The border colour a field is actually drawn with: a border-color longhand if one wins, else the colour inside the border shorthand.
+function edgeColour(m, el) {
+  const longhand = m.computed(el, 'border-color');
+  if (longhand !== undefined && !/\b(solid|dashed|dotted)\b/.test(longhand)) return longhand;
+  return (m.computed(el, 'border') || '').replace(/^.*?\b(?:solid|dashed|dotted)\s*/, '');
+}
+function invalidFieldFailures(css) {
+  const out = [], { F, root } = scene(), m = model(v2Sheets(css));
+  const ok = edgeColour(m, F.field), bad = edgeColour(m, F['field-invalid']), BAD = m.computed(root, '--bad');
+  const shadowOk = m.computed(F.field, 'box-shadow') || 'none', shadowBad = m.computed(F['field-invalid'], 'box-shadow') || 'none';
+  if (!/^hsl\(/.test(ok) || !/^hsl\(/.test(bad)) out.push('border colours did not resolve to token colours: valid "' + ok + '", invalid "' + bad + '"');
+  if (bad !== BAD) out.push('an invalid field draws its border in ' + bad + ', not --bad (' + BAD + ')');
+  if (ok + '|' + shadowOk === bad + '|' + shadowBad) out.push('an invalid field looks the same as a valid one: border ' + ok + ', shadow ' + shadowOk);
+  if (shadowBad === 'none' || shadowBad === shadowOk) out.push('an invalid field has no second, non-colour edge (box-shadow ' + shadowBad + ')');
+  return out;
+}
+test('the invalid-field checker goes red when the invalid field looks like a valid one, in colour or in edge', () => {
+  const css = need();
+  hits(invalidFieldFailures(mutate(css, /(\.field\[aria-invalid="true"\] \{\n)  border-color: var\(--bad\);\n  box-shadow: inset 0 0 0 1px var\(--bad\);/, '$1  border-color: var(--line);')), 'border-color: var(--line), no shadow was not caught');
+  hits(invalidFieldFailures(mutate(css, /(\.field\[aria-invalid="true"\] \{\n  border-color: var\(--bad\);\n)  box-shadow: inset 0 0 0 1px var\(--bad\);/, '$1')), 'colour only (no inner edge) was not caught');
+  hits(invalidFieldFailures(mutate(css, /(\.field\[aria-invalid="true"\] \{\n)  border-color: var\(--bad\);/, '$1  border-color: var(--line);')), 'valid colour with a shadow was not caught');
+  hits(invalidFieldFailures(mutate(css, /\[data-v2\] \.field\[aria-invalid="true"\]/, '[data-v2] .field[aria-invalid="maybe"]')), 'a rule that never matches was not caught');
+  assert.strictEqual(edgeColour({ computed: (e, p) => (p === 'border' ? '1px solid hsl(1 2% 3%)' : undefined) }, {}), 'hsl(1 2% 3%)', 'edgeColour must read the colour out of the border shorthand');
+  assert.strictEqual(edgeColour({ computed: (e, p) => (p === 'border-color' ? 'hsl(4 5% 6%)' : '1px solid hsl(1 2% 3%)') }, {}), 'hsl(4 5% 6%)', 'edgeColour must prefer a winning border-color longhand');
+});
+test('an invalid field is drawn in --bad with an inner edge as well, so its resolved look differs from a valid field (compared on resolved colours and box-shadow, not on declaration text)', () => {
+  assert.deepEqual(invalidFieldFailures(need()), []);
 });
 test('a selected tab differs from an unselected one in more than colour (a bar), because status is never colour alone', () => {
   const { F } = scene(), m = model(v2Sheets(need()));
