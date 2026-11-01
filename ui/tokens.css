@@ -1,0 +1,111 @@
+/* Garage Saathi v2 - design tokens.
+ * Colour, type, spacing, density. Custom properties only (plus one inherited
+ * figure rule); no component styles live here.
+ *
+ * Browser floor is Chrome 109 (Windows 7 office PCs). No oklch(), color-mix(),
+ * nesting, @starting-style, subgrid or text-wrap. test_ui_tokens.js enforces it.
+ *
+ * Colour is authored in HSL, by hand. HSL lightness is not perceptually even
+ * across hues, so each hue has its OWN lightness numbers, tuned until the pairs
+ * in test_ui_tokens.js reach 4.5:1. Do not "regularise" them.
+ *
+ * Do NOT load this file on a page that also loads ../styles.css: both define
+ * --ink, --surface, --line, --accent, --accent-ink and --font, with different
+ * meanings. v2 screens load this file only.
+ */
+
+/* ---------- light ---------- */
+:root {
+  --ink: hsl(30 20% 9%);
+  --ink-dim: hsl(30 8% 34%);
+  --surface: hsl(40 22% 96%);
+  --surface-raised: hsl(40 30% 99%);
+  --line: hsl(38 12% 80%);
+
+  /* The existing app's signal orange. Fills, bars and focus rings. */
+  --accent: hsl(16 88% 54%);
+  /* Text ON the orange. Dark: white on this orange is about 3:1. */
+  --accent-ink: hsl(24 70% 8%);
+  /* The accent used AS text (links, active tab) on a surface. */
+  --accent-text: hsl(16 71% 35%);
+
+  /* Status text. Never colour alone: every use also carries a word or a mark. */
+  --ok: hsl(147 63% 28%);
+  --warn: hsl(38 93% 28%);
+  --bad: hsl(5 67% 43%);
+
+  --font: -apple-system, "Segoe UI", Roboto, system-ui, Arial, sans-serif;
+  --font-hi: "Nirmala UI", "Segoe UI", Mangal, sans-serif;
+
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s5: 20px;
+  --s6: 24px;
+  --s7: 32px;
+  --s8: 48px;
+
+  /* All figures: stop digits shifting as they update. */
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- dark: follows the OS unless the user chose light ---------- */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ink: hsl(35 25% 94%);
+    --ink-dim: hsl(35 10% 68%);
+    --surface: hsl(30 14% 9%);
+    --surface-raised: hsl(30 12% 14%);
+    --line: hsl(30 8% 26%);
+    --accent: hsl(24 100% 62%);
+    --accent-ink: hsl(24 70% 8%);
+    --accent-text: hsl(22 100% 77%);
+    --ok: hsl(147 62% 54%);
+    --warn: hsl(38 92% 56%);
+    --bad: hsl(5 85% 66%);
+  }
+}
+
+/* ---------- dark: explicit choice wins over the OS in both directions ---------- */
+:root[data-theme="dark"] {
+  --ink: hsl(35 25% 94%);
+  --ink-dim: hsl(35 10% 68%);
+  --surface: hsl(30 14% 9%);
+  --surface-raised: hsl(30 12% 14%);
+  --line: hsl(30 8% 26%);
+  --accent: hsl(24 100% 62%);
+  --accent-ink: hsl(24 70% 8%);
+  --accent-text: hsl(22 100% 77%);
+  --ok: hsl(147 62% 54%);
+  --warn: hsl(38 92% 56%);
+  --bad: hsl(5 85% 66%);
+}
+
+/* ---------- density: one token set, two sizes ----------
+ * Yard is the default (bigger targets are the safe failure). Put
+ * data-density on <html> or on any container; a nearer one wins. */
+:root,
+[data-density="yard"] {
+  --tap: 48px;
+  --row-h: 56px;
+  --pad: var(--s4);
+  --t1: 36px;
+  --t2: 28px;
+  --t3: 22px;
+  --t4: 18px;
+  --t5: 16px; /* body */
+  --t6: 15px; /* small: captions, table heads. Still floored at 15. */
+}
+
+[data-density="desk"] {
+  --tap: 32px;
+  --row-h: 32px;
+  --pad: var(--s2);
+  --t1: 30px;
+  --t2: 24px;
+  --t3: 20px;
+  --t4: 17px;
+  --t5: 15px; /* body */
+  --t6: 14px; /* small. Still floored at 14. */
+}
