@@ -2,6 +2,28 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
+  <!-- This same file is served from two places. Vercel serves the PWA and the API
+       together, so sync.js resolving its base to location.origin is right there.
+       GitHub Pages serves the PWA and nothing else: /roster and /pull 404, which
+       means a PIN is accepted and then no screen can be drawn. That looked exactly
+       like "the app is broken" to whoever found the Pages URL, so send them to the
+       deployment that answers.
+
+       Deliberately NOT redirected: a device with an explicit syncUrl, which is
+       working, and whose IndexedDB lives on THIS origin -- moving it to another
+       origin would strand any writes it has not pushed yet. The test the gate
+       serves from 127.0.0.1 is untouched for the same reason the rule is written
+       around the hostname rather than around "is there an API here": nothing may
+       depend on a probe before the app boots. -->
+  <script>
+    (function () {
+      try {
+        if (!/(^|\.)github\.io$/.test(location.hostname)) return;
+        if (window.localStorage && localStorage.getItem('syncUrl')) return;
+        location.replace('https://garage-saathi-sync.vercel.app/' + location.search + location.hash);
+      } catch (e) { /* private mode can throw on localStorage; then just stay put */ }
+    })();
+  </script>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#0f1720" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
