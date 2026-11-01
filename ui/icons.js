@@ -43,8 +43,10 @@
     offline: 'M2 9a15 15 0 0 1 20 0 M5.5 12.5a10 10 0 0 1 13 0 M9 16a5 5 0 0 1 6 0 M12 19.5h.01 M4 4l16 16'
   };
 
-  // A dotted square: the round caps on a near-zero dash make dots (the 4-unit period divides the 64-unit perimeter, so the pattern closes cleanly). Not part of ICONS, so it is never
-  // mistaken for a real mark in a listing.
+  // A dotted square: a near-zero dash (0.01) with a 4-unit gap, drawn as dots only because the root sets
+  // stroke-linecap="round". The period is 4.01 and the perimeter 64, so the pattern does not close exactly:
+  // there is a seam gap of about 3.85 at the start corner, which is harmless at icon size. Not part of
+  // ICONS, so it is never mistaken for a real mark in a listing.
   var MISSING = 'M4 4h16v16H4z';
 
   var DEFAULT_SIZE = 20;

@@ -284,10 +284,40 @@ test('a bad size falls back to 20 and cannot inject markup', () => {
 });
 
 /* ---------- Review Focus 2: a missing icon must be visible, not nothing ---------- */
-test('an unknown name renders a visible fallback', () => {
+test('an unknown name still renders an svg that draws a path (that it is actually VISIBLE is pinned by the dot tests below)', () => {
   const s = icon('no-such-icon');
   assert(s.includes('<svg'), 'must still render');
   assert(s.replace(/<svg[^>]*>|<\/svg>/g, '').trim().length > 0, 'must draw something');
+});
+/* ---------- the dots: what makes the fallback (and the h.01 marks) visible at all ----------
+ * A dash or a segment 0.01 long has no area. It is drawn ONLY because stroke-linecap="round" gives it a
+ * round end, a dot as wide as the stroke. Lose the linecap and the dotted fallback, and the dots on
+ * bus, warn and offline, silently draw nothing; lose the tiny dash and the fallback is plain dashes. */
+const dashes = (tag) => { const v = attr(tag, 'stroke-dasharray'); return v === null ? null : v.trim().split(/[\s,]+/).map(Number); };
+const hasDotSegment = (d) => /[hHvV]\s*-?0?\.0\d?(?![\d])/.test(d);   // an h.01 / v.01 style zero-length segment
+const rootTag = (svg) => /^<svg[^>]*>/.exec(svg)[0];
+test('the dot detectors recognise what they claim, and reject what they should', () => {
+  assert.deepEqual(dashes('<path stroke-dasharray="0.01 4"/>'), [0.01, 4]);
+  assert.strictEqual(dashes('<path d="M1 1"/>'), null);
+  for (const dot of ['M7 14h.01', 'M7 14h0.01 M1 1', 'M7 14v.01', 'M7 14H.01']) assert(hasDotSegment(dot), 'missed dot: ' + dot);
+  for (const none of ['M7 14h2', 'M7 14h.5', 'M7 14h10.01', 'M3 8h5v13H3z']) assert(!hasDotSegment(none), 'false dot: ' + none);
+});
+test('round line caps are on, for every icon, the fallback and the titled form: dots are drawn by the caps', () => {
+  assert(names().length > 0, 'no icons to check');
+  for (const n of names().concat(['no-such-icon'])) {
+    assert.strictEqual(attr(rootTag(icon(n)), 'stroke-linecap'), 'round', n + ': stroke-linecap is not round');
+    assert.strictEqual(attr(rootTag(icon(n, { title: 'T', size: 33 })), 'stroke-linecap'), 'round', n + ' (titled): stroke-linecap is not round');
+  }
+});
+test('the h.01 dot marks exist (bus, warn, offline), so the round-cap check above is not guarding nothing', () => {
+  const withDots = names().filter((n) => hasDotSegment(ICONS()[n]));
+  for (const n of ['bus', 'warn', 'offline']) assert(withDots.indexOf(n) >= 0, n + ' no longer uses a zero-length dot segment; update this list');
+});
+test('the fallback dasharray is a near-zero dash then a real gap (dots, not dashes)', () => {
+  const dz = dashes(pathTags(icon('no-such-icon'))[0]);
+  assert(dz && dz.length === 2, 'expected a two-value dasharray, got ' + JSON.stringify(dz));
+  assert(dz[0] > 0 && dz[0] < 1, 'first dash must be near-zero (0 < d < 1) to render as a dot, got ' + dz[0]);
+  assert(dz[1] >= 2, 'gap between dots must be at least 2 units to read as separate dots, got ' + dz[1]);
 });
 test('the fallback is one dotted-square path, distinct from every real icon', () => {
   const s = icon('no-such-icon'), tags = pathTags(s);
