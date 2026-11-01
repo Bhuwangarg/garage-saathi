@@ -2,12 +2,18 @@
  * dependencies. Needs ui/tokens.css and ui/components.css; uses icon() from ui/icons.js when it is loaded and still
  * shows every word when it is not. Test: test_ui_overlay.js (it drives real Chrome).
  *
- *   openSheet(title, html, opts)   a modal panel on the bottom edge. title is plain text; html is markup you trust
+ * THE API LIVES ON ONE GLOBAL, V2: V2.openSheet, V2.closeSheet, V2.confirmDialog, V2.toast. The bare names are NOT attached
+ * to window, on purpose. The live app.js already defines openSheet, closeSheet and toast with other arguments, and screens
+ * migrate one at a time, so a single page will hold both files for a long while; attaching bare names would silently replace
+ * the live functions for every call site that has not migrated. Loading this file changes nothing on a page that has not
+ * opted in (test_ui_overlay.js proves it against a page that defines all four names itself).
+ *
+ *   V2.openSheet(title, html, opts)   a modal panel on the bottom edge. title is plain text; html is markup you trust
  *                                  (the same contract as the live app's openSheet). opts {onClose: function}. Returns
  *                                  the <dialog>. Only one sheet is open at a time: opening another replaces it.
- *   closeSheet()                   plays the exit, then closes. Safe to call twice, or with nothing open.
- *   confirmDialog(text, opts)      a modal question. Returns a Promise of a boolean. opts {title, yes, no, danger}.
- *   toast(text, opts)              a short message. opts {kind: 'ok' | 'warn' | 'bad', ms}. Returns the <dialog>.
+ *   V2.closeSheet()                plays the exit, then closes. Safe to call twice, or with nothing open.
+ *   V2.confirmDialog(text, opts)   a modal question. Returns a Promise of a boolean. opts {title, yes, no, danger}.
+ *   V2.toast(text, opts)           a short message. opts {kind: 'ok' | 'warn' | 'bad', ms}. Returns the <dialog>.
  *
  * ALL THREE ARE <dialog>. showModal() gives a sheet and a confirmation a focus trap, an inert page behind them and
  * Escape (the `cancel` event) without a line of script. A toast is the non-modal kind: it must not take focus or make
@@ -16,7 +22,8 @@
  * A DISMISSED CONFIRMATION IS "NO". confirmDialog resolves true only from a click on its Confirm button. Escape, a click
  * on the backdrop, Cancel, a script calling close() (even close('confirm')) and anything else that ends the dialog all
  * resolve false, and focus starts on Cancel so a reflexive Enter says no. An undecided dialog that is merely removed from
- * the page (a screen redrawing itself with innerHTML on <body>) never resolves; that also never reads as consent.
+ * the page (a screen redrawing itself with innerHTML on <body>) is noticed (a MutationObserver on <body> while a modal is
+ * open) and treated as closed: a confirmation resolves false, scroll is unlocked, focus goes back if it can.
  *
  * FOCUS. A sheet or a confirmation records document.activeElement when it opens and puts focus back there when it
  * closes. Current Chrome also does this on dialog.close(); older ones may not, and the explicit restore also covers a
@@ -44,10 +51,15 @@
  * top layer paints above everything outside it, so a toast left in the page would be hidden behind the sheet.
  * The Close button inside a toast is reachable with Tab but never receives focus by itself.
  *
+ * SCROLL LOCK. showModal() makes the page inert but does not stop it scrolling, so while ANY modal is open the document
+ * element gets overflow: hidden (the inline overflow and padding-right the app had are saved and put back exactly on the
+ * last close; stacked overlays count). Where a classic scrollbar disappears, its width is added to padding-right so the page
+ * does not jump sideways. The lock is released first thing in the close path, before anything that could throw, and by the
+ * <body> observer if the dialog is wiped, so no failure leaves the page stuck. It locks the document's scroll; an app that
+ * scrolls inside its own container must lock that itself. A toast never locks (it is not modal).
+ *
  * KNOWN LIMITS. The live region attributes are tested; what a screen reader does with them is not (no screen reader is
- * run here). Page scroll behind a sheet is not locked (a wheel over the backdrop can still scroll the page); the sheet
- * body does not chain its own scroll to the page. The names openSheet, closeSheet and toast are also globals of the live
- * app.js, with different arguments; loading this file into the live page would replace them (see the Task 5 report). */
+ * run here). The sheet body does not chain its own scroll to the page. */
 (function (window) {
   'use strict';
 
@@ -59,6 +71,8 @@
   var MAX_TOASTS = 3;
   var SLACK_MS = 30;                   // after the last frame of an exit, before the element is removed
   var seq = 0;
+  var scrollSaved = null;              // {overflow, paddingRight} of <html> before the lock, or null when not locked
+  var watcher = null;                  // MutationObserver on <body> while a modal is open
 
   var modals = [];                     // records of the open modal dialogs, oldest first
   var sheet = null;                    // the record of the open sheet, if any
@@ -139,6 +153,51 @@
     if (el && el.nodeType === 1 && el.isConnected && el !== d.body && el !== d.documentElement && typeof el.focus === 'function') el.focus();
   }
 
+  /* ---------- scroll lock ---------- */
+
+  function lockScroll() {
+    if (scrollSaved) return;
+    var el = doc().documentElement, bar = window.innerWidth - el.clientWidth;
+    scrollSaved = { overflow: el.style.overflow, paddingRight: el.style.paddingRight };
+    if (bar > 0) el.style.paddingRight = (parseFloat(window.getComputedStyle(el).paddingRight) || 0) + bar + 'px';
+    el.style.overflow = 'hidden';
+  }
+
+  function unlockScroll() {
+    if (!scrollSaved) return;
+    var el = doc().documentElement;
+    el.style.overflow = scrollSaved.overflow;
+    el.style.paddingRight = scrollSaved.paddingRight;
+    scrollSaved = null;
+  }
+
+  // The app wiped <body> under an open modal: no close event will ever come, so notice it here.
+  function sweep() {
+    var i, list = modals.slice();
+    for (i = 0; i < list.length; i++) if (!list[i].dlg.isConnected) finish(list[i]);
+  }
+
+  // Escape goes to the topmost modal. We take the key ourselves (on keydown, after anything inside the dialog had its
+  // say) instead of waiting for the dialog's `cancel` event: Chrome hands the close request to the NEWEST dialog of any
+  // kind, so with a toast on screen (a toast is a <dialog> too) the request never reached the modal beneath it.
+  function onKey(ev) {
+    if ((ev.key === 'Escape' || ev.key === 'Esc') && !ev.defaultPrevented && !ev.isComposing && modals.length) {
+      ev.preventDefault();
+      modals[modals.length - 1].onCancel();
+    }
+  }
+
+  function watch() {
+    if (watcher || typeof window.MutationObserver !== 'function' || !doc().body) return;
+    watcher = new window.MutationObserver(sweep);
+    watcher.observe(doc().body, { childList: true });
+    doc().addEventListener('keydown', onKey);
+  }
+
+  function unwatch() {
+    if (watcher && !modals.length) { watcher.disconnect(); watcher = null; doc().removeEventListener('keydown', onKey); }
+  }
+
   /* ---------- modal dialogs (sheet and confirmation) ---------- */
 
   function isBackdrop(rec, target) { return target === rec.dlg || target === rec.scrim; }
@@ -153,7 +212,7 @@
 
   function wire(rec) {
     var dlg = rec.dlg;
-    // Escape. The default would close at once, with no exit; ask for the exit instead.
+    // Any other close request (Escape is taken in onKey, a back gesture arrives here): the default would close at once, with no exit.
     dlg.addEventListener('cancel', function (ev) { ev.preventDefault(); rec.onCancel(); });
     // However the dialog ended (script close(), a second Escape Chrome will not let us prevent), tidy up.
     dlg.addEventListener('close', function () { finish(rec); });
@@ -170,6 +229,8 @@
     wire(rec);
     rec.dlg.showModal();
     modals.push(rec);
+    lockScroll();
+    watch();
     placeLane();
     flush(rec.panel);                                   // render the unmounted state once...
     rec.dlg.setAttribute('data-mounted', '');           // ...then change it, so it transitions
@@ -192,6 +253,7 @@
     var i = modals.indexOf(rec);
     if (i >= 0) modals.splice(i, 1);
     if (sheet === rec) sheet = null;
+    if (!modals.length) { unlockScroll(); unwatch(); }  // first, before anything below can throw
     placeLane();                                        // before the dialog goes: the toasts must not go with it
     if (rec.dlg.open) { try { rec.dlg.close(); } catch (e) { /* already closed */ } }
     if (rec.dlg.parentNode) rec.dlg.parentNode.removeChild(rec.dlg);
@@ -365,8 +427,5 @@
     return el;
   }
 
-  window.openSheet = openSheet;
-  window.closeSheet = closeSheet;
-  window.confirmDialog = confirmDialog;
-  window.toast = toast;
+  window.V2 = { openSheet: openSheet, closeSheet: closeSheet, confirmDialog: confirmDialog, toast: toast };
 })(window);

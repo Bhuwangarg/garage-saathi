@@ -180,7 +180,7 @@ function pageHtml(env, o) {
   o = o || {};
   return '<!doctype html><html lang="en"' + (o.htmlAttrs || '') + '><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
     + (o.live ? '<style>' + LIVE + '</style>' : '') + '<style>' + TOKENS + '</style><style>' + env.css + '</style>' + (o.head || '') + '</head><body>'
-    + (o.body || DEFAULT_BODY) + '<script>' + ICONS + '</script><script>' + HELPERS + '</script>' + (o.noNativeRestore ? '<script>' + NO_NATIVE_RESTORE + '</script>' : '') + (o.trackTimers ? '<script>' + TRACK_TIMERS + '</script>' : '')
+    + (o.body || DEFAULT_BODY) + '<script>' + ICONS + '</script><script>' + HELPERS + '</script>' + (o.noNativeRestore ? '<script>' + NO_NATIVE_RESTORE + '</script>' : '') + (o.trackTimers ? '<script>' + TRACK_TIMERS + '</script>' : '') + (o.preScript ? '<script>' + o.preScript + '</script>' : '')
     + '<script>' + env.js + '</script></body></html>';
 }
 const KEYS = { Escape: [27, 'Escape'], Tab: [9, 'Tab'], Enter: [13, 'Enter'] };
@@ -208,6 +208,7 @@ class Page {
   async mouse(type, x, y) {
     await this.send('Input.dispatchMouseEvent', { type, x, y, button: type === 'mouseMoved' ? 'none' : 'left', buttons: type === 'mousePressed' ? 1 : 0, clickCount: type === 'mouseMoved' ? 0 : 1 });
   }
+  async wheel(x, y, deltaY) { await this.send('Input.dispatchMouseEvent', { type: 'mouseWheel', x, y, deltaX: 0, deltaY }); }
   async click(x, y) { await this.mouse('mouseMoved', x, y); await this.mouse('mousePressed', x, y); await this.mouse('mouseReleased', x, y); }
   async clickEl(selector) { const c = await this.eval('(function(){var e=document.querySelector(' + JSON.stringify(selector) + ');if(!e)return null;return H.center(e)})()'); if (!c) throw new Error('nothing matches ' + selector); await this.click(c.x, c.y); }
   async drag(from, to) { await this.mouse('mouseMoved', from.x, from.y); await this.mouse('mousePressed', from.x, from.y); await this.mouse('mouseMoved', to.x, to.y); await this.mouse('mouseReleased', to.x, to.y); }
@@ -273,10 +274,12 @@ test('the ES5 tripwire flags each construct it claims to, lets Promise through, 
 test('ui/overlay.js is plain ES5 (no arrow, template literal, let/const/class, spread, module or ES2015 library call; Promise is the one allowed exception)', () => {
   none(es6Syntax(needEnv(REAL).js));
 });
-test('ui/overlay.js loads from a bare script with only a window, and adds exactly openSheet, closeSheet, confirmDialog and toast', () => {
+const API = ['closeSheet', 'confirmDialog', 'openSheet', 'toast'];
+test('ui/overlay.js loads from a bare script with only a window and adds exactly ONE global, V2, holding openSheet, closeSheet, confirmDialog and toast as functions, and none of those four names on window itself', () => {
   const r = loadInVm(needEnv(REAL).js);
-  assert.deepEqual(r.added, ['closeSheet', 'confirmDialog', 'openSheet', 'toast']);
-  for (const k of r.added) assert.strictEqual(typeof r.win[k], 'function', k);
+  assert.deepEqual(r.added, ['V2'], 'the only global added is V2');
+  assert.deepEqual(Object.keys(r.win.V2).sort(), API);
+  for (const k of API) { assert.strictEqual(typeof r.win.V2[k], 'function', 'V2.' + k); assert.strictEqual(r.win[k], undefined, 'window.' + k + ' must not exist'); }
   assert.throws(() => loadInVm('var = ;'), /./, 'the loader does not notice a syntax error');
 });
 test('the ASCII detector sees an emoji, an arrow and a curly quote and spares plain ASCII', () => {
@@ -341,7 +344,7 @@ async function renderedClasses(env) {
   return withPage(env, {}, async (p) => {
     return p.eval(`(function(){
       var op = document.getElementById('opener'); op.focus();
-      openSheet('T', '<p>x</p>'); confirmDialog('Q?', { title: 'Sure?', danger: true }); toast('a', { kind: 'ok', ms: 0 }); toast('b', { kind: 'warn', ms: 0 }); toast('c', { kind: 'bad', ms: 0 });
+      V2.openSheet('T', '<p>x</p>'); V2.confirmDialog('Q?', { title: 'Sure?', danger: true }); V2.toast('a', { kind: 'ok', ms: 0 }); V2.toast('b', { kind: 'warn', ms: 0 }); V2.toast('c', { kind: 'bad', ms: 0 });
       var all = document.querySelectorAll('*'), set = {}, i, j;
       for (i = 0; i < all.length; i++) for (j = 0; j < all[i].classList.length; j++) set[all[i].classList[j]] = 1;
       return Object.keys(set);
@@ -377,7 +380,7 @@ async function checkSheetIsModalDialog(env) {
   return withPage(env, {}, async (p) => {
     const r = await p.eval(`(function(){
       document.getElementById('opener').focus();
-      var d = openSheet('Edit <b>job</b>', '${SHEET_BODY}');
+      var d = V2.openSheet('Edit <b>job</b>', '${SHEET_BODY}');
       var lab = d.getAttribute('aria-labelledby'), le = lab && document.getElementById(lab);
       var cl = d.querySelector('.ov-close');
       return { tag: d.tagName, open: d.open, modal: d.matches(':modal'), inDoc: document.body.contains(d), dialogs: document.querySelectorAll('dialog').length,
@@ -402,7 +405,7 @@ test('openSheet returns an open, modal <dialog> that is the only dialog on the p
 
 async function checkPageBehindIsInert(env) {
   return withPage(env, {}, async (p) => {
-    await p.eval(`document.getElementById('opener').focus(); openSheet('T', '${SHEET_BODY}'); H.sleep(350)`);
+    await p.eval(`document.getElementById('opener').focus(); V2.openSheet('T', '${SHEET_BODY}'); H.sleep(350)`);
     const f = [];
     const r = await p.eval(`(function(){
       var o = document.getElementById('other'), c = H.center(o), hit = document.elementFromPoint(c.x, c.y);
@@ -429,14 +432,14 @@ const ROUTES = ['Escape', 'the Close button', 'a click on the backdrop', 'closeS
 async function checkSheetCloseRoute(env, route) {
   return withPage(env, { noNativeRestore: true }, async (p) => {
     const pre = await p.eval(`(function(){ document.getElementById('opener').focus(); window.__closed = 0;
-      openSheet('T', '${SHEET_BODY}', { onClose: function () { window.__closed++; } }); return document.activeElement.id; })()`);
+      V2.openSheet('T', '${SHEET_BODY}', { onClose: function () { window.__closed++; } }); return document.activeElement.id; })()`);
     const f = [];
     if (pre === 'opener') f.push('focus never left the opener on open, so restoring it proves nothing');
     await p.eval('H.sleep(350)');
     if (route === 'Escape') await p.key('Escape');
     else if (route === 'the Close button') await p.clickEl('dialog.ov-sheet .ov-close');
     else if (route === 'a click on the backdrop') await p.click(4, 4);
-    else await p.eval('closeSheet(); 1');
+    else await p.eval('V2.closeSheet(); 1');
     if (!(await p.until('!H.sheet()', 3000))) f.push('the sheet is still in the document 3s after ' + route);
     await p.eval('H.sleep(150)');       // a second onClose would come from the dialog's own close event, a task later
     const post = await p.eval(`({ active: document.activeElement.id || document.activeElement.tagName, closed: window.__closed, open: document.querySelectorAll('dialog[open]').length })`);
@@ -456,11 +459,11 @@ async function checkNestedSheet(env) {
   return withPage(env, { noNativeRestore: true }, async (p) => {
     const r = await p.eval(`(async function(){
       document.getElementById('opener').focus();
-      openSheet('One', '<button type="button" id="ib">Inner</button>'); await H.sleep(350);
+      V2.openSheet('One', '<button type="button" id="ib">Inner</button>'); await H.sleep(350);
       document.getElementById('ib').focus();
-      openSheet('Two', '<p>second</p>'); await H.sleep(350);
+      V2.openSheet('Two', '<p>second</p>'); await H.sleep(350);
       var count = document.querySelectorAll('dialog.ov-sheet').length, title = H.sheet().querySelector('.ov-title').textContent;
-      closeSheet(); await H.until(function () { return !H.sheet(); }, 3000);
+      V2.closeSheet(); await H.until(function () { return !H.sheet(); }, 3000);
       return { count: count, title: title, active: document.activeElement.id || document.activeElement.tagName, left: document.querySelectorAll('dialog').length };
     })()`);
     const f = [];
@@ -477,7 +480,7 @@ test('opening a second sheet from inside the first replaces it, and closing retu
 
 async function checkBackdropRules(env) {
   return withPage(env, {}, async (p) => {
-    await p.eval(`document.getElementById('opener').focus(); openSheet('Title here', '${SHEET_BODY}'); 1`);
+    await p.eval(`document.getElementById('opener').focus(); V2.openSheet('Title here', '${SHEET_BODY}'); 1`);
     const settled = await p.until("getComputedStyle(H.sheet().querySelector('.ov-panel')).opacity === '1'", 2000);
     const f = [];
     if (!settled) f.push('the sheet never finished entering');
@@ -498,16 +501,16 @@ test('a click inside a sheet, and a drag that starts inside and ends on the back
 
 async function checkRepeatedClose(env) {
   return withPage(env, { noNativeRestore: true }, async (p) => {
-    await p.eval(`document.getElementById('opener').focus(); window.__closed = 0; openSheet('T', 'x', { onClose: function () { window.__closed++; } }); H.sleep(350)`);
-    await p.eval('closeSheet(); closeSheet(); 1');
+    await p.eval(`document.getElementById('opener').focus(); window.__closed = 0; V2.openSheet('T', 'x', { onClose: function () { window.__closed++; } }); H.sleep(350)`);
+    await p.eval('V2.closeSheet(); V2.closeSheet(); 1');
     await p.key('Escape');
-    await p.eval('closeSheet(); H.sleep(500)');
+    await p.eval('V2.closeSheet(); H.sleep(500)');
     const f = [];
     const r = await p.eval('({ closed: window.__closed, sheets: document.querySelectorAll("dialog").length, active: document.activeElement.id })');
     if (r.closed !== 1) f.push('onClose ran ' + r.closed + ' times after closing a closing sheet three ways');
     if (r.sheets !== 0) f.push(r.sheets + ' dialogs remain');
     if (r.active !== 'opener') f.push('focus ended on ' + r.active);
-    if (await p.eval('(function(){ try { closeSheet(); closeSheet(); return false; } catch (e) { return String(e); } })()')) f.push('closeSheet() with no sheet open threw');
+    if (await p.eval('(function(){ try { V2.closeSheet(); V2.closeSheet(); return false; } catch (e) { return String(e); } })()')) f.push('V2.closeSheet() with no sheet open threw');
     if (p.errors.length) f.push('page errors: ' + p.errors.join(' | '));
     return f;
   });
@@ -531,7 +534,7 @@ const CONFIRM_ROUTES = [
 async function checkConfirmRoute(env, route) {
   return withPage(env, { noNativeRestore: true }, async (p) => {
     await p.eval(`document.getElementById('opener').focus(); window.__r = undefined;
-      window.__p = confirmDialog('Delete job 12?', {}); window.__p.then(function (v) { window.__r = { v: v, t: typeof v }; }); 1`);
+      window.__p = V2.confirmDialog('Delete job 12?', {}); window.__p.then(function (v) { window.__r = { v: v, t: typeof v }; }); 1`);
     await p.until("H.confirm() && getComputedStyle(H.confirm().querySelector('.ov-panel')).opacity === '1'", 2000);
     const f = [];
     const pre = await p.eval('({ pending: window.__r === undefined, promise: window.__p instanceof Promise, modal: !!H.confirm() && H.confirm().matches(":modal"), active: document.activeElement.className })');
@@ -557,7 +560,7 @@ for (const route of CONFIRM_ROUTES) {
 
 async function checkConfirmDefaultFocus(env) {
   return withPage(env, {}, async (p) => {
-    const a = await p.eval(`(function(){ confirmDialog('Delete job 12?', { danger: true }); var d = H.confirm(), x = document.activeElement;
+    const a = await p.eval(`(function(){ V2.confirmDialog('Delete job 12?', { danger: true }); var d = H.confirm(), x = document.activeElement;
       return { inDialog: d.contains(x), cls: x.className, text: H.squash(x.textContent) }; })()`);
     const f = [];
     if (!a.inDialog) f.push('focus is not inside the dialog on open');
@@ -572,7 +575,7 @@ test('a confirmation opens with focus on Cancel, the safe answer, so a reflexive
 async function checkConfirmMarkup(env) {
   return withPage(env, {}, async (p) => {
     const r = await p.eval(`(function(){
-      confirmDialog('<img src=x id=bad> & "q"', { title: '<b>Sure?</b>', yes: 'Delete <i>it</i>', no: 'Keep <u>it</u>', danger: true });
+      V2.confirmDialog('<img src=x id=bad> & "q"', { title: '<b>Sure?</b>', yes: 'Delete <i>it</i>', no: 'Keep <u>it</u>', danger: true });
       var d = H.confirm(), lab = document.getElementById(d.getAttribute('aria-labelledby') || ''), desc = document.getElementById(d.getAttribute('aria-describedby') || '');
       var yes = d.querySelector('.ov-yes'), no = d.querySelector('.ov-no');
       return { role: d.getAttribute('role'), imgInjected: !!document.getElementById('bad'), labelledText: lab ? H.squash(lab.textContent) : null, describedText: desc ? H.squash(desc.textContent) : null,
@@ -586,7 +589,7 @@ async function checkConfirmMarkup(env) {
     if (r.yes !== 'Delete <i>it</i>' || r.no !== 'Keep <u>it</u>') f.push('button labels are ' + JSON.stringify([r.yes, r.no]) + ', not the ones passed in as plain text');
     if (!r.yesDanger) f.push('danger:true did not make the confirming button btn-danger');
     if (!r.noPlain) f.push('the Cancel button is styled as an action');
-    const d = await p.eval(`(function(){ document.querySelectorAll('dialog').forEach(function (x) { x.remove(); }); confirmDialog('Plain?'); var d = H.confirm();
+    const d = await p.eval(`(function(){ document.querySelectorAll('dialog').forEach(function (x) { x.remove(); }); V2.confirmDialog('Plain?'); var d = H.confirm();
       return { yes: H.squash(d.querySelector('.ov-yes').textContent), no: H.squash(d.querySelector('.ov-no').textContent), primary: d.querySelector('.ov-yes').classList.contains('btn-primary'), labelled: !!document.getElementById(d.getAttribute('aria-labelledby') || '') }; })()`);
     if (!d.yes || !d.no || d.yes === d.no) f.push('default button labels are ' + JSON.stringify([d.yes, d.no]));
     if (!d.primary) f.push('without danger the confirming button is not btn-primary');
@@ -600,8 +603,8 @@ test('a confirmation is an alertdialog named by its title (or its question), des
 
 async function checkConfirmOverSheet(env) {
   return withPage(env, { noNativeRestore: true }, async (p) => {
-    await p.eval(`document.getElementById('opener').focus(); openSheet('S', '<button type="button" id="ib">Inner</button>'); window.__r = undefined; H.sleep(350)`);
-    await p.eval(`document.getElementById('ib').focus(); confirmDialog('Discard?').then(function (v) { window.__r = { v: v }; }); H.sleep(350)`);
+    await p.eval(`document.getElementById('opener').focus(); V2.openSheet('S', '<button type="button" id="ib">Inner</button>'); window.__r = undefined; H.sleep(350)`);
+    await p.eval(`document.getElementById('ib').focus(); V2.confirmDialog('Discard?').then(function (v) { window.__r = { v: v }; }); H.sleep(350)`);
     await p.key('Escape');
     await p.until('window.__r !== undefined', 2500);
     await p.eval('H.sleep(400)');
@@ -629,7 +632,7 @@ async function checkToastWords(env) {
     const r = await p.eval(`(function(){
       var out = {}, kinds = ['ok', 'warn', 'bad'], i;
       for (i = 0; i < kinds.length; i++) {
-        var t = toast('Job saved', { kind: kinds[i], ms: 0 });
+        var t = V2.toast('Job saved', { kind: kinds[i], ms: 0 });
         var said = H.squash(H.spoken(t)), seen = H.squash(t.innerText);
         out[kinds[i]] = { said: said, seen: seen, hasMessage: said.indexOf('Job saved') >= 0 && seen.indexOf('Job saved') >= 0, visible: t.getClientRects().length > 0,
           drawings: [].slice.call(t.querySelectorAll('svg')).map(function (s) { return s.getAttribute('aria-hidden'); }) };
@@ -663,8 +666,8 @@ async function checkToastKindFallback(env) {
   return withPage(env, {}, async (p) => {
     const r = await p.eval(`(function(){
       var strip = function (t) { return H.squash(H.spoken(t)).replace('x', '').replace('Close', '').trim(); };
-      return { ok: strip(toast('x', { kind: 'ok', ms: 0 })), warn: strip(toast('x', { kind: 'warn', ms: 0 })), bad: strip(toast('x', { kind: 'bad', ms: 0 })),
-        missing: strip(toast('x', { ms: 0, kind: undefined })), typo: strip(toast('x ', { kind: 'error', ms: 0 })), proto: strip(toast('x  ', { kind: 'constructor', ms: 0 })), none: strip(toast('x   ')) };
+      return { ok: strip(V2.toast('x', { kind: 'ok', ms: 0 })), warn: strip(V2.toast('x', { kind: 'warn', ms: 0 })), bad: strip(V2.toast('x', { kind: 'bad', ms: 0 })),
+        missing: strip(V2.toast('x', { ms: 0, kind: undefined })), typo: strip(V2.toast('x ', { kind: 'error', ms: 0 })), proto: strip(V2.toast('x  ', { kind: 'constructor', ms: 0 })), none: strip(V2.toast('x   ')) };
     })()`);
     const f = [];
     if (r.missing !== r.ok) f.push('a toast with no kind says "' + r.missing + '", not the ok word "' + r.ok + '"');
@@ -681,7 +684,7 @@ test('a toast with no kind says the ok word, and an unknown kind (a typo, an inh
 async function checkToastLiveRegion(env) {
   return withPage(env, {}, async (p) => {
     const r = await p.eval(`(function(){
-      var ok = toast('fine', { kind: 'ok', ms: 0 }), bad = toast('broke', { kind: 'bad', ms: 0 });
+      var ok = V2.toast('fine', { kind: 'ok', ms: 0 }), bad = V2.toast('broke', { kind: 'bad', ms: 0 });
       var polite = function (t) { var e = t.closest('[aria-live]'); return e ? e.getAttribute('aria-live') + '/' + e.getAttribute('role') : null; };
       return { okRegion: polite(ok), badRegion: polite(bad), okAlert: !!ok.querySelector('[role="alert"]'), badAlert: !!bad.querySelector('[role="alert"]'), okAssertive: ok.closest('[aria-live="assertive"]') !== null };
     })()`);
@@ -701,7 +704,7 @@ async function checkToastLeavesPageAlone(env) {
   return withPage(env, {}, async (p) => {
     await p.eval("document.getElementById('opener').focus(); 1");
     const r = await p.eval(`(async function(){
-      var t = toast('Saved', { kind: 'ok', ms: 0 }); await H.sleep(400);
+      var t = V2.toast('Saved', { kind: 'ok', ms: 0 }); await H.sleep(400);
       var low = document.getElementById('low'), c = H.center(low), hitLow = document.elementFromPoint(c.x, c.y);
       var o = document.getElementById('other'), oc = H.center(o);
       return { modal: t.matches(':modal'), open: t.open, active: document.activeElement.id, lowReachable: hitLow === low, otherReachable: document.elementFromPoint(oc.x, oc.y) === o,
@@ -726,20 +729,20 @@ test('a toast is a non-modal dialog that does not take focus, make the page iner
 async function checkToastTiming(env) {
   return withPage(env, {}, async (p) => {
     const r = await p.eval(`(async function(){
-      var t0 = Date.now(), a = toast('quick', { kind: 'ok', ms: 150 }), present0 = a.isConnected;
+      var t0 = Date.now(), a = V2.toast('quick', { kind: 'ok', ms: 150 }), present0 = a.isConnected;
       var gone = await H.until(function () { return !a.isConnected; }, 2000), took = Date.now() - t0;
-      var b = toast('default', { kind: 'ok' }); await H.sleep(700); var defaultStill = b.isConnected;
-      var c = toast('sticky', { kind: 'bad', ms: 0 }); await H.sleep(900); var stickyStill = c.isConnected;
-      var junk = toast('junk', { ms: -5 }); var junk2 = toast('junk2', { ms: 'soon' });
+      var b = V2.toast('default', { kind: 'ok' }); await H.sleep(700); var defaultStill = b.isConnected;
+      var c = V2.toast('sticky', { kind: 'bad', ms: 0 }); await H.sleep(900); var stickyStill = c.isConnected;
+      var junk = V2.toast('junk', { ms: -5 }); var junk2 = V2.toast('junk2', { ms: 'soon' });
       await H.sleep(300);
       return { present0: present0, gone: gone, took: took, defaultStill: defaultStill, stickyStill: stickyStill, closeWord: H.squash(H.spoken(c.querySelector('.ov-toast-close'))), junkOk: junk.isConnected && junk2.isConnected };
     })()`);
     const f = [];
     if (!r.present0) f.push('the toast was not on the page when asked for');
-    if (!r.gone) f.push('toast(.., {ms: 150}) was still there 2s later');
-    if (r.took < 140) f.push('toast(.., {ms: 150}) was gone after ' + r.took + 'ms, before its time');
+    if (!r.gone) f.push('V2.toast(.., {ms: 150}) was still there 2s later');
+    if (r.took < 140) f.push('V2.toast(.., {ms: 150}) was gone after ' + r.took + 'ms, before its time');
     if (!r.defaultStill) f.push('a toast with no ms vanished within 700ms');
-    if (!r.stickyStill) f.push('toast(.., {ms: 0}) disappeared by itself; 0 must mean "stay until closed"');
+    if (!r.stickyStill) f.push('V2.toast(.., {ms: 0}) disappeared by itself; 0 must mean "stay until closed"');
     if (r.closeWord !== 'Close') f.push('the toast close control says ' + JSON.stringify(r.closeWord));
     if (!r.junkOk) f.push('a negative or non-numeric ms made the toast vanish at once instead of using the default');
     await p.clickEl('dialog.ov-toast-bad .ov-toast-close');
@@ -754,7 +757,7 @@ test('a toast stays for its ms (150 goes in about 150ms plus its exit), a defaul
 async function checkToastStack(env) {
   return withPage(env, {}, async (p) => {
     const r = await p.eval(`(async function(){
-      var i; for (i = 0; i < 7; i++) toast('Toast number ' + i, { kind: 'warn', ms: 0 });
+      var i; for (i = 0; i < 7; i++) V2.toast('Toast number ' + i, { kind: 'warn', ms: 0 });
       await H.sleep(600);
       return { live: H.live().map(function (t) { return H.squash(t.querySelector('.ov-toast-text').textContent); }), dom: H.toasts().length };
     })()`);
@@ -772,13 +775,13 @@ test('seven toasts in a burst leave at most three on screen, and the newest is o
 async function checkToastRetarget(env) {
   return withPage(env, {}, async (p) => {
     const r = await p.eval(`(async function(){
-      var t1 = toast('Saved', { kind: 'ok', ms: 0 }), t2 = toast('Saved', { kind: 'ok', ms: 0 });
+      var t1 = V2.toast('Saved', { kind: 'ok', ms: 0 }), t2 = V2.toast('Saved', { kind: 'ok', ms: 0 });
       var same = t1 === t2, count = H.toasts().length;
       await H.sleep(500);
       t1.querySelector('.ov-toast-close').click();
       var mid = await H.until(function () { var o = parseFloat(getComputedStyle(t1).opacity); return o > 0.15 && o < 0.85; }, 1000);
       var before = parseFloat(getComputedStyle(t1).opacity), tfBefore = getComputedStyle(t1).transform;
-      var t3 = toast('Saved', { kind: 'ok', ms: 0 });
+      var t3 = V2.toast('Saved', { kind: 'ok', ms: 0 });
       var after = parseFloat(getComputedStyle(t1).opacity);
       var anims = t1.getAnimations().filter(function (a) { return a.transitionProperty === 'opacity'; }).length;
       await H.sleep(600);
@@ -805,12 +808,12 @@ async function checkToastOverModal(env) {
   return withPage(env, {}, async (p) => {
     const r = await p.eval(`(async function(){
       document.getElementById('opener').focus();
-      openSheet('S', '<button type="button" id="ib">Inner</button>'); await H.sleep(350);
+      V2.openSheet('S', '<button type="button" id="ib">Inner</button>'); await H.sleep(350);
       document.getElementById('ib').focus();
-      var t = toast('Over the sheet', { kind: 'bad', ms: 0 }); await H.sleep(400);
+      var t = V2.toast('Over the sheet', { kind: 'bad', ms: 0 }); await H.sleep(400);
       var c = H.center(t), hit = document.elementFromPoint(c.x, c.y);
       var during = { hit: !!hit && t.contains(hit), active: document.activeElement.id, modal: H.sheet().matches(':modal') };
-      closeSheet(); await H.until(function () { return !H.sheet(); }, 3000); await H.sleep(200);
+      V2.closeSheet(); await H.until(function () { return !H.sheet(); }, 3000); await H.sleep(200);
       var c2 = H.center(t), hit2 = document.elementFromPoint(c2.x, c2.y);
       return { during: during, after: { connected: t.isConnected, hit: !!hit2 && t.contains(hit2), inModal: !!t.closest('dialog.ov-modal') } };
     })()`);
@@ -833,8 +836,8 @@ test('a toast shown while a sheet is open is visible above it (not hidden behind
 async function checkToastText(env) {
   return withPage(env, {}, async (p) => {
     const r = await p.eval(`(function(){
-      var t = toast('<img src=x id=pwn> & <b>bold</b>', { kind: 'ok', ms: 0 });
-      var e = toast(undefined, { kind: 'warn', ms: 0 }), n = toast(null, { ms: 0 });
+      var t = V2.toast('<img src=x id=pwn> & <b>bold</b>', { kind: 'ok', ms: 0 });
+      var e = V2.toast(undefined, { kind: 'warn', ms: 0 }), n = V2.toast(null, { ms: 0 });
       return { text: t.querySelector('.ov-toast-text').textContent, injected: !!document.getElementById('pwn') || !!t.querySelector('b'), emptyOk: e.isConnected && n.isConnected };
     })()`);
     const f = [];
@@ -867,7 +870,7 @@ const READ_MOTION = `
     var enter = read(el); host.removeAttribute('data-mounted'); var exit = read(el); host.setAttribute('data-mounted', ''); return { enter: enter, exit: exit };
   }
   document.getElementById('opener').focus();
-  openSheet('T', '<p>x</p>'); confirmDialog('Q?'); toast('t', { kind: 'ok', ms: 0 });
+  V2.openSheet('T', '<p>x</p>'); V2.confirmDialog('Q?'); V2.toast('t', { kind: 'ok', ms: 0 });
   await H.sleep(600);
   var sh = H.sheet(), cf = H.confirm(), ts = H.toasts()[0];
   return {
@@ -938,9 +941,9 @@ async function checkEntersFromAbove95(env) {
         return { opacity: parseFloat(cs.opacity), scale: m ? parseFloat(m[1]) : 1, ty: m ? parseFloat(m[2]) : 0, anims: anims };
       }
       var out = {};
-      openSheet('T', '<p>x</p>'); var sp = H.sheet().querySelector('.ov-panel'); out.sheet = snap(sp);
-      confirmDialog('Q?'); var cp = H.confirm().querySelector('.ov-panel'); out.confirm = snap(cp);
-      var t = toast('t', { kind: 'ok', ms: 0 }); out.toast = snap(t);
+      V2.openSheet('T', '<p>x</p>'); var sp = H.sheet().querySelector('.ov-panel'); out.sheet = snap(sp);
+      V2.confirmDialog('Q?'); var cp = H.confirm().querySelector('.ov-panel'); out.confirm = snap(cp);
+      var t = V2.toast('t', { kind: 'ok', ms: 0 }); out.toast = snap(t);
       await H.sleep(600);
       out.settled = { sheet: snap(sp), confirm: snap(cp), toast: snap(t) };
       return out;
@@ -967,7 +970,7 @@ test('a sheet, a confirmation and a toast each start their enter at opacity belo
 async function checkTransformOrigin(env) {
   return withPage(env, {}, async (p) => {
     const r = await p.eval(`(async function(){
-      openSheet('T', '<p>x</p>'); confirmDialog('Q?'); await H.sleep(500);
+      V2.openSheet('T', '<p>x</p>'); V2.confirmDialog('Q?'); await H.sleep(500);
       function o(el) { var cs = getComputedStyle(el), v = cs.transformOrigin.split(' ').map(parseFloat), r = el.getBoundingClientRect(); return { x: v[0], y: v[1], w: r.width, h: r.height }; }
       return { sheet: o(H.sheet().querySelector('.ov-panel')), confirm: o(H.confirm().querySelector('.ov-panel')) };
     })()`);
@@ -986,7 +989,7 @@ test('a modal panel keeps transform-origin at its centre (it is not anchored to 
 async function checkOnlyTransitions(env) {
   return withPage(env, {}, async (p) => {
     const r = await p.eval(`(function(){
-      openSheet('T', '<p>x</p>'); confirmDialog('Q?'); toast('t', { kind: 'warn', ms: 0 });
+      V2.openSheet('T', '<p>x</p>'); V2.confirmDialog('Q?'); V2.toast('t', { kind: 'warn', ms: 0 });
       var a = document.getAnimations();
       return { n: a.length, kinds: a.map(function (x) { return x.constructor.name; }) };
     })()`);
@@ -1005,7 +1008,7 @@ async function checkReducedMotion(env) {
   return withPage(env, { reduced: true }, async (p) => {
     const r = await p.eval(`(async function(){
       var out = { frames: 0, transforms: {}, opacity: { sheet: [], confirm: [], toast: [] }, anims: {} };
-      openSheet('T', '<p>x</p>'); confirmDialog('Q?'); var t = toast('t', { kind: 'ok', ms: 0 });
+      V2.openSheet('T', '<p>x</p>'); V2.confirmDialog('Q?'); var t = V2.toast('t', { kind: 'ok', ms: 0 });
       var els = { sheet: H.sheet().querySelector('.ov-panel'), confirm: H.confirm().querySelector('.ov-panel'), toast: t };
       Object.keys(els).forEach(function (k) { out.transforms[k] = {}; out.anims[k] = els[k].getAnimations().map(function (a) { return a.transitionProperty; }); });
       await new Promise(function (done) {
@@ -1018,7 +1021,7 @@ async function checkReducedMotion(env) {
       });
       // ...and out again: the exit must not move either
       out.exit = { sheet: {}, confirm: {}, toast: {} }; out.exitOpacity = { sheet: [], confirm: [], toast: [] };
-      closeSheet(); H.confirm().querySelector('.ov-no').click(); t.querySelector('.ov-toast-close').click();
+      V2.closeSheet(); H.confirm().querySelector('.ov-no').click(); t.querySelector('.ov-toast-close').click();
       await new Promise(function (done) {
         var t0 = performance.now();
         (function frame() {
@@ -1054,10 +1057,10 @@ async function checkExitIsAnimatedAndPrompt(env) {
   return withPage(env, {}, async (p) => {
     const f = [];
     const r = await p.eval(`(async function(){
-      openSheet('T', '<p>x</p>'); await H.sleep(500);
-      var t0 = performance.now(); closeSheet(); var start = H.sheet() && getComputedStyle(H.sheet().querySelector('.ov-panel')).opacity;
+      V2.openSheet('T', '<p>x</p>'); await H.sleep(500);
+      var t0 = performance.now(); V2.closeSheet(); var start = H.sheet() && getComputedStyle(H.sheet().querySelector('.ov-panel')).opacity;
       await H.until(function () { return !H.sheet(); }, 3000); var took = performance.now() - t0;
-      confirmDialog('Q?'); await H.sleep(500);
+      V2.confirmDialog('Q?'); await H.sleep(500);
       var t1 = performance.now(); H.confirm().querySelector('.ov-no').click(); await H.until(function () { return !H.confirm(); }, 3000); var took2 = performance.now() - t1;
       return { took: took, started: start, took2: took2 };
     })()`);
@@ -1066,7 +1069,7 @@ async function checkExitIsAnimatedAndPrompt(env) {
     if (r.took > 450) f.push('the sheet took ' + Math.round(r.took) + 'ms to leave');
     if (r.took2 < 80) f.push('the confirmation left in ' + Math.round(r.took2) + 'ms');
     if (r.took2 > 450) f.push('the confirmation took ' + Math.round(r.took2) + 'ms to leave');
-    await p.eval("document.getElementById('opener').focus(); openSheet('T', 'x'); H.sleep(450)");
+    await p.eval("document.getElementById('opener').focus(); V2.openSheet('T', 'x'); H.sleep(450)");
     await p.key('Escape');
     const stillThere = await p.eval('!!H.sheet() && H.sheet().open');
     if (!stillThere) f.push('Escape closed the sheet on the spot: it skips the exit that every other way of closing plays');
@@ -1081,13 +1084,13 @@ test('closing a sheet (closeSheet or Escape) or a confirmation plays its exit (i
 async function checkNoMotionClosesAtOnce(env) {
   return withPage(env, { noNativeRestore: true, head: '<style>[data-v2], [data-v2] * { transition: none !important; }</style>' }, async (p) => {
     const r = await p.eval(`(async function(){
-      document.getElementById('opener').focus(); openSheet('T', '<p>x</p>'); await H.sleep(100);
-      var t0 = performance.now(); closeSheet(); var goneNow = !H.sheet(); var took = performance.now() - t0;
-      toast('t', { ms: 80 }); var tt = H.toasts()[0]; await H.until(function () { return !tt.isConnected; }, 1000);
+      document.getElementById('opener').focus(); V2.openSheet('T', '<p>x</p>'); await H.sleep(100);
+      var t0 = performance.now(); V2.closeSheet(); var goneNow = !H.sheet(); var took = performance.now() - t0;
+      V2.toast('t', { ms: 80 }); var tt = H.toasts()[0]; await H.until(function () { return !tt.isConnected; }, 1000);
       return { goneNow: goneNow, took: took, active: document.activeElement.id, toastGone: !tt.isConnected };
     })()`);
     const f = [];
-    if (!r.goneNow) f.push('with transitions switched off, closeSheet() left the sheet on the page (it waits for a transition that will never end)');
+    if (!r.goneNow) f.push('with transitions switched off, V2.closeSheet() left the sheet on the page (it waits for a transition that will never end)');
     if (r.active !== 'opener') f.push('focus is on ' + r.active + ' after the instant close');
     if (!r.toastGone) f.push('with transitions off the toast never left');
     return f;
@@ -1103,23 +1106,23 @@ async function checkNoLeakedTimers(env) {
   return withPage(env, { trackTimers: true }, async (p) => {
     const f = [], pending = () => p.eval('Object.keys(window.__pending).length'), wait = (ms) => new Promise((r) => setTimeout(r, ms));
     const expect = async (label, n) => { const got = await pending(); if (got !== n) f.push(label + ': ' + got + ' timer(s) pending, expected ' + n); };
-    await p.eval("openSheet('A', 'x'); closeSheet(); openSheet('B', 'y'); 1");
+    await p.eval("V2.openSheet('A', 'x'); V2.closeSheet(); V2.openSheet('B', 'y'); 1");
     await expect('a sheet replaced while it was closing', 0);
-    await p.eval('closeSheet(); 1'); await wait(500);
+    await p.eval('V2.closeSheet(); 1'); await wait(500);
     await expect('after a sheet closed', 0);
-    await p.eval("confirmDialog('Q?'); H.confirm().querySelector('.ov-no').click(); 1"); await wait(500);
+    await p.eval("V2.confirmDialog('Q?'); H.confirm().querySelector('.ov-no').click(); 1"); await wait(500);
     await expect('after a confirmation was cancelled', 0);
-    await p.eval("toast('x', { ms: 5000 }); toast('x', { ms: 5000 }); 1");
+    await p.eval("V2.toast('x', { ms: 5000 }); V2.toast('x', { ms: 5000 }); 1");
     await expect('a toast asked for twice (one timer for its ms)', 1);
     await p.eval("H.toasts()[0].querySelector('.ov-toast-close').click(); 1"); await wait(500);
     await expect('after a toast with 5 seconds to go was closed by hand', 0);
-    await p.eval("toast('y', { ms: 150 }); 1"); await wait(700);
+    await p.eval("V2.toast('y', { ms: 150 }); 1"); await wait(700);
     await expect('after a toast timed out', 0);
-    await p.eval("for (var i = 0; i < 5; i++) toast('t' + i, { kind: 'warn', ms: 5000 }); 1"); await wait(400);
+    await p.eval("for (var i = 0; i < 5; i++) V2.toast('t' + i, { kind: 'warn', ms: 5000 }); 1"); await wait(400);
     await expect('five toasts in a burst with a cap of three (one timer each for the three that remain)', 3);
     await p.eval("H.live().forEach(function (t) { t.querySelector('.ov-toast-close').click(); }); 1"); await wait(500);
     await expect('after every toast was closed', 0);
-    await p.eval("openSheet('S', 'x'); window.__r = 0; confirmDialog('Q?'); H.sleep(350)");
+    await p.eval("V2.openSheet('S', 'x'); window.__r = 0; V2.confirmDialog('Q?'); H.sleep(350)");
     await p.key('Escape'); await wait(400); await p.key('Escape'); await wait(500);
     await expect('after Escape closed a confirmation and then its sheet', 0);
     return f;
@@ -1127,6 +1130,128 @@ async function checkNoLeakedTimers(env) {
 }
 test('after sheets, confirmations and toasts are closed, replaced, retriggered, evicted, timed out or dismissed by Escape, no timer of theirs is left pending (a toast with 5 seconds to go that is closed by hand takes its timer with it)', async () => {
   none(await checkNoLeakedTimers(needEnv(REAL)));
+}, { browser: true });
+
+/* =====================================================================================================
+ * COEXISTENCE WITH THE LIVE APP. app.js already defines openSheet, closeSheet and toast (different arguments), and the
+ * migration moves screens one at a time, so ONE page will hold both for a long while. Loading this file must change
+ * nothing on a page that has not opted in: the API is V2.openSheet and so on, never a bare name.
+ * ===================================================================================================== */
+const SENTINELS = "function openSheet() { return 'live openSheet'; } function closeSheet() { return 'live closeSheet'; } function toast() { return 'live toast'; } function confirmDialog() { return 'live confirmDialog'; } window.__live = { openSheet: openSheet, closeSheet: closeSheet, toast: toast, confirmDialog: confirmDialog };";
+async function checkLeavesBareNamesAlone(env) {
+  const f = [];
+  const r = await withPage(env, { preScript: SENTINELS }, async (p) => p.eval(`(function(){
+    var out = { v2: typeof window.V2, same: {}, calls: {} }, n = ['openSheet', 'closeSheet', 'toast', 'confirmDialog'], i;
+    for (i = 0; i < n.length; i++) { out.same[n[i]] = window[n[i]] === window.__live[n[i]]; out.calls[n[i]] = window[n[i]](); }
+    out.v2api = window.V2 ? n.map(function (k) { return typeof window.V2[k]; }) : null;
+    return out;
+  })()`));
+  for (const k of ['openSheet', 'closeSheet', 'toast', 'confirmDialog']) {
+    if (!r.same[k]) f.push('loading overlay.js replaced the page\'s own ' + k + ' (it now answers "' + r.calls[k] + '")');
+  }
+  if (r.v2 !== 'object' || !r.v2api || r.v2api.some((t) => t !== 'function')) f.push('V2 is ' + r.v2 + ' with members ' + JSON.stringify(r.v2api));
+  const bare = await withPage(env, {}, async (p) => p.eval("['openSheet', 'closeSheet', 'toast', 'confirmDialog'].filter(function (k) { return k in window; })"));
+  if (bare.length) f.push('on a page with no functions of its own, window has ' + bare.join(', '));
+  return f;
+}
+test('on a page that already has its own openSheet, closeSheet, toast and confirmDialog, loading ui/overlay.js leaves every one of them exactly as it was (same function, same answer), and puts the v2 ones on V2 only', async () => {
+  none(await checkLeavesBareNamesAlone(needEnv(REAL)));
+}, { browser: true });
+
+/* =====================================================================================================
+ * SCROLL LOCK. showModal() makes the page inert but does not stop it scrolling. While any modal is open the page behind
+ * must not move; on the last close the document's own inline overflow and padding come back EXACTLY; a close path that
+ * throws, or an app that wipes <body>, must not leave the page stuck.
+ * ===================================================================================================== */
+const TALL_BODY = DEFAULT_BODY + '<div style="height:6000px"></div>';
+// headless Chrome draws overlay scrollbars that take no width; a 15px classic one is what the office PCs have
+const LOCK_PAGE = { body: TALL_BODY, head: '<style>html::-webkit-scrollbar { width: 15px; }</style>' };
+async function checkScrollLock(env) {
+  const f = [], wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  const state = (p) => p.eval("({ y: Math.round(window.scrollY), ov: document.documentElement.style.overflow, pr: document.documentElement.style.paddingRight, app: (function(){ var a = document.getElementById('app'); if (!a) return [0, 0]; var r = a.getBoundingClientRect(); return [Math.round(r.left), Math.round(r.width)]; })() })");
+  const wheelMoves = async (p) => { await p.eval('window.scrollTo(0, 0); 1'); await p.wheel(500, 300, 400); await wait(350); return (await state(p)).y > 0; };
+  // 1. the app's own inline styles come back exactly; page scrolls before, is held while open, scrolls again after
+  await withPage(env, LOCK_PAGE, async (p) => {
+    await p.eval("document.documentElement.style.overflow = 'auto'; document.documentElement.style.paddingRight = '2px'; 1");
+    if (!(await wheelMoves(p))) f.push('control: a mouse wheel does not scroll this page even with no overlay, so the lock test would prove nothing');
+    await p.eval('window.scrollTo(0, 0); V2.openSheet("T", "<p>x</p>"); 1'); await wait(350);
+    const open = await state(p);
+    if (open.ov !== 'hidden') f.push('with a sheet open the document overflow is "' + open.ov + '", not hidden');
+    await p.wheel(500, 300, 400); await wait(350);
+    if ((await state(p)).y !== 0) f.push('a mouse wheel over the backdrop scrolled the page behind an open sheet');
+    // a confirmation over the sheet, then a toast over both
+    await p.eval('V2.confirmDialog("Q?"); 1'); await wait(350);
+    await p.eval('V2.toast("over both", { ms: 0 }); 1'); await wait(300);
+    await p.key('Escape'); await wait(450);
+    let mid = await state(p);
+    if (mid.ov !== 'hidden') f.push('closing the confirmation released the lock while the sheet beneath it is still open (overflow "' + mid.ov + '")');
+    await p.wheel(500, 300, 400); await wait(300);
+    if ((await state(p)).y !== 0) f.push('the page scrolled once the confirmation over the sheet had closed');
+    await p.eval('V2.closeSheet(); 1'); await wait(500);
+    const after = await state(p);
+    if (after.ov !== 'auto' || after.pr !== '2px') f.push('after the last overlay closed the document has overflow "' + after.ov + '" and padding-right "' + after.pr + '", not the "auto" and "2px" the app had set');
+    if (!(await wheelMoves(p))) f.push('the page does not scroll again after the overlays closed');
+  });
+  // 2. an app with no inline styles ends with none; a toast alone does not lock; the width does not jump
+  await withPage(env, LOCK_PAGE, async (p) => {
+    await p.eval('V2.toast("alone", { ms: 0 }); 1'); await wait(300);
+    if ((await state(p)).ov !== '') f.push('a toast on its own locked the page (overflow "' + (await state(p)).ov + '")');
+    const before = await state(p);
+    const bar = await p.eval('window.innerWidth - document.documentElement.clientWidth');
+    if (bar !== 15) f.push('the test page has a ' + bar + 'px scrollbar, not the 15px it asks for, so the no-jump check would prove nothing');
+    await p.eval('V2.openSheet("T", "x"); 1'); await wait(350);
+    const during = await state(p);
+    if (during.app[0] !== before.app[0] || during.app[1] !== before.app[1]) f.push('locking moved the page content from ' + before.app + ' to ' + during.app + ' (a ' + bar + 'px scrollbar vanished and was not made up for)');
+    await p.eval('V2.closeSheet(); 1'); await wait(500);
+    const end = await state(p);
+    if (end.ov !== '' || end.pr !== '') f.push('with no inline styles to begin with, the document ends with overflow "' + end.ov + '" and padding-right "' + end.pr + '"');
+    if (!(await p.eval('document.documentElement.style.cssText === "" || document.documentElement.getAttribute("style") === ""'))) f.push('the document is left with a style attribute: ' + await p.eval('document.documentElement.getAttribute("style")'));
+  });
+  // 3. a close path that throws
+  await withPage(env, LOCK_PAGE, async (p) => {
+    await p.eval('V2.openSheet("T", "x", { onClose: function () { throw new Error("boom"); } }); 1'); await wait(350);
+    await p.eval('V2.closeSheet(); 1'); await wait(500);
+    if ((await state(p)).ov !== '') f.push('an onClose that throws left the page locked (overflow "' + (await state(p)).ov + '")');
+    if (!(await wheelMoves(p))) f.push('the page cannot scroll after an onClose that threw');
+  });
+  // 4. the app wipes <body> under an open overlay
+  await withPage(env, LOCK_PAGE, async (p) => {
+    await p.eval('V2.openSheet("T", "x"); window.__r = "pending"; V2.confirmDialog("Q?").then(function (v) { window.__r = v; }); 1'); await wait(350);
+    await p.eval('document.body.innerHTML = "<div style=\\"height:6000px\\">the app wiped the body</div>"; 1'); await wait(450);
+    if ((await state(p)).ov !== '') f.push('the app wiping <body> under an open sheet left the page locked for good (overflow "' + (await state(p)).ov + '")');
+    if ((await p.eval('window.__r')) !== false) f.push('a confirmation wiped from the page resolved ' + (await p.eval('String(window.__r)')) + ', not false');
+  });
+  return f;
+}
+test('while any overlay is open the mouse wheel cannot scroll the page behind it and the width does not jump; with a confirmation over a sheet the lock outlasts the confirmation; after the last close the document\'s own overflow and padding-right are back exactly and the page scrolls again; a toast alone does not lock; an onClose that throws, or the app wiping <body>, does not leave the page stuck (a wiped confirmation resolves false)', async () => {
+  none(await checkScrollLock(needEnv(REAL)));
+}, { browser: true });
+
+/* A toast is a <dialog> too, and Chrome hands Escape to the most recently opened dialog of any kind. With a toast on screen
+ * the key must still reach the modal beneath it (found while testing the scroll lock: Escape closed the toast instead). */
+async function checkEscapeWithAToast(env) {
+  const f = [];
+  await withPage(env, { noNativeRestore: true }, async (p) => {
+    await p.eval("document.getElementById('opener').focus(); V2.openSheet('S', '<button type=\"button\" id=\"ib\">Inner</button>'); H.sleep(350)");
+    await p.eval("V2.toast('Over the sheet', { kind: 'warn', ms: 0 }); H.sleep(300)");
+    await p.key('Escape');
+    if (!(await p.until('!H.sheet()', 2500))) f.push('Escape with a toast on screen did not close the sheet beneath it');
+    const t = await p.eval("(function(){ var t = H.toasts()[0]; return t ? { open: t.open, shown: t.getClientRects().length > 0 } : null; })()");
+    if (!t || !t.open || !t.shown) f.push('Escape that was meant for the sheet closed the toast instead: ' + JSON.stringify(t));
+    if ((await p.eval('document.activeElement.id')) !== 'opener') f.push('after that Escape focus is not back on the opener');
+  });
+  await withPage(env, { noNativeRestore: true }, async (p) => {
+    await p.eval("document.getElementById('opener').focus(); V2.openSheet('S', 'x'); window.__r = undefined; H.sleep(350)");
+    await p.eval("V2.confirmDialog('Q?').then(function (v) { window.__r = v; }); V2.toast('Over both', { ms: 0 }); H.sleep(350)");
+    await p.key('Escape');
+    if (!(await p.until('window.__r === false', 2500))) f.push('Escape with a toast on screen did not dismiss the confirmation (false)');
+    await p.eval('H.sleep(400)');
+    if (!(await p.eval('!!H.sheet() && H.sheet().open'))) f.push('Escape with a toast on screen also closed the sheet beneath the confirmation');
+  });
+  return f;
+}
+test('with a toast on screen Escape still goes to the modal beneath it (a sheet, or a confirmation over a sheet; the toast stays) instead of being swallowed by the toast', async () => {
+  none(await checkEscapeWithAToast(needEnv(REAL)));
 }, { browser: true });
 
 /* =====================================================================================================
@@ -1138,7 +1263,7 @@ const PROBE_TOKENS = `(function(){ var q = function (el, n) { return getComputed
   return { dlgSurface: q(dlg, '--surface-raised'), dlgInk: q(dlg, '--ink'), regSurface: q(reg, '--surface-raised'), appSurface: q(app, '--surface-raised'), appInk: q(app, '--ink'),
            panelBg: getComputedStyle(dlg.querySelector('.ov-panel')).backgroundColor }; })()`;
 async function themeProbe(env, o) {
-  return withPage(env, o, async (p) => p.eval(`document.getElementById('opener').focus(); openSheet('T', '<p>x</p>'); toast('t', { ms: 0 }); ${PROBE_TOKENS}`));
+  return withPage(env, o, async (p) => p.eval(`document.getElementById('opener').focus(); V2.openSheet('T', '<p>x</p>'); V2.toast('t', { ms: 0 }); ${PROBE_TOKENS}`));
 }
 async function checkTheme(env) {
   const f = [];
@@ -1169,10 +1294,10 @@ async function checkDensity(env) {
   const body = '<div data-v2 id="app"><div data-density="desk" id="deskwrap"><button class="btn" id="opener">Desk opener</button></div><button class="btn" id="yardbtn">Yard opener</button></div>';
   const r = await withPage(env, { body }, async (p) => p.eval(`(async function(){
     var q = function (el, n) { return getComputedStyle(el).getPropertyValue(n).trim(); }, out = {};
-    document.getElementById('opener').focus(); openSheet('T', '<p>x</p>'); await H.sleep(350);
+    document.getElementById('opener').focus(); V2.openSheet('T', '<p>x</p>'); await H.sleep(350);
     out.desk = { tap: q(H.sheet(), '--tap'), closeH: H.sheet().querySelector('.ov-close').getBoundingClientRect().height };
-    closeSheet(); await H.until(function () { return !H.sheet(); }, 3000);
-    document.getElementById('yardbtn').focus(); openSheet('T', '<p>x</p>'); await H.sleep(350);
+    V2.closeSheet(); await H.until(function () { return !H.sheet(); }, 3000);
+    document.getElementById('yardbtn').focus(); V2.openSheet('T', '<p>x</p>'); await H.sleep(350);
     out.yard = { tap: q(H.sheet(), '--tap'), closeH: H.sheet().querySelector('.ov-close').getBoundingClientRect().height };
     return out;
   })()`));
@@ -1189,10 +1314,10 @@ test('a sheet takes the density of the place it was opened from: 32px controls w
 async function checkSurvivesRerender(env) {
   return withPage(env, {}, async (p) => {
     const r = await p.eval(`(async function(){
-      document.getElementById('opener').focus(); openSheet('T', '<p>x</p>'); window.__r = undefined; confirmDialog('Q?').then(function (v) { window.__r = v; });
+      document.getElementById('opener').focus(); V2.openSheet('T', '<p>x</p>'); window.__r = undefined; V2.confirmDialog('Q?').then(function (v) { window.__r = v; });
       await H.sleep(350);
       document.getElementById('app').innerHTML = '<p>the app drew itself again</p>';
-      toast('after the redraw', { ms: 0 }); await H.sleep(350);
+      V2.toast('after the redraw', { ms: 0 }); await H.sleep(350);
       var c = H.center(H.toasts()[0]), hit = document.elementFromPoint(c.x, c.y);
       return { sheet: !!H.sheet() && H.sheet().open, confirm: !!H.confirm() && H.confirm().open, toastShown: !!hit && H.toasts()[0].contains(hit) };
     })()`);
@@ -1201,11 +1326,11 @@ async function checkSurvivesRerender(env) {
     if (!r.toastShown) f.push('a toast raised after the app redrew itself is not visible');
     await p.key('Escape');
     if (!(await p.until('window.__r === false', 2500))) f.push('Escape on the confirmation after a redraw did not resolve it false');
-    await p.eval("closeSheet(); H.sleep(500)");
+    await p.eval("V2.closeSheet(); H.sleep(500)");
     const w = await p.eval(`(async function(){
-      toast('Again', { kind: 'ok', ms: 0 }); await H.sleep(300);
+      V2.toast('Again', { kind: 'ok', ms: 0 }); await H.sleep(300);
       document.body.innerHTML = '<p>the app wiped the whole body</p>';
-      var t = toast('Again', { kind: 'ok', ms: 0 }); await H.sleep(400);
+      var t = V2.toast('Again', { kind: 'ok', ms: 0 }); await H.sleep(400);
       var c = H.center(t), hit = document.elementFromPoint(c.x, c.y);
       return { connected: t.isConnected, shown: !!hit && t.contains(hit) };
     })()`);
@@ -1222,15 +1347,15 @@ async function checkLayout(env, o) {
   return withPage(env, { live: o.live, width: o.width, height: o.height }, async (p) => {
     const r = await p.eval(`(async function(){
       var vw = innerWidth, vh = innerHeight, out = { vw: vw, vh: vh };
-      openSheet('Tall', '<div style="height:3000px">tall</div>'); await H.sleep(500);
+      V2.openSheet('Tall', '<div style="height:3000px">tall</div>'); await H.sleep(500);
       var panel = H.sheet().querySelector('.ov-panel'), body = H.sheet().querySelector('.ov-body'), pr = panel.getBoundingClientRect(), cr = H.sheet().querySelector('.ov-close').getBoundingClientRect(), bcs = getComputedStyle(body);
       out.sheet = { l: pr.left, r: pr.right, t: pr.top, b: pr.bottom, h: pr.height, w: pr.width, scrolls: body.scrollHeight > body.clientHeight + 10, overflowY: bcs.overflowY, closeTop: cr.top, closeBottom: cr.bottom, closeRight: cr.right };
-      closeSheet(); await H.until(function () { return !H.sheet(); }, 3000);
-      confirmDialog('Remove this bus from the roster for good?'); await H.sleep(500);
+      V2.closeSheet(); await H.until(function () { return !H.sheet(); }, 3000);
+      V2.confirmDialog('Remove this bus from the roster for good?'); await H.sleep(500);
       var cp = H.confirm().querySelector('.ov-panel'), cb = cp.getBoundingClientRect();
       out.confirm = { l: cb.left, r: cb.right, t: cb.top, b: cb.bottom, w: cb.width };
       H.confirm().querySelector('.ov-no').click(); await H.until(function () { return !H.confirm(); }, 3000);
-      var tt = toast(new Array(60).join('A long message that has to wrap. '), { kind: 'warn', ms: 0 }); await H.sleep(500);
+      var tt = V2.toast(new Array(60).join('A long message that has to wrap. '), { kind: 'warn', ms: 0 }); await H.sleep(500);
       var tb = tt.getBoundingClientRect(); out.toast = { l: tb.left, r: tb.right, t: tb.top, b: tb.bottom };
       return out;
     })()`);
@@ -1258,10 +1383,10 @@ for (const live of [false, true]) for (const l of LAYOUTS) {
 
 async function checkFlowIsQuiet(env) {
   return withPage(env, {}, async (p) => {
-    await p.eval(`document.getElementById('opener').focus(); openSheet('T', '${SHEET_BODY}'); H.sleep(350)`);
-    await p.eval("confirmDialog('Q?'); toast('a', { kind: 'ok' }); toast('b', { kind: 'bad', ms: 100 }); H.sleep(300)");
+    await p.eval(`document.getElementById('opener').focus(); V2.openSheet('T', '${SHEET_BODY}'); H.sleep(350)`);
+    await p.eval("V2.confirmDialog('Q?'); V2.toast('a', { kind: 'ok' }); V2.toast('b', { kind: 'bad', ms: 100 }); H.sleep(300)");
     await p.key('Escape'); await p.key('Escape');
-    await p.eval("closeSheet(); toast('c', { kind: 'warn', ms: 50 }); H.sleep(700)");
+    await p.eval("V2.closeSheet(); V2.toast('c', { kind: 'warn', ms: 50 }); H.sleep(700)");
     return p.errors.slice();
   });
 }
@@ -1314,7 +1439,7 @@ test('the sheet close-route checker goes red for no focus restore, a missing onC
   const one = {
     'the Close button': ['the Close button does nothing', mJs("dlg.querySelector('.ov-close').addEventListener('click', function () { dismiss(rec); });", '')],
     'a click on the backdrop': ['the backdrop does nothing', mJs('if (hit) rec.onCancel();', '')],
-    'Escape': ['Escape does nothing', mJs('ev.preventDefault(); rec.onCancel();', 'ev.preventDefault();')],
+    'Escape': ['Escape does nothing', mJs('ev.preventDefault();\n      modals[modals.length - 1].onCancel();', 'ev.preventDefault();')],
     'closeSheet()': ['closeSheet() does nothing', mJs('if (sheet) dismiss(sheet);', '')],
   };
   await Promise.all(ROUTES.map((route) => { const [label, env] = one[route]; return red((e) => checkSheetCloseRoute(e, route), label, env); }));
@@ -1505,7 +1630,7 @@ test('the enter checker goes red for a dialog that starts from scale(0) or 0.9, 
     ['the sheet never shows', mCss('[data-v2].ov-sheet[data-mounted] .ov-panel {\n  opacity: 1;', '[data-v2].ov-sheet[data-mounted] .ov-panel {\n  opacity: 0;')],
     ['the sheet does not slide', mCss('transform: translateY(var(--s8));', 'transform: none;')],
     ['the toast is never mounted', mJs("el.setAttribute('data-mounted', '');\n    arm(t);", 'arm(t);')],
-    ['the dialog is mounted before it is shown', mJs("    rec.dlg.showModal();\n    modals.push(rec);\n    placeLane();\n    flush(rec.panel);                                   // render the unmounted state once...\n    rec.dlg.setAttribute('data-mounted', '');           // ...then change it, so it transitions", "    rec.dlg.setAttribute('data-mounted', '');\n    rec.dlg.showModal();\n    modals.push(rec);\n    placeLane();")],
+    ['the dialog is mounted before it is shown', { js: mutate(mutate(REAL.js, "    rec.dlg.showModal();\n", "    rec.dlg.setAttribute('data-mounted', '');\n    rec.dlg.showModal();\n"), "    flush(rec.panel);                                   // render the unmounted state once...\n    rec.dlg.setAttribute('data-mounted', '');           // ...then change it, so it transitions", ''), css: REAL.css }],
   ]);
 }, { browser: true });
 
@@ -1540,7 +1665,7 @@ test('the exit checker goes red for an exit that is skipped, one that waits two 
   await redAll(checkExitIsAnimatedAndPrompt, [
     ['no exit: removed on the spot', mJs('var ms = Math.max(transitionMs(rec.panel), transitionMs(rec.scrim));', 'var ms = 0;')],
     ['the exit waits two seconds', mJs('}, ms + SLACK_MS);\n  }\n\n  function finish(rec) {', '}, 2000);\n  }\n\n  function finish(rec) {')],
-    ['Escape skips the exit', mJs('ev.preventDefault(); rec.onCancel();', 'rec.onCancel();')],
+    ['Escape skips the exit', { js: mutate(mutate(REAL.js, 'ev.preventDefault();\n      modals[modals.length - 1].onCancel();', ''), 'ev.preventDefault(); rec.onCancel();', 'rec.onCancel();'), css: REAL.css }],
     ['the confirmation never leaves', mJs('rec.timer = window.setTimeout(function () { finish(rec); }, ms + SLACK_MS);', '')],
   ]);
 }, { browser: true });
@@ -1610,6 +1735,38 @@ test('the leaked-timer checker goes red when a replaced sheet keeps its exit tim
   ]);
 }, { browser: true });
 
+test('the namespace checker goes red when a bare name is attached next to V2, when the page\'s own functions are replaced, and when V2 is missing', async () => {
+  await redAll(checkLeavesBareNamesAlone, [
+    ['a bare toast', mJs('window.V2 = {', 'window.toast = toast; window.V2 = {')],
+    ['a bare openSheet', mJs('window.V2 = {', 'window.openSheet = openSheet; window.V2 = {')],
+    ['a bare closeSheet', mJs('window.V2 = {', 'window.closeSheet = closeSheet; window.V2 = {')],
+    ['a bare confirmDialog', mJs('window.V2 = {', 'window.confirmDialog = confirmDialog; window.V2 = {')],
+    ['no V2', mJs('window.V2 = {', 'window.V2x = {')],
+    ['V2 is missing a member', mJs('closeSheet: closeSheet, confirmDialog', 'confirmDialog')],
+  ]);
+}, { browser: true });
+
+test('the Escape-with-a-toast checker goes red when Escape is not taken on keydown (the toast swallows it) or when it goes to the wrong modal', async () => {
+  await redAll(checkEscapeWithAToast, [
+    ['no keydown handler', mJs("doc().addEventListener('keydown', onKey);", '')],
+    ['Escape goes to the bottom modal', mJs('modals[modals.length - 1].onCancel();\n    }\n  }', 'modals[0].onCancel();\n    }\n  }')],
+  ]);
+}, { browser: true });
+
+test('the scroll-lock checker goes red for no lock, a lock that is never released, one that restores empty values instead of the app\'s, one released by the first of two stacked overlays, one released after a throwing hook, one left stuck by a wiped <body>, a toast that locks, and a lock that makes the page jump', async () => {
+  await redAll(checkScrollLock, [
+    ['no lock', mJs("el.style.overflow = 'hidden';", '')],
+    ['the restore is dropped', mJs('el.style.overflow = scrollSaved.overflow;\n    el.style.paddingRight = scrollSaved.paddingRight;', '')],
+    ['the restore writes empty values', mJs('el.style.overflow = scrollSaved.overflow;\n    el.style.paddingRight = scrollSaved.paddingRight;', "el.style.overflow = '';\n    el.style.paddingRight = '';")],
+    ['released by the first close of two', mJs('if (!modals.length) { unlockScroll(); unwatch(); }', 'unlockScroll(); unwatch();')],
+    ['released only after the onClose hook, which throws', { js: mutate(mutate(REAL.js, '    if (!modals.length) { unlockScroll(); unwatch(); }  // first, before anything below can throw\n', ''), "if (typeof rec.after === 'function') rec.after();", "if (typeof rec.after === 'function') rec.after();\n    if (!modals.length) { unlockScroll(); unwatch(); }"), css: REAL.css }],
+    ['a wiped <body> is not noticed', mJs("watcher.observe(doc().body, { childList: true });", '')],
+    ['a toast locks the page', mJs('ensureLane().appendChild(el);\n    flush(el);', 'lockScroll(); ensureLane().appendChild(el);\n    flush(el);')],
+    ['the vanished scrollbar is not made up for', mJs('if (bar > 0) el.style.paddingRight', 'if (false) el.style.paddingRight')],
+    ['the lock is taken twice and the second save overwrites the first', mJs('    if (scrollSaved) return;\n    var el = doc().documentElement, bar', '    var el = doc().documentElement, bar')],
+  ]);
+}, { browser: true });
+
 /* ---------- the class and static checks, fed mutants ---------- */
 test('the class-has-a-rule check goes red when a rendered class loses its rule, and the live-collision check goes red when a class is also the live app\'s', async () => {
   const bad = mCss(/\.ov-scrim/g, '.ov-scrimx');
@@ -1628,7 +1785,8 @@ test('the static checks go red for a stylesheet with scale(0) or an animation, a
   hits(es6Syntax(needEnv(REAL).js + '\nvar s = `x`;'), 'a template literal in overlay.js was not found');
   assert(/[^\x00-\x7F]/.test(needEnv(REAL).js + ' \u{1F68C}'), 'an emoji in overlay.js was not found');
   assert.notDeepEqual(loadInVm(needEnv(REAL).js + '\nwindow.leak = 1;').added, ['closeSheet', 'confirmDialog', 'openSheet', 'toast'], 'a stray global was not found');
-  assert.notDeepEqual(loadInVm(needEnv(REAL).js.replace('window.toast = toast;', '')).added, ['closeSheet', 'confirmDialog', 'openSheet', 'toast'], 'a missing global was not found');
+  assert.notDeepEqual(loadInVm(needEnv(REAL).js + '\nwindow.toast = function () {};').added, ['V2'], 'a bare toast global was not found');
+  assert.notDeepEqual(loadInVm(needEnv(REAL).js.replace('window.V2 = ', 'var unused = ')).added, ['V2'], 'a missing V2 was not found');
 });
 
 
