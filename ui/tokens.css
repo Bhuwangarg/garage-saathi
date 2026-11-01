@@ -9,13 +9,26 @@
  * across hues, so each hue has its OWN lightness numbers, tuned until the pairs
  * in test_ui_tokens.js reach 4.5:1. Do not "regularise" them.
  *
- * Do NOT load this file on a page that also loads ../styles.css: both define
- * --ink, --surface, --line, --accent, --accent-ink and --font, with different
- * meanings. v2 screens load this file only.
+ * SCOPE. Every rule here is scoped to [data-v2], never to a bare :root. The live
+ * app's styles.css defines --ink, --surface, --line, --accent, --font and
+ * --accent-ink on :root, and --accent-ink there means the OPPOSITE of what it
+ * means here (light text on near-black there, dark text on the orange here).
+ * Screens migrate one at a time, so one document will hold both stylesheets for
+ * the whole migration. Custom properties inherit, so a [data-v2] subtree resolves
+ * the v2 values while the rest of the page keeps the live ones: scoping is what
+ * makes that coexistence safe, with no prefixes and no renames. A test fails if
+ * any selector in this file is not scoped.
+ *
+ * Put data-v2 on <html> (the gallery does) or on any element. In a document that
+ * ALSO loads styles.css, use a wrapper element, not <html>: on the same element
+ * a :root rule ties with or beats [data-v2] (equal specificity, or :root:not()
+ * in the live dark block), so source order would decide. data-theme and
+ * data-density go on the SAME element as data-v2 (density may also go on a
+ * descendant, for a desk table inside a yard page).
  */
 
 /* ---------- light ---------- */
-:root {
+[data-v2] {
   --ink: hsl(30 20% 9%);
   --ink-dim: hsl(30 8% 34%);
   --surface: hsl(40 22% 96%);
@@ -52,7 +65,7 @@
 
 /* ---------- dark: follows the OS unless the user chose light ---------- */
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
+  [data-v2]:not([data-theme="light"]) {
     --ink: hsl(35 25% 94%);
     --ink-dim: hsl(35 10% 68%);
     --surface: hsl(30 14% 9%);
@@ -68,7 +81,7 @@
 }
 
 /* ---------- dark: explicit choice wins over the OS in both directions ---------- */
-:root[data-theme="dark"] {
+[data-v2][data-theme="dark"] {
   --ink: hsl(35 25% 94%);
   --ink-dim: hsl(35 10% 68%);
   --surface: hsl(30 14% 9%);
@@ -84,9 +97,11 @@
 
 /* ---------- density: one token set, two sizes ----------
  * Yard is the default (bigger targets are the safe failure). Put
- * data-density on <html> or on any container; a nearer one wins. */
-:root,
-[data-density="yard"] {
+ * data-density on the data-v2 element or on any container inside it;
+ * a nearer one wins. */
+[data-v2],
+[data-v2][data-density="yard"],
+[data-v2] [data-density="yard"] {
   --tap: 48px;
   --row-h: 56px;
   --pad: var(--s4);
@@ -98,7 +113,8 @@
   --t6: 15px; /* small: captions, table heads. Still floored at 15. */
 }
 
-[data-density="desk"] {
+[data-v2][data-density="desk"],
+[data-v2] [data-density="desk"] {
   --tap: 32px;
   --row-h: 32px;
   --pad: var(--s2);

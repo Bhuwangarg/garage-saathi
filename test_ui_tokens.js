@@ -69,10 +69,10 @@ const need = () => { if (raw === null) throw new Error('ui/tokens.css does not e
 const rules = () => parseRules(stripComments(need()));
 
 const DARK_MEDIA = /prefers-color-scheme:\s*dark/;
-const LIGHT = () => rules().find((r) => r.ctx.length === 0 && selectors(r).includes(':root') && r.decls['--ink']);
-const DARK_OS = () => rules().find((r) => r.ctx.some((c) => DARK_MEDIA.test(c)) && r.selector === ':root:not([data-theme="light"])');
-const DARK_USER = () => rules().find((r) => r.ctx.length === 0 && r.selector === ':root[data-theme="dark"]');
-const DENSITY = (name) => rules().find((r) => r.ctx.length === 0 && selectors(r).includes('[data-density="' + name + '"]'));
+const LIGHT = () => rules().find((r) => r.ctx.length === 0 && selectors(r).includes('[data-v2]') && r.decls['--ink']);
+const DARK_OS = () => rules().find((r) => r.ctx.some((c) => DARK_MEDIA.test(c)) && r.selector === '[data-v2]:not([data-theme="light"])');
+const DARK_USER = () => rules().find((r) => r.ctx.length === 0 && r.selector === '[data-v2][data-theme="dark"]');
+const DENSITY = (name) => rules().find((r) => r.ctx.length === 0 && selectors(r).includes('[data-v2][data-density="' + name + '"]') && selectors(r).includes('[data-v2] [data-density="' + name + '"]'));
 const isColour = (v) => /^hsla?\(/.test(v);
 const colourNames = (decls) => Object.keys(decls).filter((k) => k.startsWith('--') && isColour(decls[k]));
 const px = (v) => { const m = /^(-?[\d.]+)px$/.exec(String(v).trim()); assert(m, 'expected a px value, got "' + v + '"'); return +m[1]; };
@@ -103,25 +103,44 @@ test('colour is authored in HSL: no hex, rgb() or named-colour literals', () => 
   assert(!/#[0-9a-fA-F]{3,8}\b/.test(css), 'hex colour found');
   assert(!/\brgba?\(/.test(css), 'rgb() found');
 });
-test('figures use tabular-nums', () => assert(/font-variant-numeric:\s*tabular-nums/.test(stripComments(need()))));
+test('figures use tabular-nums, on the v2 scope', () => {
+  const r = rules().find((x) => selectors(x).includes('[data-v2]') && x.decls['font-variant-numeric']);
+  assert(r && r.decls['font-variant-numeric'] === 'tabular-nums');
+});
+
+/* ---------- scope: tokens live on [data-v2], never on a bare :root ----------
+ * styles.css (the live app) defines --ink, --surface, --line, --accent, --font and
+ * --accent-ink on :root, and --accent-ink there means the OPPOSITE of the v2 meaning.
+ * The migration is screen by screen, so one document will hold both. Scoping to
+ * [data-v2] is what lets them coexist; a bare :root here would flip the live app. */
+const unscoped = (rs) => rs.flatMap((r) => selectors(r).filter((sel) => !/\[data-v2\]/.test(sel) || /(^|[\s>+~,(])(:root|html|body)\b|\*/.test(sel)).map((sel) => sel));
+test('no token is defined on a bare :root (every selector is scoped to [data-v2])', () => {
+  const bad = unscoped(rules());
+  assert(bad.length === 0, 'unscoped selector(s) would leak into the live app: ' + bad.join(' | '));
+});
+test('the scope check really catches a bare :root', () => {
+  assert.deepEqual(unscoped(parseRules(':root{--x:1}')), [':root']);
+  assert.deepEqual(unscoped(parseRules('[data-density="desk"]{--x:1}')), ['[data-density="desk"]']);
+  assert.deepEqual(unscoped(parseRules('[data-v2]{--x:1} [data-v2][data-theme="dark"]{--x:2}')), []);
+});
 
 /* ---------- Review Focus 1: a token with no dark value is invisible text ---------- */
 const REQUIRED = ['--ink', '--ink-dim', '--surface', '--surface-raised', '--line', '--accent', '--accent-ink', '--ok', '--warn', '--bad'];
-test('the ten required colour tokens exist on :root', () => {
+test('the ten required colour tokens exist on [data-v2]', () => {
   const L = LIGHT();
-  assert(L, 'no :root block declaring --ink');
+  assert(L, 'no [data-v2] block declaring --ink');
   for (const t of REQUIRED) assert(L.decls[t] && isColour(L.decls[t]), t + ' missing or not an HSL colour');
 });
 test('every semantic colour token has a dark value (OS-driven block)', () => {
   const light = colourNames(LIGHT().decls).sort();
   const dark = DARK_OS();
-  assert(dark, 'no @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { ... } } block');
+  assert(dark, 'no @media (prefers-color-scheme: dark) { [data-v2]:not([data-theme="light"]) { ... } } block');
   assert.deepEqual(colourNames(dark.decls).sort(), light);
 });
 test('every semantic colour token has a dark value (explicit data-theme="dark" block)', () => {
   const light = colourNames(LIGHT().decls).sort();
   const dark = DARK_USER();
-  assert(dark, 'no :root[data-theme="dark"] block');
+  assert(dark, 'no [data-v2][data-theme="dark"] block');
   assert.deepEqual(colourNames(dark.decls).sort(), light);
 });
 test('the two dark blocks carry identical values, so OS and explicit choice cannot drift', () => {
@@ -165,9 +184,9 @@ test('every density declares --row-h, --tap and --pad, and yard is the roomier o
   }
 });
 test('a page with no data-density attribute falls back to yard (the safe, bigger target)', () => {
-  const root = rules().find((r) => r.ctx.length === 0 && selectors(r).includes(':root') && selectors(r).includes('[data-density="yard"]'))
-    || rules().find((r) => r.ctx.length === 0 && selectors(r).includes(':root') && r.decls['--tap']);
-  assert(root && root.decls['--tap'], 'neither a grouped :root,[data-density="yard"] rule nor a :root --tap');
+  const root = rules().find((r) => r.ctx.length === 0 && selectors(r).includes('[data-v2]') && r.decls['--tap']);
+  assert(root, 'no [data-v2] rule declares --tap, so a bare [data-v2] would have no density');
+  assert.strictEqual(root.decls['--tap'], DENSITY('yard').decls['--tap'], 'the fallback density must be yard');
 });
 test('body text never goes below 15px yard / 14px desk (--t5 body, --t6 small, both floored)', () => {
   const y = DENSITY('yard').decls, d = DENSITY('desk').decls;
