@@ -239,8 +239,23 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
       // Staff below manager receive other crew's records with their private
       // fields removed. If a manager now signs in on a device that synced as
       // one of them, re-read the table so those copies are replaced in full.
-      const scope = PII_ROLES.includes(j.user.role) ? 'full' : 'redacted';
-      if (ls.getItem('pullScope') === 'redacted' && scope === 'full') { lastRev = 0; ls.removeItem('lastRev'); }
+      /* The cursor is taken BEFORE redaction, so a device that was not allowed a
+       * record has already advanced past it and will never ask for it again.
+       * Widening what a role may receive therefore has to rewind the cursor once,
+       * or the records it is newly entitled to stay invisible for ever.
+       *
+       * SCOPE_V is bumped whenever an entitlement widens. It went to v2 when the
+       * office login gained the review stores: without this every office device
+       * would keep drawing an empty leaderboard, because the whole review backlog
+       * sits behind a cursor it ran past months ago. A plain role marker would be
+       * wrong here -- shared yard phones switch user all day, and re-reading the
+       * table on every switch is a cost nobody asked for. */
+      const SCOPE_V = 'v2';
+      const scope = (PII_ROLES.includes(j.user.role) ? 'full' : 'redacted') + ':' + SCOPE_V;
+      const had = ls.getItem('pullScope') || '';
+      const widened = had.indexOf('redacted') === 0 && scope.indexOf('full') === 0;
+      const entitlementMoved = !!had && had.slice(had.indexOf(':') + 1) !== SCOPE_V;
+      if (widened || entitlementMoved) { lastRev = 0; ls.removeItem('lastRev'); }
       ls.setItem('pullScope', scope);
       tick();
       return { user: j.user };

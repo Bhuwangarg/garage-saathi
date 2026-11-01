@@ -1542,11 +1542,18 @@ async function load(force) {
     if (every) _slowReadAt[store] = now;
     return true;
   });
-  const next = all ? {} : Object.assign({}, S.cache);
   const read = await Promise.all(keys.map((k) => {
     const [store, tolerant] = CACHE_STORES[k];
     return tolerant ? DB.all(store).catch(() => []) : DB.all(store);
   }));
+  // Written into the LIVE cache, not into a copy taken before the awaits. Two
+  // load()s overlap easily -- the sync tick calls one and any of the hundred-odd
+  // UI call sites can call another -- and publishing a start-time snapshot let
+  // the slower one put back a store the faster one had just refreshed, with the
+  // dirty mark already cleared so nothing read it again. A full reload still
+  // builds a fresh object, because there the old contents are what we are
+  // throwing away.
+  const next = all ? {} : S.cache;
   keys.forEach((k, i) => { next[k] = read[i]; });
   // Exactly what was read, so a store held back by SLOW_STORES -- or written while
   // the reads were in flight -- stays dirty instead of being quietly forgotten.
@@ -2115,7 +2122,7 @@ async function putCrew(d, was, reason) {
   const bus = now ? (S.cache.buses || []).find((b) => b.id === now) : null;
   const row = Duty.dutyRow({ crew: d, busId: now, at: Date.now(), reason, by: S.user && S.user.id, regNo: bus && bus.regNo });
   await DB.put('dutylog', row);
-  (S.cache.dutylog = S.cache.dutylog || []).push(row);
+  S.cache.dutylog = (S.cache.dutylog || []).concat([row]);   // replace, don't push: cachedSig keys on identity
 }
 /* The log starts the day it ships, so everyone already on a bus needs one
  * starting row. Only written on a phone that has just synced: a stale phone
@@ -2135,7 +2142,7 @@ async function ensureDutyBaselines() {
       const bus = (S.cache.buses || []).find((b) => b.id === dutyBusOf(d));
       const row = Duty.baselineRow({ crew: d, busId: dutyBusOf(d), at, by: S.user.id, regNo: bus && bus.regNo });
       await DB.put('dutylog', row);
-      S.cache.dutylog.push(row);
+      S.cache.dutylog = (S.cache.dutylog || []).concat([row]);   // replace, don't push: cachedSig keys on identity
     }
   } finally { _baselining = false; }
 }
@@ -12507,7 +12514,7 @@ async function captureArrivals(bus, tel) {
         day: todayKey(), at: Date.now(), actualMin: aMin, scheduledMin: sched,
         deltaMin: delta, source: tel.source || 'unknown' };
       await DB.put('triplog', row);
-      (S.cache.triplog = S.cache.triplog || []).push(row);   // reflect immediately so we never double-log
+      S.cache.triplog = (S.cache.triplog || []).concat([row]);   // replace, don't push: cachedSig keys on identity   // reflect immediately so we never double-log
       changed = true;
     }
   }

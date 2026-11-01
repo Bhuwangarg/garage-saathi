@@ -123,5 +123,73 @@ for role in ("driver", "store", "mechanic", "office", "crewmanager", "conductor"
         check("  %-9s in fewer pages than the owner needs (%d vs %d)" % (role, pages, owner_pages),
               pages < owner_pages)
 
+print("\nA record committed while pull() is running is not stepped over")
+# pull() reads the table maximum and reads a page, as two statements on a
+# READ COMMITTED connection, in a process whose lock is local while the service
+# runs as several containers. A push landing between them is ordinary, not exotic.
+#
+# This used to lose it: the page was read first and the maximum second, so the
+# new record was inside the maximum and outside the page -- and because a page
+# that does not fill moves the cursor straight to the maximum, the device stepped
+# over that record and never asked again. Silent, and on one device only.
+class _RaceConn(object):
+    """The real connection, with another container's push fired into the gap."""
+
+    def __init__(self, real, fire):
+        self._c, self._fire, self._done = real, fire, False
+
+    def execute(self, sql, args=()):
+        if not self._done and "MAX(rev)" in sql:
+            self._done = True
+            self._fire()                 # commits just before the bound is read
+        return self._c.execute(sql, args)
+
+    def __getattr__(self, n):
+        return getattr(self._c, n)
+
+
+def _push_from_another_container():
+    c2 = S.db()
+    rev2 = c2.execute("SELECT COALESCE(MAX(rev),0) FROM records").fetchone()[0]
+    S._upsert_record(c2, "jobcards", "race-1",
+                     {"id": "race-1", "busId": "b-1", "problem": "landed mid-pull",
+                      "status": "open", "at": now, "updatedAt": now}, now, rev2)
+    c2.commit()
+    c2.close()
+
+
+_real_db = S.db
+_fired = {"n": 0}
+
+
+def _racing_db():
+    conn = _real_db()
+    if _fired["n"]:
+        return conn
+    _fired["n"] = 1
+    return _RaceConn(conn, _push_from_another_container)
+
+
+DRV2 = {"id": "u-d2", "role": "driver"}
+_before = S.pull(0, actor=DRV2)          # settle the cursor with no race
+S.db = _racing_db
+_raced = S.pull(_before["maxRev"], actor=DRV2)
+S.db = _real_db
+
+_seen = set()
+_cur = _raced["maxRev"]
+for _r in _raced["records"]:
+    _seen.add(_r["id"])
+# Whether it arrives in this page or the next one does not matter; being skipped does.
+for _i in range(5):
+    _nxt = S.pull(_cur, actor=DRV2)
+    for _r in _nxt["records"]:
+        _seen.add(_r["id"])
+    if _nxt["maxRev"] == _cur:
+        break
+    _cur = _nxt["maxRev"]
+
+check("the record pushed mid-pull still reaches the device", "race-1" in _seen)
+
 print("\nRESULT: " + ("ALL PASS" if not fails else "%d FAILED -> %s" % (len(fails), fails)))
 sys.exit(1 if fails else 0)

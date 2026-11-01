@@ -100,7 +100,11 @@ _c = S.db()
 _now = S.now_ms()
 _rev = _c.execute("SELECT COALESCE(MAX(rev),0) FROM records").fetchone()[0]
 for _st, _rid, _d in (
-        ("rbreviews",    "rv-9", {"id": "rv-9", "stars": 1, "text": "Driver drove rashly", "at": _now}),
+        # Carries what a real redPro review carries -- the booking is in here.
+        ("rbreviews",    "rv-9", {"id": "rv-9", "stars": 1, "text": "Driver drove rashly", "at": _now,
+                                  "pnr": "TR99881", "tin": "TIN-5", "seats": ["A1", "A2"],
+                                  "fare": "3149", "boardAt": "Jaipur Sindhi Camp",
+                                  "comment": "Driver drove rashly", "tags": ["staff"]}),
         ("rbassign",     "as-9", {"id": "as-9", "rv": "rv-9", "crewId": "d-9"}),
         ("rbreviewai",   "ai-9", {"id": "ai-9", "rv": "rv-9", "faults": ["driver"]}),
         ("rbcomplaints", "cp-9", {"id": "cp-9", "text": "Bus left early", "at": _now}),
@@ -127,7 +131,22 @@ for _st in ("rbreviews", "rbassign", "rbreviewai", "rbcomplaints"):
     check("  %s reaches the office" % _st, _off.get(_st) == 1)
 check("  and the name match, or no review traces to anybody", _off.get("rbalias") == 1)
 # A desk reading crew performance has no business holding a passenger's journey.
-check("  a passenger's PNR and seat do NOT", not _off.get("itslookup"))
+check("  the passenger lookup store does NOT", not _off.get("itslookup"))
+# This assertion used to be made of itslookup alone, which made it read as proof
+# of something it never checked: the review record carries the same pnr, seat and
+# fare, and those were arriving in full. A PNR with a date is enough to pull the
+# booking up on our own portal, and a desk reading crew performance has no use for
+# one -- so the record arrives with the journey taken out of it.
+_rv = next((r["data"] for r in S.pull(0, actor=OFFICE).get("records", []) if r["id"] == "rv-9"), None)
+check("  the office receives the review itself", bool(_rv))
+if _rv:
+    for _f in ("pnr", "tin", "seats", "fare", "boardAt"):
+        check("    %s is stripped from it" % _f, not _rv.get(_f))
+    check("    but the stars survive", _rv.get("stars") == 1)
+    check("    and what the passenger wrote", "rashly" in (_rv.get("comment") or ""))
+    check("    and it is marked partial", _rv.get("_redacted") is True)
+_rv_own = next((r["data"] for r in S.pull(0, actor=OWNER).get("records", []) if r["id"] == "rv-9"), None)
+check("  the owner still sees the whole booking", bool(_rv_own and _rv_own.get("pnr") == "TR99881"))
 
 _drv = seen(DRV)
 for _st in ("rbreviews", "rbassign", "rbreviewai", "rbcomplaints", "itslookup"):

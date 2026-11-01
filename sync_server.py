@@ -3580,7 +3580,20 @@ def redact_for(actor, rec):
         # them, so the leaderboard drew each heading and not one crew member. Reading
         # what a passenger said is a different question from reading a crew member's
         # documents, and it is now asked separately.
-        return rec if actor.get("role") == "office" else None
+        if actor.get("role") != "office":
+            return None
+        # It may read the review; it may not read the passenger out of it.
+        # itslookup is withheld just below for carrying a PNR, a seat and a fare --
+        # and a review record carries the very same fields, so withholding one and
+        # not the other was a rule that only looked strict. A PNR plus a date is a
+        # booking-lookup credential on our own portal; the leaderboard needs the
+        # stars, the words, the route and whose trip it was, and none of that.
+        if st in ("rbreviews", "rbcomplaints") and isinstance(d, dict):
+            drop = ("pnr", "tin", "seats", "fare", "boardAt", "doj", "amount")
+            if any(k in d for k in drop):
+                return dict(rec, data=dict({k: v for k, v in d.items() if k not in drop},
+                                           _redacted=True))
+        return rec
     if st in ("itslookup", "rbaliasai", "gateai", "coreai", "reportai", "coachai"):
         # Not for the office either. itslookup carries a passenger's PNR, seat and
         # journey, bought to resolve one review; the rest are Claude's drafts for the
@@ -3624,10 +3637,18 @@ def pull(since, limit=None, actor=None):
     gap = (" AND store NOT IN (%s)" % ",".join(["?"] * len(skip))) if skip else ""
     with _lock:
         c = db()
-        rows = c.execute(
-            "SELECT store,id,data,updatedAt,rev FROM records WHERE rev>?" + gap +
-            " ORDER BY rev ASC LIMIT ?", tuple([since] + skip + [limit])).fetchall()
+        # The bound is read BEFORE the page and the page is clamped to it. Read the
+        # other way round -- which is how this was -- a record committed between the
+        # two statements lands inside maxrev but outside the page, and since a page
+        # that did not fill now moves the cursor straight to maxrev, that record is
+        # stepped over and never asked for again. The connection is READ COMMITTED
+        # and _lock is per-process while this runs as several serverless containers,
+        # so the window is real rather than theoretical, and a record lost this way
+        # is lost silently on that one device until somebody edits it again.
         maxrev = c.execute("SELECT COALESCE(MAX(rev),0) FROM records").fetchone()[0]
+        rows = c.execute(
+            "SELECT store,id,data,updatedAt,rev FROM records WHERE rev>? AND rev<=?" + gap +
+            " ORDER BY rev ASC LIMIT ?", tuple([since, maxrev] + skip + [limit])).fetchall()
         # Whether the page stopped because it filled up, read before the rev-group
         # fix-up below can push the count past the limit.
         full = len(rows) == limit
