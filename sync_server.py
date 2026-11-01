@@ -2203,7 +2203,7 @@ def _store_row(c, store, rid):
     row = c.execute("SELECT data FROM records WHERE store=? AND id=?", (store, rid)).fetchone()
     try:
         d = json.loads(row[0]) if row else None
-    except (TypeError, ValueError):
+    except Exception:                       # as _store_rows: a row that will not load is not a record
         return None
     return d if isinstance(d, dict) and not d.get("_deleted") else None
 
@@ -2880,6 +2880,15 @@ def my_coaching(user_id):
 AGENT_COACHING_MAX = 200                  # notes in one /agent/coaching answer
 
 
+def _bus_plate(bus):
+    """The plate a bus record is known by, as norm_reg writes it, or None when its regNo gives none.
+
+    The one place a plate is read from a bus. /agent/crew's busReg and the /agent/bus-papers lookup
+    both come here, so the busReg a crew member is sent is always a plate that finds that bus's
+    papers: the two cannot drift apart."""
+    return norm_reg(str(bus.get("regNo") or "")) or None
+
+
 # What a read-only agent is told about the crew, their coaching notes and a bus's papers (GET
 # /agent/crew, /agent/coaching and /agent/bus-papers). Each answer is built field by field, not by
 # copying a record and dropping what is private, so a field added to a record later is not sent
@@ -2896,9 +2905,11 @@ def agent_crew():
     else: an unknown status is not taken to mean working. busReg is the plate of the bus whose id
     is the person's busId, as norm_reg writes it (MP44ZD0471, however the fleet list spells it),
     or None when they have no bus, the bus has been deleted or has no plate, or the busId is not
-    an id at all (a list or a dict in a record must not take the list down). The phone goes out as
-    the office typed it ("+91 98290-12345", "09829012345"), "" when there is none; matching it to
-    a WhatsApp sender is for whoever reads it."""
+    an id at all (a list or a dict in a record must not take the list down). Both ids are the
+    records' own ids, the key each is stored under (push guarantees str(data.id) == that key), not a
+    field read out of the record, so a record with a strange id field cannot break the list or its
+    sort. The phone goes out as the office typed it ("+91 98290-12345", "09829012345"), "" when
+    there is none; matching it to a WhatsApp sender is for whoever reads it."""
     with _lock:
         c = db()
         try:
@@ -2906,8 +2917,8 @@ def agent_crew():
             buses = _store_rows(c, "buses")
         finally:
             c.close()
-    plates = {b.get("id") or bid: norm_reg(str(b.get("regNo") or "")) or None for bid, b in buses.items()}
-    out = [{"id": d.get("id") or rid,
+    plates = {bid: _bus_plate(b) for bid, b in buses.items()}
+    out = [{"id": rid,
             "name": str(d.get("name") or ""),
             "role": "conductor" if d.get("crewRole") == "conductor" else "driver",
             "phone": str(d.get("phone") or "").strip(),
@@ -2923,21 +2934,29 @@ def agent_coaching(approved_since):
     At most AGENT_COACHING_MAX, cut from the new end, so a reader that asks again from the last
     decidedAt it was given walks forward and misses nothing. Approving a note a second time, after
     an edit, stamps it with a new decidedAt, so it comes back; the reader tells it apart by id.
-    Each note is its id, the crew member, the week, the three Hindi lines the crew member reads
-    (good, fix, tip) and when it was approved. A draft or a skipped note is not here at all."""
+    Each note is its id (the record's own id), the crew member, the week, the three Hindi lines the
+    crew member reads (good, fix, tip) and when it was approved. A draft or a skipped note is not
+    here at all.
+
+    A note goes out only if it is whole: the crew member's id is non-empty text, `hi` is an object,
+    and decidedAt is a number (not a boolean, not text). A record that is not is left out, silently
+    and without a log line, and the route still answers with the rest: the reader (operator-agents)
+    refuses a whole batch for one bad row, and its cursor could then never move past that note.
+    Nothing here can raise on what a record holds."""
     with _lock:
         c = db()
         try:
             notes = _store_rows(c, "coachai")
         finally:
             c.close()
-    out = [{"id": n.get("id") or nid,
-            "crewId": n.get("crewId"),
-            "week": n.get("week"),
-            "hi": {k: (n.get("hi") or {}).get(k) for k in ("good", "fix", "tip")},
-            "decidedAt": n.get("decidedAt") or 0}
-           for nid, n in notes.items()
-           if n.get("status") == "approved" and (n.get("decidedAt") or 0) >= approved_since]
+    out = []
+    for nid, n in notes.items():
+        at, crew_id, hi = _agent_number(n.get("decidedAt")), n.get("crewId"), n.get("hi")
+        if (n.get("status") != "approved" or not nid or at is None or at < approved_since
+                or not isinstance(crew_id, str) or not crew_id or not isinstance(hi, dict)):
+            continue
+        out.append({"id": nid, "crewId": crew_id, "week": n.get("week"),
+                    "hi": {k: hi.get(k) for k in ("good", "fix", "tip")}, "decidedAt": at})
     out.sort(key=lambda x: (x["decidedAt"], x["id"]))
     return {"notes": out[:AGENT_COACHING_MAX]}
 
@@ -2945,7 +2964,7 @@ def agent_coaching(approved_since):
 AGENT_IST_MS = 19800000                   # IST is UTC+5:30
 AGENT_DOC_SOON_DAYS = 15                  # the app's docStatus: this many days left, or fewer, is "expiring"
 AGENT_EXPIRY_END_MS = 253402214400000     # 9999-12-31 00:00 UTC, the last day _ist_day writes as YYYY-MM-DD
-AGENT_NUMBER_MAX = 2 ** 53                # the biggest whole number a JSON reader in JavaScript holds exactly
+AGENT_NUMBER_MAX = 2 ** 53                # the limit up to which every integer is exact in JavaScript (a JSON reader there)
 
 
 def _agent_number(v):
@@ -2971,8 +2990,8 @@ def agent_doc(doc, today):
     A paper that expires today has 0 days left, so it is "expiring" until the day is over. An expiry
     that is missing, or is not a plain number of milliseconds between 1970 and the year 9999 (text, a
     boolean, NaN, a number too big to mean a date), is "unknown" with a null expiry: the paper is
-    listed and no date is guessed. The app itself would call a missing expiry expired. The number and
-    the photo never go out."""
+    listed and no date is guessed. (In the app, a paper whose stored expiry is null shows as
+    expired.) The number and the photo never go out."""
     kind = doc.get("type") if isinstance(doc.get("type"), str) else ""
     ms = _agent_number(doc.get("expiry"))
     if ms is None or not 0 < ms < AGENT_EXPIRY_END_MS:
@@ -2990,11 +3009,15 @@ def agent_challans(snap):
     through its own platform (fine plus its service charge and GST), is not the liability and is
     never sent. None when there is no snapshot, and also when the snapshot is no answer: it is
     flagged providerUnavailable (the lookup never reached the registry, so its empty result is not a
-    clean bill) or its counts are not numbers. A bus checked and found clean is an answer: pending 0."""
+    clean bill), or its figures make no sense: the count must be a whole number of at least 0 (an
+    int, or a float like 3.0, which is sent as 3; 2.7 is not whole) and the fine a number of at
+    least 0. pendingCount is the provider's pending_count copied as it came, so our own code does
+    not guarantee it. A bus checked and found clean is an answer: pending 0."""
     if not isinstance(snap, dict) or snap.get("providerUnavailable"):
         return None
     pending, fine, at = (_agent_number(snap.get(k)) for k in ("pendingCount", "pendingFine", "updatedAt"))
-    if pending is None or fine is None or at is None:
+    if (pending is None or fine is None or at is None or pending < 0 or fine < 0
+            or not (isinstance(pending, int) or pending.is_integer())):
         return None
     return {"pending": int(pending), "pendingFine": fine, "checkedAt": at}
 
@@ -3017,7 +3040,7 @@ def agent_bus_papers(reg):
         try:
             buses = _store_rows(c, "buses")
             bus = next((buses[bid] for bid in sorted(buses)
-                        if plate and norm_reg(str(buses[bid].get("regNo") or "")) == plate), None)
+                        if plate and _bus_plate(buses[bid]) == plate), None)
             snap = _store_row(c, "challans", plate) if bus else None
         finally:
             c.close()

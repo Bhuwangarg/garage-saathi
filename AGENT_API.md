@@ -48,8 +48,9 @@ AGENT_SCOPES="operator-agents:gps,crew,coaching,papers"
 - An agent that `AGENT_SCOPES` does not list, or no `AGENT_SCOPES` at all, holds `gps` only. That is exactly what a
   key could do before scopes existed, so nothing that worked stops working.
 - A listed agent holds exactly the scopes it lists, so leaving `gps` out takes both GPS reads away from that agent
-  without touching its key. The AirFi token and a signed-in user keep `/gps/*` whatever an agent holds. An unknown
-  scope name is ignored.
+  without touching its key. What an agent holds changes nothing for anyone else: the AirFi token opens only
+  `/gps/latest` and `/gps/ingest` (it gets 401 on `/gps/fleet`), and a signed-in user keeps the GPS routes as
+  before. An unknown scope name is ignored.
 - Only an agent key opens the `/agent/` routes: a signed-in user's session or the AirFi token gets 401.
 
 ## Status codes, caching, logging
@@ -67,6 +68,9 @@ AGENT_SCOPES="operator-agents:gps,crew,coaching,papers"
   GPS routes keep their own `[gps]` line.
 - Every answer is built field by field: a field added to a record later is not sent until the server is changed to
   send it.
+- A stored record that is malformed never fails an answer. A coaching note that is not whole (see below) is left out
+  silently, and so is a row that will not load at all; the route still answers 200 with the rest. The ids in the
+  crew and coaching answers are the records' own ids, not a field read out of the record.
 
 ## `GET /agent/crew`
 
@@ -88,6 +92,9 @@ AGENT_SCOPES="operator-agents:gps,crew,coaching,papers"
                "hi": { "good": "…", "fix": "…", "tip": "…" }, "decidedAt": 1793600000123 } ] }
 ```
 
+- A note is sent only if it is whole: `crewId` is non-empty text, `hi` is an object, and `decidedAt` is a number
+  (not a boolean, not text). Any other approved note is left out, because a reader that refuses a batch for one bad
+  row could never move its cursor past it.
 - Only notes a manager approved, with `decidedAt >= approvedSince`, oldest decision first, at most 200. To read on,
   ask again from the last `decidedAt` you were given: that note comes back too, and you tell it apart by `id`. A note
   the manager edits and approves again gets a new `decidedAt`, so it comes back.
@@ -108,18 +115,21 @@ AGENT_SCOPES="operator-agents:gps,crew,coaching,papers"
 
 - The bus is found the way GPS finds one: case, spaces and dashes do not matter, and `MP44ZD471` and `MP44ZD0471`
   are the same plate. `reg` in the answer is the padded plate. No such bus, no plate, a blank one, or a deleted bus is
-  a `404`.
+  a `404`. The `busReg` that `/agent/crew` sends for a person always finds that person's bus here: both read a bus's
+  plate through the same function.
 - `docs` are in the order the office keeps them. `type` is the text the office chose. `expiry` is the date in IST,
   `YYYY-MM-DD`. `status` uses the app's 15-day thresholds, counted in whole IST calendar days: `expired` is before
   today, `expiring` is today up to 15 days away, `valid` is more. A paper that expires today is `expiring` until IST
-  midnight. (The app rounds the difference of two instants instead, so it flips about noon.) `unknown` means no
-  expiry was entered, or it cannot be read, and then `expiry` is `null` (the app would show such a paper as expired).
-- `challans` comes from the last saved eChallan lookup of that plate. `pending` is how many challans are pending,
-  `pendingFine` is what they add up to in fines, and `checkedAt` is when the lookup was made, in epoch milliseconds.
-  `pendingFine` is a number and may be a float, for example `700.0`. It is what is owed to the government. The larger
-  "payable" figure eChallan bills to settle through its own platform is never sent.
+  midnight. (The app rounds the difference of two instants instead, so it flips about noon.) For a paper with no
+  expiry the agent can read as a date (none entered, or a value that is not a date in milliseconds) the agent answers
+  `status` `"unknown"` and `expiry` `null`. (In the app, a paper whose stored expiry is null shows as expired.)
+- `challans` comes from the last saved eChallan lookup of that plate. `pending` is how many challans are pending (a
+  whole number), `pendingFine` is what they add up to in fines, and `checkedAt` is when the lookup was made, in epoch
+  milliseconds. `pendingFine` is a number and may be a float, for example `700.0`. It is what is owed to the
+  government. The larger "payable" figure eChallan bills to settle through its own platform is never sent.
 - `challans` is `null` when the bus was never looked up, and also when the last lookup could not reach the registry
-  or cannot be read (the counts are not numbers, or are too large to be real), because "nothing found" then does not
+  or cannot be read: the count is not a whole number of at least 0 (`2.7` and `-3` are not; `3.0` is sent as `3`), the
+  fine is not a number of at least 0, or a figure is too large to be real (over 2**53). "Nothing found" then does not
   mean "nothing owed". A bus that was looked up and found clean is `{"pending": 0, ...}`, not `null`.
 - Never sent: document numbers and photos, the bus's owner, chassis and engine details, challan numbers, offences,
   places and names, and the payable figure.

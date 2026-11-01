@@ -68,15 +68,30 @@ def scopes_of(value, name="operator-agents"):
     return S.agent_scopes(name)
 
 
-def seed(store, records):
+def seed(store, records, raw=False):
     """Write {id: fields} into `store` the way the server does: under its lock, through
-    S._upsert_record, which stamps updatedAt. Each record carries its own id, as pushed ones do."""
+    S._upsert_record, which stamps updatedAt. Each record carries its own id, as pushed ones do.
+    raw=True stores the fields exactly as given, for a record whose own id is not its key."""
     with S._lock:
         c = S.db()
         try:
             for rid, fields in records.items():
                 rev = c.execute("SELECT COALESCE(MAX(rev),0) FROM records").fetchone()[0]
-                S._upsert_record(c, store, rid, dict(fields, id=rid), S.now_ms(), rev)
+                S._upsert_record(c, store, rid, dict(fields) if raw else dict(fields, id=rid), S.now_ms(), rev)
+            c.commit()
+        finally:
+            c.close()
+
+
+def seed_text(store, rid, text):
+    """Write `text` as a record's data exactly as given, JSON or not: a row a restore or a crash can leave."""
+    with S._lock:
+        c = S.db()
+        try:
+            rev = c.execute("SELECT COALESCE(MAX(rev),0) FROM records").fetchone()[0]
+            c.execute("INSERT INTO records(store,id,data,updatedAt,rev) VALUES(?,?,?,?,?) "
+                      "ON CONFLICT(store,id) DO UPDATE SET data=excluded.data, updatedAt=excluded.updatedAt, rev=excluded.rev",
+                      (store, rid, text, S.now_ms(), rev + 1))
             c.commit()
         finally:
             c.close()
@@ -152,9 +167,11 @@ def main():
           and get("/gps/latest?reg=RJ14PF0306", agent)[0] == 200)
     check("gps alone does not open crew", get("/agent/crew", agent)[0] == 403)
 
-    print("The provider and a signed-in user keep /gps/*, whatever the agent holds")
+    print("The provider token and a signed-in user keep the GPS routes they had, whatever the agent holds")
     os.environ["AGENT_SCOPES"] = "operator-agents:crew"          # gps is withdrawn from the agent
     check("the provider token still reads /gps/latest", get("/gps/latest?reg=RJ14PF0306", provider)[0] == 200)
+    check("the provider token never opened /gps/fleet: it is 401 there, as AGENT_API.md says",
+          get("/gps/fleet", provider)[0] == 401)
     check("a signed-in user still reads /gps/fleet", get("/gps/fleet", session)[0] == 200)
     check("a signed-in user still reads /gps/latest", get("/gps/latest?reg=RJ14PF0306", session)[0] == 200)
 
@@ -400,6 +417,66 @@ def main():
     check("a refusal gives away neither crew nor notes", body_crew == body_notes == {"error": "forbidden"})
     os.environ["AGENT_SCOPES"] = "operator-agents:gps,crew,coaching,papers"
 
+    print("A malformed stored record is left out, and never takes a route down")
+    # The app and the server cannot write these, but a record is only JSON in a table, and a restore, an old build
+    # or a hand edit can leave one. The route answers 200 with the good rows. Plan 8's client rejects a whole batch
+    # for one bad row, and then its cursor can never move past that note, so a bad row is dropped here instead.
+    good_notes = notes_since()
+
+    def stray(**change):
+        """An approved note exactly like a good one but for what `change` sets."""
+        rec = dict(base, id="co-bad", week="2026-11-09", status="approved", hi=hindi, decidedAt=7000)
+        rec.update(change)
+        return rec
+
+    seed("coachai", {"co-bad": stray()}, raw=True)
+    check("the control: a note with nothing wrong is sent, so each drop below is down to its one bad field",
+          [n["id"] for n in notes_since() if n["id"] == "co-bad"] == ["co-bad"])
+    for label, change in (
+            ("decidedAt is text", dict(decidedAt="5000")), ("decidedAt is a list", dict(decidedAt=[5000])),
+            ("decidedAt is true", dict(decidedAt=True)), ("decidedAt is missing", dict(decidedAt=None)),
+            ("hi is text", dict(hi="text")), ("hi is a list", dict(hi=["a"])),
+            ("crewId is missing", dict(crewId=None)), ("crewId is empty", dict(crewId="")),
+            ("crewId is a list", dict(crewId=["d1"])), ("crewId is a number", dict(crewId=1))):
+        seed("coachai", {"co-bad": stray(**change)}, raw=True)
+        st, d = get("/agent/coaching", agent)
+        check("an approved note whose %s is left out, and the route answers with the good rows" % label,
+              st == 200 and d.get("notes") == good_notes)
+    seed("coachai", {"co-bad": stray(id=["co-bad"])}, raw=True)
+    check("a note whose own id field is odd is still sent, under its record id (as a crew member is)",
+          [n["id"] for n in notes_since() if n["id"] == "co-bad"] == ["co-bad"])
+    seed("coachai", {"co-bad": {"_deleted": True}}, raw=True)
+
+    # A bus whose own id is a list (its record id is the text "[5]", which push's id check lets through).
+    seed("buses", {"[5]": {"id": [5], "regNo": "RJ14ZZ0801"}}, raw=True)
+    seed("drivers", {"d-list-bus": {"id": "d-list-bus", "name": "On A Bus With A List Id", "busId": "[5]"}}, raw=True)
+    st, d = get("/agent/crew", agent)
+    by_id = {c["id"]: c for c in d.get("crew") or []}
+    check("a bus whose own id is a list does not take the crew list down", st == 200 and "d1" in by_id)
+    check("and a crew member's busId is the bus record's id, so that person's bus is found",
+          by_id.get("d-list-bus", {}).get("busReg") == "RJ14ZZ0801")
+    seed("buses", {"[5]": {"_deleted": True}}, raw=True)
+    seed("drivers", {"d-list-bus": {"_deleted": True}}, raw=True)
+    # Two people of one name, one of whom has an integer for an id (record id "5").
+    seed("drivers", {"5": {"id": 5, "name": "Same Name"}, "d-same": {"id": "d-same", "name": "Same Name"}}, raw=True)
+    st, d = get("/agent/crew", agent)
+    check("two people of one name, one with an integer id, are sorted: ids are the record ids, as text",
+          st == 200 and [c["id"] for c in d.get("crew") or [] if c["name"] == "Same Name"] == ["5", "d-same"])
+    seed("drivers", {"5": {"_deleted": True}, "d-same": {"_deleted": True}}, raw=True)
+
+    # Rows that are not records at all: text that is not JSON, and JSON nested too deep to read (RecursionError,
+    # which is not a ValueError). They stay in the table for every check from here on.
+    deep = "[" * 100000 + "]" * 100000
+    for store, rid in (("drivers", "d-garbage"), ("coachai", "co-garbage"), ("buses", "b-garbage")):
+        seed_text(store, rid, "{not json")
+    for store, rid in (("drivers", "d-deep"), ("coachai", "co-deep"), ("buses", "b-deep")):
+        seed_text(store, rid, deep)
+    st, d = get("/agent/crew", agent)
+    check("rows that will not load are not records: the crew list still answers",
+          st == 200 and "d1" in {c["id"] for c in d.get("crew") or []})
+    st, d = get("/agent/coaching", agent)
+    check("and the coaching list does too", st == 200 and d.get("notes") == good_notes)
+
     print("Bus papers")
     IST_MS = 19800000                                              # IST is UTC+5:30
 
@@ -458,7 +535,17 @@ def main():
             "b12": {"regNo": "RJ14PL0012", "docs": [                              # a type that is not text
                 {"type": {"leak": "TYPE-DICT-SENTINEL"}, "expiry": utc(2026, 12, 13)},
                 {"type": 7, "expiry": utc(2026, 12, 13)}, {"expiry": utc(2026, 12, 13)}]},
-            "b13": {"regNo": "RJ14PM0013"}, "b14": {"regNo": "RJ14PN0014"}, "b15": {"regNo": "RJ14PP0015"}})
+            "b13": {"regNo": "RJ14PM0013"}, "b14": {"regNo": "RJ14PN0014"}, "b15": {"regNo": "RJ14PP0015"},
+            "b23": {"regNo": "RJ14QE0911"}, "b24": {"regNo": "RJ14QF0912"},
+            "b16": {"regNo": "RJ14QA0901"}, "b17": {"regNo": "RJ14QB0902"}, "b18": {"regNo": "RJ14QC0903"},
+            "b19": {"regNo": "RJ14QD0904"},
+            # Plates the fleet list spells in ways that need the same reading in both routes.
+            "b20": {"regNo": "rj-14-pq-0907"}, "b21": {"regNo": "MP 44 ZD 9"}, "b22": {"regNo": "RJ.14.PR.0910"}})
+        seed("drivers", {"d-on-b3": {"name": "On Plain Plate", "busId": "b3"},
+                         "d-on-b20": {"name": "On Lower Case Dashes", "busId": "b20"},
+                         "d-on-b21": {"name": "On Spaces And A Short Number", "busId": "b21"},
+                         "d-on-dup-a": {"name": "On The Spaced Plate", "busId": "b-dup-a"},
+                         "d-on-b22": {"name": "On A Dotted Plate", "busId": "b22"}})
         # b1 owes two challans: Rs 700 in fines, and Rs 2,288 to settle through eChallan's own platform.
         snapshot("MP44ZD0471", total=3, pendingCount=2, disposedCount=1, pendingFine=700.0, pendingPayable=2288.0,
                  courtCount=1, challans=[
@@ -483,6 +570,14 @@ def main():
         snapshot("RJ14PM0013", total=1, pendingCount=10 ** 400, pendingFine=100.0)
         snapshot("RJ14PN0014", total=1, pendingCount=1, pendingFine=1e300)
         snapshot("RJ14PP0015", total=1, pendingCount=1, pendingFine=float("inf"))
+        # Snapshots that will not load: JSON nested too deep to read, and text that is not JSON.
+        seed_text("challans", "RJ14QE0911", deep)
+        seed_text("challans", "RJ14QF0912", "{not json")
+        # Figures that make no sense for a count of challans or a sum of fines, and one that only looks odd.
+        snapshot("RJ14QA0901", total=3, pendingCount=2.7, pendingFine=100.0)
+        snapshot("RJ14QB0902", total=1, pendingCount=-3, pendingFine=100.0)
+        snapshot("RJ14QC0903", total=1, pendingCount=1, pendingFine=-5.0)
+        snapshot("RJ14QD0904", total=3, pendingCount=3.0, pendingFine=300.0)
 
         paper_leaks = ["INS-NUMBER-SENTINEL", "PUC-NUMBER-SENTINEL", "PERMIT-NUMBER-SENTINEL", "FITNESS-NUMBER-SENTINEL",
                        "INS-PHOTO-SENTINEL", "PUC-PHOTO-SENTINEL", "PERMIT-PHOTO-SENTINEL", "FITNESS-PHOTO-SENTINEL",
@@ -589,6 +684,21 @@ def main():
         check("a document type that is not text comes out as an empty type, never as the stringified value",
               typed.get("docs") == [{"type": "", "expiry": "2026-12-13", "status": "valid"}] * 3
               and "TYPE-DICT-SENTINEL" not in json.dumps(typed))
+        for label, plate in (("a count of 2.7, which is not a whole number of challans", "RJ14QA0901"),
+                             ("a negative count (-3)", "RJ14QB0902"), ("a negative fine (-5)", "RJ14QC0903")):
+            check("%s is no answer: challans is null" % label,
+                  papers(plate) == (200, {"reg": plate, "docs": [], "challans": None}))
+        check("a challan snapshot that will not load is no snapshot, whatever is wrong with its text",
+              all(papers(p) == (200, {"reg": p, "docs": [], "challans": None}) for p in ("RJ14QE0911", "RJ14QF0912")))
+        whole = (papers("RJ14QD0904")[1].get("challans") or {})
+        check("a count of 3.0 is the whole number 3, sent as an integer",
+              whole == {"pending": 3, "pendingFine": 300, "checkedAt": CHECKED_AT} and type(whole.get("pending")) is int)
+
+        crew_now = get("/agent/crew", agent)[1].get("crew") or []
+        sent = [c for c in crew_now if c["busReg"]]
+        check("the busReg that /agent/crew sends finds that bus's papers, however the fleet list spells the plate",
+              len(sent) >= 7 and all(papers(c["busReg"])[0] == 200 and papers(c["busReg"])[1].get("reg") == c["busReg"]
+                                     for c in sent))
 
     os.environ["AGENT_SCOPES"] = "operator-agents:gps,crew,coaching"
     st, d = papers("MP44ZD471")
