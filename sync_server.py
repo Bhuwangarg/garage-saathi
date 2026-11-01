@@ -3744,14 +3744,21 @@ def agent_for(header):
 # An agent AGENT_SCOPES does not list, or no AGENT_SCOPES at all, holds gps only,
 # which is all a key could do before scopes. A listed agent holds exactly the known
 # scopes it lists, so leaving gps out withdraws it without touching the key. Read on
-# every request, like AGENT_KEYS, so a scope can be withdrawn without a redeploy.
+# every request and never cached at import, as AGENT_KEYS is, so a serverless instance
+# sees a change without a redeploy of the code.
 AGENT_SCOPE_NAMES = frozenset(("gps", "crew", "coaching", "papers"))
 # The scope that opens each /agent/ route. A path not listed here is not a route.
 AGENT_ROUTE_SCOPE = {"/agent/crew": "crew", "/agent/coaching": "coaching", "/agent/bus-papers": "papers"}
 
 
 def agent_scopes(name):
-    """The set of scopes the agent `name` holds, read from AGENT_SCOPES right now."""
+    """The set of scopes the agent `name` holds, read from AGENT_SCOPES right now.
+
+    The edges: an agent listed twice holds what its last entry says. An entry's name is
+    the text before its first colon, or the whole entry when it has none, so
+    `operator-agents=gps` names nobody: the agent reads as unlisted and keeps gps. A
+    bare name (`operator-agents`, or `operator-agents:`) is listed with no scopes, so
+    it holds none."""
     held = {}
     for item in os.environ.get("AGENT_SCOPES", "").split(";"):
         who, _, scopes = item.partition(":")

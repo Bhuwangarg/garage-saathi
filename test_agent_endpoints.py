@@ -85,6 +85,14 @@ def main():
     check("no key is 401", get("/agent/crew")[0] == 401)
     check("a wrong key is 401", get("/agent/crew", "Agent nope")[0] == 401)
 
+    print("Each scope opens its own route, and no other")
+    routes = (("/agent/crew", "crew"), ("/agent/coaching", "coaching"), ("/agent/bus-papers", "papers"))
+    for route, scope in routes:
+        os.environ["AGENT_SCOPES"] = "operator-agents:" + scope
+        seen = dict((r, get(r, agent)[0]) for r, _ in routes)
+        check("holding %s gets past the gate to %s, and to no other /agent/ route" % (scope, route),
+              seen[route] not in (401, 403) and all(seen[r] == 403 for r, _ in routes if r != route))
+
     print("Withdrawing gps closes both GPS routes")
     os.environ["AGENT_SCOPES"] = "operator-agents:crew"
     st, d = get("/gps/fleet", agent)
@@ -108,8 +116,14 @@ def main():
     check("the provider token is not an agent", get("/agent/crew", provider)[0] == 401)
     check("the agent key sent as a Bearer session is refused", get("/agent/crew", "Bearer " + KEY)[0] == 401)
     check("without a key every /agent/ path is 401, a route or not", get("/agent/nope")[0] == 401)
-    check("a path that is not a route is not served, even to an agent holding every scope",
-          get("/agent/nope", agent)[0] in (403, 404))
+    st, d = get("/agent/nope", agent)
+    check("a path that is not a route is refused at the gate, even to an agent holding every scope",
+          st == 403 and d == {"error": "forbidden"})
+    os.environ["AGENT_SCOPES"] = "operator-agents:gps"
+    st, d = get("/agent/nope", agent)
+    check("a path that is not a route is refused at the gate for a gps-only agent too",
+          st == 403 and d == {"error": "forbidden"})
+    os.environ["AGENT_SCOPES"] = "operator-agents:gps,crew,coaching,papers"
     os.environ["AGENT_KEYS"] = ""
     check("a removed key is refused at once, scopes or not", get("/agent/crew", agent)[0] == 401)
     os.environ["AGENT_KEYS"] = KEYS
@@ -127,6 +141,11 @@ def main():
     check("an unknown scope name is dropped", scopes_of("operator-agents:gps,telepathy") == {"gps"})
     check("a listed agent holds only what it lists", scopes_of("operator-agents:telepathy") == set()
           and scopes_of("operator-agents:") == set())
+    check("a bare listed name holds no scopes", scopes_of("operator-agents") == set())
+    check("an agent listed twice holds what its last entry says",
+          scopes_of("operator-agents:gps;operator-agents:crew") == {"crew"})
+    check("an entry with no colon names nobody, so the agent reads as unlisted and keeps gps",
+          scopes_of("operator-agents=gps") == {"gps"})
     check("each call reads the variable again", scopes_of("operator-agents:crew") == {"crew"}
           and scopes_of("operator-agents:papers") == {"papers"})
 
@@ -147,14 +166,17 @@ def main():
         get("/agent/coaching", agent)               # refused, but it was still an agent's request
         get("/gps/fleet", agent)
         get("/agent/crew")                          # no key: nobody to name
+        get("/agent/crew", "Bearer " + KEY)         # the real key in the wrong place: refused, not logged
         time.sleep(0.1)
     log = buf.getvalue()
     check("an /agent/ request is logged as [agent] agent:<name> <path>",
           "[agent] agent:operator-agents /agent/crew" in log)
     check("a refused /agent/ request is logged too", "[agent] agent:operator-agents /agent/coaching" in log)
     check("a GPS request keeps its [gps] line", "[gps] agent:operator-agents /gps/fleet" in log)
-    check("one line per keyed request, none for the request without a key",
+    check("one line per keyed request, none for the requests without a valid key",
           log.count("agent:operator-agents") == 3)
+    check("neither the key nor its digest ever reaches the log",
+          KEY not in log and hashlib.sha256(KEY.encode()).hexdigest() not in log)
 
     # Every scope again: the sections that test the /agent/ routes start from here.
     os.environ["AGENT_SCOPES"] = "operator-agents:gps,crew,coaching,papers"
