@@ -499,6 +499,11 @@
   display: block;
   margin: 0;
   padding: 0;
+  /* The skeleton carries aria-busy="true", and the live styles.css has a lone [aria-busy="true"] rule that sets
+   * opacity .55 and a .12s opacity transition on anything busy. It matches by attribute, so no specificity can beat it:
+   * only saying both again can. A 55% grey bar is close to invisible on a cheap panel, and the skeleton must never animate. */
+  opacity: 1;
+  transition: none;
 }
 
 [data-v2] .skeleton-label {

@@ -25,7 +25,7 @@ const vm = require('vm');
 
 const FILE = process.env.STATES_JS || path.join(__dirname, 'ui', 'states.js');
 const ICONS_FILE = path.join(__dirname, 'ui', 'icons.js');
-const CSS_FILE = path.join(__dirname, 'ui', 'components.css');
+const CSS_FILE = process.env.COMPONENTS_CSS || path.join(__dirname, 'ui', 'components.css');   // COMPONENTS_CSS: run against a broken copy
 let fails = 0;
 function test(name, fn) {
   try { fn(); console.log('  ok  ' + name); }
@@ -62,36 +62,9 @@ function load(o) {
 /* =====================================================================================================
  * A TINY HTML READER, and its self-test
  * ===================================================================================================== */
-const ENT = { '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#39;': "'" };
-const decode = (s) => s.replace(/&(?:amp|lt|gt|quot|#39);/g, (m) => ENT[m]);
-// Tag:  <name attr="v" attr2="v2" ...> or </name> or <name .../>.  Text: anything up to the next "<".
-const TOKEN = /<(\/?)([a-zA-Z][\w-]*)((?:\s+[\w:-]+="[^"]*")*)\s*(\/?)>|([^<]+)/y;
-function parseHtml(html) {
-  const root = { tag: '#root', attrs: {}, children: [], parent: null };
-  let cur = root, pos = 0;
-  TOKEN.lastIndex = 0;
-  while (pos < html.length) {
-    TOKEN.lastIndex = pos;
-    const m = TOKEN.exec(html);
-    if (!m) throw new Error('markup the reader cannot parse at: ' + html.slice(pos, pos + 40));
-    pos = TOKEN.lastIndex;
-    if (m[5] !== undefined) { cur.children.push({ text: decode(m[5]) }); continue; }
-    if (m[1]) {
-      if (cur.tag !== m[2]) throw new Error('mismatched close tag </' + m[2] + '> inside <' + cur.tag + '>');
-      cur = cur.parent; continue;
-    }
-    const attrs = {};
-    String(m[3]).replace(/([\w:-]+)="([^"]*)"/g, (_, k, v) => { if (k in attrs) throw new Error('duplicate attribute ' + k); attrs[k] = decode(v); return ''; });
-    const el = { tag: m[2], attrs, children: [], parent: cur };
-    cur.children.push(el);
-    if (!m[4]) cur = el;
-  }
-  if (cur !== root) throw new Error('unclosed <' + cur.tag + '>');
-  return root;
-}
-const isEl = (n) => n.tag !== undefined;
-const classesOf = (el) => (el.attrs['class'] || '').split(/\s+/).filter(Boolean);
-function walk(n, fn) { if (isEl(n)) { fn(n); n.children.forEach((c) => walk(c, fn)); } }
+// The reader, the emitter list and the loader are shared with test_ui_components.js (test_helper_emitted.js), so both
+// files read the SAME markup. The reader is still tested here, below.
+const { parseHtml, isEl, classesOf, walk, emittedHtml } = require('./test_helper_emitted.js');
 function findAll(n, pred) { const out = []; walk(n, (e) => { if (e.tag !== '#root' && pred(e)) out.push(e); }); return out; }
 const byClass = (n, c) => findAll(n, (e) => classesOf(e).includes(c));
 // What a SIGHTED user reads: everything except visually hidden text and drawings. An aria-hidden element IS seen.
@@ -554,8 +527,7 @@ test('errorState works where there is no document yet (it draws; the listener is
 const cssClasses = (css) => { const s = new Set(); for (const m of css.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/\.([A-Za-z_][\w-]*)/g)) s.add(m[1]); return s; };
 function emittedClasses(win, clock) {
   const set = new Set();
-  const htmls = [win.emptyState('a'), win.emptyState('a', { hint: 'b', icon: 'bus' }), win.errorState('a'), win.errorState('a', function () {}), win.offlineState(), win.skeleton(2),
-    win.figure(null), win.figure(0), win.figure(5, { unit: 'km' }), win.figure(5, { unit: 'km', stale: true, at: clock.now - HOUR }), win.figure(5, { stale: true })];
+  const htmls = emittedHtml(win, clock);
   for (const h of htmls) walk(parseHtml(h), (e) => classesOf(e).forEach((c) => set.add(c)));
   return set;
 }
@@ -572,6 +544,63 @@ test('every class that ui/states.js can put in its markup has a rule in ui/compo
   assert(used.size >= 12, 'only ' + used.size + ' classes found; the walk is not seeing the markup');
   const missing = Array.from(used).filter((c) => !have.has(c));
   assert.deepEqual(missing, [], 'no CSS rule for: ' + missing.join(', '));
+});
+
+
+/* ---------- attributes: a live attribute selector matches an element by what it carries, not by its class ---------- */
+// styles.css:354 is  [aria-busy="true"]{opacity:.55;transition:opacity .12s ease}  : it names no class, so it reaches the
+// skeleton (role="status" aria-busy="true") whatever the skeleton's own rule says, unless that rule says opacity and transition
+// itself. A class-only fixture could not see it. emittedAttributes() is the attribute twin of emittedClasses().
+function emittedAttributes(win, clock) {
+  const out = [];
+  for (const h of emittedHtml(win, clock)) walk(parseHtml(h), (e) => { for (const k of Object.keys(e.attrs)) if (k !== 'class') out.push({ name: k, value: e.attrs[k], tag: e.tag, classes: classesOf(e) }); });
+  return out;
+}
+const stripCss = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '');
+// Rules as [selector-part, decl-property-list], from innermost blocks (enough for a flat sheet or one level of @media).
+function flatRules(css) { const out = []; for (const m of stripCss(css).matchAll(/([^{}]+)\{([^{}]*)\}/g)) out.push({ sels: m[1].split(',').map((x) => x.trim()), props: m[2].split(';').map((d) => d.slice(0, d.indexOf(':')).trim()).filter(Boolean) }); return out; }
+// Live rules whose RIGHTMOST compound starts with an attribute selector: they can match any element that carries it.
+function liveAttributeRules(liveCss) {
+  const out = [];
+  for (const r of flatRules(liveCss)) for (const sel of r.sels) {
+    if (sel.startsWith('@')) continue;
+    const last = sel.split(/[\s>+~]+/).filter(Boolean).pop() || '';
+    const m = /^\[\s*([\w-]+)\s*(?:=\s*"?([^"\]]*)"?)?\s*\]/.exec(last);
+    if (m) out.push({ sel, name: m[1], value: m[2], props: r.props });
+  }
+  return out;
+}
+// For each emitted element a live attribute rule matches, every property that rule sets must be declared by a v2 rule aimed at one of the element's classes.
+function unopposedAttributeRules(liveCss, v2Css, emitted) {
+  const out = [], v2 = flatRules(v2Css), live = liveAttributeRules(liveCss);
+  for (const L of live) for (const e of emitted) {
+    if (e.name !== L.name || (L.value !== undefined && e.value !== L.value) || !e.classes.length) continue;
+    for (const prop of L.props) {
+      const opposed = e.classes.some((c) => v2.some((r) => r.props.includes(prop) && r.sels.some((s) => ((s.split(/[\s>+~]+/).pop() || '').split(/[.:\[]/).indexOf(c) >= 0))));
+      if (!opposed) out.push('live "' + L.sel + '" sets ' + prop + ' on <' + e.tag + ' class="' + e.classes.join(' ') + '" ' + e.name + '="' + e.value + '">, and no v2 rule for .' + e.classes.join(' or .') + ' declares ' + prop);
+    }
+  }
+  return out;
+}
+const LIVE_CSS = fs.readFileSync(path.join(__dirname, 'styles.css'), 'utf8');
+test('the attribute checker sees the emitted attributes, reads the live sheet\'s attribute rules, and goes red when the v2 rule does not oppose one', () => {
+  const { win, clock } = load(), em = emittedAttributes(win, clock);
+  const has = (n, v, c) => em.some((a) => a.name === n && a.value === v && a.classes.includes(c));
+  assert(has('aria-busy', 'true', 'skeleton') && has('role', 'status', 'skeleton') && has('role', 'alert', 'state-error'), 'the walk did not find the attributes the checks below depend on');
+  const live = liveAttributeRules(LIVE_CSS);
+  assert(live.some((r) => r.name === 'aria-busy' && r.value === 'true' && r.props.includes('opacity') && r.props.includes('transition')), 'the live [aria-busy="true"] rule was not read');
+  const fakeLive = '[aria-busy="true"]{opacity:.55;transition:opacity .12s ease}';
+  assert.deepEqual(unopposedAttributeRules(fakeLive, '[data-v2] .skeleton{opacity:1;transition:none}', em), []);
+  assert.strictEqual(unopposedAttributeRules(fakeLive, '[data-v2] .skeleton{display:block}', em).length, 2, 'both opacity and transition must be reported');
+  assert.strictEqual(unopposedAttributeRules(fakeLive, '[data-v2] .skeleton{opacity:1}', em).length, 1, 'transition alone must be reported');
+  assert.strictEqual(unopposedAttributeRules(fakeLive, '[data-v2] .state{opacity:1;transition:none}', em).length, 2, 'a rule for another class does not oppose it');
+  assert.deepEqual(unopposedAttributeRules('[aria-busy="false"]{opacity:.1}', '', em), [], 'a different value does not match');
+});
+test('every live attribute selector that matches an element ui/states.js emits is opposed by a v2 rule for that element (aria-busy="true" on the skeleton: opacity and transition)', () => {
+  const { win, clock } = load(), em = emittedAttributes(win, clock), live = liveAttributeRules(LIVE_CSS);
+  assert(em.length >= 15 && live.length >= 1, 'the checker is not looking at anything');
+  assert(live.some((r) => em.some((a) => a.name === r.name && (r.value === undefined || a.value === r.value))), 'no live attribute rule matches anything emitted: the check below would be vacuous');
+  assert.deepEqual(unopposedAttributeRules(LIVE_CSS, CSS, em), []);
 });
 
 /* ---------- done ---------- */

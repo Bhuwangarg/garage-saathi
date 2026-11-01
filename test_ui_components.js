@@ -258,16 +258,28 @@ function ctxOk(ctx, o) {
 function expand(prop, value) {
   if (prop === 'font') return [['font-variant-numeric', 'normal'], ['font-family', '<font shorthand>'], ['font-size', '<font shorthand>'], ['line-height', 'normal'], ['font-weight', '<font shorthand>']];
   if (prop === 'font-variant') return [['font-variant-numeric', 'normal']];
-  // A shorthand also sets its longhands, so a later shorthand beats an earlier longhand and vice versa. The longhand
-  // entries carry the shorthand's value only as an ownership marker: tests read the shorthand itself where they care.
+  // A shorthand also sets its longhands, so a later shorthand beats an earlier longhand and vice versa, and the LONGHANDS carry
+  // their real values (padding: 0 16px gives padding-top 0, padding-bottom 0). Logical properties are mapped to the physical
+  // ones for horizontal-tb: padding-block and border-block-end are top/bottom. Background and outline keep ownership markers.
   const SIDES = ['top', 'right', 'bottom', 'left'], out = [[prop, value]];
-  const marks = (names) => names.forEach((n) => out.push([n, value]));
-  if (prop === 'margin' || prop === 'padding') marks(SIDES.map((s) => prop + '-' + s));
-  else if (prop === 'border') { marks(['border-color', 'border-style', 'border-width']); SIDES.forEach((s) => marks(['border-' + s, 'border-' + s + '-color', 'border-' + s + '-style', 'border-' + s + '-width'])); }
-  else if (/^border-(top|right|bottom|left)$/.test(prop)) marks([prop + '-color', prop + '-style', prop + '-width']);
-  else if (prop === 'border-color' || prop === 'border-style' || prop === 'border-width') marks(SIDES.map((s) => 'border-' + s + '-' + prop.slice(7)));
-  else if (prop === 'background') marks(['background-color', 'background-image']);
-  else if (prop === 'outline') marks(['outline-color', 'outline-style', 'outline-width']);
+  const add = (p, v) => expand(p, v).forEach((e) => out.push(e));
+  const box4 = (v) => { const t = splitTop(v, ' '); const top = t[0], right = t[1] !== undefined ? t[1] : top; return [top, right, t[2] !== undefined ? t[2] : top, t[3] !== undefined ? t[3] : right]; };
+  const pair = (v) => { const t = splitTop(v, ' '); return [t[0], t[1] !== undefined ? t[1] : t[0]]; };
+  const BSTYLE = /^(none|hidden|solid|dashed|dotted|double|groove|ridge|inset|outset)$/, BWIDTH = /^(\d*\.?\d+(px|em|rem)?|thin|medium|thick)$/;
+  const parts = (v) => { let w = 'medium', st = 'none', c = 'currentcolor'; for (const t of splitTop(v, ' ')) { if (BSTYLE.test(t)) st = t; else if (BWIDTH.test(t)) w = t; else c = t; } return { w, st, c }; };
+  let m;
+  if (prop === 'margin' || prop === 'padding') box4(value).forEach((v, i) => add(prop + '-' + SIDES[i], v));
+  else if ((m = /^(margin|padding)-block$/.exec(prop))) { const [a, b] = pair(value); add(m[1] + '-top', a); add(m[1] + '-bottom', b); }
+  else if ((m = /^(margin|padding)-block-(start|end)$/.exec(prop))) add(m[1] + '-' + (m[2] === 'start' ? 'top' : 'bottom'), value);
+  else if (prop === 'border') { SIDES.forEach((s) => add('border-' + s, value)); const b = parts(value); out.push(['border-width', b.w], ['border-style', b.st], ['border-color', b.c]); }
+  else if (/^border-(top|right|bottom|left)$/.test(prop)) { const b = parts(value); out.push([prop + '-width', b.w], [prop + '-style', b.st], [prop + '-color', b.c]); }
+  else if ((m = /^border-(width|style|color)$/.exec(prop))) box4(value).forEach((v, i) => add('border-' + SIDES[i] + '-' + m[1], v));
+  else if (prop === 'border-block') { add('border-top', value); add('border-bottom', value); }
+  else if ((m = /^border-block-(start|end)$/.exec(prop))) add('border-' + (m[1] === 'start' ? 'top' : 'bottom'), value);
+  else if ((m = /^border-block-(width|style|color)$/.exec(prop))) { const [a, b] = pair(value); add('border-top-' + m[1], a); add('border-bottom-' + m[1], b); }
+  else if ((m = /^border-block-(start|end)-(width|style|color)$/.exec(prop))) add('border-' + (m[1] === 'start' ? 'top' : 'bottom') + '-' + m[2], value);
+  else if (prop === 'background') [['background-color', value], ['background-image', value]].forEach((e) => out.push(e));
+  else if (prop === 'outline') ['outline-color', 'outline-style', 'outline-width'].forEach((n) => out.push([n, value]));
   return out;
 }
 function cascadeOf(el, sheets, o) {
@@ -632,12 +644,21 @@ const v2Sheets = (css) => [UA(), TOKEN_SHEET(), COMPONENT_SHEET(css)];
 const liveFirst = (css) => [UA(), LIVE_SHEET(), TOKEN_SHEET(), COMPONENT_SHEET(css)];
 const liveLast = (css) => [UA(), TOKEN_SHEET(), COMPONENT_SHEET(css), LIVE_SHEET()];
 
+// The fixtures carry the attributes ui/states.js REALLY emits (role, aria-busy, aria-live, data-*), read from its output
+// through the shared reader (test_helper_emitted.js). A class-only skeleton fixture once hid the live
+// [aria-busy="true"]{opacity:.55;transition:...} rule, which matches by attribute, not by class.
+const EMITTED_EL = require('./test_helper_emitted.js').emittedElements();
+const sigOf = (tag, classes) => tag + '|' + classes.slice().sort().join(' ');
+function carryEmitted(el) {
+  for (const e of EMITTED_EL) if (sigOf(e.tag, e.classes) === sigOf(el.tag, el.classes)) for (const k of Object.keys(e.attrs)) if (el.attrs[k] === undefined) el.attrs[k] = e.attrs[k];
+  return el;
+}
 function scene(o) {
   o = o || {};
   const root = mk(mk(null, 'html', {}), 'div', Object.assign({ 'data-v2': '' }, o.root));
   const host = o.wrap ? mk(root, 'div', o.wrap) : root;
   const F = {};
-  const add = (name, parent, desc, attrs) => (F[name] = mk(parent, desc, attrs));
+  const add = (name, parent, desc, attrs) => (F[name] = carryEmitted(mk(parent, desc, attrs)));
   add('text', host, 'p');
   add('btn', host, 'button.btn'); add('btn-primary', host, 'button.btn.btn-primary'); add('btn-quiet', host, 'button.btn.btn-quiet'); add('btn-danger', host, 'button.btn.btn-danger');
   add('a-btn', host, 'a.btn', { href: '#' });
@@ -685,6 +706,35 @@ test('the fixture scene covers every class in the brief, and its icons are bare 
   for (const c of ['btn', 'btn-primary', 'btn-quiet', 'btn-danger', 'field', 'select', 'row', 'card', 'table', 'badge', 'badge-ok', 'badge-warn', 'badge-bad', 'tabs', 'stat'])
     assert(Object.keys(F).some((k) => F[k].classes.includes(c)), 'no fixture uses .' + c);
   for (const n of ICON_FIXTURES) assert(F[n] && F[n].tag === 'svg' && F[n].classes.length === 0, n + ' must be a bare svg with no class, like icon() returns');
+});
+
+// Attribute names that any selector in the live sheet or in components.css tests. Only these can change what a rule matches.
+const SELECTOR_ATTRS = (() => { const set = new Set(); for (const t of [LIVE, need2()]) for (const m of stripComments(t).matchAll(/\[\s*([\w-]+)/g)) set.add(m[1]); return set; })();
+function need2() { return raw === null ? '' : raw; }
+// Fixtures vs emitted markup: every class-bearing element states.js writes must have a fixture of the same tag and classes,
+// and for every attribute a selector can test, some such fixture carries exactly that name and value.
+function driftFailures(fixtures, emitted, selectorAttrs) {
+  const out = [];
+  for (const e of emitted) {
+    const same = fixtures.filter((f) => sigOf(f.tag, f.classes) === sigOf(e.tag, e.classes));
+    if (!same.length) { out.push('no fixture for <' + e.tag + ' class="' + e.classes.join(' ') + '">'); continue; }
+    for (const k of Object.keys(e.attrs)) if (selectorAttrs.has(k) && !same.some((f) => f.attrs[k] === e.attrs[k])) out.push('<' + e.tag + ' class="' + e.classes.join(' ') + '"> is emitted with ' + k + '="' + e.attrs[k] + '" but no fixture carries it');
+  }
+  return out;
+}
+test('the drift checker goes red for an emitted element with no fixture, and for a fixture that lacks an attribute a selector can test', () => {
+  assert(EMITTED_EL.length >= 15, 'the shared reader found only ' + EMITTED_EL.length + ' emitted elements');
+  const fx = Object.values(scene().F);
+  assert(SELECTOR_ATTRS.has('aria-busy') && SELECTOR_ATTRS.has('role'), 'the selector attribute set is missing the ones that matter: ' + Array.from(SELECTOR_ATTRS).join(' '));
+  assert.deepEqual(driftFailures(fx, EMITTED_EL, SELECTOR_ATTRS), [], 'the real scene must pass before the mutants below mean anything');
+  const bare = fx.map((f) => (f.classes.includes('skeleton') ? Object.assign({}, f, { attrs: {} }) : f));
+  assert(driftFailures(bare, EMITTED_EL, SELECTOR_ATTRS).some((x) => /aria-busy/.test(x)), 'a class-only skeleton fixture was not caught');
+  assert(driftFailures(fx.filter((f) => !f.classes.includes('skeleton-bar-short')), EMITTED_EL, SELECTOR_ATTRS).some((x) => /no fixture/.test(x)), 'a missing fixture was not caught');
+  assert(driftFailures(fx, EMITTED_EL.concat([{ tag: 'div', classes: ['brand-new'], attrs: {} }]), SELECTOR_ATTRS).some((x) => /brand-new/.test(x)), 'a new emitted class with no fixture was not caught');
+  assert(driftFailures(fx, EMITTED_EL.concat([{ tag: 'div', classes: ['skeleton'], attrs: { 'aria-busy': 'false' } }]), SELECTOR_ATTRS).some((x) => /aria-busy="false"/.test(x)), 'a new emitted attribute value was not caught');
+});
+test('every class-bearing element ui/states.js emits has a fixture of the same tag and classes carrying every attribute a selector can test (role, aria-busy, aria-live ...)', () => {
+  assert.deepEqual(driftFailures(Object.values(scene().F), EMITTED_EL, SELECTOR_ATTRS), []);
 });
 
 /* ---------- 1. figures: tabular-nums must reach controls ---------- */
@@ -892,14 +942,16 @@ test('yard is 48px controls, 56px rows and 16px text; desk is 32px controls and 
  * Rows additionally carry NO vertical padding and NO top/bottom border, so a row holding a 32px button is exactly 32px.
  * Hindi is outside this check by design: at desk a Hindi line is 15px x 1.7 = 25.5px, so a Hindi button is
  * 25.5 + 8 + 2 = 35.5px, taller than 32px. That is the price of not clipping Devanagari, not a bug. */
-const pxList = (v) => String(v).trim().split(/\s+/).map((t) => { const m = /^(-?[\d.]+)px$/.exec(t); if (m) return +m[1]; if (/^0$/.test(t)) return 0; return NaN; });
-function vPadding(m, el) { const l = pxList(m.computed(el, 'padding') || '0'); if (l.some(isNaN)) return NaN; return l.length === 1 ? 2 * l[0] : l.length === 2 ? 2 * l[0] : l[0] + l[2]; }
+const pxOne = (t) => { t = String(t).trim(); const m = /^(-?[\d.]+)px$/.exec(t); if (m) return +m[1]; if (/^0$/.test(t)) return 0; if (t === 'thin') return 1; if (t === 'medium') return 3; if (t === 'thick') return 5; return NaN; };
+// What is actually in effect for one side, read from the cascade WINNER of the physical longhand (the shorthands and the
+// logical forms padding-block, border-block-end ... are all expanded into it), so no spelling slips past.
+const sidePadding = (m, el, side) => { const v = m.computed(el, 'padding-' + side); return v === undefined ? 0 : pxOne(v); };
 function sideBorder(m, el, side) {
-  const v = m.computed(el, 'border-' + side);
-  if (v === undefined || /^(0|none)\b/.test(v.trim())) return 0;
-  const w = /(?:^|\s)(\d*\.?\d+)px\b/.exec(v);
-  return w ? +w[1] : NaN;
+  const st = m.computed(el, 'border-' + side + '-style'), w = m.computed(el, 'border-' + side + '-width');
+  if (st === undefined || /^(none|hidden)$/.test(st.trim())) return 0; // no style, no border, whatever the width says
+  return w === undefined ? pxOne('medium') : pxOne(w);
 }
+const vPadding = (m, el) => sidePadding(m, el, 'top') + sidePadding(m, el, 'bottom');
 function deskFitFailures(css) {
   const out = [];
   for (const [label, o] of [['desk on root', { root: { 'data-density': 'desk' } }], ['desk container', { wrap: { 'data-density': 'desk' } }]]) {
@@ -927,7 +979,31 @@ test('the desk-fit checker goes red for padding or a border that pushes a 32px r
   hits(deskFitFailures(mutate(css, /(\[data-v2\] \.btn \{[^}]*?)padding: var\(--s1\) var\(--pad\);/, '$1padding: var(--s3);')), '.btn padding var(--s3) was not caught');
   hits(deskFitFailures(mutate(css, /(\[data-v2\] \.table th,\n\[data-v2\] \.table td \{[^}]*?)padding: var\(--s1\) var\(--pad\);/, '$1padding: var(--s4);')), 'td padding var(--s4) was not caught');
   hits(deskFitFailures(mutate(css, /(\[data-v2\] button\.row,\n\[data-v2\] a\.row \{\n  width: 100%;\n)  border: 0;/, '$1  border: 1px solid var(--line);')), 'button.row with a border was not caught');
-  assert.deepEqual(pxList('4px 8px'), [4, 8]); assert.strictEqual(vPadding({ computed: () => '4px 8px' }, {}), 8); assert.strictEqual(vPadding({ computed: () => '1px 2px 3px 4px' }, {}), 4);
+  // the spellings the shorthand-only reader could not see: physical longhands, logical forms, border-width on an existing border
+  const L = (rx, to) => deskFitFailures(mutate(css, rx, to));
+  hits(L(/(\[data-v2\] \.row \{[^}]*?)padding: 0 var\(--pad\);/, '$1padding: 0 var(--pad);\n  padding-top: var(--s2);'), '.row padding-top was not caught');
+  hits(L(/(\[data-v2\] \.row \{[^}]*?)padding: 0 var\(--pad\);/, '$1padding: 0 var(--pad);\n  padding-bottom: var(--s1);'), '.row padding-bottom was not caught');
+  hits(L(/(\[data-v2\] \.btn \{[^}]*?)padding: var\(--s1\) var\(--pad\);/, '$1padding: 0 var(--pad);\n  padding-block: var(--s3);'), '.btn padding-block was not caught');
+  hits(L(/(\[data-v2\] \.btn \{[^}]*?)padding: var\(--s1\) var\(--pad\);/, '$1padding: 0 var(--pad);\n  padding-block-end: var(--s4);'), '.btn padding-block-end was not caught');
+  hits(L(/(\[data-v2\] \.row \{[^}]*?)box-shadow: inset 0 -1px 0 var\(--line\);/, '$1border-block-end: 1px solid var(--line);'), '.row border-block-end was not caught');
+  hits(L(/(\[data-v2\] \.btn \{[^}]*?)border: 1px solid var\(--line\);/, '$1border: 1px solid var(--line);\n  border-bottom-width: 12px;'), '.btn border-bottom-width was not caught');
+  hits(L(/(\[data-v2\] \.btn \{[^}]*?)border: 1px solid var\(--line\);/, '$1border: 1px solid var(--line);\n  border-block-width: 10px;'), '.btn border-block-width was not caught');
+  hits(L(/(\[data-v2\] \.table th,\n\[data-v2\] \.table td \{[^}]*?)(overflow-wrap: anywhere;)/, '$1$2\n  border-block-end: 8px solid var(--line);'), 'td border-block-end was not caught');
+  hits(L(/(\[data-v2\] button\.row,\n\[data-v2\] a\.row \{\n  width: 100%;\n)  border: 0;/, '$1  border: 0;\n  border-bottom-style: solid;\n  border-bottom-width: 1px;'), 'button.row border-bottom-style/width longhands were not caught');
+  // a width with no style draws nothing, so it must NOT be reported (the reader follows the cascade, it does not grep)
+  assert.deepEqual(L(/(\[data-v2\] \.row \{[^}]*?)padding: 0 var\(--pad\);/, '$1padding: 0 var(--pad);\n  border-bottom-width: 9px;'), [], 'a border width with no border style is not a border');
+  // the reader itself, through the model
+  const mm = (css, el) => model([sheetOf('x', 'author', css)]), root = frag().root;
+  const e = mk(root, 'div.a'), M = (css) => model([sheetOf('x', 'author', css)]);
+  assert.strictEqual(vPadding(M('.a{padding:4px 8px}'), e), 8); assert.strictEqual(vPadding(M('.a{padding:1px 2px 3px 4px}'), e), 4);
+  assert.strictEqual(vPadding(M('.a{padding:4px 8px;padding-top:0}'), e), 4, 'a later longhand beats an earlier shorthand');
+  assert.strictEqual(vPadding(M('.a{padding-top:9px;padding:0}'), e), 0, 'a later shorthand beats an earlier longhand');
+  assert.strictEqual(vPadding(M('.a{padding-block:3px 5px}'), e), 8); assert.strictEqual(vPadding(M('.a{padding-block-start:2px}'), e), 2);
+  assert.strictEqual(sideBorder(M('.a{border:2px solid red}'), e, 'top') + sideBorder(M('.a{border:2px solid red}'), e, 'bottom'), 4);
+  assert.strictEqual(sideBorder(M('.a{border:0}'), e, 'bottom'), 0); assert.strictEqual(sideBorder(M('.a{border:2px solid red;border-bottom:0}'), e, 'bottom'), 0);
+  assert.strictEqual(sideBorder(M('.a{border-block-end:3px solid red}'), e, 'bottom'), 3); assert.strictEqual(sideBorder(M('.a{border-block-end:3px solid red}'), e, 'top'), 0);
+  assert.strictEqual(sideBorder(M('.a{border:1px solid red;border-bottom-width:6px}'), e, 'bottom'), 6);
+  assert.strictEqual(sideBorder(M('.a{border-block-width:4px;border-style:solid}'), e, 'top'), 4);
 });
 test('at desk a 32px control, row or cell fits one Latin line plus its padding and borders in 32px, and a row has no vertical padding or border (Hindi lines are taller by design)', () => {
   assert.deepEqual(deskFitFailures(need()), []);
@@ -1265,12 +1341,13 @@ test('a note marked stale looks different from a plain age note (colour resolved
 // The decision recorded in the header: the states do not move. Scoped to the state selectors, so Task 5's overlay motion is not caught here.
 const STATE_SELECTOR = /\.(state|empty|state-[\w-]+|skeleton[\w-]*|figure[\w-]*|sr-only)\b/;
 function stateMotion(css) {
-  return rulesOf(css).filter((r) => STATE_SELECTOR.test(r.selector)).flatMap((r) => r.list.filter(([p]) => /^(animation|transition|transform|will-change)/.test(p)).map(([p]) => r.selector + ' { ' + p + ' }'));
+  return rulesOf(css).filter((r) => STATE_SELECTOR.test(r.selector)).flatMap((r) => r.list.filter(([p, v]) => /^(animation|transition|transform|will-change)/.test(p) && !(p === 'transition' && v === 'none')).map(([p]) => r.selector + ' { ' + p + ' }'));
 }
 test('no state, skeleton or figure rule animates, transitions or transforms (the skeleton is static; a looping shimmer cannot meet the 300ms ceiling)', () => {
   hits(stateMotion('[data-v2] .skeleton-bar{animation:pulse 1s infinite}'), 'blind to animation'); hits(stateMotion('[data-v2] .skeleton-bar{transition:opacity 100ms ease-out}'), 'blind to transition');
   hits(stateMotion('[data-v2] .state{transform:scale(1)}'), 'blind to transform'); hits(stateMotion('[data-v2] .figure-note{will-change:opacity}'), 'blind to will-change');
   assert.deepEqual(stateMotion('[data-v2] .btn{transition:transform 120ms ease-out}'), [], 'false positive on a rule that is not a state');
+  assert.deepEqual(stateMotion('[data-v2] .skeleton{transition:none}'), [], '"transition: none" is how a state refuses the live app\'s transition, not an animation');
   assert(rulesOf(need()).filter((r) => STATE_SELECTOR.test(r.selector)).length >= 15, 'the selector found too few state rules; the check would pass vacuously');
   assert.deepEqual(stateMotion(need()), []);
 });
