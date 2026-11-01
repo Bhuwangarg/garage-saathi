@@ -1,0 +1,451 @@
+/* Garage Saathi v2 - the static component layer.
+ * Button (3 kinds), field, select, row, card, table, badge (3 kinds), tabs, stat. Overlays are Task 5.
+ * Consumes ui/tokens.css; defines no colour, no size and no font of its own. Test: test_ui_components.js.
+ *
+ * Browser floor is Chrome 109 (Windows 7 office PCs): no oklch(), color-mix(), nesting, @starting-style,
+ * subgrid or text-wrap. :is(), :not(), grid and gap are all fine there.
+ *
+ * SCOPE, AND WHY THERE IS NO @layer. Every selector starts with [data-v2], like tokens.css, so this file can
+ * sit in one document with the live styles.css for the whole screen-by-screen migration. The live file
+ * already owns .btn, .card, .row, .badge and .stat, and sets properties on bare input, select and textarea,
+ * all UNLAYERED. A cascade layer always loses to unlayered rules, whatever their specificity, so putting
+ * these rules in @layer components would hand every conflicting property back to the live app. Instead the
+ * [data-v2] prefix gives each rule one more level of specificity (0,2,0 beats the live 0,1,0), and every
+ * component sets each property the live rule would otherwise leak through (test_ui_components.js proves it
+ * against the real styles.css). Order of the file is the only ordering needed.
+ *
+ * MARKUP CONTRACT
+ *   <button class="btn [btn-primary|btn-quiet|btn-danger]">  also <a class="btn">
+ *   <input class="field"> <textarea class="field"> <select class="select">
+ *   <div class="row"><span class="lead"></span><div class="txt"><div class="t"></div><div class="sub"></div></div>
+ *       <div class="act"></div></div>      (button.row and a.row are the pressable forms)
+ *   <div class="card">   <table class="table"> (td.fig right-aligns a figure)   <span class="badge [badge-ok|-warn|-bad]">
+ *   <div class="tabs" role="tablist"><button role="tab" aria-selected="true">   <div class="stat"><span class="k"><span class="v">
+ * Icons are bare <svg> from icon(): put them straight inside any of the above.
+ * A badge or an invalid field is never colour alone: carry a word and an icon in the markup as well.
+ *
+ * DENSITY. Everything sizes from --tap, --row-h, --pad and --t1..--t6, which tokens.css switches on
+ * [data-density="yard"|"desk"]. font-size is declared on the density container too (see below) because a
+ * var() in a declaration is resolved on the element that declares it and then inherited as a length: without
+ * that rule a desk container inside a yard page would keep the page's 16px.
+ *
+ * FIGURES. tokens.css sets tabular-nums on [data-v2] and it inherits to ordinary text. It does NOT reach a
+ * button, input, select or textarea: Chrome's UA stylesheet gives those a font: shorthand, which resets
+ * font-variant-numeric to normal, and so does any author font: (the live styles.css has several). So the
+ * control rule below re-declares it on the control itself, and this file never uses a font: or
+ * font-variant: shorthand. The :is() list contains classes so the rule has specificity 0,2,0 whichever
+ * member matches; that is what lets it beat the live `.gc-seg button` (0,1,1) on a bare <button>.
+ *
+ * ICONS. icon() returns an svg with no class. Beside text it would sit on the baseline, which is too high.
+ * The hosts below are flex containers that centre it, and an svg inside any host is also lifted off the
+ * baseline for the inline case (a row title, a table cell) and told not to shrink.
+ *
+ * HINDI. Devanagari needs about 1.7 line-height where Latin takes 1.4, and Windows 7 would otherwise map it
+ * to Mangal. :lang(hi) (not [lang="hi"]) is used so lang="hi-IN" and a lang set on an ancestor both match.
+ * Line-height is carried by --lh, set once per language, so a component that says line-height: var(--lh)
+ * can never override the Hindi value with a Latin one. Truncating text (.row .t) clips to its line box, so
+ * it needs that height most.
+ *
+ * MOTION. Only transform and opacity, never over 300ms, ease-out. Press feedback is scale(0.97) at 120ms.
+ * Navigation, lists and tab switches do not animate. prefers-reduced-motion removes the movement and keeps
+ * the acknowledgement as opacity. No animation or @keyframes yet: skeleton and overlays arrive in Tasks 4-5. */
+
+/* ---------- base ---------- */
+[data-v2],
+[data-v2] *,
+[data-v2] *::before,
+[data-v2] *::after {
+  box-sizing: border-box;
+}
+
+[data-v2] {
+  --lh: 1.4;
+  font-family: var(--font);
+  font-size: var(--t5);
+  line-height: var(--lh);
+  color: var(--ink);
+  background: var(--surface);
+}
+
+/* A density container re-resolves the body size against its own tokens. */
+[data-v2][data-density],
+[data-v2] [data-density] {
+  font-size: var(--t5);
+}
+
+/* Controls: the UA font: shorthand resets font-variant-numeric and font-family, so say both again. */
+[data-v2] :is(button, input, select, textarea, .btn, .field, .select) {
+  font-family: inherit;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- icons ---------- */
+[data-v2] .btn svg,
+[data-v2] .badge svg,
+[data-v2] .row svg,
+[data-v2] .stat svg,
+[data-v2] .tabs [role="tab"] svg,
+[data-v2] .table svg {
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+
+/* ---------- pressables: one transition, one press ---------- */
+[data-v2] .btn,
+[data-v2] .tabs [role="tab"],
+[data-v2] button.row,
+[data-v2] a.row {
+  transition: transform 120ms ease-out, opacity 120ms ease-out;
+}
+
+[data-v2] .btn:active:not(:disabled):not([aria-disabled="true"]),
+[data-v2] .tabs [role="tab"]:active:not(:disabled),
+[data-v2] button.row:active:not(:disabled),
+[data-v2] a.row:active {
+  transform: scale(0.97);
+}
+
+/* ---------- button ---------- */
+[data-v2] .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s2);
+  width: auto;
+  min-width: var(--tap);
+  min-height: var(--tap);
+  margin: 0;
+  padding: var(--s1) var(--pad);
+  background: var(--surface-raised);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: none;
+  font-size: var(--t5);
+  font-weight: 600;
+  line-height: var(--lh);
+  word-spacing: normal;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+[data-v2] .btn-primary {
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-color: var(--accent);
+}
+
+[data-v2] .btn-quiet {
+  background: transparent;
+  color: var(--accent-text);
+  border-color: transparent;
+}
+
+[data-v2] .btn-danger {
+  color: var(--bad);
+  border-color: var(--bad);
+}
+
+[data-v2] .btn:disabled,
+[data-v2] .btn[aria-disabled="true"] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ---------- field and select ---------- */
+[data-v2] .field,
+[data-v2] .select {
+  display: block;
+  width: 100%;
+  min-height: var(--tap);
+  margin: 0;
+  padding: var(--s1) var(--pad);
+  background: var(--surface-raised);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: var(--t5);
+  line-height: var(--lh);
+}
+
+[data-v2] textarea.field {
+  min-height: calc(var(--tap) * 2);
+  resize: vertical;
+}
+
+[data-v2] .field::placeholder {
+  color: var(--ink-dim);
+  opacity: 1;
+}
+
+/* An invalid field gets a second, inner edge as well as the colour; the message beside it carries the words. */
+[data-v2] .field[aria-invalid="true"] {
+  border-color: var(--bad);
+  box-shadow: inset 0 0 0 1px var(--bad);
+}
+
+[data-v2] .field:disabled,
+[data-v2] .select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ---------- row: a grid, so a long name truncates instead of shrinking the action ----------
+ * The hairline is an inset shadow, not a border, so it takes no height: a desk row holding a 32px button
+ * is exactly 32px, not 33. */
+[data-v2] .row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0;
+  min-height: var(--row-h);
+  margin: 0;
+  padding: 0 var(--pad);
+  background: transparent;
+  color: var(--ink);
+  box-shadow: inset 0 -1px 0 var(--line);
+  font-size: var(--t5);
+  font-weight: 400;
+  line-height: var(--lh);
+  text-align: left;
+  text-decoration: none;
+}
+
+[data-v2] .row > * {
+  grid-column: 2;
+  grid-row: 1;
+  min-width: 0;
+}
+
+[data-v2] .row > .lead {
+  grid-column: 1;
+  display: flex;
+  align-items: center;
+  margin-inline-end: var(--s3);
+  color: var(--ink-dim);
+}
+
+[data-v2] .row > .act {
+  grid-column: 3;
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  margin-inline-start: var(--s3);
+  white-space: nowrap;
+}
+
+[data-v2] .row .t {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  word-spacing: normal;
+  font-weight: 600;
+}
+
+[data-v2] .row .sub {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink-dim);
+  font-size: var(--t6);
+}
+
+[data-v2] button.row,
+[data-v2] a.row {
+  width: 100%;
+  border: 0;
+  cursor: pointer;
+}
+
+/* ---------- card ---------- */
+[data-v2] .card {
+  margin: 0;
+  padding: var(--pad);
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: none;
+}
+
+/* ---------- table ---------- */
+[data-v2] .table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+[data-v2] .table th,
+[data-v2] .table td {
+  height: var(--row-h);
+  padding: var(--s1) var(--pad);
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: middle;
+  overflow-wrap: anywhere;
+}
+
+[data-v2] .table th {
+  color: var(--ink-dim);
+  font-size: var(--t6);
+  font-weight: 600;
+}
+
+/* A figure column: right-aligned so the digits line up (tabular-nums does the rest). */
+[data-v2] .table .fig {
+  text-align: right;
+}
+
+/* ---------- badge ---------- */
+[data-v2] .badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s1);
+  padding: var(--s1) var(--s2);
+  background: transparent;
+  color: var(--ink-dim);
+  border: 1px solid currentcolor;
+  border-radius: 999px;
+  font-size: var(--t6);
+  font-weight: 600;
+  line-height: var(--lh);
+  white-space: nowrap;
+}
+
+[data-v2] .badge-ok {
+  color: var(--ok);
+}
+
+[data-v2] .badge-warn {
+  color: var(--warn);
+}
+
+[data-v2] .badge-bad {
+  color: var(--bad);
+}
+
+/* ---------- tabs: the selected one has a bar, not only a colour ---------- */
+[data-v2] .tabs {
+  display: flex;
+  gap: var(--s1);
+  margin: 0;
+  padding: 0;
+  border-bottom: 1px solid var(--line);
+  overflow-x: auto;
+}
+
+[data-v2] .tabs [role="tab"] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s2);
+  min-height: var(--tap);
+  margin: 0;
+  padding: 0 var(--pad);
+  background: transparent;
+  color: var(--ink-dim);
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  font-size: var(--t5);
+  font-weight: 600;
+  line-height: var(--lh);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+[data-v2] .tabs [role="tab"][aria-selected="true"] {
+  color: var(--accent-text);
+  border-bottom: 2px solid var(--accent);
+}
+
+/* ---------- stat ---------- */
+[data-v2] .stat {
+  display: block;
+  margin: 0;
+  font-size: var(--t5);
+  font-weight: 400;
+  letter-spacing: normal;
+}
+
+[data-v2] .stat .k {
+  display: block;
+  color: var(--ink-dim);
+  font-size: var(--t6);
+}
+
+[data-v2] .stat .v {
+  display: block;
+  font-size: var(--t2);
+  font-weight: 700;
+  line-height: var(--lh);
+}
+
+/* ---------- focus: a visible ring on every control, for keyboards ---------- */
+[data-v2] .btn:focus-visible,
+[data-v2] .field:focus-visible,
+[data-v2] .select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Inside the edge: these sit in lists and tab strips that clip an outer ring. */
+[data-v2] .tabs [role="tab"]:focus-visible,
+[data-v2] button.row:focus-visible,
+[data-v2] a.row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* ---------- hover (pointer devices only, so a tap on a phone leaves nothing stuck) ---------- */
+@media (hover: hover) {
+  [data-v2] .btn:hover {
+    border-color: var(--ink-dim);
+  }
+
+  [data-v2] .btn-primary:hover {
+    border-color: var(--accent-ink);
+  }
+
+  [data-v2] .btn-quiet:hover {
+    border-color: var(--line);
+  }
+
+  [data-v2] .btn-danger:hover {
+    border-color: var(--bad);
+  }
+
+  [data-v2] .tabs [role="tab"]:hover {
+    color: var(--ink);
+  }
+
+  [data-v2] button.row:hover,
+  [data-v2] a.row:hover {
+    background: var(--surface-raised);
+  }
+}
+
+/* ---------- Hindi: after everything that sets a font or a line-height ---------- */
+[data-v2]:lang(hi),
+[data-v2] :lang(hi) {
+  --lh: 1.7;
+  font-family: var(--font-hi);
+  line-height: var(--lh);
+}
+
+/* ---------- reduced motion: no movement, the acknowledgement stays as opacity ---------- */
+@media (prefers-reduced-motion: reduce) {
+  [data-v2] .btn,
+  [data-v2] .tabs [role="tab"],
+  [data-v2] button.row,
+  [data-v2] a.row {
+    transition: opacity 120ms ease-out;
+  }
+
+  [data-v2] .btn:active:not(:disabled):not([aria-disabled="true"]),
+  [data-v2] .tabs [role="tab"]:active:not(:disabled),
+  [data-v2] button.row:active:not(:disabled),
+  [data-v2] a.row:active {
+    transform: none;
+    opacity: 0.8;
+  }
+}
