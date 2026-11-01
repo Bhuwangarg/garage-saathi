@@ -1445,7 +1445,29 @@ function storeSig(arr) {
   }
   return arr.length + ':' + max;
 }
-const sigOf = (...names) => names.map((n) => storeSig(S.cache[n])).join('|');
+/* A store's signature, remembered alongside the array it was taken from.
+ *
+ * storeSig walks every row, which is the right cost when a memo is checked once
+ * per render and the wrong one when it is checked once per crew member:
+ * driverOverall runs for all 110 of them, and re-reading forty thousand GPS rows
+ * on each check cost 200ms -- the same shape of waste as the scan it was written
+ * to replace.
+ *
+ * An array's signature cannot change while it is the same array, unless a record
+ * inside it is edited in place. Every write path replaces the array -- load()
+ * re-reads whatever was written before anything looks at it again -- so identity
+ * is a sound thing to key on, and a changed identity recomputes immediately.
+ * storeSig itself stays content-based for callers that hold an array directly. */
+const _sigSeen = Object.create(null);
+function cachedSig(name) {
+  const arr = S.cache[name];
+  const seen = _sigSeen[name];
+  if (seen && seen.arr === arr) return seen.sig;
+  const sig = storeSig(arr);
+  _sigSeen[name] = { arr, sig };
+  return sig;
+}
+const sigOf = (...names) => names.map(cachedSig).join('|');
 
 /* Every store the app holds in memory, as `cache key: [object store, tolerant]`.
  *
@@ -2161,10 +2183,37 @@ const GPS_EVENT = {
   night:      { label: 'Night movement', icon: '🌙', pen: 5 },
   idle:       { label: 'Long idle',      icon: '🐌', pen: 1 },
 };
+/* Every GPS safety event, grouped by the registration it was reported against.
+ *
+ * gpsEventsForBus() used to walk the whole table per call, normalising the
+ * registration of every row as it went. driverScore() calls it once per driver,
+ * so any screen listing the crew normalised forty thousand registrations a
+ * hundred and ten times over -- about 4.4 million string rewrites, measured at
+ * 808ms on a fleet-sized device and paid again on every single render. Grouped
+ * once here instead, which is the same work done 110 times fewer.
+ *
+ * Keyed on the store's own signature, so it is rebuilt when events arrive and
+ * not otherwise. Both callers filter the result into a new array before using
+ * it, so handing out the stored one is safe -- a caller that sorted or spliced
+ * it in place would be reordering the index for everybody. */
+let _gpsByBusMemo = { key: null, map: null };
+function gpsByBus() {
+  const key = storeSig(S.cache.gpsevents);
+  if (_gpsByBusMemo.key === key && _gpsByBusMemo.map) return _gpsByBusMemo.map;
+  const map = new Map();
+  for (const e of S.cache.gpsevents || []) {
+    const nr = _normReg(e.reg);
+    let l = map.get(nr);
+    if (!l) { l = []; map.set(nr, l); }
+    l.push(e);
+  }
+  for (const l of map.values()) l.sort((a, b) => b.at - a.at);
+  _gpsByBusMemo = { key, map };
+  return map;
+}
 const gpsEventsForBus = (busId) => {
   const b = byId(S.cache.buses, busId); if (!b) return [];
-  const nr = _normReg(b.regNo);
-  return (S.cache.gpsevents || []).filter((e) => _normReg(e.reg) === nr).sort((a, b2) => b2.at - a.at);
+  return gpsByBus().get(_normReg(b.regNo)) || [];
 };
 function driverScore(driverId) {
   const since = Date.now() - 90 * day;
@@ -10731,10 +10780,23 @@ const RV_VIA = { gate: ['🚦', 'rvSrcGate'], duty: ['📋', 'rbViaDuty'], redpr
 /* Total performance = conduct (incidents + GPS, the existing score) blended half and half with
  * what passengers said (redBus stars, 1★ = 0 and 5★ = 100), both over the last 90 days. The
  * passenger half only counts from RV_MIN_SAMPLE rated trips: a few reviews judge nobody. */
+/* Memoised per crew member, because the screens that want it want all of them.
+ * The office leaderboard and the crew bank ask for every driver and conductor on
+ * every render, and this was recomputed each time: 808ms for 110 of them even
+ * once the review index was warm. Lazily filled and dropped whole the moment any
+ * store it reads changes, so a stale score cannot outlive the record behind it. */
+let _overallMemo = { key: null, map: null };
 function driverOverall(id) {
+  const key = sigOf('incidents', 'gpsevents', 'drivers', 'buses',
+                    'rbreviews', 'rbassign', 'rbalias', 'itslookup', 'dutylog', 'rbreviewai');
+  if (_overallMemo.key !== key || !_overallMemo.map) _overallMemo = { key, map: new Map() };
+  const hit = _overallMemo.map.get(id);
+  if (hit) return hit;
   const conduct = driverScore(id);
   const since = Date.now() - 90 * day;
-  return overallFrom(conduct, (rvCrewIndex().get(id) || []).filter((x) => rvBoard(x.r) >= since && rvCountsFor((rvAiOf(x.r) || {}).faults, x.role)).map((x) => x.r));
+  const v = overallFrom(conduct, (rvCrewIndex().get(id) || []).filter((x) => rvBoard(x.r) >= since && rvCountsFor((rvAiOf(x.r) || {}).faults, x.role)).map((x) => x.r));
+  _overallMemo.map.set(id, v);
+  return v;
 }
 // The same blend from a list of reviews already limited to 90 days (a crew member's own copy).
 function overallFrom(conduct, reviews) {

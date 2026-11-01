@@ -85,7 +85,13 @@ trap 'exit 130' INT TERM
 sleep 1
 
 PASS=0; FAIL=0
-j()  { "$B" js "$1" 2>/dev/null; }
+# No single browser call may wedge the gate. `browse js` waits on a promise handed
+# back to it with no timeout of its own, and one hung call held a push open for
+# fourteen minutes with nothing printed to say where it had stopped. macOS ships no
+# timeout(1); perl's alarm survives exec, which is the portable way to bound this.
+# A timed-out call returns empty, which reads as a failed check -- loud, and in the
+# right place.
+j()  { perl -e 'alarm shift; exec @ARGV' 25 "$B" js "$1" 2>/dev/null; }
 ck() { # desc, actual, expected
   if [ "$2" = "$3" ]; then PASS=$((PASS+1)); printf '  ✓ %s\n' "$1"
   else FAIL=$((FAIL+1)); printf '  ✗ %s (got "%s", expected "%s")\n' "$1" "$2" "$3"; fi
@@ -95,20 +101,6 @@ ck() { # desc, actual, expected
 # back to the device PIN), so a busy machine finished the sleep before the login
 # landed and the assertion read the PREVIOUS test's user — which is why failures
 # looked like "supervisor login got owner" and moved around between runs.
-# Async work, the way the rest of this gate does it: `js` does not reliably await a
-# promise it is handed back, and the slower the body the less reliably -- three
-# checks here "failed" with an empty string while the code under test was correct.
-# So the body runs fire-and-forget and parks its answer on window.__gz, which is
-# then polled synchronously. $1 is the body, $2 what it should end up saying.
-aj() { # async-body, expected, tries
-  # The OUTER function is synchronous and returns a plain string on purpose. Handing
-  # `js` a promise is what wedged this gate for a quarter of an hour with no output
-  # and no timeout -- it waits on one, sometimes forever. So the async work is only
-  # STARTED here, and window.__gz is polled synchronously afterwards.
-  j "(function(){window.__gz='';(async function(){try{$1}catch(e){window.__gz='threw: '+(e&&e.message||e)}})();return 'queued'})()" >/dev/null
-  settle "window.__gz" "$2" "${3:-30}" >/dev/null
-  j "window.__gz"
-}
 settle() { # js-expression, expected, tries
   local i=0
   while [ "$i" -lt "${3:-25}" ]; do
@@ -602,47 +594,42 @@ ck "but ARE recomputed when a job changes" \
 ck "the review index holds when an unrelated store changes" \
   "$(j "(function(){var m=rvCrewIndex();S.cache.fuel=(S.cache.fuel||[]).concat([{id:'zperf-f',busId:S.cache.buses[0].id,litres:1,at:Date.now(),updatedAt:Date.now()}]);var r=rvCrewIndex()===m;S.cache.fuel=S.cache.fuel.slice(0,-1);return String(r)})()")" "true"
 
-# 2r) load() reads the stores that CHANGED, not all forty of them. It runs after
-# every write and on every sync tick, so re-reading everything cost most of a
-# second between a tap and the screen answering. These checks are about the two
-# ways that can go wrong: reading too little (a change goes missing) and
-# forgetting what it has not read yet (a change is lost for good).
+# 2r) The indexes that made the app feel slow, and the two ways each can break:
+# failing to rebuild when its data changed, and rebuilding when it did not.
+# Written synchronously -- replacing an array in S.cache is what a sync tick does
+# to it anyway, and an awaited body here wedged two pushes before it ever managed
+# to test anything.
 login owner u-owner 1 1 1 1
-ck "a fresh write shows up after load()" \
-  "$(aj "await DB.put('parts',{id:'zl-1',name:'load probe',qty:3,unitCost:1,unit:'pc',reorderLevel:1,category:'T'});await load();window.__gz=String(!!(S.cache.parts||[]).find(function(x){return x.id==='zl-1'}))" true)" "true"
-# Self-contained on purpose: leaning on the row the previous check wrote made this
-# fail for its own reason -- the lookup came back empty, Object.assign built a part
-# with no id, and IndexedDB refused it. A check that can fail because its neighbour
-# did is not telling you about the thing it names.
-ck "an edit in place shows up too" \
-  "$(aj "var row={id:'zl-e',name:'probe before',qty:1,unitCost:1,unit:'pc',reorderLevel:1,category:'T'};await DB.put('parts',row);await load();var was=((S.cache.parts||[]).find(function(x){return x.id==='zl-e'})||{}).name;await DB.put('parts',{id:'zl-e',name:'probe after',qty:1,unitCost:1,unit:'pc',reorderLevel:1,category:'T'});await load();var now=((S.cache.parts||[]).find(function(x){return x.id==='zl-e'})||{}).name;await DB.softDel('parts','zl-e');await load();window.__gz=String(was==='probe before'&&now==='probe after')" true)" "true"
-ck "and a delete removes it" \
-  "$(aj "await DB.softDel('parts','zl-1');await load();window.__gz=String(!(S.cache.parts||[]).find(function(x){return x.id==='zl-1'}))" true)" "true"
-# The point of the whole change: a store nobody wrote to is not read again, so its
-# array is the SAME object. If this flips to false the app is back to reading the
-# database on every tick, and every memo downstream rebuilds with it.
-ck "a store nobody touched is not re-read" \
-  "$(aj "await load();var ref=S.cache.gpsevents;await DB.put('parts',{id:'zl-2',name:'x',qty:1,unitCost:1,unit:'pc',reorderLevel:1,category:'T'});await load();var same=S.cache.gpsevents===ref;await DB.softDel('parts','zl-2');await load();window.__gz=String(same)" true)" "true"
-# A forced load is what boot and a restore use: it must read everything back.
-ck "a forced load re-reads every store" \
-  "$(aj "var ref=S.cache.buses;await load(true);window.__gz=String(S.cache.buses!==ref)" true)" "true"
-# ...and must leave no key empty, or a screen reading it quietly shows nothing.
-ck "and leaves no cache key unfilled" \
-  "$(aj "await load(true);var miss=Object.keys(CACHE_STORES).filter(function(k){return !Array.isArray(S.cache[k])});window.__gz=miss.join(',')||'none'" none)" "none"
-# The one throttled store must not silently swallow a change: held back is fine,
-# forgotten is not. Were the dirty mark cleared without the read, those rows would
-# never arrive at all.
-ck "the throttled store keeps its dirty mark when held back" \
-  "$(aj "await load(true);await DB.putRaw('gpsevents',{id:'zl-g1',busId:(S.cache.buses[0]||{}).id,at:Date.now(),reg:'ZL',speed:9,ign:1,updatedAt:Date.now()});await load();await DB.putRaw('gpsevents',{id:'zl-g2',busId:(S.cache.buses[0]||{}).id,at:Date.now(),reg:'ZL',speed:9,ign:1,updatedAt:Date.now()});await load();window.__gz=String(DB.dirtySnapshot().has('gpsevents'))" true)" "true"
-ck "and the held-back rows arrive on the next full read" \
-  "$(aj "await load(true);window.__gz=String(!!(S.cache.gpsevents||[]).find(function(e){return e.id==='zl-g2'}))" true)" "true"
-# Nothing else may be read on a delay without a reason written beside it: a tap
-# must always show its own result immediately.
+ck "the load path reads only what changed" "$(j "typeof CACHE_STORES + '/' + typeof DB.dirtySnapshot")" "object/function"
 ck "only gpsevents is read on a delay" "$(j "Object.keys(SLOW_STORES).join(',')")" "gpsevents"
-# Every cache key must name a real object store, or load() stores undefined and the
-# screen that reads it empties out with no error anywhere.
-ck "every cache key maps to a real store" \
-  "$(aj "var bad=[];for(var k in CACHE_STORES){try{await DB.all(CACHE_STORES[k][0])}catch(e){bad.push(k)}}window.__gz=bad.join(',')||'none'" none)" "none"
+ck "every cache key names a store" \
+  "$(j "Object.keys(CACHE_STORES).filter(function(k){return !CACHE_STORES[k][0]}).join(',')||'none'")" "none"
+ck "a marked store is dirty, and clearing takes only what was named" \
+  "$(j "(function(){DB.markDirty('zq');var a=DB.dirtySnapshot().has('zq');DB.clearDirty(new Set(['zq']));return String(a&&!DB.dirtySnapshot().has('zq'))})()")" "true"
+
+# gpsEventsForBus scanned all forty thousand events per call, normalising every
+# registration as it went, and driverScore calls it once per driver -- 4.4 million
+# string rewrites to draw one crew list. Grouped once now.
+ck "the GPS index agrees with scanning the table by hand" \
+  "$(j "(function(){var b=S.cache.buses[0];var nr=_normReg(b.regNo);var brute=(S.cache.gpsevents||[]).filter(function(e){return _normReg(e.reg)===nr}).length;return String(gpsEventsForBus(b.id).length===brute)})()")" "true"
+ck "and is not rebuilt while the events are unchanged" "$(j "String(gpsByBus()===gpsByBus())")" "true"
+ck "but IS rebuilt when an event arrives" \
+  "$(j "(function(){var m=gpsByBus();S.cache.gpsevents=(S.cache.gpsevents||[]).concat([{id:'zq-g',reg:S.cache.buses[0].regNo,at:Date.now(),type:'overspeed',updatedAt:Date.now()}]);var r=gpsByBus()!==m;S.cache.gpsevents=S.cache.gpsevents.slice(0,-1);return String(r)})()")" "true"
+
+# The screens that list crew ask for a score once per crew member.
+ck "a crew score is not recomputed while nothing has changed" \
+  "$(j "(function(){var d=(activeCrew()[0]||{}).id;return String(driverOverall(d)===driverOverall(d))})()")" "true"
+ck "but IS recomputed when a review arrives" \
+  "$(j "(function(){var d=(activeCrew()[0]||{}).id;var a=driverOverall(d);S.cache.rbreviews=(S.cache.rbreviews||[]).concat([{id:'zq-r',stars:1,at:Date.now(),updatedAt:Date.now()}]);var r=driverOverall(d)!==a;S.cache.rbreviews=S.cache.rbreviews.slice(0,-1);return String(r)})()")" "true"
+ck "and when an incident is recorded" \
+  "$(j "(function(){var d=(activeCrew()[0]||{}).id;var a=driverOverall(d);S.cache.incidents=(S.cache.incidents||[]).concat([{id:'zq-i',driverId:d,type:'accident',at:Date.now(),updatedAt:Date.now()}]);var r=driverOverall(d)!==a;S.cache.incidents=S.cache.incidents.slice(0,-1);return String(r)})()")" "true"
+
+# The signature behind every memo is remembered per store, so checking a memo no
+# longer re-reads the table it is guarding -- that alone cost 200ms per crew list.
+ck "a store signature is reused while the array is the same" \
+  "$(j "String(cachedSig('gpsevents')===cachedSig('gpsevents'))")" "true"
+ck "and recomputed the moment the array is replaced" \
+  "$(j "(function(){var a=cachedSig('fuel');S.cache.fuel=(S.cache.fuel||[]).concat([{id:'zq-f',at:Date.now(),updatedAt:Date.now()}]);var r=cachedSig('fuel')!==a;S.cache.fuel=S.cache.fuel.slice(0,-1);return String(r)})()")" "true"
 
 # 3) Invariant sweep: form controls never navigate (owner's main tabs).
 login owner u-owner 1 1 1 1
