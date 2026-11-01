@@ -1,0 +1,55 @@
+name: Health
+
+# Was keepalive.yml, which pinged /health every ten minutes for one reason: a FREE
+# Supabase project pauses after about seven days of inactivity, and every request
+# reads Postgres, so the traffic was what stopped it. The project is on Pro now and
+# paid projects are not paused, so that reason is gone.
+#
+# What is NOT gone is the need to find out when the server stops working, because
+# nothing else here does. So the ping stays and gets honest: /health answers 200
+# with {"ok":true} even when it cannot reach the database at all -- it reports that
+# in `dbOk` and `dbMode` instead. A check reading only the status code was green
+# through exactly the outage it was supposed to catch.
+#
+# A failed scheduled run emails the repository owner, which is the whole alerting
+# this project has. Treat a mail from here as the database being unreachable.
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch: {}
+
+concurrency:
+  group: health
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ask /health whether the database is actually reachable
+        run: |
+          URL="https://garage-saathi-sync.vercel.app/health"
+          # Retried because a cold serverless container plus a first Postgres
+          # connection can genuinely take a while; a single slow answer is not an
+          # outage. Four tries over a minute is, though.
+          for i in 1 2 3 4; do
+            code=$(curl -s -o /tmp/h.json -w "%{http_code}" --max-time 90 "$URL" || echo 000)
+            if [ "$code" = "200" ]; then
+              dbok=$(jq -r '.dbOk // false'   /tmp/h.json)
+              mode=$(jq -r '.dbMode // "?"'   /tmp/h.json)
+              sha=$(jq  -r '.commit // "?"'   /tmp/h.json)
+              err=$(jq  -r '.dbError // ""'   /tmp/h.json)
+              if [ "$dbok" = "true" ]; then
+                echo "OK — db=$mode commit=$sha"
+                exit 0
+              fi
+              # 200 and ok:true, and the database is NOT there. This is the case
+              # the old check could not see.
+              echo "::error::/health answered 200 but the database is unreachable — dbMode=$mode dbError=$err"
+              exit 1
+            fi
+            echo "attempt $i got HTTP $code — retrying in 20s"
+            sleep 20
+          done
+          echo "::error::/health did not answer 200 after four tries over a minute"
+          exit 1
