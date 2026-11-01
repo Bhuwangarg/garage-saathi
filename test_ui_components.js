@@ -473,7 +473,7 @@ test('never removes the focus outline (no outline: none, outline: 0, outline-sty
   assert.deepEqual(find('.a{outline:2px solid red}'), []);
   assert.deepEqual(find(need()), []);
 });
-test('declares no animation or @keyframes yet (Tasks 4 and 5 add and test their own; the motion tests below cover transitions)', () => {
+test('declares no animation or @keyframes (the skeleton is static on purpose, see the header and the states section below; Task 5 must extend the motion tests when it adds overlay motion)', () => {
   const find = (css) => [].concat(absent(css, /@keyframes\b/), declsOf(css).filter((d) => /^animation/.test(d.prop)).map((d) => d.prop));
   hits(find('@keyframes x{from{opacity:0}}'), 'blind to @keyframes'); hits(find('.a{animation:x 1s}'), 'blind to animation:');
   assert.deepEqual(find(need()), []);
@@ -529,14 +529,23 @@ test('every var(--token) in ui/components.css names a custom property that token
 /* ---------- lengths: tokens, not magic numbers ---------- */
 // px literals are for hairlines and radii only. Sizes, type and spacing must come from the tokens, or desk and yard drift apart.
 const PX_OK_PROP = /^(?:border(?:-[a-z-]+)?|outline(?:-offset)?|box-shadow)$/;
+// One exemption, as narrow as it can be: the visually-hidden helper is 1px by DEFINITION (a 0 box is dropped from the
+// accessibility tree by some screen readers), and it is not a density-sized component. Only that selector, only
+// width, height and margin, only 1px / -1px.
+const SR_ONLY_PX = (d) => d.sel === '[data-v2] .sr-only' && ((d.prop === 'width' || d.prop === 'height') && d.val === '1px' || d.prop === 'margin' && d.val === '-1px');
 function magicPx(css) {
-  return declsOf(css).filter((d) => /(?<![\w.-])-?\d*\.?\d+px\b/.test(d.val.replace(/var\(\s*--[\w-]+\s*,?/g, ' ')) && !PX_OK_PROP.test(d.prop)).map((d) => d.sel + ' { ' + d.prop + ': ' + d.val + ' }');
+  return declsOf(css).filter((d) => /(?<![\w.-])-?\d*\.?\d+px\b/.test(d.val.replace(/var\(\s*--[\w-]+\s*,?/g, ' ')) && !PX_OK_PROP.test(d.prop) && !SR_ONLY_PX(d)).map((d) => d.sel + ' { ' + d.prop + ': ' + d.val + ' }');
 }
 test('the magic-px checker rejects literal sizes and spacing and allows borders, outlines and shadows', () => {
   for (const bad of ['min-height:48px', 'padding:0 16px', 'font-size:15px', 'gap:8px', 'width:20px', 'margin-bottom:-1px', 'height:.5px'])
     hits(magicPx('.a{' + bad + '}'), 'missed: ' + bad);
   for (const fine of ['min-height:var(--tap)', 'border:1px solid var(--line)', 'border-radius:8px', 'outline:2px solid var(--accent)', 'outline-offset:2px', 'box-shadow:inset 0 0 0 1px var(--bad)', 'padding:0', 'line-height:1.4', 'min-width:0'])
     assert.deepEqual(magicPx('.a{' + fine + '}'), [], 'false positive: ' + fine);
+  // the .sr-only exemption is exactly that narrow: anything else about it, or the same value anywhere else, is still caught
+  const SR = '[data-v2] .sr-only{';
+  assert.deepEqual(magicPx(SR + 'width:1px;height:1px;margin:-1px}'), [], 'the visually-hidden helper is exempt');
+  for (const bad of [SR + 'width:2px}', SR + 'padding:4px}', SR + 'margin:-2px}', SR + 'min-height:1px}', '[data-v2] .row{width:1px}', '[data-v2] .row{margin:-1px}', '[data-v2] .sr-only .x{width:1px}', '.sr-only{width:1px}'])
+    hits(magicPx(bad), 'the exemption is too wide, missed: ' + bad);
 });
 test('ui/components.css sizes everything from tokens: px literals appear only in border, outline and box-shadow values', () => {
   assert(declsOf(need()).length > 0, 'no declarations to check');
@@ -647,14 +656,24 @@ function scene(o) {
   const stat = add('stat', host, 'div.stat'); add('stat-k', stat, 'span.k'); add('stat-v', stat, 'span.v');
   // the live app's own pattern (styles.css line 1014-1015): a segmented control whose buttons set a font: shorthand
   const seg = add('gc-seg', host, 'div.gc-seg'); add('gc-seg-btn', seg, 'button.btn'); add('gc-seg-bare', seg, 'button');
+  // the states ui/states.js draws (Task 4): markup exactly as that file emits it
+  for (const [n, d] of [['state', 'div.state'], ['empty', 'div.state.empty'], ['state-error', 'div.state.state-error'], ['state-offline', 'div.state.state-offline'], ['empty-alone', 'div.empty']]) {
+    const st = add(n, host, d); add(n + '-icon', st, 'svg'); add(n + '-text', st, 'p.state-text'); add(n + '-hint', st, 'p.state-hint');
+  }
+  const sk = add('skeleton', host, 'div.skeleton'); add('skeleton-label', sk, 'span.skeleton-label');
+  const skr = add('skeleton-row', sk, 'div.skeleton-row'); add('skeleton-bar', skr, 'span.skeleton-bar'); add('skeleton-bar-short', skr, 'span.skeleton-bar.skeleton-bar-short');
+  const fg = add('figure', host, 'span.figure'); add('figure-none', fg, 'span.figure-none'); add('figure-u', fg, 'span.figure-u');
+  const fn = add('figure-note', fg, 'span.figure-note'); add('figure-note-icon', fn, 'svg'); add('sr-only', fg, 'span.sr-only');
   // bare icons, as icon() returns them: an svg with no class
   add('btn-icon', F.btn, 'svg'); add('a-btn-icon', F['a-btn'], 'svg'); add('badge-icon', F.badge, 'svg'); add('tab-icon', F.tab, 'svg'); add('row-t-icon', F['row-t'], 'svg');
   add('row-lead-icon', F['row-lead'], 'svg'); add('stat-v-icon', F['stat-v'], 'svg'); add('td-icon', F.td, 'svg'); add('row-act-btn-icon', F['row-act-btn'], 'svg');
   return { root, host, F };
 }
-const ICON_FIXTURES = ['btn-icon', 'a-btn-icon', 'badge-icon', 'tab-icon', 'row-t-icon', 'row-lead-icon', 'stat-v-icon', 'td-icon', 'row-act-btn-icon'];
+const ICON_FIXTURES = ['btn-icon', 'a-btn-icon', 'badge-icon', 'tab-icon', 'row-t-icon', 'row-lead-icon', 'stat-v-icon', 'td-icon', 'row-act-btn-icon', 'state-icon', 'state-error-icon', 'state-offline-icon', 'figure-note-icon'];
+const STATE_FIXTURES = ['state', 'empty', 'state-error', 'state-offline', 'empty-alone', 'state-text', 'state-hint', 'skeleton', 'skeleton-label', 'skeleton-row', 'skeleton-bar', 'skeleton-bar-short',
+  'figure', 'figure-none', 'figure-u', 'figure-note', 'sr-only'];
 const COMPONENT_FIXTURES = ['btn', 'btn-primary', 'btn-quiet', 'btn-danger', 'a-btn', 'field', 'textarea', 'select', 'field-invalid', 'card', 'row', 'row-lead', 'row-txt', 'row-t', 'row-sub', 'row-act',
-  'row-act-btn', 'row-button', 'row-link', 'table', 'th', 'td', 'td-fig', 'badge', 'badge-ok', 'badge-warn', 'badge-bad', 'tabs', 'tab', 'tab-selected', 'stat', 'stat-k', 'stat-v'];
+  'row-act-btn', 'row-button', 'row-link', 'table', 'th', 'td', 'td-fig', 'badge', 'badge-ok', 'badge-warn', 'badge-bad', 'tabs', 'tab', 'tab-selected', 'stat', 'stat-k', 'stat-v'].concat(STATE_FIXTURES);
 const PRESSABLE = ['btn', 'btn-primary', 'btn-quiet', 'btn-danger', 'a-btn', 'row-act-btn', 'tab', 'tab-selected', 'row-button', 'row-link'];
 const FOCUSABLE = PRESSABLE.concat(['field', 'textarea', 'select', 'field-invalid']);
 const STATES = [['rest', []], ['hover', ['hover']], ['active', ['hover', 'active']], ['focus', ['focus', 'focus-visible']]];
@@ -836,6 +855,8 @@ test('every focusable component draws a solid outline of at least 2px in --accen
 /* ---------- 5. density ---------- */
 // [fixture, property, yard px, desk px]. Resolved through the real token blocks, at the root and in a container.
 const SIZES = [
+  ['state-text', 'font-size', 18, 17], ['state-hint', 'font-size', 15, 14], ['skeleton-row', 'min-height', 56, 32], ['skeleton-bar', 'height', 16, 15], ['skeleton-label', 'font-size', 15, 14],
+  ['figure-note', 'font-size', 15, 14], ['figure-u', 'font-size', 15, 14],
   ['btn', 'min-height', 48, 32], ['btn-primary', 'min-height', 48, 32], ['btn-quiet', 'min-height', 48, 32], ['btn-danger', 'min-height', 48, 32], ['a-btn', 'min-height', 48, 32],
   ['field', 'min-height', 48, 32], ['select', 'min-height', 48, 32], ['tab', 'min-height', 48, 32], ['tab-selected', 'min-height', 48, 32],
   ['row', 'min-height', 56, 32], ['row-button', 'min-height', 56, 32], ['row-link', 'min-height', 56, 32], ['td', 'height', 56, 32], ['th', 'height', 56, 32],
@@ -916,7 +937,7 @@ test('every component changes size between yard and desk: none ignores data-dens
   const sig = (o) => { const { F } = scene(o), m = model(v2Sheets(need())); const r = {}; for (const n of COMPONENT_FIXTURES) r[n] = props.map((p) => m.computed(F[n], p)).join('|'); return r; };
   const yard = sig({}), desk = sig({ root: { 'data-density': 'desk' } });
   // Only the bare layout containers may stay equal: they carry no size of their own.
-  const CONTAINERS = ['tabs', 'table', 'row-lead', 'row-act'];
+  const CONTAINERS = ['tabs', 'table', 'row-lead', 'row-act', 'skeleton', 'skeleton-bar-short', 'figure', 'figure-none', 'sr-only']; // no size of their own, or a size that must not scale (sr-only is 1px by definition)
   const frozen = COMPONENT_FIXTURES.filter((n) => yard[n] === desk[n] && !CONTAINERS.includes(n));
   assert.deepEqual(frozen, [], 'these ignore data-density');
   assert(COMPONENT_FIXTURES.length - CONTAINERS.length >= 25, 'too few components were compared');
@@ -927,7 +948,8 @@ test('every component changes size between yard and desk: none ignores data-dens
 function hindiFailures(css, sheetsFn) {
   const out = [], toks = model(v2Sheets(css)), rootEl = scene().root;
   const HI = toks.computed(rootEl, '--font-hi'), LATIN = toks.computed(rootEl, '--font');
-  const surfaces = ['text', 'card-text', 'btn', 'btn-primary', 'a-btn', 'field', 'textarea', 'select', 'row-t', 'row-sub', 'row-button', 'td', 'th', 'badge', 'tab', 'stat-k', 'stat-v'];
+  const surfaces = ['text', 'card-text', 'btn', 'btn-primary', 'a-btn', 'field', 'textarea', 'select', 'row-t', 'row-sub', 'row-button', 'td', 'th', 'badge', 'tab', 'stat-k', 'stat-v',
+    'state-text', 'state-hint', 'skeleton-label', 'figure-note', 'figure-u'];
   const runs = [['lang=hi on the data-v2 element', { root: { lang: 'hi' } }], ['lang=hi-IN on an ancestor of the data-v2 element', { root: {}, outer: { lang: 'hi-IN' } }], ['lang=hi on a wrapper inside', { wrap: { lang: 'hi' } }]];
   const lineH = {};
   for (const [label, o] of runs) {
@@ -1083,7 +1105,7 @@ function lum({ h, s, l }) {
 }
 const contrast = (fg, bg) => { const a = lum(parseHsl(fg)), b = lum(parseHsl(bg)); return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05); };
 const TEXT_FIXTURES = ['btn', 'btn-primary', 'btn-quiet', 'btn-danger', 'a-btn', 'field', 'textarea', 'select', 'row-t', 'row-sub', 'row-button', 'td', 'th', 'badge', 'badge-ok', 'badge-warn', 'badge-bad',
-  'tab', 'tab-selected', 'stat-k', 'stat-v', 'card-text'];
+  'tab', 'tab-selected', 'stat-k', 'stat-v', 'card-text', 'empty', 'empty-alone', 'state-text', 'state-hint', 'skeleton-label', 'figure-none', 'figure-u', 'figure-note'];
 function contrastFailures(css) {
   const out = [];
   for (const [theme, o, opts] of [['light', {}, {}], ['dark (OS)', {}, { dark: true }], ['dark (explicit)', { root: { 'data-theme': 'dark' } }, {}]]) {
@@ -1108,13 +1130,146 @@ test('the component contrast checker goes red when a component takes a text colo
   assert.strictEqual(contrast('hsl(0 0% 0%)', 'hsl(0 0% 100%)').toFixed(1), '21.0');
 });
 test('every text colour a component sets, at rest and on hover, reaches 4.5:1 on the surface behind it, in light, OS dark and explicit dark (pairs computed from the real tokens; disabled and ::placeholder are not measured here)', () => {
-  assert(TEXT_FIXTURES.length >= 20);
+  assert(TEXT_FIXTURES.length >= 30);
   assert.deepEqual(contrastFailures(need()), []);
 });
 test('placeholder text is --ink-dim at full opacity (the browser default is a washed-out grey)', () => {
   const r = rulesOf(need()).filter((x) => /::placeholder/.test(x.selector));
   assert(r.length >= 1, 'no ::placeholder rule');
   assert(r.every((x) => x.decls.color === 'var(--ink-dim)' && x.decls.opacity === '1'), JSON.stringify(r.map((x) => x.decls)));
+});
+
+/* ---------- 11. states (Task 4): visible, legible, and not leaking ---------- */
+// A placeholder is only a placeholder if it can be SEEN. The failure this guards is quiet: a bar with no height, no
+// width (an empty span in a flex row is 0 wide unless it flexes), a background equal to the surface, or display: none
+// still renders "Loading" and an empty gap. So each fact below is resolved through the cascade, not read off the text.
+const px = (v) => { const m = /^(-?[\d.]+)px$/.exec(String(v).trim()); return m ? +m[1] : NaN; };
+const THEMES = [['light', {}, {}], ['dark (OS)', {}, { dark: true }], ['dark (explicit)', { root: { 'data-theme': 'dark' } }, {}]];
+const MIN_BAR_CONTRAST = 1.3;
+// Does a flex item get a positive main size? `flex: <grow> <shrink> <basis>` with grow > 0 or a non-zero basis, or a non-zero width.
+function flexMainSizePositive(m, el) {
+  const w = m.computed(el, 'width');
+  if (w !== undefined && /^(?!0(px|%)?$)[\d.]+(px|%)$/.test(String(w).trim())) return true;
+  const f = m.computed(el, 'flex');
+  if (f === undefined) return false;
+  const t = String(f).trim().split(/\s+/);
+  const grow = parseFloat(t[0]);
+  if (grow > 0) return true;
+  const basis = t.length >= 3 ? t[2] : (t.length === 2 && /[a-z%]/.test(t[1]) ? t[1] : undefined);
+  return basis !== undefined && /^(?!0(px|%)?$)[\d.]+(px|%)$/.test(basis);
+}
+function skeletonFailures(css) {
+  const out = [];
+  for (const [theme, o, opts] of THEMES) for (const dens of ['yard', 'desk']) {
+    const { F, root } = scene(Object.assign({}, o, { root: Object.assign({ 'data-density': dens }, o.root) })), m = model(v2Sheets(css), opts);
+    const at = theme + ' / ' + dens;
+    const surfaces = [m.computed(root, '--surface'), m.computed(root, '--surface-raised')];
+    for (const n of ['skeleton', 'skeleton-label', 'skeleton-row', 'skeleton-bar', 'skeleton-bar-short'])
+      if (m.computed(F[n], 'display') === 'none' || m.declared(F[n], 'display') === 'none') out.push(at + ': .' + F[n].classes[0] + ' is display: none');
+    for (const n of ['skeleton-bar', 'skeleton-bar-short']) {
+      const h = px(m.computed(F[n], 'height'));
+      if (!(h > 0)) out.push(at + ': ' + n + ' is ' + m.computed(F[n], 'height') + ' tall, so it paints nothing');
+      if (m.computed(F[n].parent, 'display') !== 'flex') out.push(at + ': the skeleton row is not a flex row, so a bar\'s flex sizing is meaningless');
+      if (!flexMainSizePositive(m, F[n])) out.push(at + ': ' + n + ' has no positive width (flex ' + m.computed(F[n], 'flex') + '): an empty span in a flex row is 0 wide');
+      const bg = m.computed(F[n], 'background-color') || m.computed(F[n], 'background');
+      if (!parseHsl(bg)) { out.push(at + ': ' + n + ' background "' + bg + '" is not a resolvable token colour'); continue; }
+      for (const s of surfaces) { const c = contrast(bg, s); if (c < MIN_BAR_CONTRAST) out.push(at + ': ' + n + ' ' + bg + ' on ' + s + ' is ' + c.toFixed(2) + ':1, indistinguishable'); }
+    }
+    const row = px(m.computed(F['skeleton-row'], 'min-height')), want = dens === 'yard' ? 56 : 32;
+    if (row !== want) out.push(at + ': a skeleton row is ' + row + 'px, not the ' + want + 'px of the real row it stands in for');
+  }
+  return out;
+}
+test('the skeleton checker goes red for a bar with no height, no width or a zero basis, the surface or page colour, display: none, a hidden label, a non-flex row, or a row of the wrong height', () => {
+  const css = need();
+  hits(skeletonFailures(mutate(css, /(\.skeleton-bar \{[^}]*?)height:\s*var\(--t5\);/, '$1height: 0;')), 'a zero-height bar was not caught');
+  hits(skeletonFailures(mutate(css, /(\.skeleton-bar \{[^}]*?)flex:\s*1 1 0;/, '$1')), 'a bar with no flex (0 wide) was not caught');
+  hits(skeletonFailures(mutate(css, /(\.skeleton-bar \{[^}]*?)background:\s*var\(--line\);/, '$1background: var(--surface-raised);')), 'a bar the colour of the surface was not caught');
+  hits(skeletonFailures(mutate(css, /(\.skeleton-bar \{[^}]*?)background:\s*var\(--line\);/, '$1background: var(--surface);')), 'a bar the colour of the page was not caught');
+  hits(skeletonFailures(mutate(css, /(\.skeleton-bar \{\n)  display: block;/, '$1  display: none;')), 'display: none was not caught');
+  hits(skeletonFailures(mutate(css, /(\.skeleton-label \{\n)  display: block;/, '$1  display: none;')), 'a hidden "Loading" label was not caught');
+  hits(skeletonFailures(mutate(css, /(\.skeleton-row \{[^}]*?)min-height:\s*var\(--row-h\);/, '$1min-height: var(--tap);')), 'a row-height mismatch was not caught');
+  hits(skeletonFailures(mutate(css, /(\.skeleton-row \{\n)  display: flex;/, '$1  display: block;')), 'a non-flex row was not caught');
+  hits(skeletonFailures(mutate(css, /flex:\s*0 0 25%;/, 'flex: 0 0 0;')), 'a short bar with a zero basis was not caught');
+  assert.strictEqual(flexMainSizePositive({ computed: (e, p) => ({ flex: '1 1 0' })[p] }, {}), true);
+  assert.strictEqual(flexMainSizePositive({ computed: (e, p) => ({ flex: '0 0 25%' })[p] }, {}), true);
+  assert.strictEqual(flexMainSizePositive({ computed: (e, p) => ({ flex: '0 0 0' })[p] }, {}), false);
+  assert.strictEqual(flexMainSizePositive({ computed: () => undefined }, {}), false);
+});
+test('a skeleton can be seen: its bars have a positive height and width and a colour at least 1.3:1 from both surfaces, its rows are as tall as real rows, and nothing in it is display: none, in light, dark, yard and desk', () => {
+  assert.deepEqual(skeletonFailures(need()), []);
+  const { F, root } = scene(), m = model(v2Sheets(need()));
+  assert.strictEqual(m.computed(F['skeleton-bar'], 'background-color'), m.computed(root, '--line'), 'the bar is painted with --line, resolved to a real colour');
+});
+
+// Visually hidden, yet still read aloud: the two halves of .sr-only, each resolved through the cascade.
+function srOnlyFailures(css) {
+  const out = [], { F } = scene(), m = model(v2Sheets(css)), el = F['sr-only'], d = (p) => m.computed(el, p);
+  if (d('position') !== 'absolute') out.push('position is ' + d('position') + ', so it still takes space in the flow');
+  if (px(d('width')) > 1 || px(d('height')) > 1 || !(px(d('width')) > 0) || !(px(d('height')) > 0)) out.push('size is ' + d('width') + ' x ' + d('height') + ', not 1px x 1px');
+  if (d('overflow') !== 'hidden') out.push('overflow is ' + d('overflow') + ', so its text spills out of the 1px box');
+  if (!/^inset\(\s*50%\s*\)$/.test(String(d('clip-path')))) out.push('clip-path is ' + d('clip-path') + ', not inset(50%)');
+  if (d('white-space') !== 'nowrap') out.push('white-space is ' + d('white-space') + ', so the text wraps into a tall sliver');
+  for (const [p, bad] of [['display', 'none'], ['visibility', 'hidden'], ['visibility', 'collapse'], ['content-visibility', 'hidden']]) if (d(p) === bad) out.push(p + ': ' + bad + ' removes it from the accessibility tree, so a screen reader never says it');
+  return out;
+}
+test('the .sr-only checker goes red when the text would show, take space, wrap, or be removed from the accessibility tree', () => {
+  const css = need();
+  hits(srOnlyFailures(mutate(css, /(\.sr-only \{[^}]*?)position:\s*absolute;/, '$1position: static;')), 'position: static was not caught');
+  hits(srOnlyFailures(mutate(css, /(\.sr-only \{[^}]*?)clip-path:\s*inset\(50%\);/, '$1')), 'no clip was not caught');
+  hits(srOnlyFailures(mutate(css, /(\.sr-only \{[^}]*?)overflow:\s*hidden;/, '$1')), 'no overflow: hidden was not caught');
+  hits(srOnlyFailures(mutate(css, /(\.sr-only \{[^}]*?)width:\s*1px;/, '$1width: 100px;')), 'a 100px box was not caught');
+  hits(srOnlyFailures(mutate(css, /(\.sr-only \{[^}]*?)height:\s*1px;/, '$1height: 0;')), 'a 0 box was not caught');
+  hits(srOnlyFailures(mutate(css, /(\.sr-only \{[^}]*?)white-space:\s*nowrap;/, '$1')), 'wrapping text was not caught');
+  hits(srOnlyFailures(css.replace(/(\.sr-only \{)/, '$1\n  display: none;')), 'display: none was not caught');
+  hits(srOnlyFailures(css.replace(/(\.sr-only \{)/, '$1\n  visibility: hidden;')), 'visibility: hidden was not caught');
+});
+test('.sr-only is visually hidden (absolute, 1px, clipped, no overflow, no wrapping) and still in the accessibility tree (not display: none, not visibility: hidden)', () => {
+  assert.deepEqual(srOnlyFailures(need()), []);
+});
+
+// Status is never colour alone, so the drawing's colour only has to be a non-text mark: 3:1 against the surface.
+test('the drawing in each state (grey, --bad, --warn) reaches 3:1 against both surfaces in light, OS dark and explicit dark; the words beside it are measured separately at 4.5:1', () => {
+  const out = [];
+  for (const [theme, o, opts] of THEMES) {
+    const { F, root } = scene(o), m = model(v2Sheets(need()), opts);
+    for (const n of ['state-icon', 'state-error-icon', 'state-offline-icon', 'empty-icon']) {
+      const fg = m.computed(F[n], 'color');
+      if (!parseHsl(fg)) { out.push(theme + ': ' + n + ' colour "' + fg + '" is not a token colour'); continue; }
+      for (const s of [m.computed(root, '--surface'), m.computed(root, '--surface-raised')]) { const c = contrast(fg, s); if (c < 3) out.push(theme + ': ' + n + ' ' + fg + ' on ' + s + ' = ' + c.toFixed(2)); }
+    }
+  }
+  assert.deepEqual(out, []);
+  const { F } = scene(), m = model(v2Sheets(need()));
+  const colours = ['state-icon', 'state-error-icon', 'state-offline-icon'].map((n) => m.computed(F[n], 'color'));
+  assert.strictEqual(new Set(colours).size, 3, 'plain, error and offline drawings must not all be the same colour: ' + colours.join(' | '));
+});
+
+// The decision recorded in the header: the states do not move. Scoped to the state selectors, so Task 5's overlay motion is not caught here.
+const STATE_SELECTOR = /\.(state|empty|state-[\w-]+|skeleton[\w-]*|figure[\w-]*|sr-only)\b/;
+function stateMotion(css) {
+  return rulesOf(css).filter((r) => STATE_SELECTOR.test(r.selector)).flatMap((r) => r.list.filter(([p]) => /^(animation|transition|transform|will-change)/.test(p)).map(([p]) => r.selector + ' { ' + p + ' }'));
+}
+test('no state, skeleton or figure rule animates, transitions or transforms (the skeleton is static; a looping shimmer cannot meet the 300ms ceiling)', () => {
+  hits(stateMotion('[data-v2] .skeleton-bar{animation:pulse 1s infinite}'), 'blind to animation'); hits(stateMotion('[data-v2] .skeleton-bar{transition:opacity 100ms ease-out}'), 'blind to transition');
+  hits(stateMotion('[data-v2] .state{transform:scale(1)}'), 'blind to transform'); hits(stateMotion('[data-v2] .figure-note{will-change:opacity}'), 'blind to will-change');
+  assert.deepEqual(stateMotion('[data-v2] .btn{transition:transform 120ms ease-out}'), [], 'false positive on a rule that is not a state');
+  assert(rulesOf(need()).filter((r) => STATE_SELECTOR.test(r.selector)).length >= 15, 'the selector found too few state rules; the check would pass vacuously');
+  assert.deepEqual(stateMotion(need()), []);
+});
+
+test('a hand-written .empty on its own (the live app\'s class, with no .state beside it) still overrides the live styles.css text-align, colour and padding; the leak checker proves it', () => {
+  const css = need(), liveOnly = () => [UA(), LIVE_SHEET()];
+  assert(/\.empty\{[^}]*text-align/.test(LIVE), 'the live sheet no longer styles .empty, so this test has nothing to defend against');
+  const { F } = scene(), mLive = model(liveOnly());
+  assert(Array.from(mLive.cascade(F['empty-alone']).values()).some((d) => d.sheet === 'live'), 'the live sheet must style the bare .empty fixture, or the test below is vacuous');
+  for (const [name, fn] of [['live first', liveFirst], ['live last', liveLast]]) assert.deepEqual(leakFailures(css, fn, liveOnly).filter((x) => x.startsWith('empty')), [], name);
+  // and it goes red when the v2 rule stops overriding one of the three
+  for (const prop of ['padding', 'color', 'text-align']) {
+    const broken = css.replace(new RegExp('(\\[data-v2\\] \\.empty \\{[^}]*?)\\n  ' + prop + ':[^;]+;'), '$1');
+    assert.notStrictEqual(broken, css, 'mutation did not apply for ' + prop);
+    hits(leakFailures(broken, liveFirst, liveOnly).filter((x) => x.startsWith('empty-alone')), 'a bare .empty that no longer overrides the live ' + prop + ' was not caught');
+  }
 });
 
 /* ---------- done ---------- */

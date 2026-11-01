@@ -1,5 +1,6 @@
 /* Garage Saathi v2 - the static component layer.
- * Button (3 kinds), field, select, row, card, table, badge (3 kinds), tabs, stat. Overlays are Task 5.
+ * Button (3 kinds), field, select, row, card, table, badge (3 kinds), tabs, stat, and the states (empty, error,
+ * offline, skeleton, figure; their markup is made by ui/states.js). Overlays are Task 5.
  * Consumes ui/tokens.css; defines no colour, no size and no font of its own. Test: test_ui_components.js.
  *
  * Browser floor is Chrome 109 (Windows 7 office PCs): no oklch(), color-mix(), nesting, @starting-style,
@@ -21,6 +22,11 @@
  *       <div class="act"></div></div>      (button.row and a.row are the pressable forms)
  *   <div class="card">   <table class="table"> (td.fig right-aligns a figure)   <span class="badge [badge-ok|-warn|-bad]">
  *   <div class="tabs" role="tablist"><button role="tab" aria-selected="true">   <div class="stat"><span class="k"><span class="v">
+ * STATES (markup comes from ui/states.js; do not hand-write it):
+ *   <div class="state empty|state-error|state-offline" role="status"><svg><p class="state-text"><p class="state-hint">
+ *   <div class="skeleton" role="status" aria-busy="true"><span class="skeleton-label"><div class="skeleton-row"><span class="skeleton-bar">
+ *   <span class="figure" data-state="unknown|value|stale"><span class="figure-none"><span class="figure-u"><span class="figure-note">
+ *   <span class="sr-only"> text for a screen reader only
  * Icons are bare <svg> from icon(): put them straight inside any of the above.
  * A badge or an invalid field is never colour alone: carry a word and an icon in the markup as well.
  *
@@ -48,7 +54,13 @@
  *
  * MOTION. Only transform and opacity, never over 300ms, ease-out. Press feedback is scale(0.97) at 120ms.
  * Navigation, lists and tab switches do not animate. prefers-reduced-motion removes the movement and keeps
- * the acknowledgement as opacity. No animation or @keyframes yet: skeleton and overlays arrive in Tasks 4-5. */
+ * the acknowledgement as opacity. No animation or @keyframes: the skeleton is deliberately STATIC (a looping
+ * shimmer cannot stay under 300ms without strobing, and costs frames on the oldest PCs; the word "Loading" and
+ * aria-busy say it is loading). Overlays arrive in Task 5.
+ *
+ * STATES AND THE LIVE APP. The live styles.css has an unlayered `.empty` (text-align, colour, padding), so
+ * `.empty` here sets all three itself, like every other component. Unknown, zero and stale are three different
+ * figures (see ui/states.js): the dash, the 0 and the "Updated ... ago" note are all drawn from this file. */
 
 /* ---------- base ---------- */
 [data-v2],
@@ -85,7 +97,9 @@
 [data-v2] .row svg,
 [data-v2] .stat svg,
 [data-v2] .tabs [role="tab"] svg,
-[data-v2] .table svg {
+[data-v2] .table svg,
+[data-v2] .state svg,
+[data-v2] .figure-note svg {
   flex-shrink: 0;
   vertical-align: middle;
 }
@@ -422,6 +436,128 @@
   [data-v2] a.row:hover {
     background: var(--surface-raised);
   }
+}
+
+/* ---------- states: empty, error, offline ----------
+ * One centred column: a drawing, a line of words, an optional quieter line, an optional button. The drawing
+ * is decoration; the words are the state. */
+[data-v2] .state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s2);
+  margin: 0;
+  padding: calc(var(--pad) * 2) var(--pad);
+  color: var(--ink);
+  text-align: center;
+}
+
+/* The live styles.css `.empty` sets text-align, colour and padding; this sets all three again, so it cannot leak. */
+[data-v2] .empty {
+  padding: calc(var(--pad) * 2) var(--pad);
+  color: var(--ink);
+  text-align: center;
+}
+
+[data-v2] .state > svg {
+  color: var(--ink-dim);
+}
+
+[data-v2] .state-error > svg {
+  color: var(--bad);
+}
+
+[data-v2] .state-offline > svg {
+  color: var(--warn);
+}
+
+[data-v2] .state-text {
+  margin: 0;
+  font-size: var(--t4);
+  font-weight: 600;
+  line-height: var(--lh);
+}
+
+[data-v2] .state-hint {
+  margin: 0;
+  color: var(--ink-dim);
+  font-size: var(--t6);
+  line-height: var(--lh);
+}
+
+/* ---------- skeleton: static placeholder rows, as tall as the real rows will be ---------- */
+[data-v2] .skeleton {
+  display: block;
+  margin: 0;
+  padding: 0;
+}
+
+[data-v2] .skeleton-label {
+  display: block;
+  padding: var(--s2) var(--pad) 0;
+  color: var(--ink-dim);
+  font-size: var(--t6);
+  line-height: var(--lh);
+}
+
+[data-v2] .skeleton-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  min-height: var(--row-h);
+  padding: 0 var(--pad);
+  box-shadow: inset 0 -1px 0 var(--line);
+}
+
+[data-v2] .skeleton-bar {
+  display: block;
+  flex: 1 1 0;
+  min-width: 0;
+  height: var(--t5);
+  background: var(--line);
+  border-radius: 6px;
+}
+
+[data-v2] .skeleton-bar-short {
+  flex: 0 0 25%;
+}
+
+/* ---------- figure: one number, and what we know about it ----------
+ * The dash, the 0 and the stale note are three different things. A figure with no value shows a dash; a real
+ * zero shows 0; an old figure shows its value and how old it is. The unit and the note are quieter than the
+ * number, and the note is in --warn with a clock and words, so it is never colour alone. */
+[data-v2] .figure {
+  display: inline-block;
+}
+
+[data-v2] .figure-none {
+  color: var(--ink-dim);
+}
+
+[data-v2] .figure-u {
+  color: var(--ink-dim);
+  font-size: var(--t6);
+}
+
+[data-v2] .figure-note {
+  display: block;
+  color: var(--warn);
+  font-size: var(--t6);
+  font-weight: 400;
+  line-height: var(--lh);
+}
+
+/* Text for a screen reader only: clipped to nothing, still in the accessibility tree (never display:none). */
+[data-v2] .sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 /* ---------- Hindi: after everything that sets a font or a line-height ---------- */
