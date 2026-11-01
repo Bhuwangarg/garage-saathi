@@ -446,13 +446,19 @@ def main():
                 {"type": "as a list", "expiry": [utc(2026, 12, 13)]}, {"type": "empty", "expiry": ""},
                 {"type": "zero", "expiry": 0}, {"type": "before 1970", "expiry": -86400000},
                 {"type": "far future", "expiry": 1e30}, {"type": "not a number", "expiry": float("nan")},
+                {"type": "after 9999", "expiry": 10 ** 15},                       # a number _agent_number allows, the year 33658
+                {"type": "huge integer", "expiry": 10 ** 400},                    # math.isfinite() raises on this
                 {"type": "no expiry key"}]},
             "b5": {"regNo": "RJ14PE0004", "docs": {"type": "Insurance", "expiry": utc(2026, 12, 13)}},   # not a list
             # One plate on two records: the lower id answers, whatever order storage returns them in.
             "b-dup-b": {"regNo": "RJ14PF0005", "docs": [{"type": "from b", "expiry": None}]},
             "b-dup-a": {"regNo": "RJ 14 PF 0005", "docs": [{"type": "from a", "expiry": None}]},
             "b7": {"regNo": "RJ14PG0007"}, "b8": {"regNo": "RJ14PH0008"}, "b9": {"regNo": "MP44ZD472"},
-            "b10": {"regNo": "RJ14PJ0010"}, "b11": {"regNo": "RJ14PK0011"}})
+            "b10": {"regNo": "RJ14PJ0010"}, "b11": {"regNo": "RJ14PK0011"},
+            "b12": {"regNo": "RJ14PL0012", "docs": [                              # a type that is not text
+                {"type": {"leak": "TYPE-DICT-SENTINEL"}, "expiry": utc(2026, 12, 13)},
+                {"type": 7, "expiry": utc(2026, 12, 13)}, {"expiry": utc(2026, 12, 13)}]},
+            "b13": {"regNo": "RJ14PM0013"}, "b14": {"regNo": "RJ14PN0014"}, "b15": {"regNo": "RJ14PP0015"}})
         # b1 owes two challans: Rs 700 in fines, and Rs 2,288 to settle through eChallan's own platform.
         snapshot("MP44ZD0471", total=3, pendingCount=2, disposedCount=1, pendingFine=700.0, pendingPayable=2288.0,
                  courtCount=1, challans=[
@@ -473,6 +479,10 @@ def main():
         snapshot("RJ14PJ0010", pendingCount="2", pendingFine=None)
         # A snapshot that was deleted: gone, whatever it held.
         snapshot("RJ14PK0011", total=1, pendingCount=1, pendingFine=100.0, _deleted=True)
+        # Numbers that cannot be an answer: a 400-digit count, and a fine too big to hold exactly, or infinite.
+        snapshot("RJ14PM0013", total=1, pendingCount=10 ** 400, pendingFine=100.0)
+        snapshot("RJ14PN0014", total=1, pendingCount=1, pendingFine=1e300)
+        snapshot("RJ14PP0015", total=1, pendingCount=1, pendingFine=float("inf"))
 
         paper_leaks = ["INS-NUMBER-SENTINEL", "PUC-NUMBER-SENTINEL", "PERMIT-NUMBER-SENTINEL", "FITNESS-NUMBER-SENTINEL",
                        "INS-PHOTO-SENTINEL", "PUC-PHOTO-SENTINEL", "PERMIT-PHOTO-SENTINEL", "FITNESS-PHOTO-SENTINEL",
@@ -550,9 +560,12 @@ def main():
               status_at(ist_midnight(2026, 11, 4) - 1, "day 16") == "valid"
               and status_at(ist_midnight(2026, 11, 4), "day 16") == "expiring")
 
-        unreadable = papers("RJ14PD0003")[1].get("docs") or []
-        check("an expiry that is text, a boolean, a list, empty, zero, before 1970, absurd or NaN is unknown, not a crash",
-              len(unreadable) == 9 and all(x["expiry"] is None and x["status"] == "unknown" for x in unreadable))
+        st, body = papers("RJ14PD0003")
+        unreadable = body.get("docs") or []
+        check("an expiry that is a 400-digit integer does not drop the connection", st == 200)
+        check("an expiry that is text, a boolean, a list, empty, zero, before 1970, after the year 9999, absurd, "
+              "a 400-digit integer or NaN is unknown, not a crash",
+              len(unreadable) == 11 and all(x["expiry"] is None and x["status"] == "unknown" for x in unreadable))
         check("entries in the list that are not documents are skipped",
               [x["type"] for x in unreadable][:3] == ["as text", "as a boolean", "as a list"])
         check("the same plate on two records answers from the lower id",
@@ -569,6 +582,13 @@ def main():
         check("a snapshot whose counts are not numbers is no answer",
               papers("RJ14PJ0010")[1].get("challans", "absent") is None)
         check("a deleted snapshot is no snapshot", papers("RJ14PK0011")[1].get("challans", "absent") is None)
+        check("a count or a fine that is huge or infinite is no answer, and the connection stays up",
+              all(papers(p) == (200, {"reg": p, "docs": [], "challans": None})
+                  for p in ("RJ14PM0013", "RJ14PN0014", "RJ14PP0015")))
+        typed = papers("RJ14PL0012")[1]
+        check("a document type that is not text comes out as an empty type, never as the stringified value",
+              typed.get("docs") == [{"type": "", "expiry": "2026-12-13", "status": "valid"}] * 3
+              and "TYPE-DICT-SENTINEL" not in json.dumps(typed))
 
     os.environ["AGENT_SCOPES"] = "operator-agents:gps,crew,coaching"
     st, d = papers("MP44ZD471")

@@ -2887,6 +2887,7 @@ AGENT_COACHING_MAX = 200                  # notes in one /agent/coaching answer
 # blood group, licence, documents or photos; a note's facts, English text, Claude's first words,
 # who decided it or the model; a document's number or photo, a bus's owner, chassis or engine, a
 # challan's number, offence, place or accused, or the payable amount (only the fine goes out).
+# The routes, scopes and status codes are written up in AGENT_API.md.
 def agent_crew():
     """The crew who are working now, by name: id, name, role, phone and the plate of their bus.
 
@@ -2944,25 +2945,35 @@ def agent_coaching(approved_since):
 AGENT_IST_MS = 19800000                   # IST is UTC+5:30
 AGENT_DOC_SOON_DAYS = 15                  # the app's docStatus: this many days left, or fewer, is "expiring"
 AGENT_EXPIRY_END_MS = 253402214400000     # 9999-12-31 00:00 UTC, the last day _ist_day writes as YYYY-MM-DD
+AGENT_NUMBER_MAX = 2 ** 53                # the biggest whole number a JSON reader in JavaScript holds exactly
 
 
 def _agent_number(v):
-    """`v` when it is a real number (not a bool, NaN or infinity), else None."""
-    return v if isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v) else None
+    """`v` when it is a plain number, else None: an int or a float (never a bool) of no more than
+    AGENT_NUMBER_MAX in size. The one exact comparison does all the refusing. It is false for NaN and
+    the infinities, and it cannot raise on a huge int, where math.isfinite does (OverflowError: an
+    expiry of 10**400 dropped the connection). A number that size is no expiry, count or fine anyone
+    meant, so it is no answer."""
+    if isinstance(v, bool) or not isinstance(v, (int, float)):
+        return None
+    return v if abs(v) <= AGENT_NUMBER_MAX else None
 
 
 def agent_doc(doc, today):
     """One of a bus's documents as an agent is told of it: its type, the day it expires and where that stands.
 
+    The type is the text the office chose; anything else in that field (a dict, a number) is "".
     `today` is the IST day number now, (ms + 5.5 hours) // a day. The app stores an expiry as epoch
     milliseconds (midnight of the date the office picked), and the date sent is the IST date of that
-    instant, so it reads as the office picked it. Days left are whole IST days, as the app's
-    docStatus counts them: under 0 is "expired", 15 or fewer is "expiring", more is "valid". A
-    paper that expires today has 0 days left, so it is "expiring" until the day is over. An expiry
-    that is missing, or is not a plain number of milliseconds between 1970 and the year 9999 (text,
-    a boolean, NaN), is "unknown" with a null expiry: the paper is listed and no date is guessed.
-    The app itself would call a missing expiry expired. The number and the photo never go out."""
-    kind = str(doc.get("type") or "")
+    instant, so it reads as the office picked it. The thresholds are the app's docStatus thresholds:
+    under 0 days left is "expired", 15 or fewer is "expiring", more is "valid". The days are whole IST
+    calendar days; the app rounds the difference of two instants instead, which flips about noon IST.
+    A paper that expires today has 0 days left, so it is "expiring" until the day is over. An expiry
+    that is missing, or is not a plain number of milliseconds between 1970 and the year 9999 (text, a
+    boolean, NaN, a number too big to mean a date), is "unknown" with a null expiry: the paper is
+    listed and no date is guessed. The app itself would call a missing expiry expired. The number and
+    the photo never go out."""
+    kind = doc.get("type") if isinstance(doc.get("type"), str) else ""
     ms = _agent_number(doc.get("expiry"))
     if ms is None or not 0 < ms < AGENT_EXPIRY_END_MS:
         return {"type": kind, "expiry": None, "status": "unknown"}
@@ -2992,14 +3003,14 @@ def agent_bus_papers(reg):
     """(status, body): the papers and the challan totals of the bus whose plate is `reg`.
 
     The bus is the one whose norm_reg(regNo) equals norm_reg(reg), however either is spelled
-    (MP44ZD471 and mp-44-zd-0471 find the same bus). If there is none the answer is 404 with exactly
-    {"error": "unknown bus"}: operator-agents tells that from an outage by this body, so it is not
-    reworded. No plate, or a blank one, names no bus, even if some record has no plate. Two records
-    with one plate answer from the lower id, so the answer does not depend on the order storage
-    returns them in. The body is {"reg": the padded plate, "docs": [...] in the order the office keeps
-    them, "challans": {...} or None}. The snapshot is the one keyed by the padded plate, which is how
-    echallan_lookup stores it; one under an older spelling is not read, so a lookup that found
-    nothing because of the spelling can never show up as a clean bus."""
+    (MP44ZD471 and mp-44-zd-0471 find the same bus). If there is none the answer is 404 with a JSON
+    body equal to {"error": "unknown bus"}: operator-agents tells that from an outage by it, so its
+    wording is not changed. No plate, or a blank one, names no bus, even if some record has no
+    plate. Two records with one plate answer from the lower id, so the answer does not depend on the
+    order storage returns them in. The body is {"reg": the padded plate, "docs": [...] in the order
+    the office keeps them, "challans": {...} or None}. The snapshot is the one keyed by the padded
+    plate, which is how echallan_lookup stores it; one under an older spelling is not read, so a
+    lookup that found nothing because of the spelling can never show up as a clean bus."""
     plate = norm_reg(reg)
     with _lock:
         c = db()
