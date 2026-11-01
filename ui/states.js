@@ -21,10 +21,20 @@
  *   offlineState()
  *   skeleton(rows)              rows defaults to 3, is a whole number from 1 to 50
  *   figure(value, opts)         opts {unit, at, stale}; returns the markup for ONE number
- *       value  rendered as given: format it first (the thousands separator, the decimals) if you want one.
- *              null, undefined, NaN, +-Infinity, a blank string and anything that is not a number or a string
- *              are "no value": a dash. 0 and "0" are values.
+ *       value  null, undefined, NaN, +-Infinity, a blank string and anything that is not a number or a string
+ *              are "no value": a dash. 0 and "0" are values. Rendered as given unless you pass `format`.
+ *       format a function (value) -> string|number, for the separator, the decimals, lakh grouping. It is called
+ *              ONLY for a real value, after the unknown test, so it can never turn "no value" into a number:
+ *              Number(null).toLocaleString() is "0" and String(null) is "null", and a caller who formatted BEFORE
+ *              calling figure() would get exactly the unknown-reads-as-zero failure this file exists to prevent.
+ *              Do not format first; pass the raw value and a `format`. If the formatted result is itself empty
+ *              or not a usable value, the figure falls back to the dash. An exception from `format` is not caught.
  *       unit   a short string shown after the value ("km"). Not shown for an unknown value.
+ *
+ *       An UNKNOWN figure is a bare dash even when `at`, `stale` or `unit` are passed, on purpose. An age beside
+ *       a dash reads as "this dash was true 3 hours ago", which is a claim we cannot make: the dash means we hold
+ *       nothing, and a timestamp next to it invites the reader to treat the absence itself as a measurement.
+ *       Do not "fix" this to show the age (test_ui_states.js pins it).
  *       at     when the value was last true: a millisecond timestamp, a Date, or a date string. If it is given,
  *              the age is ALWAYS shown ("Updated just now", "Updated 3 hours ago"), flag or no flag: a guarantee
  *              that depended on every caller remembering a flag would not be one. An `at` that cannot be read
@@ -39,7 +49,7 @@
  *
  * RETRY. A markup string cannot carry a function, so errorState() registers onRetry under a number, writes that
  * number into the button (data-state-retry), and one click listener on document finds it again. The registry is
- * bounded (RETRY_CAP): a screen that redraws every few seconds with an inline arrow function would otherwise
+ * bounded (RETRY_CAP = 200, pinned exactly by the test): a screen that redraws every few seconds with an inline arrow function would otherwise
  * leak one entry per redraw. The same function reuses its id, and every redraw refreshes it, so a handler that
  * is still on screen is the last to be evicted. A Retry whose handler HAS been evicted disables itself and says
  * to reload, rather than being a button that does nothing.
@@ -107,13 +117,17 @@
     return plural(Math.floor(h / 24), 'day');
   }
 
+  function unknownFigure() {
+    return '<span class="figure" data-state="unknown" title="No data">'
+      + '<span class="figure-none" aria-hidden="true">' + DASH + '</span>'
+      + '<span class="sr-only">No data</span></span>';
+  }
+
   function figure(value, opts) {
     opts = opts || {};
-    if (isUnknown(value)) {
-      return '<span class="figure" data-state="unknown" title="No data">'
-        + '<span class="figure-none" aria-hidden="true">' + DASH + '</span>'
-        + '<span class="sr-only">No data</span></span>';
-    }
+    if (isUnknown(value)) return unknownFigure();     // BEFORE `format`, so a formatter never sees "no value"
+    var shown = typeof opts.format === 'function' ? opts.format(value) : value;
+    if (isUnknown(shown)) return unknownFigure();
     var unit = (opts.unit == null || String(opts.unit) === '') ? '' : ' <span class="figure-u">' + esc(opts.unit) + '</span>';
     var note = '', state = 'value';
     var hasAt = opts.at != null;       // not `!opts.at`: 0 is a real timestamp
@@ -125,7 +139,7 @@
       note = '<span class="figure-note' + (opts.stale ? ' figure-note-stale' : '') + '">' + draw('clock', 14) + ' ' + esc(text) + '</span>';
       if (opts.stale) state = 'stale';
     }
-    return '<span class="figure" data-state="' + state + '"><span>' + esc(String(value)) + '</span>' + unit + note + '</span>';
+    return '<span class="figure" data-state="' + state + '"><span>' + esc(String(shown)) + '</span>' + unit + note + '</span>';
   }
 
   /* ---------- retry ---------- */

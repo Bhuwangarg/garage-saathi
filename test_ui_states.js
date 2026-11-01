@@ -181,9 +181,45 @@ function figureFailures(win, clock) {
     if (root.attrs['data-state'] !== 'unknown') bad('figure(' + label + ') is marked data-state="' + root.attrs['data-state'] + '"');
     if (/\b(null|undefined|NaN|Infinity|object|function)\b/i.test(vis + spk)) bad('figure(' + label + ') leaks the word for the bad input: ' + vis + spk);
   }
-  // an unknown figure carries no unit and no age, even when the caller passes both
-  { const h = fig(null, { unit: 'km', at: NOW - 3 * HOUR, stale: true });
-    if (visualText(h) !== DASH) bad('figure(null, {unit, at, stale}) shows "' + visualText(h) + '": an unknown value has no unit and no age'); }
+  // an unknown figure carries no unit and no age, even when the caller passes both. This is deliberate and must not be
+  // "fixed" to match "an `at` always shows its age": an age beside a dash reads as "this dash was true 3 hours ago", a claim
+  // we cannot make. The dash means we hold nothing; a timestamp beside it would turn the absence into a measurement.
+  for (const [label, v] of [['null', null], ['undefined', undefined], ['NaN', NaN]]) {
+    const h = fig(v, { unit: 'km', at: NOW - 3 * HOUR, stale: true }), h2 = fig(v, { at: NOW - 3 * HOUR });
+    if (visualText(h) !== DASH) bad('figure(' + label + ', {unit, at, stale}) shows "' + visualText(h) + '": an unknown value has no unit and no age');
+    if (visualText(h2) !== DASH) bad('figure(' + label + ', {at}) shows "' + visualText(h2) + '": an age beside a dash claims the dash was true then');
+    if (byClass(parseHtml(h2), 'figure-note').length) bad('figure(' + label + ', {at}) drew an age note beside the dash');
+  }
+
+  // FORMAT: applied only to a real value, after the unknown test. It must never see "no value", and "no value" must not become 0.
+  for (const [label, v] of UNKNOWN) {
+    let calls = 0, h;
+    try { h = fig(v, { format: function (x) { calls++; return Number(x).toLocaleString('en-IN'); } }); } catch (e) { bad('figure(' + label + ', {format}) threw ' + e.message); continue; }
+    if (calls !== 0) bad('format was called ' + calls + ' time(s) for ' + label + ': it must never see "no value"');
+    if (visualText(h) !== DASH) bad('figure(' + label + ', {format: Number...}) shows "' + visualText(h) + '", expected only a dash (a formatter turned no value into a number)');
+    let boom = false;
+    try { h = fig(v, { format: function (x) { boom = true; return x.toFixed(1); } }); } catch (e) { bad('figure(' + label + ', {format: x => x.toFixed(1)}) threw ' + e.message + ': the formatter was handed "no value"'); continue; }
+    if (visualText(h) !== DASH || boom) bad('figure(' + label + ') with a toFixed formatter shows "' + visualText(h) + '"');
+  }
+  { const h = fig(null, { format: Number }), t = visualText(h);
+    if (t !== DASH || /0/.test(spokenText(h))) bad('figure(null, {format: Number}) shows "' + t + '" / says "' + spokenText(h) + '": no value must never read as 0'); }
+  { let calls = 0, seen;
+    const h = fig(1234567, { unit: 'Rs', format: function (x) { calls++; seen = x; return String(x).replace(/\B(?=(\d\d)+\d$)/g, ','); } });
+    if (calls !== 1) bad('format must be called once for a real value, was ' + calls);
+    if (seen !== 1234567) bad('format must receive the raw value, got ' + String(seen) + ' (' + typeof seen + ')');
+    if (visualText(h) !== '12,34,567 Rs') bad('formatted figure shows "' + visualText(h) + '", expected "12,34,567 Rs"'); }
+  { let h; try { h = fig(0, { format: function (x) { return x.toFixed(1); } }); } catch (e) { bad('figure(0, {format}) threw ' + e.message + ' (formatted twice, or handed a non-number?)'); h = fig(1); }   // a real zero IS formatted
+    if (visualText(h) !== '0.0') bad('a real zero must be formatted too: figure(0, {format: toFixed(1)}) shows "' + visualText(h) + '"');
+    if (h.includes(DASH)) bad('a formatted zero must not become a dash'); }
+  { const h = fig(0, { format: Number }); if (visualText(h) !== '0') bad('figure(0, {format: Number}) shows "' + visualText(h) + '"'); }
+  { const h = fig(42, { format: function () { return null; } });
+    if (visualText(h) !== DASH) bad('a formatter that returns nothing for a real value must fall back to the dash, not print "null": ' + visualText(h)); }
+  { const h = fig(42, { format: 'not a function', unit: 'km' }); if (visualText(h) !== '42 km') bad('a non-function format must be ignored: ' + visualText(h)); }
+  { const h = fig(42, { format: function () { return '<img src=x onerror=alert(1)>'; } });
+    let t = null; try { t = parseHtml(h); } catch (e) { bad('the formatter\'s output broke the markup: ' + e.message); }
+    if (t && findAll(t, (e) => e.tag === 'img').length) bad('the formatter\'s output became an element'); }
+  { const h = fig(42, { format: function (x) { return x + '.0'; }, at: NOW - 3 * HOUR, stale: true });
+    if (visualText(h) !== '42.0 Updated 3 hours ago') bad('format with stale and at: ' + visualText(h)); }
 
   // ZERO: a real reading. Shows 0, never the dash, in every spelling of zero.
   const ZERO = [['0', 0], ['-0', -0], ['0.0', 0.0], ['the string "0"', '0'], ['the string "0.00"', '0.00']];
@@ -308,11 +344,13 @@ const MUTANTS = [
   ['the age is dropped from a stale figure', (s) => mutate(s, "'Updated ' + age", "''"), /stale 42|stale ZERO|stale with a unit|at as/],
   ['the age is gated on the stale flag again (the behaviour this replaced)', (s) => mutate(s, 'if (opts.stale || hasAt) {', 'if (opts.stale) {'), /always shows its age|WITHOUT stale|stale:false with an `at`/],
   ['a figure with no `at` and no flag still shows an age', (s) => mutate(s, 'if (opts.stale || hasAt) {', 'if (true) {'), /Updated time unknown|shows an age/],
+  ['FORMAT before the null test: a formatter coerces null to 0 (the hazard "format it first" created)', (s) => mutate(s, "opts = opts || {};\n    if (isUnknown(value)) return unknownFigure();", "opts = opts || {};\n    if (typeof opts.format === 'function') value = opts.format(value);\n    if (isUnknown(value)) return unknownFigure();"), /format|formatter|no value must never read as 0/],
+  ['format result is not checked: a formatter returning null prints "null"', (s) => mutate(s, 'if (isUnknown(shown)) return unknownFigure();', ''), /returns nothing|null/],
   ['the stale flag stops adding its emphasis', (s) => mutate(s, "(opts.stale ? ' figure-note-stale' : '')", "''"), /stale emphasis/],
   ['`at` is tested for truthiness: a timestamp of 0 is lost', (s) => mutate(s, 'if (at == null) return null;', 'if (!at) return null;'), /at: 0/],
   ['an unparseable date prints NaN', (s) => mutate(s, 't !== t || !isFinite(t)', 'false'), /garbage|object|NaN|bad age/],
   ['the unit is not escaped', (s) => mutate(s, "esc(opts.unit)", "String(opts.unit)"), /became an element|broke/],
-  ['the value is not escaped', (s) => mutate(s, "esc(String(value))", "String(value)"), /became an element|broke/],
+  ['the value is not escaped', (s) => mutate(s, "esc(String(shown))", "String(shown)"), /became an element|broke/],
   ['an hour is rounded up to the next unit (Math.round for floor)', (s) => mutate(s, 'Math.floor(ms / 60000)', 'Math.round(ms / 60000)'), /minutes ago|just now/],
 ];
 for (const [name, mutator, expected] of MUTANTS) {
@@ -478,6 +516,31 @@ test('drawing the same retry function again reuses its id and refreshes it; the 
   click(doc, fakeButton(idg));
   assert.strictEqual(first, 100, 'a handler that was redrawn recently must survive eviction');
 });
+// RETRY_CAP is 200, exactly: 200 handlers are alive, the 201st evicts the oldest. A suite that only drew "a lot" could not tell 200 from 201 or 399.
+function retryCapFailures(source) {
+  const out = [], { win, doc } = load({ source });
+  let ran = 0;
+  const f = function () { ran++; };
+  const idF = retryId(win.errorState('x', f));
+  for (let i = 0; i < 199; i++) win.errorState('x', function () {});            // f plus 199 others = 200 registered
+  const b1 = fakeButton(idF); click(doc, b1);
+  if (ran !== 1 || b1.disabled) out.push('with exactly 200 handlers registered the oldest was already evicted (ran=' + ran + ', disabled=' + b1.disabled + '): the cap is below 200');
+  win.errorState('x', function () {});                                           // the 201st
+  const b2 = fakeButton(idF); click(doc, b2);
+  if (ran !== 1 || !b2.disabled) out.push('after the 201st handler the oldest is still alive (ran=' + ran + ', disabled=' + b2.disabled + '): the cap is above 200');
+  return out;
+}
+test('the retry registry holds exactly 200 handlers: the 200th is alive, the 201st evicts the oldest', () => {
+  assert.deepEqual(retryCapFailures(need()), []);
+});
+for (const [name, from, to, expected] of [['cap one too high (201)', 'var RETRY_CAP = 200;', 'var RETRY_CAP = 201;', /above 200/], ['cap one too low (199)', 'var RETRY_CAP = 200;', 'var RETRY_CAP = 199;', /below 200/],
+  ['cap far too high (399)', 'var RETRY_CAP = 200;', 'var RETRY_CAP = 399;', /above 200/], ['eviction off by one (> becomes >=)', 'retryList.length > RETRY_CAP', 'retryList.length >= RETRY_CAP', /below 200/]]) {
+  test('MUTANT must fail: ' + name, () => {
+    const f = retryCapFailures(mutate(need(), from, to));
+    assert(f.length > 0, 'the cap test stayed green against this mutant: it cannot pin the cap');
+    assert(f.some((x) => expected.test(x)), 'went red, but on the wrong side: ' + f.join(' | '));
+  });
+}
 test('errorState works where there is no document yet (it draws; the listener is simply not installed)', () => {
   const { win } = load({ document: false });
   assert(/Failed/.test(visualText(win.errorState('Failed', function () {}))));
