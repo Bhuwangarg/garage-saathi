@@ -2197,6 +2197,17 @@ def _store_rows(c, store):
     return out
 
 
+def _store_row(c, store, rid):
+    """One record of `store` by id, kept to the rule _store_rows keeps: None when it is not there,
+    is deleted, or is not a JSON object."""
+    row = c.execute("SELECT data FROM records WHERE store=? AND id=?", (store, rid)).fetchone()
+    try:
+        d = json.loads(row[0]) if row else None
+    except (TypeError, ValueError):
+        return None
+    return d if isinstance(d, dict) and not d.get("_deleted") else None
+
+
 def _save_readings(c, reviews_by_id, readings, model):
     rev = c.execute("SELECT COALESCE(MAX(rev),0) FROM records").fetchone()[0]
     now = now_ms()
@@ -2866,14 +2877,16 @@ def my_coaching(user_id):
     return {"notes": [{"week": n["week"], "hi": n["hi"], "en": n.get("en"), "at": n.get("decidedAt")} for n in mine[:6]]}
 
 
-# What a read-only agent is told about the crew and their coaching notes (GET /agent/crew and
-# /agent/coaching). Each answer is built field by field, not by copying a record and dropping what
-# is private, so a field added to a record later is not sent until it is added here. Never sent:
-# a person's Aadhaar, alternate phone, address, birth date, blood group, licence, documents or
-# photos; a note's facts, English text, Claude's first words, who decided it or the model.
-AGENT_COACHING_MAX = 200
+AGENT_COACHING_MAX = 200                  # notes in one /agent/coaching answer
 
 
+# What a read-only agent is told about the crew, their coaching notes and a bus's papers (GET
+# /agent/crew, /agent/coaching and /agent/bus-papers). Each answer is built field by field, not by
+# copying a record and dropping what is private, so a field added to a record later is not sent
+# until it is added here. Never sent: a person's Aadhaar, alternate phone, address, birth date,
+# blood group, licence, documents or photos; a note's facts, English text, Claude's first words,
+# who decided it or the model; a document's number or photo, a bus's owner, chassis or engine, a
+# challan's number, offence, place or accused, or the payable amount (only the fine goes out).
 def agent_crew():
     """The crew who are working now, by name: id, name, role, phone and the plate of their bus.
 
@@ -2881,9 +2894,10 @@ def agent_crew():
     Anyone who left or was archived is off the list, and so is anyone whose status is anything
     else: an unknown status is not taken to mean working. busReg is the plate of the bus whose id
     is the person's busId, as norm_reg writes it (MP44ZD0471, however the fleet list spells it),
-    or None when they have no bus or the bus has been deleted. The phone goes out as the office
-    typed it ("+91 98290-12345", "09829012345"), "" when there is none; matching it to a WhatsApp
-    sender is for whoever reads it."""
+    or None when they have no bus, the bus has been deleted or has no plate, or the busId is not
+    an id at all (a list or a dict in a record must not take the list down). The phone goes out as
+    the office typed it ("+91 98290-12345", "09829012345"), "" when there is none; matching it to
+    a WhatsApp sender is for whoever reads it."""
     with _lock:
         c = db()
         try:
@@ -2891,12 +2905,12 @@ def agent_crew():
             buses = _store_rows(c, "buses")
         finally:
             c.close()
-    plates = {b.get("id") or bid: norm_reg(str(b.get("regNo") or "")) for bid, b in buses.items()}
+    plates = {b.get("id") or bid: norm_reg(str(b.get("regNo") or "")) or None for bid, b in buses.items()}
     out = [{"id": d.get("id") or rid,
             "name": str(d.get("name") or ""),
             "role": "conductor" if d.get("crewRole") == "conductor" else "driver",
             "phone": str(d.get("phone") or "").strip(),
-            "busReg": plates.get(d.get("busId"))}
+            "busReg": plates.get(d.get("busId")) if isinstance(d.get("busId"), str) else None}
            for rid, d in crew.items() if d.get("status") in (None, "active")]
     out.sort(key=lambda p: (p["name"], p["id"]))
     return {"crew": out}
@@ -2925,6 +2939,84 @@ def agent_coaching(approved_since):
            if n.get("status") == "approved" and (n.get("decidedAt") or 0) >= approved_since]
     out.sort(key=lambda x: (x["decidedAt"], x["id"]))
     return {"notes": out[:AGENT_COACHING_MAX]}
+
+
+AGENT_IST_MS = 19800000                   # IST is UTC+5:30
+AGENT_DOC_SOON_DAYS = 15                  # the app's docStatus: this many days left, or fewer, is "expiring"
+AGENT_EXPIRY_END_MS = 253402214400000     # 9999-12-31 00:00 UTC, the last day _ist_day writes as YYYY-MM-DD
+
+
+def _agent_number(v):
+    """`v` when it is a real number (not a bool, NaN or infinity), else None."""
+    return v if isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v) else None
+
+
+def agent_doc(doc, today):
+    """One of a bus's documents as an agent is told of it: its type, the day it expires and where that stands.
+
+    `today` is the IST day number now, (ms + 5.5 hours) // a day. The app stores an expiry as epoch
+    milliseconds (midnight of the date the office picked), and the date sent is the IST date of that
+    instant, so it reads as the office picked it. Days left are whole IST days, as the app's
+    docStatus counts them: under 0 is "expired", 15 or fewer is "expiring", more is "valid". A
+    paper that expires today has 0 days left, so it is "expiring" until the day is over. An expiry
+    that is missing, or is not a plain number of milliseconds between 1970 and the year 9999 (text,
+    a boolean, NaN), is "unknown" with a null expiry: the paper is listed and no date is guessed.
+    The app itself would call a missing expiry expired. The number and the photo never go out."""
+    kind = str(doc.get("type") or "")
+    ms = _agent_number(doc.get("expiry"))
+    if ms is None or not 0 < ms < AGENT_EXPIRY_END_MS:
+        return {"type": kind, "expiry": None, "status": "unknown"}
+    left = (int(ms) + AGENT_IST_MS) // 86400000 - today
+    return {"type": kind, "expiry": _ist_day(ms),
+            "status": "expired" if left < 0 else "expiring" if left <= AGENT_DOC_SOON_DAYS else "valid"}
+
+
+def agent_challans(snap):
+    """What an agent is told of a bus's challans from its snapshot: how many are pending, what they add
+    up to in fines, and when they were looked up (epoch milliseconds, as stored).
+
+    The fine is what is owed to the government. `pendingPayable`, what eChallan bills to settle
+    through its own platform (fine plus its service charge and GST), is not the liability and is
+    never sent. None when there is no snapshot, and also when the snapshot is no answer: it is
+    flagged providerUnavailable (the lookup never reached the registry, so its empty result is not a
+    clean bill) or its counts are not numbers. A bus checked and found clean is an answer: pending 0."""
+    if not isinstance(snap, dict) or snap.get("providerUnavailable"):
+        return None
+    pending, fine, at = (_agent_number(snap.get(k)) for k in ("pendingCount", "pendingFine", "updatedAt"))
+    if pending is None or fine is None or at is None:
+        return None
+    return {"pending": int(pending), "pendingFine": fine, "checkedAt": at}
+
+
+def agent_bus_papers(reg):
+    """(status, body): the papers and the challan totals of the bus whose plate is `reg`.
+
+    The bus is the one whose norm_reg(regNo) equals norm_reg(reg), however either is spelled
+    (MP44ZD471 and mp-44-zd-0471 find the same bus). If there is none the answer is 404 with exactly
+    {"error": "unknown bus"}: operator-agents tells that from an outage by this body, so it is not
+    reworded. No plate, or a blank one, names no bus, even if some record has no plate. Two records
+    with one plate answer from the lower id, so the answer does not depend on the order storage
+    returns them in. The body is {"reg": the padded plate, "docs": [...] in the order the office keeps
+    them, "challans": {...} or None}. The snapshot is the one keyed by the padded plate, which is how
+    echallan_lookup stores it; one under an older spelling is not read, so a lookup that found
+    nothing because of the spelling can never show up as a clean bus."""
+    plate = norm_reg(reg)
+    with _lock:
+        c = db()
+        try:
+            buses = _store_rows(c, "buses")
+            bus = next((buses[bid] for bid in sorted(buses)
+                        if plate and norm_reg(str(buses[bid].get("regNo") or "")) == plate), None)
+            snap = _store_row(c, "challans", plate) if bus else None
+        finally:
+            c.close()
+    if bus is None:
+        return 404, {"error": "unknown bus"}
+    docs = bus.get("docs")
+    today = (now_ms() + AGENT_IST_MS) // 86400000
+    return 200, {"reg": plate,
+                 "docs": [agent_doc(d, today) for d in docs if isinstance(d, dict)] if isinstance(docs, list) else [],
+                 "challans": agent_challans(snap)}
 
 
 # ----------------------------- The advisor, with tools ------------------------------------------
@@ -3775,8 +3867,10 @@ _GPS_TOKEN_OK = bool(GPS_INGEST_TOKEN) and "demo" not in GPS_INGEST_TOKEN.lower(
 
 # Read-only agent keys (operator-agents' passenger agent reads where a bus is).
 # AGENT_KEYS="name:sha256hex,name2:sha256hex" holds only digests; the key itself
-# lives with the agent. Revoke a key by deleting its entry. Read on every request,
-# so a serverless instance sees a change without a redeploy of the code.
+# lives with the agent. Revoke a key by deleting its entry. Read on every request
+# and never cached at import. An environment change on Vercel still reaches a
+# deployment only through a new deployment, so a revoked key stops working when
+# the deployment that carries the change is live.
 def agent_keys():
     keys = {}
     for item in os.environ.get("AGENT_KEYS", "").split(","):
@@ -5104,8 +5198,9 @@ class Handler(BaseHTTPRequestHandler):
             if denied:
                 return self._send(denied, {"error": "unauthorized" if denied == 401 else "forbidden"})
             # Past the scope check. Each route is answered here with an `if u.path ==`;
-            # one that is listed in AGENT_ROUTE_SCOPE but not answered yet is a 404.
-            # The request was logged above, so these handlers print nothing.
+            # one that is listed in AGENT_ROUTE_SCOPE but has no branch here is a 404.
+            # The request was logged above, so these handlers print nothing (and the plate
+            # in a query string never reaches the log).
             if u.path == "/agent/crew":
                 return self._send(200, agent_crew(), cache="no-store")
             if u.path == "/agent/coaching":
@@ -5114,6 +5209,9 @@ class Handler(BaseHTTPRequestHandler):
                 except ValueError:
                     since = 0                          # not a whole number of milliseconds: from the beginning
                 return self._send(200, agent_coaching(since), cache="no-store")
+            if u.path == "/agent/bus-papers":
+                code, body = agent_bus_papers((parse_qs(u.query).get("reg") or [""])[0])
+                return self._send(code, body, cache="no-store")
             return self._send(404, {"error": "not found"})
 
         if u.path == "/wa/webhook":
