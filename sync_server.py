@@ -2866,6 +2866,67 @@ def my_coaching(user_id):
     return {"notes": [{"week": n["week"], "hi": n["hi"], "en": n.get("en"), "at": n.get("decidedAt")} for n in mine[:6]]}
 
 
+# What a read-only agent is told about the crew and their coaching notes (GET /agent/crew and
+# /agent/coaching). Each answer is built field by field, not by copying a record and dropping what
+# is private, so a field added to a record later is not sent until it is added here. Never sent:
+# a person's Aadhaar, alternate phone, address, birth date, blood group, licence, documents or
+# photos; a note's facts, English text, Claude's first words, who decided it or the model.
+AGENT_COACHING_MAX = 200
+
+
+def agent_crew():
+    """The crew who are working now, by name: id, name, role, phone and the plate of their bus.
+
+    Working means `status` is missing (records made before the crew bank have none) or "active".
+    Anyone who left or was archived is off the list, and so is anyone whose status is anything
+    else: an unknown status is not taken to mean working. busReg is the plate of the bus whose id
+    is the person's busId, as norm_reg writes it (MP44ZD0471, however the fleet list spells it),
+    or None when they have no bus or the bus has been deleted. The phone goes out as the office
+    typed it ("+91 98290-12345", "09829012345"), "" when there is none; matching it to a WhatsApp
+    sender is for whoever reads it."""
+    with _lock:
+        c = db()
+        try:
+            crew = _store_rows(c, "drivers")
+            buses = _store_rows(c, "buses")
+        finally:
+            c.close()
+    plates = {b.get("id") or bid: norm_reg(str(b.get("regNo") or "")) for bid, b in buses.items()}
+    out = [{"id": d.get("id") or rid,
+            "name": str(d.get("name") or ""),
+            "role": "conductor" if d.get("crewRole") == "conductor" else "driver",
+            "phone": str(d.get("phone") or "").strip(),
+            "busReg": plates.get(d.get("busId"))}
+           for rid, d in crew.items() if d.get("status") in (None, "active")]
+    out.sort(key=lambda p: (p["name"], p["id"]))
+    return {"crew": out}
+
+
+def agent_coaching(approved_since):
+    """The weekly notes a manager approved at or after `approved_since` (ms), oldest decision first.
+
+    At most AGENT_COACHING_MAX, cut from the new end, so a reader that asks again from the last
+    decidedAt it was given walks forward and misses nothing. Approving a note a second time, after
+    an edit, stamps it with a new decidedAt, so it comes back; the reader tells it apart by id.
+    Each note is its id, the crew member, the week, the three Hindi lines the crew member reads
+    (good, fix, tip) and when it was approved. A draft or a skipped note is not here at all."""
+    with _lock:
+        c = db()
+        try:
+            notes = _store_rows(c, "coachai")
+        finally:
+            c.close()
+    out = [{"id": n.get("id") or nid,
+            "crewId": n.get("crewId"),
+            "week": n.get("week"),
+            "hi": {k: (n.get("hi") or {}).get(k) for k in ("good", "fix", "tip")},
+            "decidedAt": n.get("decidedAt") or 0}
+           for nid, n in notes.items()
+           if n.get("status") == "approved" and (n.get("decidedAt") or 0) >= approved_since]
+    out.sort(key=lambda x: (x["decidedAt"], x["id"]))
+    return {"notes": out[:AGENT_COACHING_MAX]}
+
+
 # ----------------------------- The advisor, with tools ------------------------------------------
 # Opus answers the owner's question by calling read-only tools over the records (advisor_ai.py),
 # inside Vercel's 60 s: past AI_ADVISOR_BUDGET_S it is told to answer from what it has.
@@ -3744,8 +3805,7 @@ def agent_for(header):
 # An agent AGENT_SCOPES does not list, or no AGENT_SCOPES at all, holds gps only,
 # which is all a key could do before scopes. A listed agent holds exactly the known
 # scopes it lists, so leaving gps out withdraws it without touching the key. Read on
-# every request and never cached at import, as AGENT_KEYS is, so a serverless instance
-# sees a change without a redeploy of the code.
+# every request and never cached at import, as AGENT_KEYS is.
 AGENT_SCOPE_NAMES = frozenset(("gps", "crew", "coaching", "papers"))
 # The scope that opens each /agent/ route. A path not listed here is not a route.
 AGENT_ROUTE_SCOPE = {"/agent/crew": "crew", "/agent/coaching": "coaching", "/agent/bus-papers": "papers"}
@@ -5045,6 +5105,15 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(denied, {"error": "unauthorized" if denied == 401 else "forbidden"})
             # Past the scope check. Each route is answered here with an `if u.path ==`;
             # one that is listed in AGENT_ROUTE_SCOPE but not answered yet is a 404.
+            # The request was logged above, so these handlers print nothing.
+            if u.path == "/agent/crew":
+                return self._send(200, agent_crew(), cache="no-store")
+            if u.path == "/agent/coaching":
+                try:
+                    since = int((parse_qs(u.query).get("approvedSince") or ["0"])[0])
+                except ValueError:
+                    since = 0                          # not a whole number of milliseconds: from the beginning
+                return self._send(200, agent_coaching(since), cache="no-store")
             return self._send(404, {"error": "not found"})
 
         if u.path == "/wa/webhook":
