@@ -3528,11 +3528,24 @@ def redact_for(actor, rec):
         return rec
     if st == "waconv":                    # keyed by a crew member's phone number
         return None
-    if st in ("rbreviews", "rbcomplaints", "rbassign", "itslookup", "rbreviewai", "rbaliasai", "gateai", "coreai", "reportai", "coachai"):
-        # Reviews, complaints and redBus's driver names are for the people who act
+    if st in ("rbreviews", "rbcomplaints", "rbassign", "rbreviewai"):
+        # Reviews, complaints and Claude's reading of them are for the people who act
         # on them. A driver's phone does not need every passenger's comment about
         # every colleague. (rbservices holds no names: drivers need it to pick the
         # service on the gate check.)
+        #
+        # The office is one of the people who act on them -- these four stores ARE its
+        # screen. It is deliberately kept out of PII_ROLES so it can never hold an
+        # Aadhaar, a licence or a salary, and for a while this one check gated both
+        # things: every review was withheld from the only login whose job is to read
+        # them, so the leaderboard drew each heading and not one crew member. Reading
+        # what a passenger said is a different question from reading a crew member's
+        # documents, and it is now asked separately.
+        return rec if actor.get("role") == "office" else None
+    if st in ("itslookup", "rbaliasai", "gateai", "coreai", "reportai", "coachai"):
+        # Not for the office either. itslookup carries a passenger's PNR, seat and
+        # journey, bought to resolve one review; the rest are Claude's drafts for the
+        # workshop and the crew manager. A desk reading performance needs none of it.
         return None
     if st == "drivers" and d.get("userId") != actor.get("id"):
         drop = _DRIVER_PRIVATE

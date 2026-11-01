@@ -92,5 +92,46 @@ if rec:
 owner_rec = next((r["data"] for r in S.pull(0, actor=OWNER).get("records", []) if r["id"] == "d-9"), None)
 check("the owner still sees the whole record", bool(owner_rec and owner_rec.get("license")))
 
+print("\nThe reviews reach it, which are the whole point of the screen")
+# Written straight into the store: these arrive from the redPro ingest and the ITS
+# lookup, not through push(), so a test that pushed them would only prove the write
+# guards work. What is under test is what pull() hands back.
+_c = S.db()
+_now = S.now_ms()
+_rev = _c.execute("SELECT COALESCE(MAX(rev),0) FROM records").fetchone()[0]
+for _st, _rid, _d in (
+        ("rbreviews",    "rv-9", {"id": "rv-9", "stars": 1, "text": "Driver drove rashly", "at": _now}),
+        ("rbassign",     "as-9", {"id": "as-9", "rv": "rv-9", "crewId": "d-9"}),
+        ("rbreviewai",   "ai-9", {"id": "ai-9", "rv": "rv-9", "faults": ["driver"]}),
+        ("rbcomplaints", "cp-9", {"id": "cp-9", "text": "Bus left early", "at": _now}),
+        ("rbalias",      "al-9", {"id": "al-9", "name": "Ramesh", "crewId": "d-9"}),
+        ("itslookup",    "it-9", {"id": "it-9", "pnr": "TR1234", "seat": "A1", "at": _now}),
+        ("rbaliasai",    "aa-9", {"id": "aa-9", "name": "Ramesh"}),
+):
+    _rev = S._upsert_record(_c, _st, _rid, _d, _now, _rev)
+_c.commit()
+_c.close()
+
+
+def seen(actor):
+    got = {}
+    for r in S.pull(0, actor=actor).get("records", []):
+        got[r["store"]] = got.get(r["store"], 0) + 1
+    return got
+
+
+_off = seen(OFFICE)
+# Without these the leaderboard renders every heading and not one crew member, which
+# is exactly how the bug looked on the floor: a working screen with nothing in it.
+for _st in ("rbreviews", "rbassign", "rbreviewai", "rbcomplaints"):
+    check("  %s reaches the office" % _st, _off.get(_st) == 1)
+check("  and the name match, or no review traces to anybody", _off.get("rbalias") == 1)
+# A desk reading crew performance has no business holding a passenger's journey.
+check("  a passenger's PNR and seat do NOT", not _off.get("itslookup"))
+
+_drv = seen(DRV)
+for _st in ("rbreviews", "rbassign", "rbreviewai", "rbcomplaints", "itslookup"):
+    check("  a driver's phone still receives no %s" % _st, not _drv.get(_st))
+
 print("\nRESULT: " + ("ALL PASS" if not fails else "%d FAILED -> %s" % (len(fails), fails)))
 sys.exit(1 if fails else 0)
