@@ -93,12 +93,12 @@ PASS=0; FAIL=0
 # right place.
 j()  { perl -e 'alarm shift; exec @ARGV' 25 "$B" js "$1" 2>/dev/null; }
 ck() { # desc, actual, expected
-  # GS_GATE_STRICT=1 refuses a call that did not get exactly three arguments. Under macOS's bash 3.2 a "$(j "...")" whose
+  # GS_GATE_STRICT=1 (anything but empty, unset or 0) refuses a call that did not get exactly three arguments. Under macOS's bash 3.2 a "$(j "...")" whose
   # JS has a { } holding a comma is brace-expanded INTO SEVERAL WORDS before it runs, so ck is handed four or more
   # arguments, compares two junk words, and passes by accident. 26 of the checks above are written that way (run with
   # GS_GATE_STRICT=1 to list them). Off by default because turning it on would block every push until those 26 are
   # rewritten as the gallery block's are, which is a separate job.
-  if [ -n "${GS_GATE_STRICT:-}" ] && [ "$#" -ne 3 ]; then FAIL=$((FAIL+1)); printf '  ✗ %s (ck was called with %s arguments, not 3)\n' "${1:-?}" "$#"; return; fi
+  if [ -n "${GS_GATE_STRICT:-}" ] && [ "${GS_GATE_STRICT}" != "0" ] && [ "$#" -ne 3 ]; then FAIL=$((FAIL+1)); printf '  ✗ %s (ck was called with %s arguments, not 3)\n' "${1:-?}" "$#"; return; fi
   if [ "$2" = "$3" ]; then PASS=$((PASS+1)); printf '  ✓ %s\n' "$1"
   else FAIL=$((FAIL+1)); printf '  ✗ %s (got "%s", expected "%s")\n' "$1" "$2" "$3"; fi
 }
@@ -688,6 +688,9 @@ GAL_STATES='button|.btn;button|.btn-primary;button|.btn-quiet;button|.btn-danger
 # The emoji detector: surrogate pairs (every emoji outside the BMP), the arrows, technical, enclosed, dingbat and symbol
 # blocks, the variation selector, the joiner and the keycap mark. A dash and an ellipsis are fine.
 GAL_EMOJI='function(s){return /[\uD800-\uDBFF][\uDC00-\uDFFF]|[←-⇿⌀-⏿①-➿⤀-⯿️‍⃣]/.test(s)?"found":"none"}'
+# A browse call that cannot wedge the gate, for the same reason j() is bounded: a hung daemon once held a push open for
+# fourteen minutes. A call that times out returns nothing, which reads as a failed check, loudly and in the right place.
+bb() { perl -e 'alarm shift; exec @ARGV' 25 "$B" "$@" 2>/dev/null; }
 gck() {
   local js="$2"
   js="${js//@REQ@/$GAL_REQ}"; js="${js//@STATES@/$GAL_STATES}"; js="${js//@EMOJI@/$GAL_EMOJI}"
@@ -702,24 +705,46 @@ ck "that ASCII scan can fail (it flags a file holding a bus emoji)" \
   "$(printf '\xf0\x9f\x9a\x8c\n' | perl -ne 'print "flagged" if /[^\x00-\x7F]/')" "flagged"
 # Names the Chrome 109 floor forbids, plus ES6 syntax the oldest phones may lack. A grep finds only a name it is
 # given, so CSS nesting (which has no name) is NOT covered here; test_ui_components.js reads the stylesheets for that.
-GAL_BANNED_RE='oklch|color-mix|@starting-style|view-transition|popover|subgrid|text-wrap|@layer|=>|`|\?\.[A-Za-z_$]| \?\? |(^|[^A-Za-z_.'"'"'])(const|let) [A-Za-z_$][A-Za-z0-9_$]* *='
+GAL_BANNED_RE='oklch|color-mix|@starting-style|view-transition|popover|subgrid|text-wrap|@layer|=>|`|\?\.[A-Za-z_$]| \?\? |(^|[^A-Za-z_.$-])(const|let|class) +[A-Za-z_$[{]'
 GAL_BANNED="$(grep -oiE "$GAL_BANNED_RE" "$REPO/ui/gallery.html" 2>/dev/null | sort -u | tr '\n' ' ')"
-ck "gallery.html names none of: oklch, color-mix, @starting-style, view-transition, popover, subgrid, text-wrap, @layer, =>, a backtick, ?., ??, const, let" \
+ck "gallery.html names none of: oklch, color-mix, @starting-style, view-transition, popover, subgrid, text-wrap, @layer, =>, a backtick, ?., ??, a const, let or class declaration" \
   "$([ -s "$REPO/ui/gallery.html" ] && echo present || echo absent):${GAL_BANNED:-none}" "present:none"
-ck "that feature scan can fail (it flags an arrow function, a const and color-mix)" \
-  "$(printf 'var f = (a) => a;\nconst x = 1;\nbackground: color-mix(in srgb, red, blue);\n' | grep -oiE "$GAL_BANNED_RE" | sort -u | wc -l | tr -d ' ')" "3"
+# One known-bad line per pattern; every one must be found, so no pattern in the list can be dead.
+GAL_BANNED_SAMPLES='background: oklch(60% 0.1 20);
+background: color-mix(in srgb, red, blue);
+@starting-style { a { opacity: 0 } }
+@view-transition { navigation: auto }
+<div popover>
+grid-template-columns: subgrid;
+text-wrap: balance;
+@layer base { a { color: red } }
+var f = (a) => a;
+var s = `x`;
+var v = o?.p;
+var w = a ?? b;
+const x = 1;
+let y;
+for (const k of z) {}
+class Foo {}'
+ck "that feature scan can fail (it finds every one of the 16 known-bad lines, one per pattern)" \
+  "$(printf '%s\n' "$GAL_BANNED_SAMPLES" | while IFS= read -r line; do printf '%s\n' "$line" | grep -qiE "$GAL_BANNED_RE" && echo hit; done | wc -l | tr -d ' ')" "$(printf '%s\n' "$GAL_BANNED_SAMPLES" | grep -c '')"
 
 # 4b) Open it.
 ORIG_VP="$(j "window.innerWidth+'x'+window.innerHeight")"
-"$B" console --clear >/dev/null 2>&1
-"$B" goto "$GAL" >/dev/null 2>&1
+# Sequenced so that no earlier page can write to the log being read. The app's page logged a connection error 187 ms after
+# a clear that ran while it was still alive, and the check blamed the gallery. So: leave the app FIRST, for a blank 404 page
+# (the browser refuses about:blank), then clear, then open the gallery. A cleared log can only hold what the gallery did.
+bb goto "http://127.0.0.1:$PORT/__gate_blank__" >/dev/null
+settle "location.pathname" "/__gate_blank__" 20 >/dev/null
+bb console --clear >/dev/null
+bb goto "$GAL" >/dev/null
 settle "typeof renderDemoRows==='function'&&document.readyState==='complete'?'ready':'no'" "ready" 40 >/dev/null
 
 gck "the gallery page loads and defines renderDemoRows beside the design system's own functions" \
   '[typeof renderDemoRows,typeof icon,typeof figure,typeof V2.openSheet,typeof emptyState].join("/")' \
   "function/function/function/function/function"
 ck "the browser logged no console error while the gallery loaded" \
-  "$("$B" console --errors 2>/dev/null | grep -c '(no console errors)')" "1"
+  "$(bb console --errors | grep -c '(no console errors)')" "1"
 # The console log does not hold an uncaught exception, so the page keeps its own list (a script at the top of the page).
 gck "the page recorded no uncaught script error and no file that failed to load" \
   'Array.isArray(window.__errors)?(window.__errors.length+" errors"+(window.__errors.length?": "+window.__errors.join(" | "):"")):"no error list on the page"' "0 errors"
@@ -763,17 +788,17 @@ gck "the Hindi row asks for Nirmala UI at a 1.7 line height (whether it DRAWS in
   '(function(){var e=document.querySelector("[data-component=row] [data-density=yard] .row[lang=hi]");if(!e)return "no Hindi row";var c=getComputedStyle(e),r=parseFloat(c.lineHeight)/parseFloat(c.fontSize);return c.fontFamily.indexOf("Nirmala UI")===1&&r>1.69&&r<1.71?"ok":c.fontFamily+" "+r})()' "ok"
 
 # 4f) Nothing overflows sideways: the office PC is 1024 wide, the oldest driver phone about 360.
-"$B" viewport 1024x768 >/dev/null 2>&1
+bb viewport 1024x768 >/dev/null
 settle "String(window.innerWidth)" "1024" 20 >/dev/null
 gck "nothing overflows sideways at 1024 wide" \
   'document.querySelectorAll("[data-component]").length<12?"no gallery on screen":(window.innerWidth!==1024?"viewport is "+window.innerWidth:(document.documentElement.scrollWidth<=1024?"fits":"overflows by "+(document.documentElement.scrollWidth-1024)))' "fits"
-"$B" viewport 360x740 >/dev/null 2>&1
+bb viewport 360x740 >/dev/null
 settle "String(window.innerWidth)" "360" 20 >/dev/null
 gck "nothing overflows sideways at 360 wide (an old Android phone)" \
   'document.querySelectorAll("[data-component]").length<12?"no gallery on screen":(window.innerWidth!==360?"viewport is "+window.innerWidth:(document.documentElement.scrollWidth<=360?"fits":"overflows by "+(document.documentElement.scrollWidth-360)))' "fits"
 # Back to the size the browser had, for everything after.
 GAL_VP="${ORIG_VP:-1280x720}"
-"$B" viewport "$GAL_VP" >/dev/null 2>&1
+bb viewport "$GAL_VP" >/dev/null
 settle "String(window.innerWidth)" "${GAL_VP%x*}" 20 >/dev/null
 
 # 4g) The two toggles.
@@ -827,11 +852,12 @@ gck "#perf-bed starts empty, and is a desk-density container (so the rows timed 
   '(function(){var b=document.getElementById("perf-bed");return b?(b.children.length===0?"empty":"has "+b.children.length+" children")+", --row-h "+getComputedStyle(b).getPropertyValue("--row-h").replace(/\s/g,""):"no bed"})()' "empty, --row-h 32px"
 # Three runs, the fastest counts: this machine is shared with other work, and a scheduling hiccup only ever makes a run
 # slower, so a budget that fails on one slow run of three would block pushes at random. Every run must still have drawn
-# 200 rows into the bed and given it a height, or there is no reading at all.
-PERF_RUNS="$(j '(function(){var bed=document.getElementById("perf-bed");if(!bed||bed.children.length)return "";var out=[],r;for(r=0;r<3;r++){bed.innerHTML="";var t=performance.now(),n=renderDemoRows(200),h=bed.offsetHeight,ms=performance.now()-t;if(n!==200||bed.querySelectorAll(".row").length!==200||h<=0)return "";out.push(Math.round(ms*10)/10)}return out.join(" ")})()')"
+# 200 rows into the bed and given it a height, and the last row must hold a drawing, a figure, a badge and a button: 200
+# bare divs would satisfy the min-height token and time nothing a real list does. Otherwise there is no reading at all.
+PERF_RUNS="$(j '(function(){var bed=document.getElementById("perf-bed");if(!bed||bed.children.length)return "";var out=[],r;for(r=0;r<3;r++){bed.innerHTML="";var t=performance.now(),n=renderDemoRows(200),h=bed.offsetHeight,ms=performance.now()-t;var last=bed.lastElementChild;if(n!==200||bed.querySelectorAll(".row").length!==200||h<=0||!last||!last.querySelector("svg")||!last.querySelector(".figure")||!last.querySelector(".badge")||!last.querySelector(".btn"))return "";out.push(Math.round(ms*10)/10)}return out.join(" ")})()')"
 echo "    (200 demo rows drawn and laid out, three runs: ${PERF_RUNS:-no reading} ms; limit 250 on the fastest)"
 PERF_AWK='BEGIN { n = split(r, a, " "); if (n != 3) { print "no reading"; exit } m = a[1] + 0; for (i = 2; i <= 3; i++) if (a[i] + 0 < m) m = a[i] + 0; print (m < 250) ? "ok" : "slow: fastest " m " ms" }'
-ck "200 rows render inside the desk budget (the fastest of three runs; each drew 200 rows into the bed and gave it a height)" \
+ck "200 rows render inside the desk budget (the fastest of three runs; each drew 200 full rows, with a drawing, figure, badge and button, into the bed)" \
   "$(awk -v r="$PERF_RUNS" "$PERF_AWK")" "ok"
 gck "the gallery's own Draw 200 rows button leaves 200 rows in the bed and reports three timed runs" \
   '(function(){var b=document.querySelector("[data-act=perf]");if(!b)return "no button";b.click();var r=document.getElementById("perf-readout"),n=document.querySelectorAll("#perf-bed > .row").length;return n+" rows; "+(/run 1 [0-9.]+ ms.*run 2 [0-9.]+ ms.*run 3 [0-9.]+ ms/.test(r?r.textContent:"")?"three runs shown":"readout: "+(r?r.textContent:"missing"))})()' "200 rows; three runs shown"
