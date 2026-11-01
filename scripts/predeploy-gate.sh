@@ -705,9 +705,17 @@ ck "that ASCII scan can fail (it flags a file holding a bus emoji)" \
   "$(printf '\xf0\x9f\x9a\x8c\n' | perl -ne 'print "flagged" if /[^\x00-\x7F]/')" "flagged"
 # Names the Chrome 109 floor forbids, plus ES6 syntax the oldest phones may lack. A grep finds only a name it is
 # given, so CSS nesting (which has no name) is NOT covered here; test_ui_components.js reads the stylesheets for that.
-GAL_BANNED_RE='oklch|color-mix|@starting-style|view-transition|popover|subgrid|text-wrap|@layer|=>|`|\?\.[A-Za-z_$]| \?\? |(^|[^A-Za-z_.$-])(const|let|class) +[A-Za-z_$[{]'
-GAL_BANNED="$(grep -oiE "$GAL_BANNED_RE" "$REPO/ui/gallery.html" 2>/dev/null | sort -u | tr '\n' ' ')"
-ck "gallery.html names none of: oklch, color-mix, @starting-style, view-transition, popover, subgrid, text-wrap, @layer, =>, a backtick, ?., ??, a const, let or class declaration" \
+#
+# Only the page's CODE is scanned: the bodies of <script> and <style> and style="" attributes, with comments and string
+# literals taken out first. Scanned as plain text the whole file would turn red on ordinary English ("let the team pick" in a
+# comment, "a class of vehicle" in copy), and a gate that cries wolf gets re-run until someone re-runs it past a real failure.
+# Whitespace after const, let and class is any whitespace, not just a space.
+GAL_BANNED_RE='oklch|color-mix|@starting-style|view-transition|popover|subgrid|text-wrap|@layer|=>|`|\?\.[A-Za-z_$]| \?\? |(^|[^A-Za-z_.$-])(const|let|class)[[:space:]]+[A-Za-z_$[{]'
+gal_banned() { # file -> the banned things found in the file's code, one per line
+  perl -0ne 'my $c = ""; while (/<(script|style)\b[^>]*>(.*?)<\/\1>/gis) { $c .= "$2\n" } while (/\bstyle="([^"]*)"/gi) { $c .= "$1\n" } $c =~ s{("(?:[^"\\\n]|\\.)*"|\x27(?:[^\x27\\\n]|\\.)*\x27)|/\*.*?\*/|//[^\n]*}{defined $1 ? "\"\"" : " "}gse; print $c' "$1" | grep -oiE "$GAL_BANNED_RE" | sort -u
+}
+GAL_BANNED="$(gal_banned "$REPO/ui/gallery.html" 2>/dev/null | tr '\n' ' ')"
+ck "gallery.html's code (script, style, style attributes; not its prose or comments) names none of: oklch, color-mix, @starting-style, view-transition, popover, subgrid, text-wrap, @layer, =>, a backtick, ?., ??, a const, let or class declaration" \
   "$([ -s "$REPO/ui/gallery.html" ] && echo present || echo absent):${GAL_BANNED:-none}" "present:none"
 # One known-bad line per pattern; every one must be found, so no pattern in the list can be dead.
 GAL_BANNED_SAMPLES='background: oklch(60% 0.1 20);
@@ -726,8 +734,35 @@ const x = 1;
 let y;
 for (const k of z) {}
 class Foo {}'
-ck "that feature scan can fail (it finds every one of the 16 known-bad lines, one per pattern)" \
-  "$(printf '%s\n' "$GAL_BANNED_SAMPLES" | while IFS= read -r line; do printf '%s\n' "$line" | grep -qiE "$GAL_BANNED_RE" && echo hit; done | wc -l | tr -d ' ')" "$(printf '%s\n' "$GAL_BANNED_SAMPLES" | grep -c '')"
+GAL_TAB_SAMPLE="$(printf 'let\tx = 1;')"
+GAL_SCAN_TMP="$(mktemp -t galscan)"
+# One page per known-bad line, the line inside a <script>.
+gal_selftest_hits() {
+  local line n=0
+  while IFS= read -r line; do
+    printf '<script>\n%s\n</script>\n' "$line" > "$GAL_SCAN_TMP"
+    [ -n "$(gal_banned "$GAL_SCAN_TMP")" ] && n=$((n+1))
+  done
+  echo "$n"
+}
+ck "that code scan can fail: it finds each of 17 known-bad lines in a script, one per pattern, including let followed by a tab" \
+  "$(printf '%s\n%s\n' "$GAL_BANNED_SAMPLES" "$GAL_TAB_SAMPLE" | gal_selftest_hits)" "$(printf '%s\n%s\n' "$GAL_BANNED_SAMPLES" "$GAL_TAB_SAMPLE" | grep -c '')"
+# ...and ordinary English is not code: the same words in an HTML comment, in body copy, in a script comment and in a script string.
+cat > "$GAL_SCAN_TMP" <<'PROSE'
+<!-- Let the team pick. A class of vehicle; const values. -->
+<style>/* let the office decide, a class of rule */ .a { color: red; }</style>
+<p>let the office decide. A class of vehicle. const values are fine.</p>
+<script>
+// let the user choose, a class of thing, const x
+/* const y = 1 and let z */
+var note = 'Let the office decide; a class of vehicle; const x = 1';
+var other = "let it be, class is over";
+</script>
+PROSE
+ck "that code scan is not fooled by English: let, class and const in a comment, in body copy and in a string are not code" \
+  "$(gal_banned "$GAL_SCAN_TMP" | tr '\n' ' ')" ""
+rm -f "$GAL_SCAN_TMP"
+
 
 # 4b) Open it.
 ORIG_VP="$(j "window.innerWidth+'x'+window.innerHeight")"
@@ -852,12 +887,13 @@ gck "#perf-bed starts empty, and is a desk-density container (so the rows timed 
   '(function(){var b=document.getElementById("perf-bed");return b?(b.children.length===0?"empty":"has "+b.children.length+" children")+", --row-h "+getComputedStyle(b).getPropertyValue("--row-h").replace(/\s/g,""):"no bed"})()' "empty, --row-h 32px"
 # Three runs, the fastest counts: this machine is shared with other work, and a scheduling hiccup only ever makes a run
 # slower, so a budget that fails on one slow run of three would block pushes at random. Every run must still have drawn
-# 200 rows into the bed and given it a height, and the last row must hold a drawing, a figure, a badge and a button: 200
-# bare divs would satisfy the min-height token and time nothing a real list does. Otherwise there is no reading at all.
-PERF_RUNS="$(j '(function(){var bed=document.getElementById("perf-bed");if(!bed||bed.children.length)return "";var out=[],r;for(r=0;r<3;r++){bed.innerHTML="";var t=performance.now(),n=renderDemoRows(200),h=bed.offsetHeight,ms=performance.now()-t;var last=bed.lastElementChild;if(n!==200||bed.querySelectorAll(".row").length!==200||h<=0||!last||!last.querySelector("svg")||!last.querySelector(".figure")||!last.querySelector(".badge")||!last.querySelector(".btn"))return "";out.push(Math.round(ms*10)/10)}return out.join(" ")})()')"
+# 200 rows into the bed and given it a height, and EVERY one of the 200 must hold a drawing, a figure, a badge and a button:
+# bare divs would satisfy the min-height token and time nothing a real list does, and checking one row would let 199 bare
+# ones through. The walk happens after the clock has stopped, so it adds nothing to the time. Otherwise there is no reading.
+PERF_RUNS="$(j '(function(){var bed=document.getElementById("perf-bed");if(!bed||bed.children.length)return "";var out=[],r;for(r=0;r<3;r++){bed.innerHTML="";var t=performance.now(),n=renderDemoRows(200),h=bed.offsetHeight,ms=performance.now()-t;var rows=[].slice.call(bed.children),full=rows.filter(function(x){return x.classList.contains("row")&&x.querySelector("svg")&&x.querySelector(".figure")&&x.querySelector(".badge")&&x.querySelector(".btn")}).length;if(n!==200||full!==200||h<=0)return "";out.push(Math.round(ms*10)/10)}return out.join(" ")})()')"
 echo "    (200 demo rows drawn and laid out, three runs: ${PERF_RUNS:-no reading} ms; limit 250 on the fastest)"
 PERF_AWK='BEGIN { n = split(r, a, " "); if (n != 3) { print "no reading"; exit } m = a[1] + 0; for (i = 2; i <= 3; i++) if (a[i] + 0 < m) m = a[i] + 0; print (m < 250) ? "ok" : "slow: fastest " m " ms" }'
-ck "200 rows render inside the desk budget (the fastest of three runs; each drew 200 full rows, with a drawing, figure, badge and button, into the bed)" \
+ck "200 rows render inside the desk budget (the fastest of three runs; each drew 200 rows into the bed, every one with a drawing, figure, badge and button)" \
   "$(awk -v r="$PERF_RUNS" "$PERF_AWK")" "ok"
 gck "the gallery's own Draw 200 rows button leaves 200 rows in the bed and reports three timed runs" \
   '(function(){var b=document.querySelector("[data-act=perf]");if(!b)return "no button";b.click();var r=document.getElementById("perf-readout"),n=document.querySelectorAll("#perf-bed > .row").length;return n+" rows; "+(/run 1 [0-9.]+ ms.*run 2 [0-9.]+ ms.*run 3 [0-9.]+ ms/.test(r?r.textContent:"")?"three runs shown":"readout: "+(r?r.textContent:"missing"))})()' "200 rows; three runs shown"
