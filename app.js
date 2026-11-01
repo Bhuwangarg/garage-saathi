@@ -1447,24 +1447,92 @@ function storeSig(arr) {
 }
 const sigOf = (...names) => names.map((n) => storeSig(S.cache[n])).join('|');
 
-async function load() {
-  const [users, buses, parts, jobs, ledger, att, purchases, drivers, incidents, driverreports, routes, triplog, fuel, gpsevents, audits, components, def, vendors, trips, garage] = await Promise.all([
-    DB.all('users'), DB.all('buses'), DB.all('parts'), DB.all('jobcards'),
-    DB.all('ledger'), DB.all('attendance'), DB.all('purchases'),
-    DB.all('drivers'), DB.all('incidents'), DB.all('driverreports'),
-    DB.all('routes'), DB.all('triplog'), DB.all('fuel'), DB.all('gpsevents'), DB.all('audits'), DB.all('components'), DB.all('def'), DB.all('vendors'), DB.all('trips'), DB.get('meta', 'garage'),
-  ]);
+/* Every store the app holds in memory, as `cache key: [object store, tolerant]`.
+ *
+ * The cache key is not always the store name (`jobs` reads `jobcards`, `att` reads
+ * `attendance`), which is exactly why this is written down once instead of being
+ * spelled out at each read.
+ *
+ * `tolerant` stores were added after the first release. A device that has not run
+ * the migration yet has no such object store, and an empty list is the right answer
+ * there. The original stores are deliberately NOT tolerant: if `buses` cannot be
+ * read, something is wrong that silence would hide. */
+const CACHE_STORES = {
+  users: ['users'], buses: ['buses'], parts: ['parts'], jobs: ['jobcards'],
+  ledger: ['ledger'], att: ['attendance'], purchases: ['purchases'],
+  drivers: ['drivers'], incidents: ['incidents'], driverreports: ['driverreports'],
+  routes: ['routes'], triplog: ['triplog'], fuel: ['fuel'], gpsevents: ['gpsevents'],
+  audits: ['audits'], components: ['components'], def: ['def'], vendors: ['vendors'],
+  trips: ['trips'],
   // Keyed by registration, not id — one snapshot row per bus, replaced on refresh.
-  const challans = await DB.all('challans').catch(() => []);
-  const usage = await DB.all('usage').catch(() => []);
-  const stockmoves = await DB.all('stockmoves').catch(() => []);
-  const breakdowns = await DB.all('breakdowns').catch(() => []);
-  const gatepasses = await DB.all('gatepasses').catch(() => []);
-  const dutylog = await DB.all('dutylog').catch(() => []);
-  const gatechecks = await DB.all('gatechecks').catch(() => []);
-  const crewnotes = await DB.all('crewnotes').catch(() => []);
-  const [rbservices, rbreviews, rbcomplaints, rbassign, rbalias, itslookup, rbreviewai, rbaliasai, gateai, coreai, reportai, coachai, digest] = await Promise.all(['rbservices', 'rbreviews', 'rbcomplaints', 'rbassign', 'rbalias', 'itslookup', 'rbreviewai', 'rbaliasai', 'gateai', 'coreai', 'reportai', 'coachai', 'digest'].map((n) => DB.all(n).catch(() => [])));
-  S.cache = { users, buses, parts, jobs, ledger, att, purchases, drivers, incidents, driverreports, routes, triplog, fuel, gpsevents, audits, components, def, vendors, trips, challans, usage, stockmoves, breakdowns, gatepasses, dutylog, gatechecks, crewnotes, rbservices, rbreviews, rbcomplaints, rbassign, rbalias, itslookup, rbreviewai, rbaliasai, gateai, coreai, reportai, coachai, digest, garage };
+  challans: ['challans', 1],
+  usage: ['usage', 1], stockmoves: ['stockmoves', 1], breakdowns: ['breakdowns', 1],
+  gatepasses: ['gatepasses', 1], dutylog: ['dutylog', 1], gatechecks: ['gatechecks', 1],
+  crewnotes: ['crewnotes', 1],
+  rbservices: ['rbservices', 1], rbreviews: ['rbreviews', 1], rbcomplaints: ['rbcomplaints', 1],
+  rbassign: ['rbassign', 1], rbalias: ['rbalias', 1], itslookup: ['itslookup', 1],
+  rbreviewai: ['rbreviewai', 1], rbaliasai: ['rbaliasai', 1], gateai: ['gateai', 1],
+  coreai: ['coreai', 1], reportai: ['reportai', 1], coachai: ['coachai', 1], digest: ['digest', 1],
+};
+
+/* Read the stores that changed; keep the arrays for the ones that did not.
+ *
+ * This read the whole database on every call, and it is called after every write
+ * (105 call sites) and on every sync tick. At fleet volume that was 880ms of
+ * deserialising unchanged rows between tapping a button and the screen answering
+ * — roughly a millisecond of work and most of a second of waiting for it.
+ *
+ * Unchanged stores keep their existing array, so the identity of the data is also
+ * stable; the memoised indexes are keyed on a content signature and hold.
+ *
+ * `force` re-reads everything, for the first load and after a restore, where the
+ * dirty set cannot know what arrived. */
+/* Stores that may be read on a delay rather than the moment a row lands.
+ *
+ * gpsevents is the only one, and it earns it: a month of safety events for the whole
+ * fleet is tens of thousands of rows -- an order of magnitude more than anything else
+ * -- and the GPS feed adds to it on nearly every sync tick, so re-reading it the
+ * instant each batch arrived cost most of a second every few seconds. Only the owner
+ * and supervisor roles are sent these at all, so that bill landed squarely on the
+ * devices used to watch the fleet.
+ *
+ * Nothing displays them live: live positions come from Sync.fleet(), and these screens
+ * are a 24-hour count, a 7-day count and a per-bus history, where being twenty seconds
+ * behind cannot be seen. A forced load still reads them at once. */
+const SLOW_STORES = { gpsevents: 20000 };
+const _slowReadAt = {};
+
+let _cacheLoaded = false;
+async function load(force) {
+  // NOT `!S.cache`: it starts as an empty object literal, which is truthy, so that
+  // test would make the very first load read nothing and start the app blank.
+  const all = force || !_cacheLoaded;
+  // Snapshotted, not consumed: anything written while the reads below are in
+  // flight stays dirty and is picked up by the next load.
+  const dirty = DB.dirtySnapshot();
+  const now = Date.now();
+  const keys = Object.keys(CACHE_STORES).filter((k) => {
+    const store = CACHE_STORES[k][0];
+    if (all) { delete _slowReadAt[store]; return true; }
+    if (!dirty.has(store)) return false;
+    const every = SLOW_STORES[store];
+    if (every && now - (_slowReadAt[store] || 0) < every) return false;
+    if (every) _slowReadAt[store] = now;
+    return true;
+  });
+  const next = all ? {} : Object.assign({}, S.cache);
+  const read = await Promise.all(keys.map((k) => {
+    const [store, tolerant] = CACHE_STORES[k];
+    return tolerant ? DB.all(store).catch(() => []) : DB.all(store);
+  }));
+  keys.forEach((k, i) => { next[k] = read[i]; });
+  // Exactly what was read, so a store held back by SLOW_STORES -- or written while
+  // the reads were in flight -- stays dirty instead of being quietly forgotten.
+  const done = new Set(keys.map((k) => CACHE_STORES[k][0]));
+  if (all || dirty.has('meta')) { next.garage = await DB.get('meta', 'garage'); done.add('meta'); }
+  S.cache = next;
+  _cacheLoaded = true;
+  DB.clearDirty(done);
   refreshBiz();   // keep the displayed business name in sync with garage config
 }
 const byId = (arr, id) => arr.find((x) => x.id === id);
@@ -1571,9 +1639,14 @@ async function issuePart({ partId, qty, jobId, reused = false, reusedCost = null
  * year still holds every row it ever pulled, and load() re-reads all of them on
  * every sync tick. This drops them locally.
  *
- * Deleted with DB.del, which writes no tombstone and marks nothing dirty: these
- * rows are not being deleted from the garage's records, they are being dropped
- * from THIS phone's copy. The server keeps them; nothing is pushed.
+ * Deleted with DB.del, which writes no tombstone and tells the outbox nothing:
+ * these rows are not being deleted from the garage's records, they are being
+ * dropped from THIS phone's copy. The server keeps them; nothing is pushed.
+ *
+ * It does mark the store dirty for load(), which is a different thing and the
+ * right one -- the in-memory copy has to stop showing rows that are no longer on
+ * disk. Before load() read selectively, pruning left them on screen until the
+ * next full read happened to come along.
  *
  * The windows sit a month beyond the server's so the two can never fight: a row
  * the server would still send is never pruned here. */

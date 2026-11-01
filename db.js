@@ -108,7 +108,27 @@ function tx(store, mode = 'readonly') {
   return openDB().then((db) => db.transaction(store, mode).objectStore(store));
 }
 
+/* Which object stores have been written since load() last read them.
+ *
+ * load() rebuilds the whole in-memory cache, and it runs after every write and on
+ * every sync tick. Re-reading stores nobody had touched was the largest single cost
+ * in the app: measured on a fleet-sized device, writing one row took 1ms and the
+ * reload behind it took 880ms, all of it spent deserialising rows that had not
+ * changed. That gap is what a tap on a button waits for.
+ *
+ * Marked here, at the only four places a row is ever written, so no caller has to
+ * remember to declare what it touched -- the sync engine's putRaw() included, which
+ * is where most writes actually come from. */
+const _dirtyStores = new Set();
+const _markDirty = (store) => { _dirtyStores.add(store); };
+
 const DB = {
+  // A copy, deliberately NOT cleared here: a write that lands while load() is
+  // awaiting its reads must stay dirty, or that write is the one that goes missing.
+  // load() clears exactly the names it finished reading.
+  dirtySnapshot() { return new Set(_dirtyStores); },
+  clearDirty(names) { (names || new Set(_dirtyStores)).forEach((n) => _dirtyStores.delete(n)); },
+  markDirty: _markDirty,
   async all(store) {
     const os = await tx(store);
     return new Promise((res, rej) => {
@@ -145,6 +165,7 @@ const DB = {
   // let seed data outrank the server and become impossible to correct.
   async bulkPut(store, arr, notify = true, stamp = true) {
     if (!arr || !arr.length) return 0;
+    _markDirty(store);
     const now = Date.now();
     const os = await tx(store, 'readwrite');
     await new Promise((res, rej) => {
@@ -166,6 +187,7 @@ const DB = {
     return obj;
   },
   _write(store, obj) {
+    _markDirty(store);
     return tx(store, 'readwrite').then((os) => new Promise((res, rej) => {
       const r = os.put(obj);
       r.onsuccess = () => res(obj);
@@ -173,6 +195,7 @@ const DB = {
     }));
   },
   async del(store, id) {
+    _markDirty(store);
     const os = await tx(store, 'readwrite');
     return new Promise((res, rej) => {
       const r = os.delete(id);
@@ -217,6 +240,9 @@ const DB = {
   async clearAll() {
     const db = await openDB();
     const names = Object.keys(STORES);
+    // Everything changed, so everything is dirty. A restore that left the dirty set
+    // empty would reload nothing and leave the old data on screen.
+    names.forEach(_markDirty);
     await new Promise((res, rej) => {
       const t = db.transaction(names, 'readwrite');
       t.oncomplete = () => res(true);
