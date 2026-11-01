@@ -114,9 +114,11 @@ git commit -m "Design tokens, with the Chrome 109 floor enforced by a test"
 - [ ] **Step 1: Write the failing test**
 
 ```js
-test('every icon is a single path on a 24-grid', () => {
-  for (const [n, d] of Object.entries(ICONS)) {
-    assert(typeof d === 'string' && d.length, n);
+test('every icon is one path on a 24-grid', () => {
+  for (const n of Object.keys(ICONS)) {
+    const s = icon(n);
+    assert(s.includes('viewBox="0 0 24 24"'), n + ' is not on the 24 grid');
+    assert((s.match(/<path/g) || []).length === 1, n + ' is not a single path');
   }
   assert(Object.keys(ICONS).length <= 30, 'the set is meant to stay small');
 });
@@ -184,6 +186,12 @@ test('reduced motion removes movement', () => assert(css.includes('prefers-reduc
 test('figures are tabular', () => assert(css.includes('font-variant-numeric: tabular-nums')));
 // Review Focus 4: an overlong value must not push a row's actions off screen.
 test('row text truncates', () => assertBlock(css, '.row .t', ['overflow', 'text-overflow']));
+test('select and table exist and follow density', () => {
+  for (const sel of ['.select', '.table']) {
+    assert(css.includes(sel), sel + ' is in the Interfaces but not in the stylesheet');
+    assert(usesToken(css, sel, ['--row-h', '--tap', '--pad']), sel + ' ignores density');
+  }
+});
 ```
 
 - [ ] **Step 2: Run it to verify it fails**
@@ -334,10 +342,11 @@ git commit -m "Sheets, dialogs and toasts — the only things that animate"
 
 **Interfaces:**
 - Consumes: everything above.
+- Produces: `renderDemoRows(n)` — appends `n` demo `.row` elements to `#perf-bed` and returns the count. It exists so the budget check in Step 3 has something representative to time, and it is the only script the gallery defines beyond the two toggles.
 
 - [ ] **Step 1: Build `ui/gallery.html`**
 
-Every component, in every state, in both densities, in both themes, on one page, with a density toggle and a theme toggle. Plain script tags; no build step. It is both the thing a person looks at and the fixture the gate drives.
+Every component, in every state, in both densities, in both themes, on one page, with a density toggle and a theme toggle, plus an empty `#perf-bed` and `renderDemoRows(n)` for Step 3. Each component gets `data-component="<name>"` so the gate can count them. Plain script tags; no build step. It is both the thing a person looks at and the fixture the gate drives.
 
 - [ ] **Step 2: Add gate checks**
 
