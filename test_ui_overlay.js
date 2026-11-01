@@ -48,7 +48,7 @@ const needEnv = (env) => {
 /* ---------- a test runner that waits for async tests ---------- */
 const queue = [];
 let fails = 0, skipped = 0, selfSkipped = 0;
-function test(name, fn, o) { queue.push({ name, fn, browser: !!(o && o.browser), selfTest: /\bgoes? red\b/.test(name) }); }
+function test(name, fn, o) { queue.push({ name, fn, browser: !!(o && o.browser), selfTest: /\b(goes|go) red\b/.test(name) }); }
 const NO_BROWSER = process.env.OVERLAY_NO_BROWSER === '1';
 async function runQueue() {
   for (const t of queue) {
@@ -1192,6 +1192,16 @@ async function checkScrollLock(env) {
     if (after.ov !== 'auto' || after.pr !== '2px') f.push('after the last overlay closed the document has overflow "' + after.ov + '" and padding-right "' + after.pr + '", not the "auto" and "2px" the app had set');
     if (!(await wheelMoves(p))) f.push('the page does not scroll again after the overlays closed');
   });
+  // 1b. a confirmation on its own (no sheet) locks and unlocks too
+  await withPage(env, LOCK_PAGE, async (p) => {
+    await p.eval('window.scrollTo(0, 0); V2.confirmDialog("Q?"); 1'); await wait(350);
+    if ((await state(p)).ov !== 'hidden') f.push('a confirmation on its own did not lock the page (overflow "' + (await state(p)).ov + '")');
+    await p.wheel(500, 300, 400); await wait(350);
+    if ((await state(p)).y !== 0) f.push('a mouse wheel scrolled the page behind a confirmation that has no sheet under it');
+    await p.key('Escape'); await wait(500);
+    if ((await state(p)).ov !== '') f.push('after a lone confirmation closed, the document overflow is "' + (await state(p)).ov + '"');
+    if (!(await wheelMoves(p))) f.push('the page does not scroll after a lone confirmation closed');
+  });
   // 2. an app with no inline styles ends with none; a toast alone does not lock; the width does not jump
   await withPage(env, LOCK_PAGE, async (p) => {
     await p.eval('V2.toast("alone", { ms: 0 }); 1'); await wait(300);
@@ -1250,6 +1260,27 @@ async function checkEscapeWithAToast(env) {
   });
   return f;
 }
+async function checkEscapeCanBeClaimed(env) {
+  return withPage(env, { noNativeRestore: true }, async (p) => {
+    const f = [];
+    await p.eval(`document.getElementById('opener').focus();
+      V2.openSheet('S', '<input id="mine" aria-label="Custom control"><button type="button" id="plain">Plain</button>');
+      document.getElementById('mine').addEventListener('keydown', function (e) { if (e.key === 'Escape') { e.preventDefault(); window.__claimed = (window.__claimed || 0) + 1; } });
+      document.getElementById('mine').focus(); H.sleep(350)`);
+    await p.key('Escape'); await p.eval('H.sleep(500)');
+    const r = await p.eval('({ open: !!H.sheet() && H.sheet().open, claimed: window.__claimed || 0 })');
+    if (r.claimed !== 1) f.push('the control inside the sheet never saw the Escape (claimed ' + r.claimed + '), so the test is not exercising it');
+    if (!r.open) f.push('Escape that a control inside the sheet had claimed (preventDefault) still closed the sheet');
+    await p.eval("document.getElementById('plain').focus(); 1");
+    await p.key('Escape');
+    if (!(await p.until('!H.sheet()', 2500))) f.push('Escape on a control that does not claim it did not close the sheet');
+    return f;
+  });
+}
+test('an Escape that a control inside a sheet has claimed (preventDefault on its keydown) does not close the sheet, and an Escape nobody claims does', async () => {
+  none(await checkEscapeCanBeClaimed(needEnv(REAL)));
+}, { browser: true });
+
 test('with a toast on screen Escape still goes to the modal beneath it (a sheet, or a confirmation over a sheet; the toast stays) instead of being swallowed by the toast', async () => {
   none(await checkEscapeWithAToast(needEnv(REAL)));
 }, { browser: true });
@@ -1753,6 +1784,13 @@ test('the Escape-with-a-toast checker goes red when Escape is not taken on keydo
   ]);
 }, { browser: true });
 
+test('the claimed-Escape checker goes red when Escape closes the sheet even though a control inside it claimed it, and when Escape no longer closes anything', async () => {
+  await redAll(checkEscapeCanBeClaimed, [
+    ['claimed Escape is ignored', mJs("!ev.defaultPrevented && ", '')],
+    ['Escape closes nothing', mJs("ev.preventDefault();\n      modals[modals.length - 1].onCancel();", "ev.preventDefault();")],
+  ]);
+}, { browser: true });
+
 test('the scroll-lock checker goes red for no lock, a lock that is never released, one that restores empty values instead of the app\'s, one released by the first of two stacked overlays, one released after a throwing hook, one left stuck by a wiped <body>, a toast that locks, and a lock that makes the page jump', async () => {
   await redAll(checkScrollLock, [
     ['no lock', mJs("el.style.overflow = 'hidden';", '')],
@@ -1762,6 +1800,7 @@ test('the scroll-lock checker goes red for no lock, a lock that is never release
     ['released only after the onClose hook, which throws', { js: mutate(mutate(REAL.js, '    if (!modals.length) { unlockScroll(); unwatch(); }  // first, before anything below can throw\n', ''), "if (typeof rec.after === 'function') rec.after();", "if (typeof rec.after === 'function') rec.after();\n    if (!modals.length) { unlockScroll(); unwatch(); }"), css: REAL.css }],
     ['a wiped <body> is not noticed', mJs("watcher.observe(doc().body, { childList: true });", '')],
     ['a toast locks the page', mJs('ensureLane().appendChild(el);\n    flush(el);', 'lockScroll(); ensureLane().appendChild(el);\n    flush(el);')],
+    ['a lone confirmation never locks', mJs('    lockScroll();\n    watch();', '    if (rec === sheet) lockScroll();\n    watch();')],
     ['the vanished scrollbar is not made up for', mJs('if (bar > 0) el.style.paddingRight', 'if (false) el.style.paddingRight')],
     ['the lock is taken twice and the second save overwrites the first', mJs('    if (scrollSaved) return;\n    var el = doc().documentElement, bar', '    var el = doc().documentElement, bar')],
   ]);
@@ -1784,7 +1823,7 @@ test('the static checks go red for a stylesheet with scale(0) or an animation, a
   hits(es6Syntax(needEnv(REAL).js + '\nvar f = (a) => a;'), 'an arrow function in overlay.js was not found');
   hits(es6Syntax(needEnv(REAL).js + '\nvar s = `x`;'), 'a template literal in overlay.js was not found');
   assert(/[^\x00-\x7F]/.test(needEnv(REAL).js + ' \u{1F68C}'), 'an emoji in overlay.js was not found');
-  assert.notDeepEqual(loadInVm(needEnv(REAL).js + '\nwindow.leak = 1;').added, ['closeSheet', 'confirmDialog', 'openSheet', 'toast'], 'a stray global was not found');
+  assert.deepEqual(loadInVm(needEnv(REAL).js + '\nwindow.leak = 1;').added, ['V2', 'leak'], 'a stray global was not found');
   assert.notDeepEqual(loadInVm(needEnv(REAL).js + '\nwindow.toast = function () {};').added, ['V2'], 'a bare toast global was not found');
   assert.notDeepEqual(loadInVm(needEnv(REAL).js.replace('window.V2 = ', 'var unused = ')).added, ['V2'], 'a missing V2 was not found');
 });
