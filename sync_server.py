@@ -3727,8 +3727,8 @@ def agent_keys():
 
 
 def agent_for(header):
-    """The agent's name for `Authorization: Agent <key>`, or None. Only /gps/latest
-    and /gps/fleet ever ask; no other route knows this principal."""
+    """The agent's name for `Authorization: Agent <key>`, or None. Only /gps/latest,
+    /gps/fleet and the /agent/ routes ever ask; no other route knows this principal."""
     if not header or not header.startswith("Agent "):
         return None
     digest = hashlib.sha256(header[6:].strip().encode()).hexdigest()
@@ -3736,6 +3736,39 @@ def agent_for(header):
         if hmac.compare_digest(digest, expected):
             return name
     return None
+
+
+# What a key may open. AGENT_SCOPES="name:gps,crew;name2:papers" lists, per agent, the
+# scopes it holds: gps (/gps/latest and /gps/fleet), and crew, coaching and papers
+# (one /agent/ route each). Agents are separated by ";", an agent's scopes by ",".
+# An agent AGENT_SCOPES does not list, or no AGENT_SCOPES at all, holds gps only,
+# which is all a key could do before scopes. A listed agent holds exactly the known
+# scopes it lists, so leaving gps out withdraws it without touching the key. Read on
+# every request, like AGENT_KEYS, so a scope can be withdrawn without a redeploy.
+AGENT_SCOPE_NAMES = frozenset(("gps", "crew", "coaching", "papers"))
+# The scope that opens each /agent/ route. A path not listed here is not a route.
+AGENT_ROUTE_SCOPE = {"/agent/crew": "crew", "/agent/coaching": "coaching", "/agent/bus-papers": "papers"}
+
+
+def agent_scopes(name):
+    """The set of scopes the agent `name` holds, read from AGENT_SCOPES right now."""
+    held = {}
+    for item in os.environ.get("AGENT_SCOPES", "").split(";"):
+        who, _, scopes = item.partition(":")
+        held[who.strip()] = {s.strip() for s in scopes.split(",")} & AGENT_SCOPE_NAMES
+    return held.get(name, {"gps"})
+
+
+def agent_with_scope(header, scope):
+    """(name, None) when `header` is a valid agent key and the agent holds `scope`;
+    (None, 401) when it is not a valid agent key; (name, 403) when the agent lacks
+    the scope. The one place an agent is let in or turned away."""
+    name = agent_for(header)
+    if not name:
+        return None, 401
+    if scope not in agent_scopes(name):
+        return name, 403
+    return name, None
 
 
 _REG_RX = re.compile(r"^([A-Z]{2})(\d{1,2})([A-Z]{1,3})(\d{1,4})$")
@@ -4969,26 +5002,43 @@ class Handler(BaseHTTPRequestHandler):
             # app uses a session. Anyone else gets nothing.
             prov = _GPS_TOKEN_OK and hmac.compare_digest(
                 self.headers.get("Authorization", ""), "Bearer " + GPS_INGEST_TOKEN)
-            agent = agent_for(self.headers.get("Authorization", ""))
+            agent, denied = agent_with_scope(self.headers.get("Authorization", ""), "gps")
             if not prov and not agent and not self._auth_user():
                 return self._send(401, {"error": "unauthorized"})
             if agent:
                 print("[gps] agent:%s %s" % (agent, u.path), flush=True)
+            if denied == 403:                          # AGENT_SCOPES withdrew gps from this agent
+                return self._send(403, {"error": "forbidden"})
             reg = (parse_qs(u.query).get("reg") or [""])[0]
             _gps_hydrate()
             data = LIVE_GPS.get(norm_reg(reg))
             return self._send(200 if data else 404, data or {"error": "no telemetry for reg"})
         if u.path == "/gps/fleet":                    # every registration AirFi has pushed
-            agent = agent_for(self.headers.get("Authorization", ""))
+            agent, denied = agent_with_scope(self.headers.get("Authorization", ""), "gps")
             if not agent and not self._auth_user():
                 return self._send(401, {"error": "unauthorized"})
             if agent:
                 print("[gps] agent:%s %s" % (agent, u.path), flush=True)
+            if denied == 403:                          # AGENT_SCOPES withdrew gps from this agent
+                return self._send(403, {"error": "forbidden"})
             _gps_hydrate()
             buses = [{"reg": v.get("reg") or k, "odometer": v.get("odometer"), "lastPing": v.get("lastPing"),
                       "lat": v.get("lat"), "lng": v.get("lng"), "speedKph": v.get("speedKph"), "ignition": v.get("ignition")}
                      for k, v in LIVE_GPS.items()]
             return self._send(200, {"buses": sorted(buses, key=lambda b: b["reg"])})
+
+        if u.path.startswith("/agent/"):             # read-only routes for agents, each behind its own scope
+            # Only an agent's key opens these: a session or the provider token is not
+            # an agent and gets 401. A path that is not a route has no scope, so no
+            # agent is let in to it either.
+            agent, denied = agent_with_scope(self.headers.get("Authorization", ""), AGENT_ROUTE_SCOPE.get(u.path))
+            if agent:                                  # named whether it is let in or not
+                print("[agent] agent:%s %s" % (agent, u.path), flush=True)
+            if denied:
+                return self._send(denied, {"error": "unauthorized" if denied == 401 else "forbidden"})
+            # Past the scope check. Each route is answered here with an `if u.path ==`;
+            # one that is listed in AGENT_ROUTE_SCOPE but not answered yet is a 404.
+            return self._send(404, {"error": "not found"})
 
         if u.path == "/wa/webhook":
             # Meta's one-time verification handshake: echo hub.challenge back in
