@@ -3495,6 +3495,45 @@ def _record_at(d):
     return 0
 
 
+def _never_for(actor):
+    """Stores this actor can never receive a single record from.
+
+    pull() pages through the table by rev. Most of that table is GPS events, and
+    only the owner and the supervisor are allowed to see those, so a driver's or a
+    mechanic's brand-new phone spent most of its first sync being handed pages that
+    redact_for then emptied completely -- the cursor advanced, nothing arrived, and
+    the screens that were waiting on real records stayed blank for minutes. This
+    lets the query skip those stores instead of reading them to throw them away.
+
+    These are redact_for's own rules, read once in store terms rather than written
+    out a second time, and test_pullscope.py checks the two against each other for
+    every role and every store. The asymmetry matters: naming one store too few
+    here only costs a little speed, while naming one too many means every device
+    with that role silently never receives it -- which is the failure this is meant
+    to cure, not cause.
+
+    Nothing here is about one record's age. The history stores are still read and
+    still trimmed per record by redact_for, because `old` is a property of a row
+    and not of a store."""
+    role = (actor or {}).get("role")
+    never = {"aimeta"}                          # server bookkeeping, for no device
+    if role not in ("owner", "supervisor"):
+        never.add("digest")                     # the Monday summary carries money
+    if role not in ("owner", "supervisor", "crewmanager", "office"):
+        never.add("crewnotes")
+    for st, roles in HISTORY_ROLES.items():
+        if roles and role not in roles:
+            never.add(st)
+    # Mirrors redact_for's early return: with no actor at all, nothing past this
+    # point is withheld, so nothing past this point may be skipped either.
+    if actor and role not in PII_ROLES:
+        never.add("waconv")                     # keyed by a crew member's phone number
+        never.update(("itslookup", "rbaliasai", "gateai", "coreai", "reportai", "coachai"))
+        if role != "office":
+            never.update(("rbreviews", "rbcomplaints", "rbassign", "rbreviewai"))
+    return frozenset(never)
+
+
 def redact_for(actor, rec):
     """The copy of a record this actor is allowed to receive, or None to omit it.
 
@@ -3578,13 +3617,21 @@ def pull(since, limit=None, actor=None):
     advance its cursor past records it never received.
     """
     limit = limit or PULL_LIMIT
+    # Leave out the stores this actor could never be sent anyway. Both queries below
+    # must use the same filter, or completing a rev group would quietly readmit a
+    # row the page had just excluded.
+    skip = sorted(_never_for(actor))
+    gap = (" AND store NOT IN (%s)" % ",".join(["?"] * len(skip))) if skip else ""
     with _lock:
         c = db()
         rows = c.execute(
-            "SELECT store,id,data,updatedAt,rev FROM records WHERE rev>? ORDER BY rev ASC LIMIT ?",
-            (since, limit)).fetchall()
+            "SELECT store,id,data,updatedAt,rev FROM records WHERE rev>?" + gap +
+            " ORDER BY rev ASC LIMIT ?", tuple([since] + skip + [limit])).fetchall()
         maxrev = c.execute("SELECT COALESCE(MAX(rev),0) FROM records").fetchone()[0]
-        if rows and len(rows) == limit:
+        # Whether the page stopped because it filled up, read before the rev-group
+        # fix-up below can push the count past the limit.
+        full = len(rows) == limit
+        if rows and full:
             last = rows[-1][4]
             # Drop the trailing partial rev group unless it is the whole page, in
             # which case take the rest of that group so progress is still made.
@@ -3594,14 +3641,19 @@ def pull(since, limit=None, actor=None):
             else:
                 # LIMIT must precede OFFSET for SQLite; a bare OFFSET is Postgres-only.
                 rows += c.execute(
-                    "SELECT store,id,data,updatedAt,rev FROM records WHERE rev=? "
-                    "ORDER BY id ASC LIMIT ? OFFSET ?", (last, 1000000, len(rows))).fetchall()
+                    "SELECT store,id,data,updatedAt,rev FROM records WHERE rev=?" + gap +
+                    " ORDER BY id ASC LIMIT ? OFFSET ?",
+                    tuple([last] + skip + [1000000, len(rows)])).fetchall()
         c.close()
     recs = [{"store": st, "id": i, "data": json.loads(d), "updatedAt": u, "rev": rv}
             for (st, i, d, u, rv) in rows]
     # maxRev is the cursor the client stores: the last rev actually SENT, not the
     # table maximum, or it would skip everything this page left behind.
-    cursor = recs[-1]["rev"] if recs else maxrev
+    # A page that did not fill up holds every record this actor can still receive,
+    # so the cursor clears the skipped tail in one step. Without this, a device whose
+    # remaining records are all stores it may not see would need another round trip
+    # to be told there is nothing in them.
+    cursor = maxrev if not full else (recs[-1]["rev"] if recs else maxrev)
     # Redact AFTER the cursor is taken: an omitted record must still count as
     # sent, or the client would ask for the same page forever.
     recs = [x for x in (redact_for(actor, r) for r in recs) if x is not None]
