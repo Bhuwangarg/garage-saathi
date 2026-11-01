@@ -92,13 +92,36 @@ PASS=0; FAIL=0
 # A timed-out call returns empty, which reads as a failed check -- loud, and in the
 # right place.
 j()  { perl -e 'alarm shift; exec @ARGV' 25 "$B" js "$1" 2>/dev/null; }
+# A check hands its JS to jck/jck2. It is never written inline as "$(j "...")",
+# and the scan below fails the gate if it ever is again.
+#
+# The reason is a bash 3.2 rule that is very easy to meet by accident: brace
+# expansion runs over a word's LITERAL TEXT before the command substitution inside
+# it is recognised. So this word --
+#   "$(j "componentLife({kind:'tyre',state:'in-service'}).basis")"
+# -- is split on the comma FIRST, into two words. Each then runs j on its own with
+# JS that nobody wrote (componentLife(kind:'tyre').basis), and ck is handed four
+# arguments instead of three: $2 and $3 are two identical junk results compared
+# against each other, so the check PASSES while testing nothing whatsoever.
+# 26 checks were written that way and had never once executed -- the first of them
+# being "mechanic sees only their own jobs", which is a data-isolation check. 31
+# more had braces with no comma in them yet, and were one edit away from joining
+# them silently. That is why the inline form is banned outright rather than fixed
+# case by case.
+#
+# Passing the expression as an ARGUMENT is the fix: its braces then sit in a word
+# that holds no command substitution, and brace expansion leaves such a word alone.
+# An assignment's right-hand side and a single-quoted string are safe for the same
+# reason, which is why gck() further down takes its expression single-quoted, and
+# why the few FOO="$(j "...")" assignments here are left as they are.
+jck()  { ck "$1" "$(j "$2")" "$3"; }          # desc, expression, expected literal
+jck2() { ck "$1" "$(j "$2")" "$(j "$3")"; }   # desc, expression, expression for expected
 ck() { # desc, actual, expected
-  # GS_GATE_STRICT=1 (anything but empty, unset or 0) refuses a call that did not get exactly three arguments. Under macOS's bash 3.2 a "$(j "...")" whose
-  # JS has a { } holding a comma is brace-expanded INTO SEVERAL WORDS before it runs, so ck is handed four or more
-  # arguments, compares two junk words, and passes by accident. 26 of the checks above are written that way (run with
-  # GS_GATE_STRICT=1 to list them). Off by default because turning it on would block every push until those 26 are
-  # rewritten as the gallery block's are, which is a separate job.
-  if [ -n "${GS_GATE_STRICT:-}" ] && [ "${GS_GATE_STRICT}" != "0" ] && [ "$#" -ne 3 ]; then FAIL=$((FAIL+1)); printf '  ✗ %s (ck was called with %s arguments, not 3)\n' "${1:-?}" "$#"; return; fi
+  # Anything other than three arguments is the signature of the bug above, so it
+  # fails -- unconditionally. This used to be opt-in behind GS_GATE_STRICT, which is
+  # exactly how 26 dead checks sat inside a green gate: a switch that turns off a
+  # correctness check is a switch that stays off.
+  if [ "$#" -ne 3 ]; then FAIL=$((FAIL+1)); printf '  ✗ %s (ck was called with %s arguments, not 3)\n' "${1:-?}" "$#"; return; fi
   if [ "$2" = "$3" ]; then PASS=$((PASS+1)); printf '  ✓ %s\n' "$1"
   else FAIL=$((FAIL+1)); printf '  ✗ %s (got "%s", expected "%s")\n' "$1" "$2" "$3"; fi
 }
@@ -143,6 +166,29 @@ _login_once() { # role userid d1 d2 d3 d4
 }
 
 echo "── g-saathi pre-deploy gate ──"
+
+# ── the gate's own shape ──────────────────────────────────────────────────
+# Two checks on this file, run before anything needs the browser, because the
+# failure they guard against is invisible at runtime: a vacuous check prints a
+# tick like any other. See the long note at jck() for the mechanism.
+echo "── gate self-check ──"
+
+# A braced expression must never be handed to j inline as a command argument.
+# Allowed: an assignment's right-hand side, which bash does not brace-expand, and
+# an expression with no braces to expand. Anything else is counted, and one is
+# enough to fail. A comment is skipped -- the note at jck() shows the broken form
+# on purpose, and a gate that reds on its own prose is a gate people switch off.
+# The perl is single-quoted, so its own braces are untouchable.
+ck "no check hands braced JS to j inline" \
+  "$(perl -0777 -ne 'my $n=0; while (/"\$\(j "(.*?)"\)"/gs) { my ($e,$p)=($1,$-[0]); my $ls=rindex($_,"\n",$p)+1; my $pre=substr($_,$ls,$p-$ls); next if $pre =~ /^\s*#/; next if $pre =~ /^\s*[A-Za-z_][A-Za-z0-9_]*=$/; next if $e !~ /\{/; $n++ } print $n' "$0")" "0"
+
+# ...and prove the helper actually delivers such an expression whole, so the ban
+# above is not merely cosmetic. A stub stands in for the browser: this asserts the
+# shell's behaviour, which is what was broken, not the app's.
+_stub_j() { printf 'ARGC=%s|%s' "$#" "$1"; }
+_SELF_EXPR="(function(){var o={id:'x',problem:'Seat cover stitching',status:'verified'};return o.problem})()"
+ck "jck hands braced JS to the browser as one intact argument" \
+  "$(_stub_j "$_SELF_EXPR")" "ARGC=1|$_SELF_EXPR"
 # Start from an EMPTY origin, not merely a fresh build. The port above is only
 # one of 120, and the gstack daemon is one browser per repo that lives across
 # runs, so a later run lands on an origin an earlier one already used — with
@@ -174,34 +220,46 @@ fi
 "$B" goto "$URL" >/dev/null 2>&1; sleep 3
 
 # 1) Login smoke for every role.
-login owner      u-owner 1 1 1 1; ck "owner login"      "$(j "S.user?S.user.role:'none'")" "owner"
-login supervisor u-sup   2 2 2 2; ck "supervisor login" "$(j "S.user?S.user.role:'none'")" "supervisor"
-login store      u-store 3 3 3 3; ck "store login"      "$(j "S.user?S.user.role:'none'")" "store"
-login driver     u-d1    0 0 1 0; ck "driver login"     "$(j "S.user?S.user.role:'none'")" "driver"
+login owner      u-owner 1 1 1 1; jck "owner login"      "S.user?S.user.role:'none'" "owner"
+login supervisor u-sup   2 2 2 2; jck "supervisor login" "S.user?S.user.role:'none'" "supervisor"
+login store      u-store 3 3 3 3; jck "store login"      "S.user?S.user.role:'none'" "store"
+login driver     u-d1    0 0 1 0; jck "driver login"     "S.user?S.user.role:'none'" "driver"
 # Mechanics sign in again (2026-09-11, reversing the earlier removal) — but to
 # SEE their assigned work, not to keep the card. The supervisor still writes it.
 # So the assertion moved: the door is open, and what is behind it is limited.
-login mechanic u-m1 0 0 0 1; ck "mechanic login" "$(j "S.user?S.user.role:'none'")" "mechanic"
+login mechanic u-m1 0 0 0 1; jck "mechanic login" "S.user?S.user.role:'none'" "mechanic"
 # A mechanic sees only their own work. Anything else here is a leak of another
 # mechanic's jobs, and of the whole board to somebody with no business on it.
-ck "mechanic sees only their own jobs" \
-  "$(j "(function(){var n=(S.cache.jobs||[]).filter(function(x){return !isOnJob(x,S.user.id)});var shown=[].slice.call(document.querySelectorAll('[data-job]')).map(function(e){return e.getAttribute('data-job')});return n.filter(function(x){return shown.indexOf(x.id)>=0}).length})()")" "0"
+jck "mechanic sees only their own jobs" \
+  "(function(){var n=(S.cache.jobs||[]).filter(function(x){return !isOnJob(x,S.user.id)});var shown=[].slice.call(document.querySelectorAll('[data-job]')).map(function(e){return e.getAttribute('data-job')});return n.filter(function(x){return shown.indexOf(x.id)>=0}).length})()" "0"
 # A mechanic must actually REACH their own card. This went unnoticed for a
 # while because the close-button check below passed vacuously: viewJobs was not
 # in the mechanic's permissions, every tap bounced to home, and home has no
 # close button either. Assert the screen first, then what is on it.
-ck "mechanic can open their own job card" \
-  "$(j "(function(){var j=(S.cache.jobs||[]).filter(function(x){return isOnJob(x,S.user.id)})[0];if(!j)return 'nojob';route({name:'jobs',id:j.id});return S.route.name+':'+(S.route.id||'')})()")" \
-  "$(j "(function(){var j=(S.cache.jobs||[]).filter(function(x){return isOnJob(x,S.user.id)})[0];return j?'jobs:'+j.id:'nojob'})()")"
-ck "mechanic can open the store" \
-  "$(j "(function(){route({name:'store'});return S.route.name})()")" "store"
+# Both halves of the next check fall back to 'nojob', so with no job on this
+# mechanic they would agree with each other and it would pass having tested
+# nothing. Count the jobs first -- the gate's own rule, applied here.
+jck "the mechanic has a job to open at all" \
+  "String((S.cache.jobs||[]).filter(function(x){return isOnJob(x,S.user.id)}).length>0)" "true"
+jck2 "mechanic can open their own job card" \
+  "(function(){var j=(S.cache.jobs||[]).filter(function(x){return isOnJob(x,S.user.id)})[0];if(!j)return 'nojob';route({name:'jobs',id:j.id});return S.route.name+':'+(S.route.id||'')})()" \
+  "(function(){var j=(S.cache.jobs||[]).filter(function(x){return isOnJob(x,S.user.id)})[0];return j?'jobs:'+j.id:'nojob'})()"
+jck "mechanic can open the store" \
+  "(function(){route({name:'store'});return S.route.name})()" "store"
 # Closing is the supervisor's and the owner's. The button must not be there...
-ck "mechanic has no close button" \
-  "$(j "(function(){var j=(S.cache.jobs||[]).filter(function(x){return x.assignedTo===S.user.id&&(x.status==='open'||x.status==='in-progress')})[0];if(!j)return 'nojob';route({name:'jobs',id:j.id});if(S.route.name!=='jobs')return 'bounced';return document.querySelector('[data-act=markDone]')?'yes':'no'})()")" "no"
+# The first run of this check, once it could run at all, returned 'nojob': it
+# asked for a job that was x.assignedTo AND open/in-progress, and this mechanic's
+# only job is verified -- so it never reached the assertion it is named for. It now
+# takes the job they are crew on (jobCrew, which is what app.js says to ask), puts
+# it in-progress for the length of the assertion and puts the status back.
+# That makes it a real tripwire: 'mine' is true, so editable is true, and the only
+# thing left withholding the button is mayCloseJob(). Drop that guard and this reds.
+jck "mechanic has no close button" \
+  "(function(){var u=S.user.id;var j=(S.cache.jobs||[]).filter(function(x){return isOnJob(x,u)})[0];if(!j)return 'nojob';var was=j.status;j.status='in-progress';route({name:'jobs',id:j.id});var r=S.route.name!=='jobs'?'bounced':document.querySelector('[data-act=markDone]')?'yes':'no';j.status=was;return r})()" "no"
 # ...and they are still assignable people: the scorecard and pilferage radar are
 # built on knowing who did the work.
-ck "mechanics still on the roster" \
-  "$(j "(S.cache.users||[]).filter(function(u){return u.role==='mechanic'}).length>0")" "true"
+jck "mechanics still on the roster" \
+  "(S.cache.users||[]).filter(function(u){return u.role==='mechanic'}).length>0" "true"
 
 # 2) Stock-count regression + persistence (the bug that shipped) — as store.
 login store u-store 3 3 3 3
@@ -213,11 +271,11 @@ settle "document.querySelector('[data-act=openStoreHealth]')?'yes':'no'" "yes" 2
 settle "document.querySelector('[data-act=auditFull]')?'yes':'no'" "yes" 25 >/dev/null
 "$B" js "document.querySelector('[data-act=auditFull]')?.click()"       >/dev/null 2>&1
 settle "document.querySelector('.au-count')?'yes':'no'" "yes" 25 >/dev/null
-ck "full-count sheet opens"                  "$(j "!!document.querySelector('.au-count')")" "true"
+jck "full-count sheet opens"                  "!!document.querySelector('.au-count')" "true"
 # Clicking a count field must NOT navigate away (the exact regression).
 j "var f=document.querySelector('.au-count'); f&&f.dispatchEvent(new MouseEvent('click',{bubbles:true}));'x'" >/dev/null
-ck "tapping count field does not navigate"   "$(j "S.route.name")" "storehealth"
-ck "sheet still open after field tap"        "$(j "!!document.querySelector('.sheetwrap')")" "true"
+jck "tapping count field does not navigate"   "S.route.name" "storehealth"
+jck "sheet still open after field tap"        "!!document.querySelector('.sheetwrap')" "true"
 # Enter counts + submit -> a new audit must persist.
 BEFORE="$(j "(S.cache.audits||[]).length")"
 j "var n=0;document.querySelectorAll('.au-count').forEach(function(i){i.value=String(3+(n++));i.dispatchEvent(new Event('input',{bubbles:true}));});'set'" >/dev/null
@@ -227,7 +285,7 @@ j "var n=0;document.querySelectorAll('.au-count').forEach(function(i){i.value=St
 settle "document.querySelector('.sheetwrap')?'open':'closed'" "closed" 25 >/dev/null
 AFTER="$(j "(S.cache.audits||[]).length")"
 ck "stock count persists (audits grew)"      "$([ "${AFTER:-0}" -gt "${BEFORE:-0}" ] && echo yes || echo no)" "yes"
-ck "sheet closes after save"                 "$(j "!document.querySelector('.sheetwrap')")" "true"
+jck "sheet closes after save"                 "!document.querySelector('.sheetwrap')" "true"
 
 # 2b) Completed work & preventive tracking.
 login owner u-owner 1 1 1 1
@@ -236,45 +294,45 @@ login owner u-owner 1 1 1 1
 # These two were live bugs: "AC not cooling" fell through to 'other' because a
 # bare two-letter word never appears inside a longer phrase, and "track rod"
 # matched AC once that was loosened to a substring.
-ck "classifier: AC not cooling"   "$(j "jobSystem({problem:'AC not cooling again'})")" "ac"
-ck "classifier: brakes plural"    "$(j "jobSystem({problem:'Brakes feel weak'})")" "brakes"
-ck "classifier: Hindi brake"      "$(j "jobSystem({problem:'ब्रेक से आवाज'})")" "brakes"
-ck "classifier: gas charged"      "$(j "jobSystem({problem:'A/C gas charged'})")" "ac"
-ck "classifier: track rod is not AC" "$(j "jobSystem({problem:'Track rod end'})")" "other"
-ck "classifier: trim is not AC"   "$(j "jobSystem({problem:'Trim panel loose'})")" "other"
+jck "classifier: AC not cooling"   "jobSystem({problem:'AC not cooling again'})" "ac"
+jck "classifier: brakes plural"    "jobSystem({problem:'Brakes feel weak'})" "brakes"
+jck "classifier: Hindi brake"      "jobSystem({problem:'ब्रेक से आवाज'})" "brakes"
+jck "classifier: gas charged"      "jobSystem({problem:'A/C gas charged'})" "ac"
+jck "classifier: track rod is not AC" "jobSystem({problem:'Track rod end'})" "other"
+jck "classifier: trim is not AC"   "jobSystem({problem:'Trim panel loose'})" "other"
 # Unclassified jobs share a bucket, not a cause: two of them must never read as
 # the same fault coming back.
-ck "unclassified work is never flagged as a repeat" \
-  "$(j "(function(){var D=86400000,n=Date.now(),b=S.cache.buses[0].id,o=S.cache.jobs;S.cache.jobs=o.concat([{id:'gx1',busId:b,problem:'Seat cover stitching',status:'verified',completeAt:n-30*D,createdAt:n-30*D,partsUsed:[]},{id:'gx2',busId:b,problem:'Body denting',status:'verified',completeAt:n-3*D,createdAt:n-3*D,partsUsed:[]}]);var t=serviceTracking(b).filter(function(x){return x.sys==='other'})[0];S.cache.jobs=o;return t&&(t.quickRepeat||t.due)?'FLAGGED':'clean'})()")" "clean"
+jck "unclassified work is never flagged as a repeat" \
+  "(function(){var D=86400000,n=Date.now(),b=S.cache.buses[0].id,o=S.cache.jobs;S.cache.jobs=o.concat([{id:'gx1',busId:b,problem:'Seat cover stitching',status:'verified',completeAt:n-30*D,createdAt:n-30*D,partsUsed:[]},{id:'gx2',busId:b,problem:'Body denting',status:'verified',completeAt:n-3*D,createdAt:n-3*D,partsUsed:[]}]);var t=serviceTracking(b).filter(function(x){return x.sys==='other'})[0];S.cache.jobs=o;return t&&(t.quickRepeat||t.due)?'FLAGGED':'clean'})()" "clean"
 j "route({name:'history'})" >/dev/null
 settle "S.route.name" "history" 20 >/dev/null
-ck "completed-work screen renders"  "$(j "document.querySelector('#hist-list')?'yes':'no'")" "yes"
+jck "completed-work screen renders"  "document.querySelector('#hist-list')?'yes':'no'" "yes"
 # A mechanic's finished cards are their own and nobody else's — the same scope
 # their live board has. Widening it here would be a back door onto the fleet.
 login mechanic u-m1 0 0 0 1
 j "route({name:'history'})" >/dev/null
 settle "S.route.name" "history" 20 >/dev/null
-ck "mechanic history is only their own work" \
-  "$(j "completedJobs().filter(function(x){return x.assignedTo!==S.user.id}).length")" "0"
+jck "mechanic history is only their own work" \
+  "completedJobs().filter(function(x){return x.assignedTo!==S.user.id}).length" "0"
 # ...and the door stays open: the route now carries a permission (2q), which
 # must not take a mechanic's own finished work away from them.
-ck "the mechanic still reaches completed work" "$(j "S.route.name")" "history"
+jck "the mechanic still reaches completed work" "S.route.name" "history"
 
 # 2c) The topbar carries no permanent sync badge, and a batch of writes is ONE push.
 login supervisor u-sup 2 2 2 2
-ck "no sync chip in the topbar while healthy" \
-  "$(j "document.querySelectorAll('.topbar .syncchip').length")" "0"
+jck "no sync chip in the topbar while healthy" \
+  "document.querySelectorAll('.topbar .syncchip').length" "0"
 # A dead session used to raise a mark and a popup telling him to go and fix it
 # in Me -> Sync. It renews itself now, with the PIN this device already holds,
 # so there is nothing to act on and nothing to show. Forcing the status directly
 # is the only way to reach that state without killing a real session.
-ck "a dead session raises no mark — it renews itself" \
-  "$(j "(function(){var was=SYNC_STATUS;SYNC_STATUS='signedout';updateSyncChip();var n=document.querySelectorAll('.topbar .syncchip').length;SYNC_STATUS=was;updateSyncChip();return n})()")" "0"
-ck "no sync mark in any state" \
-  "$(j "document.querySelectorAll('.topbar .syncchip').length")" "0"
+jck "a dead session raises no mark — it renews itself" \
+  "(function(){var was=SYNC_STATUS;SYNC_STATUS='signedout';updateSyncChip();var n=document.querySelectorAll('.topbar .syncchip').length;SYNC_STATUS=was;updateSyncChip();return n})()" "0"
+jck "no sync mark in any state" \
+  "document.querySelectorAll('.topbar .syncchip').length" "0"
 # ...and the chore is gone with it: nothing anywhere offers to sync by hand.
-ck "no manual sync control on Me" \
-  "$(j "(function(){route({name:'me'});return /syncNow|Sync now/.test(document.querySelector('#app .content').innerHTML)?'yes':'no'})()")" "no"
+jck "no manual sync control on Me" \
+  "(function(){route({name:'me'});return /syncNow|Sync now/.test(document.querySelector('#app .content').innerHTML)?'yes':'no'})()" "no"
 # push() used to send one HTTP request per record. Twelve writes must cost one.
 # The gate serves from a static server with no /push, so this counts what the
 # app ATTEMPTED, which is exactly the property under test.
@@ -289,67 +347,67 @@ ck "12 queued writes cost at most one push request" "$([ "${PUSHES:-9}" -le 1 ] 
 login supervisor u-sup 2 2 2 2
 j "route({name:'outsidejobs'})" >/dev/null
 settle "S.route.name" "outsidejobs" 20 >/dev/null
-ck "outside-job screen renders" "$(j "document.querySelector('#gp-list')?'yes':'no'")" "yes"
+jck "outside-job screen renders" "document.querySelector('#gp-list')?'yes':'no'" "yes"
 # The pass is a DOCUMENT: what it prints comes off the record, not off a live
 # lookup of the bus. Correcting a bus record next month must not silently
 # rewrite the slip sitting in the vendor's file. Rendered here with an engineNo
 # that deliberately disagrees with the bus, so a live lookup would show through.
 j "(async function(){var b=S.cache.buses[0];await DB.put('gatepasses',{id:'gt-snap',no:'OJ-SNAP',status:'out',vendorName:'V',busId:b.id,regNo:b.regNo,engineNo:'FROM-PASS',chassisNo:b.chassis,unitName:'Alt',unitSerial:'S-1',issuedBy:'u-sup',issuedAt:Date.now(),updatedAt:Date.now()});await load();route({name:'gatepass',id:'gt-snap'})})()" >/dev/null
 settle "S.route.name" "gatepass" 25 >/dev/null
-ck "the slip prints what was recorded, not a live lookup" \
-  "$(j "/FROM-PASS/.test(document.querySelector('.gp-sheet').innerText)")" "true"
-ck "and the bus's own engine no. does not show through" \
-  "$(j "document.querySelector('.gp-sheet').innerText.indexOf(S.cache.buses[0].engine)")" "-1"
+jck "the slip prints what was recorded, not a live lookup" \
+  "/FROM-PASS/.test(document.querySelector('.gp-sheet').innerText)" "true"
+jck "and the bus's own engine no. does not show through" \
+  "document.querySelector('.gp-sheet').innerText.indexOf(S.cache.buses[0].engine)" "-1"
 
 # Punctuation must not cry wolf, and a real swap must not slip through.
-ck "serial compare ignores punctuation"  "$(j "gpNormSerial(' alt 77219 b ')===gpNormSerial('ALT-77219-B')")" "true"
-ck "serial compare still catches a swap" "$(j "gpNormSerial('ST-9999')===gpNormSerial('ST-4410')")" "false"
+jck "serial compare ignores punctuation"  "gpNormSerial(' alt 77219 b ')===gpNormSerial('ALT-77219-B')" "true"
+jck "serial compare still catches a swap" "gpNormSerial('ST-9999')===gpNormSerial('ST-4410')" "false"
 # A gate pass printed from a phone in dark mode has to come out readable.
-ck "the slip stays ink-on-paper in dark mode" \
-  "$(j "(function(){var d=document.documentElement.getAttribute('data-theme');document.documentElement.setAttribute('data-theme','dark');var el=document.createElement('div');el.className='gp-sheet';document.body.appendChild(el);var c=getComputedStyle(el).backgroundColor;el.remove();if(d)document.documentElement.setAttribute('data-theme',d);else document.documentElement.removeAttribute('data-theme');return c})()")" "rgb(255, 255, 255)"
+jck "the slip stays ink-on-paper in dark mode" \
+  "(function(){var d=document.documentElement.getAttribute('data-theme');document.documentElement.setAttribute('data-theme','dark');var el=document.createElement('div');el.className='gp-sheet';document.body.appendChild(el);var c=getComputedStyle(el).backgroundColor;el.remove();if(d)document.documentElement.setAttribute('data-theme',d);else document.documentElement.removeAttribute('data-theme');return c})()" "rgb(255, 255, 255)"
 
 # 2e) Every parts chooser is a search box, not a 2,391-option dropdown.
 login store u-store 3 3 3 3
 j "sheetReceive()" >/dev/null
 settle "document.getElementById('pps-rcv')?'y':'n'" "y" 20 >/dev/null
-ck "receive stock has a part search"   "$(j "document.getElementById('pps-rcv')?'y':'n'")" "y"
-ck "receive stock has no part dropdown" "$(j "document.querySelectorAll('.sheetwrap select#f-part').length")" "0"
+jck "receive stock has a part search"   "document.getElementById('pps-rcv')?'y':'n'" "y"
+jck "receive stock has no part dropdown" "document.querySelectorAll('.sheetwrap select#f-part').length" "0"
 j "closeSheet();sheetAddStock()" >/dev/null
 settle "document.getElementById('pps-stk')?'y':'n'" "y" 20 >/dev/null
-ck "add stock has a part search"       "$(j "document.getElementById('pps-stk')?'y':'n'")" "y"
-ck "add stock has no part dropdown"    "$(j "document.querySelectorAll('.sheetwrap select#f-spart').length")" "0"
+jck "add stock has a part search"       "document.getElementById('pps-stk')?'y':'n'" "y"
+jck "add stock has no part dropdown"    "document.querySelectorAll('.sheetwrap select#f-spart').length" "0"
 # A bill has repeating part lines. Each needs its OWN picker, or two lines share
 # a key and picking in one silently rewrites the other.
 j "closeSheet();sheetAddPurchase()" >/dev/null
 settle "document.querySelectorAll('.f-line').length>0?'y':'n'" "y" 20 >/dev/null
 j "document.getElementById('f-addline').click()" >/dev/null
 settle "String(document.querySelectorAll('.f-line').length)" "2" 20 >/dev/null
-ck "each bill line gets its own picker" \
-  "$(j "(function(){var k=[].slice.call(document.querySelectorAll('.f-line [data-pp]')).map(function(e){return e.getAttribute('data-pp')});return String(new Set(k).size===k.length&&k.length===2)})()")" "true"
+jck "each bill line gets its own picker" \
+  "(function(){var k=[].slice.call(document.querySelectorAll('.f-line [data-pp]')).map(function(e){return e.getAttribute('data-pp')});return String(new Set(k).size===k.length&&k.length===2)})()" "true"
 # savePurchase() reads row.querySelector('.f-lpart').value — the hidden input
 # must keep that class or every bill line silently saves an empty part.
-ck "bill line read-back still resolves" "$(j "document.querySelectorAll('.f-line .f-lpart').length")" "2"
+jck "bill line read-back still resolves" "document.querySelectorAll('.f-line .f-lpart').length" "2"
 # Issuing defaults to what is actually on the shelf; restocking must not, because
 # the part being restocked is usually the one at zero.
 j "closeSheet();sheetIssue()" >/dev/null
 settle "document.getElementById('pps-iss')?'y':'n'" "y" 20 >/dev/null
-ck "issue defaults to in-stock parts only" \
-  "$(j "String([].slice.call(document.querySelectorAll('#ppl-iss .li')).every(function(n){return !/Out of stock/.test(n.textContent)}))")" "true"
+jck "issue defaults to in-stock parts only" \
+  "String([].slice.call(document.querySelectorAll('#ppl-iss .li')).every(function(n){return !/Out of stock/.test(n.textContent)}))" "true"
 j "closeSheet()" >/dev/null
 
 # 2f) Registrations match however they are written, and the de-dupe keeps the real bus.
 login owner u-owner 1 1 1 1
 # AirFi sends the official zero-padded plate; 15 buses in the fleet list are not.
-ck "MP44ZD471 matches the tracker's MP44ZD0471" "$(j "_normReg('MP44ZD471')===_normReg('MP44ZD0471')")" "true"
-ck "spacing and case still ignored"           "$(j "_normReg('mp44 zd 471')")" "MP44ZD0471"
+jck "MP44ZD471 matches the tracker's MP44ZD0471" "_normReg('MP44ZD471')===_normReg('MP44ZD0471')" "true"
+jck "spacing and case still ignored"           "_normReg('mp44 zd 471')" "MP44ZD0471"
 # No series letter means the district/number boundary is ambiguous: never guess.
-ck "an ambiguous plate is left as written"    "$(j "_normReg('RJ14123')")" "RJ14123"
+jck "an ambiguous plate is left as written"    "_normReg('RJ14123')" "RJ14123"
 # The padding makes a real bus and an AirFi-imported copy of it the same group,
 # which turns the background de-dupe on for them. Every real bus scored 0 there,
 # the same as the copy, so a tie could have deleted the real one.
 j "window.__g='';(async function(){var n=Date.now();await DB.put('buses',{id:'g-ph',regNo:'QQ44ZD0471',source:'airfi',docs:[],createdAt:n});await DB.put('buses',{id:'g-real',regNo:'QQ44ZD471',source:'route-import',docs:[],createdAt:n-9e8});await DB.put('jobcards',{id:'g-job',busId:'g-real',problem:'x',status:'open',createdAt:n,updatedAt:n});await load();await cleanupFleet(true);window.__g=(byId(S.cache.buses,'g-real')?'kept':'LOST')+'/'+(byId(S.cache.buses,'g-ph')?'phantom-stays':'phantom-gone');})().catch(function(e){window.__g='ERR'})" >/dev/null
 settle "window.__g||''" "kept/phantom-gone" 30 >/dev/null
-ck "de-dupe keeps the real bus, drops the import" "$(j "window.__g")" "kept/phantom-gone"
+jck "de-dupe keeps the real bus, drops the import" "window.__g" "kept/phantom-gone"
 # The same rule for demo buses. Once a real fleet existed, the background pass
 # stripped every demo bus on a two-minute timer, history or not, and synced
 # the delete: their job cards, drivers, incidents and parts were left pointing
@@ -357,28 +415,28 @@ ck "de-dupe keeps the real bus, drops the import" "$(j "window.__g")" "kept/phan
 # Unattended, a demo bus with records on it stays; a bare one still goes.
 j "window.__dm='';(async function(){var n=Date.now();await DB.put('buses',{id:'g-dm-hist',regNo:'QQ01DM0001',source:'demo',docs:[],createdAt:n});await DB.put('buses',{id:'g-dm-bare',regNo:'QQ01DM0002',source:'demo',docs:[],createdAt:n});await DB.put('jobcards',{id:'g-dm-job',busId:'g-dm-hist',problem:'Gate demo history',status:'open',priority:'low',createdAt:n,updatedAt:n,assignees:[],partsUsed:[],beforePhotos:[],afterPhotos:[]});await load();await cleanupFleet(true);var r=(byId(S.cache.buses,'g-dm-hist')?'kept':'LOST')+'/'+(byId(S.cache.buses,'g-dm-bare')?'bare-stays':'bare-gone');await DB.softDel('jobcards','g-dm-job');await DB.softDel('buses','g-dm-hist');await load();window.__dm=r})().catch(function(e){window.__dm='ERR '+e.message})" >/dev/null
 settle "window.__dm||''" "kept/bare-gone" 30 >/dev/null
-ck "a demo bus with history survives the background cleanup" "$(j "(window.__dm||'').split('/')[0]")" "kept"
-ck "and a demo bus with none is still removed"               "$(j "(window.__dm||'').split('/')[1]")" "bare-gone"
+jck "a demo bus with history survives the background cleanup" "(window.__dm||'').split('/')[0]" "kept"
+jck "and a demo bus with none is still removed"               "(window.__dm||'').split('/')[1]" "bare-gone"
 
 # 2g) Several mechanics on one job: each sees it, nobody else does.
 login supervisor u-sup 2 2 2 2
 j "window.__cs='';(async function(){var b=S.cache.buses[0],n=Date.now();await DB.put('jobcards',{id:'g-crew',busId:b.id,problem:'Gate crew job',status:'open',priority:'medium',createdAt:n,updatedAt:n,assignedTo:'u-m1',assignees:[{userId:'u-m1',task:'Electrical'},{userId:'u-m2',task:'Brakes'}],partsUsed:[],beforePhotos:[],afterPhotos:[]});await load();window.__cs='ok'})()" >/dev/null
 settle "window.__cs||''" "ok" 25 >/dev/null
 # assignedTo stays the first mechanic, so every older reader still sees a name.
-ck "shared job keeps assignedTo as the lead"  "$(j "byId(S.cache.jobs,'g-crew').assignedTo")" "u-m1"
-ck "both mechanics are on the crew"           "$(j "jobCrew(byId(S.cache.jobs,'g-crew')).map(function(a){return a.userId}).join(',')")" "u-m1,u-m2"
+jck "shared job keeps assignedTo as the lead"  "byId(S.cache.jobs,'g-crew').assignedTo" "u-m1"
+jck "both mechanics are on the crew"           "jobCrew(byId(S.cache.jobs,'g-crew')).map(function(a){return a.userId}).join(',')" "u-m1,u-m2"
 # A job saved by the previous build has no assignees array at all.
-ck "an old single-mechanic job still reads"   "$(j "jobCrew({assignedTo:'u-m3'}).length")" "1"
-ck "a draft saved as a bare id still restores" "$(j "parseCrew('u-m3')[0].userId")" "u-m3"
+jck "an old single-mechanic job still reads"   "jobCrew({assignedTo:'u-m3'}).length" "1"
+jck "a draft saved as a bare id still restores" "parseCrew('u-m3')[0].userId" "u-m3"
 # The second mechanic — not assignedTo — must still get the job.
 login mechanic u-m2 0 0 0 2
-ck "second mechanic login" "$(j "S.user?S.user.id:'none'")" "u-m2"
+jck "second mechanic login" "S.user?S.user.id:'none'" "u-m2"
 j "route({name:'jobs'})" >/dev/null
 settle "S.route.name" "jobs" 20 >/dev/null
-ck "the second mechanic sees the shared job" "$(j "document.querySelector('[data-job=\"g-crew\"]')?'yes':'no'")" "yes"
+jck "the second mechanic sees the shared job" "document.querySelector('[data-job=\"g-crew\"]')?'yes':'no'" "yes"
 j "route({name:'jobs',id:'g-crew'})" >/dev/null
 settle "S.route.id||''" "g-crew" 20 >/dev/null
-ck "and can open it" "$(j "String(/Gate crew job/.test(document.querySelector('.content').innerText))")" "true"
+jck "and can open it" "String(/Gate crew job/.test(document.querySelector('.content').innerText))" "true"
 # Being ON a job is not being allowed to CLOSE it. The job card's close section
 # used to open for "mine", so a mechanic with both photos in got a live Close
 # job button, and the close wrote 'done' on the phone that the server then
@@ -386,37 +444,37 @@ ck "and can open it" "$(j "String(/Gate crew job/.test(document.querySelector('.
 # markDone. Both photos are present here, so nothing else holds the close back.
 j "window.__mc='';(async function(){var b=S.cache.buses[0],n=Date.now();await DB.put('jobcards',{id:'g-mclose',busId:b.id,problem:'Gate mechanic close',status:'in-progress',priority:'low',createdAt:n,updatedAt:n,assignedTo:'u-m2',assignees:[{userId:'u-m2',task:'Brakes'}],partsUsed:[],beforePhotos:['b'],afterPhotos:['a']});await load();route({name:'jobs',id:'g-mclose'});var btn=document.querySelector('[data-act=closeJob],[data-act=markDone]')?'button':'none';await confirmCloseJob('g-mclose');var st=byId(S.cache.jobs,'g-mclose').status;await DB.softDel('jobcards','g-mclose');await load();window.__mc=btn+'/'+st})().catch(function(e){window.__mc='ERR '+e.message})" >/dev/null
 settle "window.__mc||''" "none/in-progress" 30 >/dev/null
-ck "a mechanic's own live card offers no close"  "$(j "(window.__mc||'').split('/')[0]")" "none"
-ck "and closing it directly is refused"          "$(j "(window.__mc||'').split('/')[1]")" "in-progress"
+jck "a mechanic's own live card offers no close"  "(window.__mc||'').split('/')[0]" "none"
+jck "and closing it directly is refused"          "(window.__mc||'').split('/')[1]" "in-progress"
 # A mechanic on neither side of it must not reach it, by list or by link.
 login mechanic u-m3 0 0 0 3
 j "route({name:'jobs'})" >/dev/null
 settle "S.route.name" "jobs" 20 >/dev/null
-ck "a mechanic not on it does not see it" "$(j "document.querySelector('[data-job=\"g-crew\"]')?'LEAK':'hidden'")" "hidden"
+jck "a mechanic not on it does not see it" "document.querySelector('[data-job=\"g-crew\"]')?'LEAK':'hidden'" "hidden"
 j "route({name:'jobs',id:'g-crew'})" >/dev/null
 sleep 1
-ck "and a deep link does not open it" "$(j "String(/Gate crew job/.test(document.querySelector('.content').innerText))")" "false"
+jck "and a deep link does not open it" "String(/Gate crew job/.test(document.querySelector('.content').innerText))" "false"
 
 # 2h) Challans: an old lookup made with the zero dropped is not trusted if it found nothing.
 login owner u-owner 1 1 1 1
-ck "challan lookup asks for the official plate" "$(j "normReg('MP44ZD471')")" "MP44ZD0471"
-ck "an empty old snapshot is treated as unchecked" \
-  "$(j "(function(){var s=S.cache.challans;S.cache.challans=[{rc:'MP44ZD471',total:0,pendingCount:0,pendingFine:0}];_chSnapFrom=null;var r=challanFor('MP44ZD471')?'TRUSTED':'unchecked';S.cache.challans=s;_chSnapFrom=null;return r})()")" "unchecked"
-ck "an old snapshot that FOUND challans is kept" \
-  "$(j "(function(){var s=S.cache.challans;S.cache.challans=[{rc:'NL07B585',total:3,pendingCount:2,pendingFine:1000}];_chSnapFrom=null;var c=challanFor('NL07B585');S.cache.challans=s;_chSnapFrom=null;return c?String(c.pendingFine):'LOST'})()")" "1000"
+jck "challan lookup asks for the official plate" "normReg('MP44ZD471')" "MP44ZD0471"
+jck "an empty old snapshot is treated as unchecked" \
+  "(function(){var s=S.cache.challans;S.cache.challans=[{rc:'MP44ZD471',total:0,pendingCount:0,pendingFine:0}];_chSnapFrom=null;var r=challanFor('MP44ZD471')?'TRUSTED':'unchecked';S.cache.challans=s;_chSnapFrom=null;return r})()" "unchecked"
+jck "an old snapshot that FOUND challans is kept" \
+  "(function(){var s=S.cache.challans;S.cache.challans=[{rc:'NL07B585',total:3,pendingCount:2,pendingFine:1000}];_chSnapFrom=null;var c=challanFor('NL07B585');S.cache.challans=s;_chSnapFrom=null;return c?String(c.pendingFine):'LOST'})()" "1000"
 # Old and fresh snapshot for one bus must not add that bus's fines twice.
-ck "fines are counted once per bus" \
-  "$(j "(function(){var s=S.cache.challans;S.cache.challans=[{rc:'RJ14PF207',total:2,pendingCount:2,pendingFine:500,fetchedAt:1},{rc:'RJ14PF0207',total:2,pendingCount:1,pendingFine:200,fetchedAt:2}];_chSnapFrom=null;var f=fleetChallanTotals().fine;S.cache.challans=s;_chSnapFrom=null;return String(f)})()")" "200"
+jck "fines are counted once per bus" \
+  "(function(){var s=S.cache.challans;S.cache.challans=[{rc:'RJ14PF207',total:2,pendingCount:2,pendingFine:500,fetchedAt:1},{rc:'RJ14PF0207',total:2,pendingCount:1,pendingFine:200,fetchedAt:2}];_chSnapFrom=null;var f=fleetChallanTotals().fine;S.cache.challans=s;_chSnapFrom=null;return String(f)})()" "200"
 # Ids are names that already exist: they keep the stored spelling.
-ck "record ids keep the stored spelling"   "$(j "_regIdKey('MP44 ZD 471')")" "MP44ZD471"
+jck "record ids keep the stored spelling"   "_regIdKey('MP44 ZD 471')" "MP44ZD471"
 
 # 2i) The supervisor's own work signs itself off; the owner's does not.
-ck "supervisor closes = signed off"        "$(j "String(selfSignsOff('supervisor'))")" "true"
-ck "owner still needs a second person"     "$(j "String(selfSignsOff('owner'))")" "false"
+jck "supervisor closes = signed off"        "String(selfSignsOff('supervisor'))" "true"
+jck "owner still needs a second person"     "String(selfSignsOff('owner'))" "false"
 login supervisor u-sup 2 2 2 2
 j "window.__sv='';(async function(){var b=S.cache.buses[0],n=Date.now();await DB.put('jobcards',{id:'g-sv',busId:b.id,problem:'Gate supervisor close',status:'open',priority:'low',createdAt:n,updatedAt:n,assignedTo:'u-m1',beforePhotos:['b'],afterPhotos:['a'],partsUsed:[]});await load();await markDone('g-sv');var j=byId(S.cache.jobs,'g-sv');window.__sv=j.status+'/'+j.verifiedBy+'/'+j.closedBy})().catch(function(e){window.__sv='ERR '+e.message})" >/dev/null
 settle "window.__sv||''" "verified/u-sup/u-sup" 30 >/dev/null
-ck "a supervisor's close is verified in the same step" "$(j "window.__sv")" "verified/u-sup/u-sup"
+jck "a supervisor's close is verified in the same step" "window.__sv" "verified/u-sup/u-sup"
 
 # 2j) A bus away at a workshop in another city is NOT standing in our yard, and
 # a card made by mistake can be removed — but never by losing the parts on it.
@@ -427,14 +485,14 @@ j "window.__ow='';(async function(){var b=S.cache.buses[0],n=Date.now();
   window.__ow=[inShopJobs().some(function(x){return x.id==='g-out'}),awayJobs().some(function(x){return x.id==='g-out'})].join('/')
 })().catch(function(e){window.__ow='ERR '+e.message})" >/dev/null
 settle "window.__ow||''" "false/true" 30 >/dev/null
-ck "an outside job is not in the shop list"   "$(j "window.__ow")" "false/true"
-ck "and the owner's home shows it as away"    "$(j "String(/Away for repair/.test(awayCard(awayJobs())))")" "true"
-ck "the row says which city"                  "$(j "String(/Noida/.test(jobLi(byId(S.cache.jobs,'g-out'))))")" "true"
+jck "an outside job is not in the shop list"   "window.__ow" "false/true"
+jck "and the owner's home shows it as away"    "String(/Away for repair/.test(awayCard(awayJobs())))" "true"
+jck "the row says which city"                  "String(/Noida/.test(jobLi(byId(S.cache.jobs,'g-out'))))" "true"
 # The delete button is the owner's alone.
-ck "owner sees a delete button"               "$(j "String(/deleteJob\"/.test(actionsForJob(byId(S.cache.jobs,'g-out'),true)))")" "true"
+jck "owner sees a delete button"               "String(/deleteJob\"/.test(actionsForJob(byId(S.cache.jobs,'g-out'),true)))" "true"
 login supervisor u-sup 2 2 2 2
-ck "the supervisor does not"                   "$(j "String(/deleteJob\"/.test(actionsForJob(byId(S.cache.jobs,'g-out'),true)))")" "false"
-ck "and cannot delete through the action"      "$(j "(function(){var r=canDeleteJob();return String(r)})()")" "false"
+jck "the supervisor does not"                   "String(/deleteJob\"/.test(actionsForJob(byId(S.cache.jobs,'g-out'),true)))" "false"
+jck "and cannot delete through the action"      "(function(){var r=canDeleteJob();return String(r)})()" "false"
 # Deleting a card that had a part issued must put that part back in the store,
 # because jobPartGaps() stops accounting for a card once it is gone.
 login owner u-owner 1 1 1 1
@@ -447,8 +505,8 @@ j "window.__dj='';(async function(){var b=S.cache.buses[0],p=S.cache.parts.filte
   window.__dj=[byId(S.cache.jobs,'g-del')?'STILL':'gone',String(byId(S.cache.parts,p.id).qty-mid)].join('/')
 })().catch(function(e){window.__dj='ERR '+e.message})" >/dev/null
 settle "window.__dj||''" "gone/2" 40 >/dev/null
-ck "deleting a card returns its parts to stock" "$(j "window.__dj")" "gone/2"
-ck "and the ledger says where they came from"   "$(j "String((S.cache.ledger||[]).some(function(l){return l.type==='in'&&/deleted job card/i.test(l.reason||'')}))")" "true"
+jck "deleting a card returns its parts to stock" "window.__dj" "gone/2"
+jck "and the ledger says where they came from"   "String((S.cache.ledger||[]).some(function(l){return l.type==='in'&&/deleted job card/i.test(l.reason||'')}))" "true"
 
 # 2k) The pump is the only moment an odometer reading can still be checked, so
 # the fill form has to show the last one and what this tank is worth — and the
@@ -463,14 +521,14 @@ j "window.__fu='';(async function(){var b=S.cache.buses[0],day=86400000,n=Date.n
   window.__fu=[segs[3].kmpl.toFixed(1),segs[3].span,segs[2].kmpl===null?'partial':'SEG',m.avgKmpl.toFixed(1)].join('/')
 })().catch(function(e){window.__fu='ERR '+e.message})" >/dev/null
 settle "window.__fu||''" "7.0/420/partial/7.0" 40 >/dev/null
-ck "a part fill rides into the next full tank"  "$(j "window.__fu")" "7.0/420/partial/7.0"
-ck "the last fill is the one with a reading"    "$(j "String(lastFillWithOdo(S.cache.buses[0].id).odometer)")" "480840"
+jck "a part fill rides into the next full tank"  "window.__fu" "7.0/420/partial/7.0"
+jck "the last fill is the one with a reading"    "String(lastFillWithOdo(S.cache.buses[0].id).odometer)" "480840"
 # The panel is what the person at the pump actually reads.
-ck "the run since the last fill is shown"       "$(j "String(/420 km/.test(fuelOdoPanel(S.cache.buses[0].id,481260,60,false)))")" "true"
-ck "and this tank's km/l"                       "$(j "String(/7\.0 km\/l/.test(fuelOdoPanel(S.cache.buses[0].id,481260,60,false)))")" "true"
-ck "a reading lower than last time is called out" \
-  "$(j "String(/Lower than the last fill/.test(fuelOdoPanel(S.cache.buses[0].id,480100,60,false)))")" "true"
-ck "a broken odometer measures nothing"         "$(j "String(/not working/.test(fuelOdoPanel(S.cache.buses[0].id,481260,60,true)))")" "true"
+jck "the run since the last fill is shown"       "String(/420 km/.test(fuelOdoPanel(S.cache.buses[0].id,481260,60,false)))" "true"
+jck "and this tank's km/l"                       "String(/7\.0 km\/l/.test(fuelOdoPanel(S.cache.buses[0].id,481260,60,false)))" "true"
+jck "a reading lower than last time is called out" \
+  "String(/Lower than the last fill/.test(fuelOdoPanel(S.cache.buses[0].id,480100,60,false)))" "true"
+jck "a broken odometer measures nothing"         "String(/not working/.test(fuelOdoPanel(S.cache.buses[0].id,481260,60,true)))" "true"
 # Saving a backwards reading asks once rather than averaging it in silently.
 j "window.__fb='';(async function(){var b=S.cache.buses[0];sheetAddFuel(b.id);
   await new Promise(function(r){setTimeout(r,150)});
@@ -481,7 +539,7 @@ j "window.__fb='';(async function(){var b=S.cache.buses[0];sheetAddFuel(b.id);
   window.__fb=[n1===n0?'refused':'SAVED',(S.cache.fuel||[]).length===n0+1?'then saved':'LOST'].join('/')
 })().catch(function(e){window.__fb='ERR '+e.message})" >/dev/null
 settle "window.__fb||''" "refused/then saved" 40 >/dev/null
-ck "a backwards reading asks before it is taken" "$(j "window.__fb")" "refused/then saved"
+jck "a backwards reading asks before it is taken" "window.__fb" "refused/then saved"
 j "closeSheet()" >/dev/null
 
 # 2l) Batteries die by age, not by kilometres — and a dead one inside warranty
@@ -496,50 +554,50 @@ j "window.__bt='';(async function(){var b=S.cache.buses[0],n=Date.now(),M=30.44*
   window.__bt=[lf.basis,lf.status,String(lf.monthsUsed),inWarranty(c)?'claim':'expired',a?'alerted':'SILENT'].join('/')
 })().catch(function(e){window.__bt='ERR '+e.message})" >/dev/null
 settle "window.__bt||''" "months/overdue/40/claim/alerted" 40 >/dev/null
-ck "an aged battery is overdue on months"     "$(j "window.__bt")" "months/overdue/40/claim/alerted"
-ck "and the alert says to claim the warranty" "$(j "String(/claim it before buying another/.test((componentAlerts().find(function(x){return x.c.id==='g-bat'})||{}).msg||''))")" "true"
-ck "a tyre still measures in kilometres"      "$(j "componentLife({kind:'tyre',state:'in-service',lifeKm:60000,installedOdo:0,busId:S.cache.buses[0].id}).basis")" "km"
-ck "the battery name is not doubled"          "$(j "posLabel('Battery','Battery 1')")" "Battery 1"
-ck "a tyre position still reads as one"       "$(j "posLabel('Tyre','FR')")" "Tyre FR"
+jck "an aged battery is overdue on months"     "window.__bt" "months/overdue/40/claim/alerted"
+jck "and the alert says to claim the warranty" "String(/claim it before buying another/.test((componentAlerts().find(function(x){return x.c.id==='g-bat'})||{}).msg||''))" "true"
+jck "a tyre still measures in kilometres"      "componentLife({kind:'tyre',state:'in-service',lifeKm:60000,installedOdo:0,busId:S.cache.buses[0].id}).basis" "km"
+jck "the battery name is not doubled"          "posLabel('Battery','Battery 1')" "Battery 1"
+jck "a tyre position still reads as one"       "posLabel('Tyre','FR')" "Tyre FR"
 # The fit sheet is the same form with a different piece in it.
 j "sheetFitBatteries(S.cache.buses[0].id)" >/dev/null
 settle "document.getElementById('ty-warr-0')?'yes':'no'" "yes" 20 >/dev/null
-ck "fitting batteries asks for the warranty"  "$(j "document.getElementById('ty-warr-0')?'yes':'no'")" "yes"
-ck "and opens two rows, not four"             "$(j "String(document.querySelectorAll('#ty-rows .tyrow').length)")" "2"
+jck "fitting batteries asks for the warranty"  "document.getElementById('ty-warr-0')?'yes':'no'" "yes"
+jck "and opens two rows, not four"             "String(document.querySelectorAll('#ty-rows .tyrow').length)" "2"
 j "closeSheet();sheetFitTyres(S.cache.buses[0].id)" >/dev/null
 settle "String(document.querySelectorAll('#ty-rows .tyrow').length)" "4" 20 >/dev/null
-ck "tyres still open four rows and no warranty" \
-  "$(j "[document.querySelectorAll('#ty-rows .tyrow').length,document.getElementById('ty-warr-0')?'warr':'none'].join('/')")" "4/none"
+jck "tyres still open four rows and no warranty" \
+  "[document.querySelectorAll('#ty-rows .tyrow').length,document.getElementById('ty-warr-0')?'warr':'none'].join('/')" "4/none"
 j "closeSheet()" >/dev/null
 
 # 2m) The fleet reads as vehicle cards, and the search still filters them.
 j "navTab('fleet')" >/dev/null
 settle "S.route.name" "fleet" 20 >/dev/null
-ck "the fleet is vehicle cards"   "$(j "String(document.querySelectorAll('#fleet-list .vcard').length>0)")" "true"
-ck "each card names its driver"   "$(j "String(/DRIVER|ड्राइवर/i.test(document.querySelector('#fleet-list .vcard').innerText))")" "true"
-ck "and search still filters them" \
-  "$(j "(function(){var i=document.getElementById('fleet-search');i.value='zzzznope';i.oninput();var n=[].slice.call(document.querySelectorAll('#fleet-list .vcard')).filter(function(c){return c.style.display!=='none'}).length;i.value='';i.oninput();return String(n)})()")" "0"
+jck "the fleet is vehicle cards"   "String(document.querySelectorAll('#fleet-list .vcard').length>0)" "true"
+jck "each card names its driver"   "String(/DRIVER|ड्राइवर/i.test(document.querySelector('#fleet-list .vcard').innerText))" "true"
+jck "and search still filters them" \
+  "(function(){var i=document.getElementById('fleet-search');i.value='zzzznope';i.oninput();var n=[].slice.call(document.querySelectorAll('#fleet-list .vcard')).filter(function(c){return c.style.display!=='none'}).length;i.value='';i.oninput();return String(n)})()" "0"
 
 # 2n) A document on file and a document scanned are different facts. Counting
 # only scans made every crew member read "3 docs missing", and a number that
 # can never be good is a number everyone scrolls past.
 login owner u-owner 1 1 1 1
-ck "a typed licence number counts as on file" \
-  "$(j "(function(){var d={role:'driver',license:'RJ14 2019 0001234'};var s=driverDocStatus(d);return s.mandHave+'/'+s.mandTotal})()")" "1/3"
-ck "but it is not counted as scanned" \
-  "$(j "(function(){var d={role:'driver',license:'RJ14 2019 0001234'};return String(driverDocStatus(d).mandDone)})()")" "0"
-ck "the joining photo is the photo document" \
-  "$(j "(function(){var d={role:'driver',photo:'data:image/jpeg;base64,x'};var s=driverDocStatus(d);return s.mandDone+'/'+s.mandHave})()")" "1/1"
-ck "a fully documented driver reads complete" \
-  "$(j "(function(){var d={role:'driver',photo:'p',docs:{license:{photo:'l'},aadhaar:{photo:'a'}}};var s=driverDocStatus(d);return s.mandHave+'/'+s.mandDone+'/'+s.pct})()")" "3/3/100"
-ck "numbers only still reads 100% on file" \
-  "$(j "(function(){var d={role:'driver',license:'X',photo:'p',docs:{aadhaar:{number:'1234'}}};var s=driverDocStatus(d);return s.mandHave+'/'+s.mandDone+'/'+s.pct})()")" "3/1/100"
-ck "a blank record is still flagged" \
-  "$(j "(function(){var s=driverDocStatus({role:'driver'});return s.mandHave+'/'+s.pct})()")" "0/0"
+jck "a typed licence number counts as on file" \
+  "(function(){var d={role:'driver',license:'RJ14 2019 0001234'};var s=driverDocStatus(d);return s.mandHave+'/'+s.mandTotal})()" "1/3"
+jck "but it is not counted as scanned" \
+  "(function(){var d={role:'driver',license:'RJ14 2019 0001234'};return String(driverDocStatus(d).mandDone)})()" "0"
+jck "the joining photo is the photo document" \
+  "(function(){var d={role:'driver',photo:'data:image/jpeg;base64,x'};var s=driverDocStatus(d);return s.mandDone+'/'+s.mandHave})()" "1/1"
+jck "a fully documented driver reads complete" \
+  "(function(){var d={role:'driver',photo:'p',docs:{license:{photo:'l'},aadhaar:{photo:'a'}}};var s=driverDocStatus(d);return s.mandHave+'/'+s.mandDone+'/'+s.pct})()" "3/3/100"
+jck "numbers only still reads 100% on file" \
+  "(function(){var d={role:'driver',license:'X',photo:'p',docs:{aadhaar:{number:'1234'}}};var s=driverDocStatus(d);return s.mandHave+'/'+s.mandDone+'/'+s.pct})()" "3/1/100"
+jck "a blank record is still flagged" \
+  "(function(){var s=driverDocStatus({role:'driver'});return s.mandHave+'/'+s.pct})()" "0/0"
 # The alarm is "nothing recorded", not "not scanned".
-ck "the crew filter flags only the blank one" \
-  "$(j "(function(){var blank={role:'driver'},num={role:'driver',license:'X',photo:'p',docs:{aadhaar:{number:'1'}}};
-     return String(crewMatchesFilter(blank,'incomplete'))+'/'+String(crewMatchesFilter(num,'incomplete'))})()")" "true/false"
+jck "the crew filter flags only the blank one" \
+  "(function(){var blank={role:'driver'},num={role:'driver',license:'X',photo:'p',docs:{aadhaar:{number:'1'}}};
+     return String(crewMatchesFilter(blank,'incomplete'))+'/'+String(crewMatchesFilter(num,'incomplete'))})()" "true/false"
 
 # 2p) A bus in the workshop does not need a driver today, and a shortfall that
 # no amount of filling in can fix is a hiring fact, not a duty-board one.
@@ -558,16 +616,16 @@ j "window.__dz='';(async function(){var free=busesNeedingCrew(),b0=free[0],b1=fr
   window.__dz=[before-after.length,gone?'excluded':'INCLUDED'].join('/')
 })().catch(function(e){window.__dz='ERR '+e.message})" >/dev/null
 settle "window.__dz||''" "2/excluded" 40 >/dev/null
-ck "a bus in the shop or away needs no driver"  "$(j "window.__dz")" "2/excluded"
+jck "a bus in the shop or away needs no driver"  "window.__dz" "2/excluded"
 # Coverage arithmetic: free people, fillable seats, and the part nobody can fill.
-ck "coverage counts free drivers" \
-  "$(j "(function(){var c=crewCoverage('driver');return String(c.free===activeCrew().filter(function(d){return crewRoleOf(d)==='driver'&&!d.busId}).length)})()")" "true"
-ck "fillable never exceeds the free pool" \
-  "$(j "(function(){var c=crewCoverage('driver');return String(c.fillable<=c.free&&c.fillable<=c.short)})()")" "true"
-ck "short splits into fillable and unstaffable" \
-  "$(j "(function(){var c=crewCoverage('driver');return String(c.short===c.fillable+c.unstaffable)})()")" "true"
-ck "conductors are counted on their own pool" \
-  "$(j "(function(){var c=crewCoverage('conductor');return String(c.pool===activeCrew().filter(function(d){return crewRoleOf(d)==='conductor'}).length)})()")" "true"
+jck "coverage counts free drivers" \
+  "(function(){var c=crewCoverage('driver');return String(c.free===activeCrew().filter(function(d){return crewRoleOf(d)==='driver'&&!d.busId}).length)})()" "true"
+jck "fillable never exceeds the free pool" \
+  "(function(){var c=crewCoverage('driver');return String(c.fillable<=c.free&&c.fillable<=c.short)})()" "true"
+jck "short splits into fillable and unstaffable" \
+  "(function(){var c=crewCoverage('driver');return String(c.short===c.fillable+c.unstaffable)})()" "true"
+jck "conductors are counted on their own pool" \
+  "(function(){var c=crewCoverage('conductor');return String(c.pool===activeCrew().filter(function(d){return crewRoleOf(d)==='conductor'}).length)})()" "true"
 j "(async function(){await DB.softDel('jobcards','g-dz1');await DB.softDel('jobcards','g-dz2');await load()})()" >/dev/null
 
 # 2q) A driver reaches their own bus and nothing of the workshop's. These three
@@ -576,29 +634,29 @@ j "(async function(){await DB.softDel('jobcards','g-dz1');await DB.softDel('jobc
 # land on home, like every other gated route.
 login driver u-d1 0 0 1 0
 for R in history outsidejobs gatepass; do
-  ck "a driver cannot force open $R" "$(j "(function(){route({name:'$R'});return S.route.name})()")" "home"
+  jck "a driver cannot force open $R" "(function(){route({name:'$R'});return S.route.name})()" "home"
 done
 
 # 2q) The expensive indexes are memoised on what they READ, not on the cache
 # object. A stale memo would be far worse than a slow app, so the tests that
 # matter are the invalidations, not the speed-up.
 login owner u-owner 1 1 1 1
-ck "a store signature moves when a row is added" \
-  "$(j "(function(){var a=[{id:'1',updatedAt:5}];var s1=storeSig(a);var s2=storeSig(a.concat([{id:'2',updatedAt:6}]));return String(s1!==s2)})()")" "true"
-ck "and when a row is edited in place" \
-  "$(j "(function(){var s1=storeSig([{id:'1',updatedAt:5}]);var s2=storeSig([{id:'1',updatedAt:9}]);return String(s1!==s2)})()")" "true"
-ck "and when a row is removed" \
-  "$(j "(function(){var s1=storeSig([{id:'1',updatedAt:5},{id:'2',updatedAt:5}]);var s2=storeSig([{id:'1',updatedAt:5}]);return String(s1!==s2)})()")" "true"
-ck "but not when nothing changed" \
-  "$(j "(function(){var a=[{id:'1',updatedAt:5}];return String(storeSig(a)===storeSig(a.slice()))})()")" "true"
-ck "an empty store has a stable signature" "$(j "storeSig([])+'/'+storeSig(null)")" "0/0"
+jck "a store signature moves when a row is added" \
+  "(function(){var a=[{id:'1',updatedAt:5}];var s1=storeSig(a);var s2=storeSig(a.concat([{id:'2',updatedAt:6}]));return String(s1!==s2)})()" "true"
+jck "and when a row is edited in place" \
+  "(function(){var s1=storeSig([{id:'1',updatedAt:5}]);var s2=storeSig([{id:'1',updatedAt:9}]);return String(s1!==s2)})()" "true"
+jck "and when a row is removed" \
+  "(function(){var s1=storeSig([{id:'1',updatedAt:5},{id:'2',updatedAt:5}]);var s2=storeSig([{id:'1',updatedAt:5}]);return String(s1!==s2)})()" "true"
+jck "but not when nothing changed" \
+  "(function(){var a=[{id:'1',updatedAt:5}];return String(storeSig(a)===storeSig(a.slice()))})()" "true"
+jck "an empty store has a stable signature" "storeSig([])+'/'+storeSig(null)" "0/0"
 # The behaviour that caused the slowness: a new cache object with the same data.
-ck "insights are not recomputed for a new cache object" \
-  "$(j "(function(){var a=computeInsights();S.cache=Object.assign({},S.cache);return String(computeInsights()===a)})()")" "true"
-ck "but ARE recomputed when a job changes" \
-  "$(j "(function(){var a=computeInsights();S.cache.jobs=S.cache.jobs.concat([{id:'zperf',busId:S.cache.buses[0].id,problem:'p',status:'verified',afterPhotos:[],partsUsed:[{partId:(S.cache.parts[0]||{}).id,qty:1,cost:500}],createdAt:Date.now(),updatedAt:Date.now()}]);var b=computeInsights();S.cache.jobs=S.cache.jobs.slice(0,-1);return String(a!==b)})()")" "true"
-ck "the review index holds when an unrelated store changes" \
-  "$(j "(function(){var m=rvCrewIndex();S.cache.fuel=(S.cache.fuel||[]).concat([{id:'zperf-f',busId:S.cache.buses[0].id,litres:1,at:Date.now(),updatedAt:Date.now()}]);var r=rvCrewIndex()===m;S.cache.fuel=S.cache.fuel.slice(0,-1);return String(r)})()")" "true"
+jck "insights are not recomputed for a new cache object" \
+  "(function(){var a=computeInsights();S.cache=Object.assign({},S.cache);return String(computeInsights()===a)})()" "true"
+jck "but ARE recomputed when a job changes" \
+  "(function(){var a=computeInsights();S.cache.jobs=S.cache.jobs.concat([{id:'zperf',busId:S.cache.buses[0].id,problem:'p',status:'verified',afterPhotos:[],partsUsed:[{partId:(S.cache.parts[0]||{}).id,qty:1,cost:500}],createdAt:Date.now(),updatedAt:Date.now()}]);var b=computeInsights();S.cache.jobs=S.cache.jobs.slice(0,-1);return String(a!==b)})()" "true"
+jck "the review index holds when an unrelated store changes" \
+  "(function(){var m=rvCrewIndex();S.cache.fuel=(S.cache.fuel||[]).concat([{id:'zperf-f',busId:S.cache.buses[0].id,litres:1,at:Date.now(),updatedAt:Date.now()}]);var r=rvCrewIndex()===m;S.cache.fuel=S.cache.fuel.slice(0,-1);return String(r)})()" "true"
 
 # 2r) The indexes that made the app feel slow, and the two ways each can break:
 # failing to rebuild when its data changed, and rebuilding when it did not.
@@ -606,36 +664,36 @@ ck "the review index holds when an unrelated store changes" \
 # to it anyway, and an awaited body here wedged two pushes before it ever managed
 # to test anything.
 login owner u-owner 1 1 1 1
-ck "the load path reads only what changed" "$(j "typeof CACHE_STORES + '/' + typeof DB.dirtySnapshot")" "object/function"
-ck "only gpsevents is read on a delay" "$(j "Object.keys(SLOW_STORES).join(',')")" "gpsevents"
-ck "every cache key names a store" \
-  "$(j "Object.keys(CACHE_STORES).filter(function(k){return !CACHE_STORES[k][0]}).join(',')||'none'")" "none"
-ck "a marked store is dirty, and clearing takes only what was named" \
-  "$(j "(function(){DB.markDirty('zq');var a=DB.dirtySnapshot().has('zq');DB.clearDirty(new Set(['zq']));return String(a&&!DB.dirtySnapshot().has('zq'))})()")" "true"
+jck "the load path reads only what changed" "typeof CACHE_STORES + '/' + typeof DB.dirtySnapshot" "object/function"
+jck "only gpsevents is read on a delay" "Object.keys(SLOW_STORES).join(',')" "gpsevents"
+jck "every cache key names a store" \
+  "Object.keys(CACHE_STORES).filter(function(k){return !CACHE_STORES[k][0]}).join(',')||'none'" "none"
+jck "a marked store is dirty, and clearing takes only what was named" \
+  "(function(){DB.markDirty('zq');var a=DB.dirtySnapshot().has('zq');DB.clearDirty(new Set(['zq']));return String(a&&!DB.dirtySnapshot().has('zq'))})()" "true"
 
 # gpsEventsForBus scanned all forty thousand events per call, normalising every
 # registration as it went, and driverScore calls it once per driver -- 4.4 million
 # string rewrites to draw one crew list. Grouped once now.
-ck "the GPS index agrees with scanning the table by hand" \
-  "$(j "(function(){var b=S.cache.buses[0];var nr=_normReg(b.regNo);var brute=(S.cache.gpsevents||[]).filter(function(e){return _normReg(e.reg)===nr}).length;return String(gpsEventsForBus(b.id).length===brute)})()")" "true"
-ck "and is not rebuilt while the events are unchanged" "$(j "String(gpsByBus()===gpsByBus())")" "true"
-ck "but IS rebuilt when an event arrives" \
-  "$(j "(function(){var m=gpsByBus();S.cache.gpsevents=(S.cache.gpsevents||[]).concat([{id:'zq-g',reg:S.cache.buses[0].regNo,at:Date.now(),type:'overspeed',updatedAt:Date.now()}]);var r=gpsByBus()!==m;S.cache.gpsevents=S.cache.gpsevents.slice(0,-1);return String(r)})()")" "true"
+jck "the GPS index agrees with scanning the table by hand" \
+  "(function(){var b=S.cache.buses[0];var nr=_normReg(b.regNo);var brute=(S.cache.gpsevents||[]).filter(function(e){return _normReg(e.reg)===nr}).length;return String(gpsEventsForBus(b.id).length===brute)})()" "true"
+jck "and is not rebuilt while the events are unchanged" "String(gpsByBus()===gpsByBus())" "true"
+jck "but IS rebuilt when an event arrives" \
+  "(function(){var m=gpsByBus();S.cache.gpsevents=(S.cache.gpsevents||[]).concat([{id:'zq-g',reg:S.cache.buses[0].regNo,at:Date.now(),type:'overspeed',updatedAt:Date.now()}]);var r=gpsByBus()!==m;S.cache.gpsevents=S.cache.gpsevents.slice(0,-1);return String(r)})()" "true"
 
 # The screens that list crew ask for a score once per crew member.
-ck "a crew score is not recomputed while nothing has changed" \
-  "$(j "(function(){var d=(activeCrew()[0]||{}).id;return String(driverOverall(d)===driverOverall(d))})()")" "true"
-ck "but IS recomputed when a review arrives" \
-  "$(j "(function(){var d=(activeCrew()[0]||{}).id;var a=driverOverall(d);S.cache.rbreviews=(S.cache.rbreviews||[]).concat([{id:'zq-r',stars:1,at:Date.now(),updatedAt:Date.now()}]);var r=driverOverall(d)!==a;S.cache.rbreviews=S.cache.rbreviews.slice(0,-1);return String(r)})()")" "true"
-ck "and when an incident is recorded" \
-  "$(j "(function(){var d=(activeCrew()[0]||{}).id;var a=driverOverall(d);S.cache.incidents=(S.cache.incidents||[]).concat([{id:'zq-i',driverId:d,type:'accident',at:Date.now(),updatedAt:Date.now()}]);var r=driverOverall(d)!==a;S.cache.incidents=S.cache.incidents.slice(0,-1);return String(r)})()")" "true"
+jck "a crew score is not recomputed while nothing has changed" \
+  "(function(){var d=(activeCrew()[0]||{}).id;return String(driverOverall(d)===driverOverall(d))})()" "true"
+jck "but IS recomputed when a review arrives" \
+  "(function(){var d=(activeCrew()[0]||{}).id;var a=driverOverall(d);S.cache.rbreviews=(S.cache.rbreviews||[]).concat([{id:'zq-r',stars:1,at:Date.now(),updatedAt:Date.now()}]);var r=driverOverall(d)!==a;S.cache.rbreviews=S.cache.rbreviews.slice(0,-1);return String(r)})()" "true"
+jck "and when an incident is recorded" \
+  "(function(){var d=(activeCrew()[0]||{}).id;var a=driverOverall(d);S.cache.incidents=(S.cache.incidents||[]).concat([{id:'zq-i',driverId:d,type:'accident',at:Date.now(),updatedAt:Date.now()}]);var r=driverOverall(d)!==a;S.cache.incidents=S.cache.incidents.slice(0,-1);return String(r)})()" "true"
 
 # The signature behind every memo is remembered per store, so checking a memo no
 # longer re-reads the table it is guarding -- that alone cost 200ms per crew list.
-ck "a store signature is reused while the array is the same" \
-  "$(j "String(cachedSig('gpsevents')===cachedSig('gpsevents'))")" "true"
-ck "and recomputed the moment the array is replaced" \
-  "$(j "(function(){var a=cachedSig('fuel');S.cache.fuel=(S.cache.fuel||[]).concat([{id:'zq-f',at:Date.now(),updatedAt:Date.now()}]);var r=cachedSig('fuel')!==a;S.cache.fuel=S.cache.fuel.slice(0,-1);return String(r)})()")" "true"
+jck "a store signature is reused while the array is the same" \
+  "String(cachedSig('gpsevents')===cachedSig('gpsevents'))" "true"
+jck "and recomputed the moment the array is replaced" \
+  "(function(){var a=cachedSig('fuel');S.cache.fuel=(S.cache.fuel||[]).concat([{id:'zq-f',at:Date.now(),updatedAt:Date.now()}]);var r=cachedSig('fuel')!==a;S.cache.fuel=S.cache.fuel.slice(0,-1);return String(r)})()" "true"
 
 # 3) Invariant sweep: form controls never navigate (owner's main tabs).
 login owner u-owner 1 1 1 1
@@ -665,8 +723,9 @@ done
 # holding a comma -- a function body that calls f(a,b), an object literal, a
 # "var a=1,b=2" -- splits the whole argument into several words. The JS that
 # reaches the browser is not the JS that was written, and ck is handed extra
-# arguments. 26 of the checks above are written that way and pass vacuously (see
-# GS_GATE_STRICT at ck()); that is a hole, and is not fixed here. A single-quoted
+# arguments. 26 of the checks above were written that way and passed vacuously;
+# they now go through jck() and the inline form is banned by the self-check at the
+# top of this file. A single-quoted
 # string is never touched, so gck() takes the expression that way and substitutes
 # @REQ@, @STATES@ and @EMOJI@ itself. Strings inside the expressions are therefore
 # double-quoted. ck is still called with exactly three arguments, as above.
@@ -694,7 +753,7 @@ bb() { perl -e 'alarm shift; exec @ARGV' 25 "$B" "$@" 2>/dev/null; }
 gck() {
   local js="$2"
   js="${js//@REQ@/$GAL_REQ}"; js="${js//@STATES@/$GAL_STATES}"; js="${js//@EMOJI@/$GAL_EMOJI}"
-  ck "$1" "$(j "$js")" "$3"
+  jck "$1" "$js" "$3"
 }
 
 # 4a) The source files. These read the files, not the page, so they hold even if the page is broken.
