@@ -1,0 +1,911 @@
+/* Garage Saathi v2 - the static component layer.
+ * Button (3 kinds), field, select, row, card, table, badge (3 kinds), tabs, stat, and the states (empty, error,
+ * offline, skeleton, figure; their markup is made by ui/states.js), and the overlays (sheet, confirmation dialog, toast;
+ * their markup is made by ui/overlay.js).
+ * Consumes ui/tokens.css; defines no colour, no size and no font of its own. Test: test_ui_components.js (this file as text and
+ * through a cascade model) and test_ui_overlay.js (the overlays in real Chrome).
+ *
+ * Browser floor is Chrome 109 (Windows 7 office PCs): no oklch(), color-mix(), nesting, @starting-style,
+ * subgrid or text-wrap. :is(), :not(), grid and gap are all fine there.
+ *
+ * SCOPE, AND WHY THERE IS NO @layer. Every selector starts with [data-v2], like tokens.css, so this file can
+ * sit in one document with the live styles.css for the whole screen-by-screen migration. The live file
+ * already owns .btn, .card, .row, .badge and .stat, and sets properties on bare input, select and textarea,
+ * all UNLAYERED. A cascade layer always loses to unlayered rules, whatever their specificity, so putting
+ * these rules in @layer components would hand every conflicting property back to the live app. Instead the
+ * [data-v2] prefix gives each rule one more level of specificity (0,2,0 beats the live 0,1,0), and every
+ * component sets each property the live rule would otherwise leak through (test_ui_components.js proves it
+ * against the real styles.css). Order of the file is the only ordering needed.
+ *
+ * MARKUP CONTRACT
+ *   <button class="btn [btn-primary|btn-quiet|btn-danger]">  also <a class="btn">
+ *   <input class="field"> <textarea class="field"> <select class="select">
+ *   <div class="row"><span class="lead"></span><div class="txt"><div class="t"></div><div class="sub"></div></div>
+ *       <div class="act"></div></div>      (button.row and a.row are the pressable forms)
+ *   <div class="card">   <table class="table"> (td.fig right-aligns a figure)   <span class="badge [badge-ok|-warn|-bad]">
+ *   <div class="tabs" role="tablist"><button role="tab" aria-selected="true">   <div class="stat"><span class="k"><span class="v">
+ * STATES (markup comes from ui/states.js; do not hand-write it):
+ *   <div class="state empty|state-error|state-offline" role="status"><svg><p class="state-text"><p class="state-hint">
+ *   <div class="skeleton" role="status" aria-busy="true"><span class="skeleton-label"><div class="skeleton-row"><span class="skeleton-bar">
+ *   <span class="figure" data-state="unknown|value|stale"><span class="figure-none"><span class="figure-u"><span class="figure-note [figure-note-stale]">
+ *   <span class="sr-only"> text for a screen reader only
+ * OVERLAYS (markup from ui/overlay.js; every class is ov- prefixed because the live styles.css owns .sheet and .toast):
+ *   <dialog class="ov-modal ov-sheet|ov-confirm" data-v2 [data-mounted]><div class="ov-scrim"><div class="ov-panel">
+ *       <div class="ov-head"><h2 class="ov-title"><button class="ov-close"></div><div class="ov-body">   (sheet)
+ *       <h2 class="ov-title"><p class="ov-text"><div class="ov-actions"><button class="ov-no"><button class="ov-yes">   (confirmation)
+ *   <div class="ov-toasts" data-v2><dialog class="ov-toast ov-toast-ok|warn|bad" open [data-mounted]>
+ *       <div class="ov-toast-msg"><span class="ov-toast-kind"><span class="ov-toast-text"><button class="ov-toast-close">
+ * Icons are bare <svg> from icon(): put them straight inside any of the above.
+ * A badge or an invalid field is never colour alone: carry a word and an icon in the markup as well.
+ *
+ * DENSITY. Everything sizes from --tap, --row-h, --pad and --t1..--t6, which tokens.css switches on
+ * [data-density="yard"|"desk"]. font-size is declared on the density container too (see below) because a
+ * var() in a declaration is resolved on the element that declares it and then inherited as a length: without
+ * that rule a desk container inside a yard page would keep the page's 16px.
+ *
+ * FIGURES. tokens.css sets tabular-nums on [data-v2] and it inherits to ordinary text. It does NOT reach a
+ * button, input, select or textarea: Chrome's UA stylesheet gives those a font: shorthand, which resets
+ * font-variant-numeric to normal, and so does any author font: (the live styles.css has several). So the
+ * control rule below re-declares it on the control itself, and this file never uses a font: or
+ * font-variant: shorthand. The :is() list contains classes so the rule has specificity 0,2,0 whichever
+ * member matches; that is what lets it beat the live `.gc-seg button` (0,1,1) on a bare <button>.
+ *
+ * ICONS. icon() returns an svg with no class. Beside text it would sit on the baseline, which is too high.
+ * The hosts below are flex containers that centre it, and an svg inside any host is also lifted off the
+ * baseline for the inline case (a row title, a table cell) and told not to shrink.
+ *
+ * HINDI. Devanagari needs about 1.7 line-height where Latin takes 1.4, and Windows 7 would otherwise map it
+ * to Mangal. :lang(hi) (not [lang="hi"]) is used so lang="hi-IN" and a lang set on an ancestor both match.
+ * Line-height is carried by --lh, set once per language, so a component that says line-height: var(--lh)
+ * can never override the Hindi value with a Latin one. Truncating text (.row .t) clips to its line box, so
+ * it needs that height most.
+ *
+ * MOTION. Only transform and opacity, never over 300ms, ease-out. Press feedback is scale(0.97) at 120ms.
+ * Navigation, lists and tab switches do not animate. prefers-reduced-motion removes the movement and keeps
+ * the acknowledgement as opacity. No animation or @keyframes: the skeleton is deliberately STATIC (a looping
+ * shimmer cannot stay under 300ms without strobing, and costs frames on the oldest PCs; the word "Loading" and
+ * aria-busy say it is loading). The overlays are the only things that move beyond a press: a sheet, a confirmation and a
+ * toast enter in 200-250ms and leave quicker, by CSS transition (see the overlay section for the rules).
+ *
+ * STATES AND THE LIVE APP. The live styles.css has an unlayered `.empty` (text-align, colour, padding), so
+ * `.empty` here sets all three itself, like every other component. Unknown, zero and stale are three different
+ * figures (see ui/states.js): the dash, the 0 and the "Updated ... ago" note are all drawn from this file. */
+
+/* ---------- base ---------- */
+[data-v2],
+[data-v2] *,
+[data-v2] *::before,
+[data-v2] *::after {
+  box-sizing: border-box;
+}
+
+[data-v2] {
+  --lh: 1.4;
+  font-family: var(--font);
+  font-size: var(--t5);
+  line-height: var(--lh);
+  color: var(--ink);
+  background: var(--surface);
+}
+
+/* A density container re-resolves the body size against its own tokens. */
+[data-v2][data-density],
+[data-v2] [data-density] {
+  font-size: var(--t5);
+}
+
+/* Controls: the UA font: shorthand resets font-variant-numeric and font-family, so say both again. */
+[data-v2] :is(button, input, select, textarea, .btn, .field, .select) {
+  font-family: inherit;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- icons ---------- */
+[data-v2] .btn svg,
+[data-v2] .badge svg,
+[data-v2] .row svg,
+[data-v2] .stat svg,
+[data-v2] .tabs [role="tab"] svg,
+[data-v2] .table svg,
+[data-v2] .state svg,
+[data-v2] .figure-note svg {
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+
+/* ---------- pressables: one transition, one press ---------- */
+[data-v2] .btn,
+[data-v2] .tabs [role="tab"],
+[data-v2] button.row,
+[data-v2] a.row {
+  transition: transform 120ms ease-out, opacity 120ms ease-out;
+}
+
+[data-v2] .btn:active:not(:disabled):not([aria-disabled="true"]),
+[data-v2] .tabs [role="tab"]:active:not(:disabled),
+[data-v2] button.row:active:not(:disabled),
+[data-v2] a.row:active {
+  transform: scale(0.97);
+}
+
+/* ---------- button ---------- */
+[data-v2] .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s2);
+  width: auto;
+  min-width: var(--tap);
+  min-height: var(--tap);
+  margin: 0;
+  padding: var(--s1) var(--pad);
+  background: var(--surface-raised);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: none;
+  font-size: var(--t5);
+  font-weight: 600;
+  line-height: var(--lh);
+  word-spacing: normal;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+[data-v2] .btn-primary {
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-color: var(--accent);
+}
+
+[data-v2] .btn-quiet {
+  background: transparent;
+  color: var(--accent-text);
+  border-color: transparent;
+}
+
+[data-v2] .btn-danger {
+  color: var(--bad);
+  border-color: var(--bad);
+}
+
+[data-v2] .btn:disabled,
+[data-v2] .btn[aria-disabled="true"] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ---------- field and select ---------- */
+[data-v2] .field,
+[data-v2] .select {
+  display: block;
+  width: 100%;
+  min-height: var(--tap);
+  margin: 0;
+  padding: var(--s1) var(--pad);
+  background: var(--surface-raised);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: var(--t5);
+  line-height: var(--lh);
+}
+
+[data-v2] textarea.field {
+  min-height: calc(var(--tap) * 2);
+  resize: vertical;
+}
+
+[data-v2] .field::placeholder {
+  color: var(--ink-dim);
+  opacity: 1;
+}
+
+/* An invalid field gets a second, inner edge as well as the colour; the message beside it carries the words. */
+[data-v2] .field[aria-invalid="true"] {
+  border-color: var(--bad);
+  box-shadow: inset 0 0 0 1px var(--bad);
+}
+
+[data-v2] .field:disabled,
+[data-v2] .select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ---------- row: a grid, so a long name truncates instead of shrinking the action ----------
+ * The hairline is an inset shadow, not a border, so it takes no height: a desk row holding a 32px button
+ * is exactly 32px, not 33. */
+[data-v2] .row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0;
+  min-height: var(--row-h);
+  margin: 0;
+  padding: 0 var(--pad);
+  background: transparent;
+  color: var(--ink);
+  box-shadow: inset 0 -1px 0 var(--line);
+  font-size: var(--t5);
+  font-weight: 400;
+  line-height: var(--lh);
+  text-align: left;
+  text-decoration: none;
+}
+
+[data-v2] .row > * {
+  grid-column: 2;
+  grid-row: 1;
+  min-width: 0;
+}
+
+[data-v2] .row > .lead {
+  grid-column: 1;
+  display: flex;
+  align-items: center;
+  margin-inline-end: var(--s3);
+  color: var(--ink-dim);
+}
+
+[data-v2] .row > .act {
+  grid-column: 3;
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  margin-inline-start: var(--s3);
+  white-space: nowrap;
+}
+
+[data-v2] .row .t {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  word-spacing: normal;
+  font-weight: 600;
+}
+
+[data-v2] .row .sub {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink-dim);
+  font-size: var(--t6);
+}
+
+[data-v2] button.row,
+[data-v2] a.row {
+  width: 100%;
+  border: 0;
+  cursor: pointer;
+}
+
+/* ---------- card ---------- */
+[data-v2] .card {
+  margin: 0;
+  padding: var(--pad);
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: none;
+}
+
+/* ---------- table ---------- */
+[data-v2] .table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+[data-v2] .table th,
+[data-v2] .table td {
+  height: var(--row-h);
+  padding: var(--s1) var(--pad);
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: middle;
+  overflow-wrap: anywhere;
+}
+
+[data-v2] .table th {
+  color: var(--ink-dim);
+  font-size: var(--t6);
+  font-weight: 600;
+}
+
+/* A figure column: right-aligned so the digits line up (tabular-nums does the rest). */
+[data-v2] .table .fig {
+  text-align: right;
+}
+
+/* ---------- badge ---------- */
+[data-v2] .badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s1);
+  padding: var(--s1) var(--s2);
+  background: transparent;
+  color: var(--ink-dim);
+  border: 1px solid currentcolor;
+  border-radius: 999px;
+  font-size: var(--t6);
+  font-weight: 600;
+  line-height: var(--lh);
+  white-space: nowrap;
+}
+
+[data-v2] .badge-ok {
+  color: var(--ok);
+}
+
+[data-v2] .badge-warn {
+  color: var(--warn);
+}
+
+[data-v2] .badge-bad {
+  color: var(--bad);
+}
+
+/* ---------- tabs: the selected one has a bar, not only a colour ---------- */
+[data-v2] .tabs {
+  display: flex;
+  gap: var(--s1);
+  margin: 0;
+  padding: 0;
+  border-bottom: 1px solid var(--line);
+  overflow-x: auto;
+}
+
+[data-v2] .tabs [role="tab"] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s2);
+  min-height: var(--tap);
+  margin: 0;
+  padding: 0 var(--pad);
+  background: transparent;
+  color: var(--ink-dim);
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  font-size: var(--t5);
+  font-weight: 600;
+  line-height: var(--lh);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+[data-v2] .tabs [role="tab"][aria-selected="true"] {
+  color: var(--accent-text);
+  border-bottom: 2px solid var(--accent);
+}
+
+/* ---------- stat ---------- */
+[data-v2] .stat {
+  display: block;
+  margin: 0;
+  font-size: var(--t5);
+  font-weight: 400;
+  letter-spacing: normal;
+}
+
+[data-v2] .stat .k {
+  display: block;
+  color: var(--ink-dim);
+  font-size: var(--t6);
+}
+
+[data-v2] .stat .v {
+  display: block;
+  font-size: var(--t2);
+  font-weight: 700;
+  line-height: var(--lh);
+}
+
+/* ---------- focus: a visible ring on every control, for keyboards ---------- */
+[data-v2] .btn:focus-visible,
+[data-v2] .field:focus-visible,
+[data-v2] .select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Inside the edge: these sit in lists and tab strips that clip an outer ring. */
+[data-v2] .tabs [role="tab"]:focus-visible,
+[data-v2] button.row:focus-visible,
+[data-v2] a.row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* ---------- hover (pointer devices only, so a tap on a phone leaves nothing stuck) ---------- */
+@media (hover: hover) {
+  [data-v2] .btn:hover {
+    border-color: var(--ink-dim);
+  }
+
+  [data-v2] .btn-primary:hover {
+    border-color: var(--accent-ink);
+  }
+
+  [data-v2] .btn-quiet:hover {
+    border-color: var(--line);
+  }
+
+  [data-v2] .btn-danger:hover {
+    border-color: var(--bad);
+  }
+
+  [data-v2] .tabs [role="tab"]:hover {
+    color: var(--ink);
+  }
+
+  [data-v2] button.row:hover,
+  [data-v2] a.row:hover {
+    background: var(--surface-raised);
+  }
+}
+
+/* ---------- states: empty, error, offline ----------
+ * One centred column: a drawing, a line of words, an optional quieter line, an optional button. The drawing
+ * is decoration; the words are the state. */
+[data-v2] .state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s2);
+  margin: 0;
+  padding: calc(var(--pad) * 2) var(--pad);
+  color: var(--ink);
+  text-align: center;
+}
+
+/* The live styles.css `.empty` sets text-align, colour and padding; this sets all three again, so it cannot leak. */
+[data-v2] .empty {
+  padding: calc(var(--pad) * 2) var(--pad);
+  color: var(--ink);
+  text-align: center;
+}
+
+[data-v2] .state > svg {
+  color: var(--ink-dim);
+}
+
+[data-v2] .state-error > svg {
+  color: var(--bad);
+}
+
+[data-v2] .state-offline > svg {
+  color: var(--warn);
+}
+
+[data-v2] .state-text {
+  margin: 0;
+  font-size: var(--t4);
+  font-weight: 600;
+  line-height: var(--lh);
+}
+
+[data-v2] .state-hint {
+  margin: 0;
+  color: var(--ink-dim);
+  font-size: var(--t6);
+  line-height: var(--lh);
+}
+
+/* ---------- skeleton: static placeholder rows, as tall as the real rows will be ---------- */
+[data-v2] .skeleton {
+  display: block;
+  margin: 0;
+  padding: 0;
+  /* The skeleton carries aria-busy="true", and the live styles.css has a lone [aria-busy="true"] rule that sets
+   * opacity .55 and a .12s opacity transition on anything busy. It matches by attribute, so no specificity can beat it:
+   * only saying both again can. A 55% grey bar is close to invisible on a cheap panel, and the skeleton must never animate. */
+  opacity: 1;
+  transition: none;
+}
+
+[data-v2] .skeleton-label {
+  display: block;
+  padding: var(--s2) var(--pad) 0;
+  color: var(--ink-dim);
+  font-size: var(--t6);
+  line-height: var(--lh);
+}
+
+[data-v2] .skeleton-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  min-height: var(--row-h);
+  padding: 0 var(--pad);
+  box-shadow: inset 0 -1px 0 var(--line);
+}
+
+[data-v2] .skeleton-bar {
+  display: block;
+  flex: 1 1 0;
+  min-width: 0;
+  height: var(--t5);
+  background: var(--line);
+  border-radius: 6px;
+}
+
+[data-v2] .skeleton-bar-short {
+  flex: 0 0 25%;
+}
+
+/* ---------- figure: one number, and what we know about it ----------
+ * The dash, the 0 and the stale note are three different things. A figure with no value shows a dash; a real
+ * zero shows 0; a figure with an `at` shows its value and how old it is. The unit and the note are quieter than
+ * the number; a note marked stale is in --warn, with a clock and words, so it is never colour alone. */
+[data-v2] .figure {
+  display: inline-block;
+}
+
+[data-v2] .figure-none {
+  color: var(--ink-dim);
+}
+
+[data-v2] .figure-u {
+  color: var(--ink-dim);
+  font-size: var(--t6);
+}
+
+[data-v2] .figure-note {
+  display: block;
+  color: var(--ink-dim);
+  font-size: var(--t6);
+  font-weight: 400;
+  line-height: var(--lh);
+}
+
+/* stale:true is emphasis on top of the age every figure with an `at` already shows: the note turns --warn (the clock
+ * and the words "Updated ... ago" are still there, so it is never colour alone). */
+[data-v2] .figure-note-stale {
+  color: var(--warn);
+}
+
+/* Text for a screen reader only: clipped to nothing, still in the accessibility tree (never display:none). */
+[data-v2] .sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* ---------- overlays: sheet, confirmation dialog, toast (markup is made by ui/overlay.js; do not hand-write it) ----------
+ * Every overlay is a <dialog> that ui/overlay.js appends to <body> and marks data-v2 ITSELF (with the app's data-theme and
+ * data-density), so the rules that start at the dialog or the toast lane are compounds on that element: [data-v2].ov-modal,
+ * not [data-v2] .ov-modal. Class names are all ov- prefixed because the live styles.css already owns .sheet and .toast
+ * (and unlayered, with properties this file would then have to cancel one by one). Nothing here reads ::backdrop for colour:
+ * before Chrome 122 it does not inherit custom properties, so the dialog fills the viewport and holds its own scrim.
+ *
+ * ENTER AND EXIT. @starting-style is Chrome 117, so entering uses the data-mounted pattern: ui/overlay.js renders the dialog
+ * once without data-mounted, flushes style, then sets it. The transition that runs is the one declared on the state being
+ * ENTERED: the [data-mounted] rule carries the enter, the rule without it carries the exit, and the exit is always the
+ * shorter. Only transform and opacity, ease-out both ways (bare ease-in withholds movement while the user is watching),
+ * nothing over 300ms, nothing from scale(0): the dialog starts at 0.95 and a modal keeps transform-origin: center, because
+ * it is not anchored to anything. Transitions, not keyframes, so a toast asked for again halfway through leaving reverses
+ * from where it is. Distances come from the spacing tokens, so a desk container moves less than a yard one.
+ *
+ * THE SCRIM is --accent-ink at half opacity: that token is near-black in BOTH themes (tokens.css), which is what a scrim
+ * needs; --ink would turn into a pale veil in dark mode. */
+[data-v2].ov-modal {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  overflow: hidden;
+}
+
+/* display only when open: a bare display: flex would show a closed dialog */
+[data-v2].ov-modal[open] {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+[data-v2].ov-sheet[open] {
+  align-items: flex-end;
+}
+
+[data-v2].ov-modal::backdrop {
+  background: transparent;
+}
+
+[data-v2] .ov-scrim {
+  position: absolute;
+  inset: 0;
+  background: var(--accent-ink);
+  opacity: 0;
+  transition: opacity 150ms ease-out;
+}
+
+[data-v2].ov-modal[data-mounted] .ov-scrim {
+  opacity: 0.5;
+  transition: opacity 200ms ease-out;
+}
+
+[data-v2] .ov-panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  margin: 0;
+  background: var(--surface-raised);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  box-shadow: none;
+  opacity: 0;
+}
+
+/* sheet: a bottom panel that slides up a short way while it fades */
+[data-v2].ov-sheet .ov-panel {
+  width: 100%;
+  max-width: 40rem;
+  max-height: 90%;
+  border-bottom: 0;
+  border-radius: 12px 12px 0 0;
+  transform: translateY(var(--s8));
+  transform-origin: center;
+  transition: transform 180ms ease-out, opacity 180ms ease-out;
+}
+
+[data-v2].ov-sheet[data-mounted] .ov-panel {
+  opacity: 1;
+  transform: none;
+  transition: transform 250ms ease-out, opacity 250ms ease-out;
+}
+
+/* confirmation: centred, grows from 0.95 */
+[data-v2].ov-confirm .ov-panel {
+  width: min(28rem, calc(100% - var(--s8)));
+  max-height: calc(100% - var(--s8));
+  padding: var(--pad);
+  gap: var(--s3);
+  overflow: auto;
+  border-radius: 12px;
+  transform: scale(0.95);
+  transform-origin: center;
+  transition: transform 150ms ease-out, opacity 150ms ease-out;
+}
+
+[data-v2].ov-confirm[data-mounted] .ov-panel {
+  opacity: 1;
+  transform: none;
+  transition: transform 200ms ease-out, opacity 200ms ease-out;
+}
+
+[data-v2] .ov-head {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--s3);
+  min-height: var(--row-h);
+  padding: 0 var(--pad);
+  border-bottom: 1px solid var(--line);
+}
+
+[data-v2] .ov-close {
+  flex: 0 0 auto;
+}
+
+[data-v2] .ov-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-size: var(--t3);
+  font-weight: 700;
+  line-height: var(--lh);
+  letter-spacing: normal;
+  overflow-wrap: anywhere;
+}
+
+[data-v2].ov-confirm .ov-title {
+  flex: 0 0 auto;
+  font-size: var(--t4);
+}
+
+[data-v2] .ov-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: var(--pad);
+  padding-bottom: calc(var(--pad) + env(safe-area-inset-bottom));
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+[data-v2] .ov-text {
+  margin: 0;
+  font-size: var(--t5);
+  line-height: var(--lh);
+  overflow-wrap: anywhere;
+}
+
+[data-v2] .ov-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--s2);
+}
+
+/* Two answers side by side that are never narrower than two thumbs; they wrap under each other when the screen is tight. */
+[data-v2] .ov-no,
+[data-v2] .ov-yes {
+  min-width: calc(var(--tap) * 2);
+}
+
+/* toasts: one lane, fixed to the bottom; the lane lets clicks through, each toast takes them */
+[data-v2].ov-toasts {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(var(--s4) + env(safe-area-inset-bottom));
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0 var(--s4);
+  background: transparent;
+  pointer-events: none;
+}
+
+[data-v2] .ov-toast {
+  position: relative;
+  inset: auto;
+  align-items: center;
+  gap: var(--s3);
+  width: auto;
+  max-width: min(36rem, 100%);
+  height: auto;
+  margin: 0;
+  padding: var(--s2) var(--s3) var(--s2) var(--pad);
+  background: var(--surface-raised);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--line);
+  border-radius: 8px;
+  overflow: visible;
+  font-size: var(--t5);
+  line-height: var(--lh);
+  pointer-events: auto;
+  opacity: 0;
+  transform: translateY(var(--s2));
+  transition: transform 150ms ease-out, opacity 150ms ease-out;
+}
+
+[data-v2] .ov-toast[open] {
+  display: flex;
+}
+
+[data-v2] .ov-toast[data-mounted] {
+  opacity: 1;
+  transform: none;
+  transition: transform 200ms ease-out, opacity 200ms ease-out;
+}
+
+[data-v2] .ov-toast-ok {
+  border-left-color: var(--ok);
+}
+
+[data-v2] .ov-toast-warn {
+  border-left-color: var(--warn);
+}
+
+[data-v2] .ov-toast-bad {
+  border-left-color: var(--bad);
+}
+
+[data-v2] .ov-toast-msg {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* the word that says what kind it is, with the drawing; the colour is a third cue, never the only one */
+[data-v2] .ov-toast-kind {
+  display: flex;
+  align-items: center;
+  gap: var(--s1);
+  font-size: var(--t6);
+  font-weight: 700;
+}
+
+[data-v2] .ov-toast-kind svg {
+  flex-shrink: 0;
+}
+
+[data-v2] .ov-toast-ok .ov-toast-kind {
+  color: var(--ok);
+}
+
+[data-v2] .ov-toast-warn .ov-toast-kind {
+  color: var(--warn);
+}
+
+[data-v2] .ov-toast-bad .ov-toast-kind {
+  color: var(--bad);
+}
+
+/* A message can be anything a caller had to hand, including a server's whole error body: bound it, scroll the rest. */
+[data-v2] .ov-toast-text {
+  display: block;
+  max-height: calc(var(--t5) * var(--lh) * 6);
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+  overscroll-behavior: contain;
+}
+
+[data-v2] .ov-toast-close {
+  flex: 0 0 auto;
+}
+
+/* ---------- Hindi: after everything that sets a font or a line-height ---------- */
+[data-v2]:lang(hi),
+[data-v2] :lang(hi) {
+  --lh: 1.7;
+  font-family: var(--font-hi);
+  line-height: var(--lh);
+}
+
+/* ---------- reduced motion: no movement, the acknowledgement stays as opacity ---------- */
+@media (prefers-reduced-motion: reduce) {
+  [data-v2] .btn,
+  [data-v2] .tabs [role="tab"],
+  [data-v2] button.row,
+  [data-v2] a.row {
+    transition: opacity 120ms ease-out;
+  }
+
+  [data-v2] .btn:active:not(:disabled):not([aria-disabled="true"]),
+  [data-v2] .tabs [role="tab"]:active:not(:disabled),
+  [data-v2] button.row:active:not(:disabled),
+  [data-v2] a.row:active {
+    transform: none;
+    opacity: 0.8;
+  }
+}
+
+/* ---------- overlays under reduced motion: the movement goes, the fade stays ----------
+ * Each selector below repeats the one in the overlay section above, so it ties on specificity and wins on order. */
+@media (prefers-reduced-motion: reduce) {
+  [data-v2].ov-sheet .ov-panel,
+  [data-v2].ov-confirm .ov-panel {
+    transform: none;
+    transition: opacity 150ms ease-out;
+  }
+
+  [data-v2] .ov-toast {
+    transform: none;
+    transition: opacity 150ms ease-out;
+  }
+
+  [data-v2].ov-sheet[data-mounted] .ov-panel {
+    transition: opacity 250ms ease-out;
+  }
+
+  [data-v2].ov-confirm[data-mounted] .ov-panel {
+    transition: opacity 200ms ease-out;
+  }
+
+  [data-v2] .ov-toast[data-mounted] {
+    transition: opacity 200ms ease-out;
+  }
+}

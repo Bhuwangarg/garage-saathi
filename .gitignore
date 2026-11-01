@@ -21,3 +21,6 @@ crew-backup-*.json
 # redPro collector ingest token
 .redpro_ingest_token
 .ai_cron_token
+
+# Subagent-driven-development scratch (ledger, briefs, review packages)
+.superpowers/
