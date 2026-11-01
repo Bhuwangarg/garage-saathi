@@ -98,10 +98,27 @@ test('the nested-rule check really catches nesting', () => {
 test('no emoji and no non-ASCII glyph anywhere (Windows 7 lacks them)', () => {
   assert(!/[^\x00-\x7F]/.test(need()), 'non-ASCII character found');
 });
-test('colour is authored in HSL: no hex, rgb() or named-colour literals', () => {
-  const css = stripComments(need());
-  assert(!/#[0-9a-fA-F]{3,8}\b/.test(css), 'hex colour found');
-  assert(!/\brgba?\(/.test(css), 'rgb() found');
+const NAMED = ('transparent currentcolor aliceblue antiquewhite aqua aquamarine azure beige bisque black blanchedalmond blue blueviolet brown burlywood cadetblue chartreuse chocolate coral cornflowerblue cornsilk crimson cyan darkblue darkcyan darkgoldenrod darkgray darkgreen darkgrey darkkhaki darkmagenta darkolivegreen darkorange darkorchid darkred darksalmon darkseagreen darkslateblue darkslategray darkslategrey darkturquoise darkviolet deeppink deepskyblue dimgray dimgrey dodgerblue firebrick floralwhite forestgreen fuchsia gainsboro ghostwhite gold goldenrod gray green greenyellow grey honeydew hotpink indianred indigo ivory khaki lavender lavenderblush lawngreen lemonchiffon lightblue lightcoral lightcyan lightgoldenrodyellow lightgray lightgreen lightgrey lightpink lightsalmon lightseagreen lightskyblue lightslategray lightslategrey lightsteelblue lightyellow lime limegreen linen magenta maroon mediumaquamarine mediumblue mediumorchid mediumpurple mediumseagreen mediumslateblue mediumspringgreen mediumturquoise mediumvioletred midnightblue mintcream mistyrose moccasin navajowhite navy oldlace olive olivedrab orange orangered orchid palegoldenrod palegreen paleturquoise palevioletred papayawhip peachpuff peru pink plum powderblue purple rebeccapurple red rosybrown royalblue saddlebrown salmon sandybrown seagreen seashell sienna silver skyblue slateblue slategray slategrey snow springgreen steelblue tan teal thistle tomato turquoise violet wheat white whitesmoke yellow yellowgreen').split(' ');
+// Anything that is a colour but not hsl()/hsla(): hex, rgb/rgba/hwb/lab/lch/oklab/oklch/color()/light-dark(), or a keyword.
+function nonHslColours(value) {
+  const v = value.replace(/"[^"]*"|'[^']*'/g, ''); // quoted font names are not colours
+  const found = [];
+  if (/#[0-9a-fA-F]{3,8}\b/.test(v)) found.push('hex');
+  for (const m of v.matchAll(/\b(rgba?|hwb|lab|lch|oklab|oklch|color|color-mix|light-dark)\(/g)) found.push(m[1] + '()');
+  for (const w of v.toLowerCase().match(/[a-z][a-z-]*/g) || []) if (NAMED.includes(w)) found.push(w);
+  return found;
+}
+test('colour literals other than hsl()/hsla() are rejected (the detector below proves what it covers)', () => {
+  for (const bad of ['#fff', 'rgb(0,0,0)', 'rgba(0 0 0 / .5)', 'hwb(0 0% 0%)', 'lab(50% 0 0)', 'oklch(.5 0 0)', 'white', 'Black', 'transparent', 'currentColor', '1px solid red'])
+    assert(nonHslColours(bad).length > 0, 'detector missed: ' + bad);
+  for (const fine of ['hsl(16 88% 54%)', 'hsla(0 0% 0% / .5)', '-apple-system, "Segoe UI", Roboto, system-ui, Arial, sans-serif', '"Nirmala UI", "Segoe UI", Mangal, sans-serif', '16px', 'tabular-nums', 'var(--s4)'])
+    assert(nonHslColours(fine).length === 0, 'detector false positive: ' + fine);
+  const offenders = [];
+  for (const r of rules()) for (const [k, val] of Object.entries(r.decls)) {
+    const f = nonHslColours(val);
+    if (f.length) offenders.push(r.selector + ' { ' + k + ': ' + val + ' }  (' + f.join(', ') + ')');
+  }
+  assert(offenders.length === 0, 'non-HSL colour literal(s):\n' + offenders.join('\n'));
 });
 test('figures use tabular-nums, on the v2 scope', () => {
   const r = rules().find((x) => selectors(x).includes('[data-v2]') && x.decls['font-variant-numeric']);
@@ -113,15 +130,40 @@ test('figures use tabular-nums, on the v2 scope', () => {
  * --accent-ink on :root, and --accent-ink there means the OPPOSITE of the v2 meaning.
  * The migration is screen by screen, so one document will hold both. Scoping to
  * [data-v2] is what lets them coexist; a bare :root here would flip the live app. */
-const unscoped = (rs) => rs.flatMap((r) => selectors(r).filter((sel) => !/\[data-v2\]/.test(sel) || /(^|[\s>+~,(])(:root|html|body)\b|\*/.test(sel)).map((sel) => sel));
+// Split a selector list at TOP-LEVEL commas only, so :is(a, b) and :not(.x, .y) stay whole.
+function splitSelectors(list) {
+  const out = []; let depth = 0, cur = '';
+  for (const ch of list) {
+    if (ch === '(' || ch === '[') depth++;
+    else if (ch === ')' || ch === ']') depth--;
+    if (ch === ',' && depth === 0) { out.push(cur.trim()); cur = ''; } else cur += ch;
+  }
+  if (cur.trim()) out.push(cur.trim());
+  return out;
+}
+// A selector is scoped only if it STARTS with [data-v2] (optionally on a type selector such as
+// html[data-v2]). Merely containing it is not enough: :not([data-v2]) and div:not([data-v2])
+// contain the substring and would define tokens on every element in the live app.
+const SCOPED_START = /^(?:[a-zA-Z][\w-]*)?\[data-v2\]/;
+const LEAKY = /:root|:not\(\s*[^)]*data-v2|\*/; // :root anywhere, negating the scope, or a universal selector
+function unscoped(rs) {
+  assert(rs.length > 0, 'no rules to check: an empty collection would pass vacuously');
+  return rs.flatMap((r) => splitSelectors(r.selector)).filter((sel) => !SCOPED_START.test(sel) || LEAKY.test(sel));
+}
 test('no token is defined on a bare :root (every selector is scoped to [data-v2])', () => {
   const bad = unscoped(rules());
   assert(bad.length === 0, 'unscoped selector(s) would leak into the live app: ' + bad.join(' | '));
 });
-test('the scope check really catches a bare :root', () => {
-  assert.deepEqual(unscoped(parseRules(':root{--x:1}')), [':root']);
-  assert.deepEqual(unscoped(parseRules('[data-density="desk"]{--x:1}')), ['[data-density="desk"]']);
-  assert.deepEqual(unscoped(parseRules('[data-v2]{--x:1} [data-v2][data-theme="dark"]{--x:2}')), []);
+test('the scope check catches every way a rule can leak, and passes every legitimate form', () => {
+  const caught = (sel) => unscoped(parseRules(sel + '{--x:1}')).length > 0;
+  for (const leak of [':root', ':not([data-v2])', 'div:not([data-v2])', 'html', 'body', '*', '[data-v2] *',
+                      '[data-density="desk"]', '.a[data-v2]', ':root[data-v2]', '[data-v2], :root'])
+    assert(caught(leak), 'should have been flagged as unscoped: ' + leak);
+  for (const fine of ['[data-v2]', 'html[data-v2]', '[data-v2][data-theme="dark"]', '[data-v2]:not([data-theme="light"])',
+                      '[data-v2] [data-density="yard"]', '[data-v2]:is(a, b)', '[data-v2], [data-v2][data-density="yard"]'])
+    assert(!caught(fine), 'should have been accepted as scoped: ' + fine);
+  assert.deepEqual(unscoped(parseRules('[data-v2]:is(a, b), :root{--x:1}')), [':root'], 'a comma inside :is() must not split the selector');
+  assert.throws(() => unscoped([]), /vacuously/);
 });
 
 /* ---------- Review Focus 1: a token with no dark value is invisible text ---------- */
@@ -146,9 +188,16 @@ test('every semantic colour token has a dark value (explicit data-theme="dark" b
 test('the two dark blocks carry identical values, so OS and explicit choice cannot drift', () => {
   assert.deepEqual(DARK_OS().decls, DARK_USER().decls);
 });
-test('no colour token is left identical in dark (a copy-paste would pass the check above)', () => {
+// --accent-ink is deliberately the same in light and dark: it is dark text laid on the orange, and the
+// orange is bright in both themes. Every OTHER colour token must differ, or a copy-paste would pass the
+// completeness checks above.
+const SHARED_ACROSS_THEMES = ['--accent-ink'];
+test('every colour token except --accent-ink (deliberately shared) differs between light and dark', () => {
   const L = LIGHT().decls, D = DARK_OS().decls;
-  for (const t of REQUIRED.filter((t) => t !== '--accent-ink')) assert(L[t] !== D[t], t + ' is the same in light and dark');
+  const names = colourNames(L);
+  assert(names.includes('--accent-text'), '--accent-text must be among the tokens checked');
+  for (const t of names.filter((t) => !SHARED_ACROSS_THEMES.includes(t))) assert(L[t] !== D[t], t + ' is the same in light and dark');
+  for (const t of SHARED_ACROSS_THEMES) assert(L[t] === D[t], t + ' is listed as shared but differs; remove it from SHARED_ACROSS_THEMES');
 });
 
 /* ---------- type ---------- */

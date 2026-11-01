@@ -25,6 +25,20 @@
  * in the live dark block), so source order would decide. data-theme and
  * data-density go on the SAME element as data-v2 (density may also go on a
  * descendant, for a desk table inside a yard page).
+ *
+ * THEME CONSTRAINT. The dark guard is [data-v2]:not([data-theme="light"]), so it
+ * only sees data-theme when it sits on the SAME element as data-v2. If data-v2 is
+ * a wrapper and the user's explicit choice is on <html>, the wrapper does not see
+ * it: someone who chose light while the OS is dark gets a dark v2 island inside a
+ * light app. Whoever mounts a wrapper during the migration must copy the user's
+ * data-theme onto it.
+ *
+ * FIGURES. font-variant-numeric: tabular-nums is set on [data-v2] and inherits to
+ * ordinary text, but it does NOT survive a font: shorthand. Chrome's UA stylesheet
+ * applies one to input, select, textarea and button (styles.css line 1015 does
+ * too), and the shorthand resets font-variant-numeric to normal. Do not assume
+ * "inherits everywhere": any component that sets font: or renders a form control
+ * must re-declare tabular-nums itself.
  */
 
 /* ---------- light ---------- */
