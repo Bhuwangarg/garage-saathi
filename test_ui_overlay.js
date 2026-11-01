@@ -229,9 +229,11 @@ async function openPage(env, o) {
   await p.send('Emulation.setFocusEmulationEnabled', { enabled: true });
   await p.send('Emulation.setDeviceMetricsOverride', { width: o.width || 1024, height: o.height || 768, deviceScaleFactor: 1, mobile: false });
   const features = [];
-  if (o.reduced) features.push({ name: 'prefers-reduced-motion', value: 'reduce' });
-  if (o.dark) features.push({ name: 'prefers-color-scheme', value: 'dark' });
-  if (features.length) await p.send('Emulation.setEmulatedMedia', { features });
+  // Both preferences are ALWAYS pinned. Left alone, a page inherits the operating system's setting, and a probe called
+  // "light" turns dark on a Mac in Dark mode (the suite then disagrees with itself from one desk to the next).
+  features.push({ name: 'prefers-reduced-motion', value: o.reduced ? 'reduce' : 'no-preference' });
+  features.push({ name: 'prefers-color-scheme', value: o.dark ? 'dark' : 'light' });
+  await p.send('Emulation.setEmulatedMedia', { features });
   const loaded = new Promise((r) => p.waiters.push(r));
   await p.send('Page.navigate', { url: 'file://' + file });
   await loaded;
@@ -1283,6 +1285,21 @@ test('an Escape that a control inside a sheet has claimed (preventDefault on its
 
 test('with a toast on screen Escape still goes to the modal beneath it (a sheet, or a confirmation over a sheet; the toast stays) instead of being swallowed by the toast', async () => {
   none(await checkEscapeWithAToast(needEnv(REAL)));
+}, { browser: true });
+
+async function checkHarnessPinsPreferences(env) {
+  const f = [];
+  const q = "({ dark: matchMedia('(prefers-color-scheme: dark)').matches, light: matchMedia('(prefers-color-scheme: light)').matches, reduce: matchMedia('(prefers-reduced-motion: reduce)').matches })";
+  const cases = [['default', {}, { dark: false, light: true, reduce: false }], ['dark', { dark: true }, { dark: true, light: false, reduce: false }],
+    ['reduced', { reduced: true }, { dark: false, light: true, reduce: true }], ['dark and reduced', { dark: true, reduced: true }, { dark: true, light: false, reduce: true }]];
+  for (const [label, o, want] of cases) {
+    const got = await withPage(env, o, (p) => p.eval(q));
+    if (JSON.stringify(got) !== JSON.stringify(want)) f.push(label + ' page sees ' + JSON.stringify(got) + ', expected ' + JSON.stringify(want) + ' whatever the operating system is set to');
+  }
+  return f;
+}
+test('every test page has its colour scheme and its reduced-motion preference pinned (light and no-preference unless a test asks otherwise), so the suite gives the same answer on a Mac in Dark mode and on one in Light mode', async () => {
+  none(await checkHarnessPinsPreferences(needEnv(REAL)));
 }, { browser: true });
 
 /* =====================================================================================================
