@@ -312,8 +312,18 @@ jck "completed-work screen renders"  "document.querySelector('#hist-list')?'yes'
 login mechanic u-m1 0 0 0 1
 j "route({name:'history'})" >/dev/null
 settle "S.route.name" "history" 20 >/dev/null
-jck "mechanic history is only their own work" \
-  "completedJobs().filter(function(x){return x.assignedTo!==S.user.id}).length" "0"
+# This check used to filter on x.assignedTo, and could not fail either way: the
+# fixture holds exactly one finished job and it is this mechanic's, so there was
+# never another mechanic's work for it to catch leaking. Proved by deleting the
+# mechanic scope from completedJobs() -- the check stayed green. So it brings its
+# own evidence now, two finished cards that are removed again straight after:
+#   gz-other  belongs to u-m2 alone        -> must NOT appear
+#   gz-second belongs to u-m2 AND to me    -> MUST appear
+# which is the whole assignedTo-versus-jobCrew question in one assertion. Its
+# assignedTo is u-m2 in both cases, so reading membership from that field hides
+# gz-second ("MISSING"), and dropping the scope entirely exposes gz-other ("LEAK").
+jck "mechanic history is their own work, including jobs they are second trade on" \
+  "(function(){var o=S.cache.jobs,u=S.user.id,b=S.cache.buses[0].id,n=Date.now();S.cache.jobs=o.concat([{id:'gz-other',busId:b,problem:'p',status:'verified',assignedTo:'u-m2',assignees:[{userId:'u-m2',task:''}],updatedAt:n},{id:'gz-second',busId:b,problem:'p',status:'verified',assignedTo:'u-m2',assignees:[{userId:'u-m2',task:''},{userId:u,task:''}],updatedAt:n}]);var ids=completedJobs().map(function(x){return x.id});S.cache.jobs=o;return (ids.indexOf('gz-other')<0?'hidden':'LEAK')+'/'+(ids.indexOf('gz-second')>=0?'mine':'MISSING')})()" "hidden/mine"
 # ...and the door stays open: the route now carries a permission (2q), which
 # must not take a mechanic's own finished work away from them.
 jck "the mechanic still reaches completed work" "S.route.name" "history"

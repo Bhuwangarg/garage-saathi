@@ -165,7 +165,7 @@ Notes condensed: "Full" = can act/edit; "View" = read-only; "None" = hidden and 
 - Must NOT see: AI Insights, Drivers, cost-by-company, attendance-of-all, verify/add jobs, staff admin.
 
 **mechanic — My Work** *(today: shares store's generic home)*
-- Home (NEW): my assigned open jobs (jobs already filter to `assignedTo` in `viewJobs`), check-in banner, the driver-reported issues on buses I work, my service-due tasks.
+- Home (NEW): my assigned open jobs (jobs already filter to the job’s crew in `viewJobs`, via `isOnJob`), check-in banner, the driver-reported issues on buses I work, my service-due tasks.
 - Bottom nav: Home · Jobs(own) · Store(view) · Me.
 - Key actions: addPhoto, markDone on own jobs, check-in/out, read driver reports.
 - Must NOT see: AI Insights, Drivers, cost dashboards, verify, purchases, issue/receive (parts come via storekeeper), staff admin, all-staff attendance.

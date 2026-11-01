@@ -6111,10 +6111,12 @@ const JOB_DRAFT_KEY = 'gs-jobdraft';
  * electrician on the wiring while someone else does the brakes. So a job now
  * carries `assignees: [{ userId, task }]`.
  *
- * `assignedTo` is kept, always equal to the first assignee. Thirty places read
- * it, older devices still running the previous build read it, and the server's
- * reports read it — so it stays true for all of them, and the places where
- * "is this person on the job" actually matters ask jobCrew() instead.
+ * `assignedTo` is kept, always equal to the first assignee: older devices still
+ * running the previous build read it, and the server's reports read it, so it has
+ * to stay true for them. Nothing in this file reads it now except the fallback
+ * just below — every place where "is this person on the job" actually matters
+ * asks jobCrew(). This note used to say thirty places read it, which stopped being
+ * true once they were migrated and then read as a warning not to bother.
  */
 const CREW_TRADES = ['Electrical', 'Engine', 'Brakes', 'Suspension', 'Gearbox', 'Tyres', 'AC', 'Body / denting', 'Paint', 'General'];
 
