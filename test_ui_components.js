@@ -663,7 +663,7 @@ function scene(o) {
   const sk = add('skeleton', host, 'div.skeleton'); add('skeleton-label', sk, 'span.skeleton-label');
   const skr = add('skeleton-row', sk, 'div.skeleton-row'); add('skeleton-bar', skr, 'span.skeleton-bar'); add('skeleton-bar-short', skr, 'span.skeleton-bar.skeleton-bar-short');
   const fg = add('figure', host, 'span.figure'); add('figure-none', fg, 'span.figure-none'); add('figure-u', fg, 'span.figure-u');
-  const fn = add('figure-note', fg, 'span.figure-note'); add('figure-note-icon', fn, 'svg'); add('sr-only', fg, 'span.sr-only');
+  const fn = add('figure-note', fg, 'span.figure-note'); add('figure-note-icon', fn, 'svg'); add('figure-note-stale', fg, 'span.figure-note.figure-note-stale'); add('sr-only', fg, 'span.sr-only');
   // bare icons, as icon() returns them: an svg with no class
   add('btn-icon', F.btn, 'svg'); add('a-btn-icon', F['a-btn'], 'svg'); add('badge-icon', F.badge, 'svg'); add('tab-icon', F.tab, 'svg'); add('row-t-icon', F['row-t'], 'svg');
   add('row-lead-icon', F['row-lead'], 'svg'); add('stat-v-icon', F['stat-v'], 'svg'); add('td-icon', F.td, 'svg'); add('row-act-btn-icon', F['row-act-btn'], 'svg');
@@ -671,7 +671,7 @@ function scene(o) {
 }
 const ICON_FIXTURES = ['btn-icon', 'a-btn-icon', 'badge-icon', 'tab-icon', 'row-t-icon', 'row-lead-icon', 'stat-v-icon', 'td-icon', 'row-act-btn-icon', 'state-icon', 'state-error-icon', 'state-offline-icon', 'figure-note-icon'];
 const STATE_FIXTURES = ['state', 'empty', 'state-error', 'state-offline', 'empty-alone', 'state-text', 'state-hint', 'skeleton', 'skeleton-label', 'skeleton-row', 'skeleton-bar', 'skeleton-bar-short',
-  'figure', 'figure-none', 'figure-u', 'figure-note', 'sr-only'];
+  'figure', 'figure-none', 'figure-u', 'figure-note', 'figure-note-stale', 'sr-only'];
 const COMPONENT_FIXTURES = ['btn', 'btn-primary', 'btn-quiet', 'btn-danger', 'a-btn', 'field', 'textarea', 'select', 'field-invalid', 'card', 'row', 'row-lead', 'row-txt', 'row-t', 'row-sub', 'row-act',
   'row-act-btn', 'row-button', 'row-link', 'table', 'th', 'td', 'td-fig', 'badge', 'badge-ok', 'badge-warn', 'badge-bad', 'tabs', 'tab', 'tab-selected', 'stat', 'stat-k', 'stat-v'].concat(STATE_FIXTURES);
 const PRESSABLE = ['btn', 'btn-primary', 'btn-quiet', 'btn-danger', 'a-btn', 'row-act-btn', 'tab', 'tab-selected', 'row-button', 'row-link'];
@@ -856,7 +856,7 @@ test('every focusable component draws a solid outline of at least 2px in --accen
 // [fixture, property, yard px, desk px]. Resolved through the real token blocks, at the root and in a container.
 const SIZES = [
   ['state-text', 'font-size', 18, 17], ['state-hint', 'font-size', 15, 14], ['skeleton-row', 'min-height', 56, 32], ['skeleton-bar', 'height', 16, 15], ['skeleton-label', 'font-size', 15, 14],
-  ['figure-note', 'font-size', 15, 14], ['figure-u', 'font-size', 15, 14],
+  ['figure-note', 'font-size', 15, 14], ['figure-note-stale', 'font-size', 15, 14], ['figure-u', 'font-size', 15, 14],
   ['btn', 'min-height', 48, 32], ['btn-primary', 'min-height', 48, 32], ['btn-quiet', 'min-height', 48, 32], ['btn-danger', 'min-height', 48, 32], ['a-btn', 'min-height', 48, 32],
   ['field', 'min-height', 48, 32], ['select', 'min-height', 48, 32], ['tab', 'min-height', 48, 32], ['tab-selected', 'min-height', 48, 32],
   ['row', 'min-height', 56, 32], ['row-button', 'min-height', 56, 32], ['row-link', 'min-height', 56, 32], ['td', 'height', 56, 32], ['th', 'height', 56, 32],
@@ -949,7 +949,7 @@ function hindiFailures(css, sheetsFn) {
   const out = [], toks = model(v2Sheets(css)), rootEl = scene().root;
   const HI = toks.computed(rootEl, '--font-hi'), LATIN = toks.computed(rootEl, '--font');
   const surfaces = ['text', 'card-text', 'btn', 'btn-primary', 'a-btn', 'field', 'textarea', 'select', 'row-t', 'row-sub', 'row-button', 'td', 'th', 'badge', 'tab', 'stat-k', 'stat-v',
-    'state-text', 'state-hint', 'skeleton-label', 'figure-note', 'figure-u'];
+    'state-text', 'state-hint', 'skeleton-label', 'figure-note', 'figure-note-stale', 'figure-u'];
   const runs = [['lang=hi on the data-v2 element', { root: { lang: 'hi' } }], ['lang=hi-IN on an ancestor of the data-v2 element', { root: {}, outer: { lang: 'hi-IN' } }], ['lang=hi on a wrapper inside', { wrap: { lang: 'hi' } }]];
   const lineH = {};
   for (const [label, o] of runs) {
@@ -1105,7 +1105,7 @@ function lum({ h, s, l }) {
 }
 const contrast = (fg, bg) => { const a = lum(parseHsl(fg)), b = lum(parseHsl(bg)); return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05); };
 const TEXT_FIXTURES = ['btn', 'btn-primary', 'btn-quiet', 'btn-danger', 'a-btn', 'field', 'textarea', 'select', 'row-t', 'row-sub', 'row-button', 'td', 'th', 'badge', 'badge-ok', 'badge-warn', 'badge-bad',
-  'tab', 'tab-selected', 'stat-k', 'stat-v', 'card-text', 'empty', 'empty-alone', 'state-text', 'state-hint', 'skeleton-label', 'figure-none', 'figure-u', 'figure-note'];
+  'tab', 'tab-selected', 'stat-k', 'stat-v', 'card-text', 'empty', 'empty-alone', 'state-text', 'state-hint', 'skeleton-label', 'figure-none', 'figure-u', 'figure-note', 'figure-note-stale'];
 function contrastFailures(css) {
   const out = [];
   for (const [theme, o, opts] of [['light', {}, {}], ['dark (OS)', {}, { dark: true }], ['dark (explicit)', { root: { 'data-theme': 'dark' } }, {}]]) {
@@ -1243,6 +1243,23 @@ test('the drawing in each state (grey, --bad, --warn) reaches 3:1 against both s
   const { F } = scene(), m = model(v2Sheets(need()));
   const colours = ['state-icon', 'state-error-icon', 'state-offline-icon'].map((n) => m.computed(F[n], 'color'));
   assert.strictEqual(new Set(colours).size, 3, 'plain, error and offline drawings must not all be the same colour: ' + colours.join(' | '));
+});
+
+// stale:true is emphasis on top of an age that is always shown: the two notes must look different, and by more than a word.
+test('a note marked stale looks different from a plain age note (colour resolved through the cascade, light and dark), and the plain one is the quieter of the two', () => {
+  const css = need(), out = [];
+  const diff = (c) => { const { F } = scene(c.o), m = model(v2Sheets(css), c.opts); return [m.computed(F['figure-note'], 'color'), m.computed(F['figure-note-stale'], 'color'), m.computed(F['figure-note'], '--ink-dim'), m.computed(F['figure-note-stale'], '--warn')]; };
+  for (const [theme, o, opts] of THEMES) {
+    const [plain, stale, dim, warn] = diff({ o, opts });
+    if (plain === stale) out.push(theme + ': plain and stale notes are both ' + plain);
+    if (plain !== dim) out.push(theme + ': the plain note is ' + plain + ', not --ink-dim ' + dim);
+    if (stale !== warn) out.push(theme + ': the stale note is ' + stale + ', not --warn ' + warn);
+  }
+  assert.deepEqual(out, []);
+  const broken = css.replace(/(\.figure-note-stale \{\n)  color: var\(--warn\);/, '$1  color: var(--ink-dim);');
+  assert.notStrictEqual(broken, css, 'mutation did not apply');
+  const { F } = scene(), m = model(v2Sheets(broken));
+  assert.strictEqual(m.computed(F['figure-note'], 'color'), m.computed(F['figure-note-stale'], 'color'), 'the checker would not see a stale note that looks plain');
 });
 
 // The decision recorded in the header: the states do not move. Scoped to the state selectors, so Task 5's overlay motion is not caught here.

@@ -25,10 +25,13 @@
  *              null, undefined, NaN, +-Infinity, a blank string and anything that is not a number or a string
  *              are "no value": a dash. 0 and "0" are values.
  *       unit   a short string shown after the value ("km"). Not shown for an unknown value.
- *       at     when the value was last true: a millisecond timestamp, a Date, or a date string.
- *       stale  true when the CALLER knows the value is old (the sync layer owns that policy, so figure() invents
- *              no threshold). Only then is the age shown: "Updated 3 hours ago", or "May be out of date" when
- *              `at` is missing or unusable. An old `at` without stale:true shows nothing, by design.
+ *       at     when the value was last true: a millisecond timestamp, a Date, or a date string. If it is given,
+ *              the age is ALWAYS shown ("Updated just now", "Updated 3 hours ago"), flag or no flag: a guarantee
+ *              that depended on every caller remembering a flag would not be one. An `at` that cannot be read
+ *              says "Updated time unknown" (or "May be out of date" when also stale). Leaving `at` out is the only way to get no age, and it is explicit.
+ *       stale  true when the CALLER knows the value is old (how old is old differs per figure, so figure()
+ *              invents no threshold). It is emphasis, not the switch for the age: the note turns --warn,
+ *              data-state becomes "stale", and with no `at` it says "May be out of date".
  *
  * WORDS. English only for now; the callers' own text (emptyState, errorState) is whatever language they pass.
  * Wiring the fixed words (Offline, Loading, Retry, No data, Updated ... ago) to the app's translator is a
@@ -113,11 +116,14 @@
     }
     var unit = (opts.unit == null || String(opts.unit) === '') ? '' : ' <span class="figure-u">' + esc(opts.unit) + '</span>';
     var note = '', state = 'value';
-    if (opts.stale) {
+    var hasAt = opts.at != null;       // not `!opts.at`: 0 is a real timestamp
+    if (opts.stale || hasAt) {
       var ms = ageMs(opts.at);
       var age = ms === null ? null : ageWords(ms);
-      note = '<span class="figure-note">' + draw('clock', 14) + ' ' + esc(age === null ? 'May be out of date' : 'Updated ' + age) + '</span>';
-      state = 'stale';
+      // An `at` always shows its age. An `at` that cannot be read says so; only a caller who gives no `at` gets silence.
+      var text = age !== null ? 'Updated ' + age : (opts.stale ? 'May be out of date' : 'Updated time unknown');
+      note = '<span class="figure-note' + (opts.stale ? ' figure-note-stale' : '') + '">' + draw('clock', 14) + ' ' + esc(text) + '</span>';
+      if (opts.stale) state = 'stale';
     }
     return '<span class="figure" data-state="' + state + '"><span>' + esc(String(value)) + '</span>' + unit + note + '</span>';
   }

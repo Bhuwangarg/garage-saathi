@@ -201,11 +201,15 @@ function figureFailures(win, clock) {
     if (visualText(h) !== '42') bad('figure(42) shows "' + visualText(h) + '"');
     if (/ago|old|date|Updated/i.test(visualText(h))) bad('a fresh figure nags: ' + visualText(h)); }
   { const h = fig(42, { at: clock.now });
-    if (/ago|old|date|Updated/i.test(visualText(h))) bad('figure(42, {at: now}) nags: ' + visualText(h)); }
-  { const h = fig(42, { at: clock.now - 3 * DAY });
-    if (/ago|old|date|Updated/i.test(visualText(h))) bad('an old `at` WITHOUT stale:true must not nag (staleness is the caller\'s decision): ' + visualText(h)); }
+    if (visualText(h) !== '42 Updated just now') bad('figure(42, {at: now}) shows "' + visualText(h) + '": an `at` always shows its age'); }
+  { const h = fig(42, { at: clock.now - 3 * DAY }), n = byClass(parseHtml(h), 'figure-note')[0];
+    if (visualText(h) !== '42 Updated 3 days ago') bad('an old `at` WITHOUT stale:true must still say how old: ' + visualText(h));
+    if (first(h, 'figure').attrs['data-state'] !== 'value') bad('an `at` without stale:true is not marked stale');
+    if (n && classesOf(n).includes('figure-note-stale')) bad('an `at` without stale:true must not get the stale emphasis'); }
   { const h = fig(42, { stale: false, at: clock.now - 3 * DAY });
-    if (visualText(h) !== '42') bad('stale:false must be fresh: ' + visualText(h)); }
+    if (visualText(h) !== '42 Updated 3 days ago') bad('stale:false with an `at` shows "' + visualText(h) + '"'); }
+  { const h = fig(42, { stale: true, at: clock.now - 3 * DAY });
+    if (!classesOf(first(h, 'figure-note')).includes('figure-note-stale')) bad('stale:true must add the stale emphasis class to the note'); }
   { const h = fig(7, { unit: 'km' });
     if (visualText(h) !== '7 km') bad('figure(7, {unit:"km"}) shows "' + visualText(h) + '"');
     if (spokenText(h) !== '7 km') bad('figure(7, {unit:"km"}) says "' + spokenText(h) + '"'); }
@@ -255,9 +259,38 @@ function figureFailures(win, clock) {
   }
   return out;
 }
-test('figure() keeps unknown, zero and stale apart: a missing value is a dash, every spelling of zero is 0, a stale value says how old it is, a fresh one does not nag, and nothing a caller passes becomes markup (every claim in figureFailures)', () => {
+test('figure() keeps unknown, zero and stale apart: a missing value is a dash, every spelling of zero is 0, a stale value says how old it is, one given an `at` always says its age and one with no `at` stays silent, and nothing a caller passes becomes markup (every claim in figureFailures)', () => {
   const { win, clock } = load();
   assert.deepEqual(figureFailures(win, clock), []);
+});
+
+// A guarantee that depends on every caller remembering a flag is not a guarantee: if `at` is supplied, the age is shown,
+// stale or not. Omitting `at` is the only way to get silence, and it is explicit.
+function atAlwaysShowsAgeFailures(win, clock) {
+  const out = [];
+  const CASES = [[0, 'just now'], [90e3, '1 minute ago'], [2 * MIN, '2 minutes ago'], [3 * HOUR, '3 hours ago'], [2 * DAY, '2 days ago']];
+  for (const [age, words] of CASES) for (const [label, o] of [['no stale flag', {}], ['stale:false', { stale: false }], ['stale:true', { stale: true }]]) {
+    const vis = visualText(win.figure(42, Object.assign({ at: clock.now - age }, o)));
+    if (vis !== '42 Updated ' + words) out.push('figure(42, {at: ' + age + 'ms ago, ' + label + '}) shows "' + vis + '", expected "42 Updated ' + words + '"');
+  }
+  { const vis = visualText(win.figure(0, { at: clock.now - 3 * HOUR })); if (vis !== '0 Updated 3 hours ago') out.push('a zero with an `at` and no flag shows "' + vis + '"'); }
+  { const vis = visualText(win.figure(42, { at: clock.now - 3 * HOUR, unit: 'km' })); if (vis !== '42 km Updated 3 hours ago') out.push('a value with a unit and an `at` and no flag shows "' + vis + '"'); }
+  { const vis = visualText(win.figure(42, { at: 0 })); if (!/days ago$/.test(vis)) out.push('at: 0 (a real timestamp) with no flag shows "' + vis + '"'); }
+  // an `at` that cannot be read is still not silence
+  for (const bad of [NaN, 'garbage', {}, clock.now + HOUR]) {
+    const vis = visualText(win.figure(42, { at: bad }));
+    if (vis !== '42 Updated time unknown') out.push('figure(42, {at: ' + String(bad) + '}) shows "' + vis + '", expected "42 Updated time unknown"');
+  }
+  // silence is only for a caller who gives no `at`
+  for (const o of [undefined, {}, { at: null }, { at: undefined }, { stale: false }, { unit: 'km' }]) {
+    const vis = visualText(win.figure(42, o));
+    if (/Updated|ago|date/.test(vis)) out.push('figure(42, ' + JSON.stringify(o) + ') shows an age with no `at`: ' + vis);
+  }
+  return out;
+}
+test('a figure given an `at` ALWAYS shows its age, with or without a stale flag; only omitting `at` gives silence (and an unreadable `at` says "Updated time unknown", not nothing)', () => {
+  const { win, clock } = load();
+  assert.deepEqual(atAlwaysShowsAgeFailures(win, clock), []);
 });
 
 /* ----- MUTANTS: each is a plausible mistake. Each must make the checker go red, or the checker is blind. ----- */
@@ -273,7 +306,9 @@ const MUTANTS = [
   ['NaN and Infinity are shown as numbers', (s) => mutate(s, 'return !isFinite(v);', 'return false;'), /NaN|Infinity/],
   ['a blank string is shown as an empty value', (s) => mutate(s, /return \/\^\\s\*\$\/\.test\(v\);/, 'return false;'), /empty string|spaces/],
   ['the age is dropped from a stale figure', (s) => mutate(s, "'Updated ' + age", "''"), /stale 42|stale ZERO|stale with a unit|at as/],
-  ['every figure with an `at` nags, stale or not', (s) => mutate(s, 'if (opts.stale) {', 'if (opts.stale || opts.at != null) {'), /nags|fresh|stale:false/],
+  ['the age is gated on the stale flag again (the behaviour this replaced)', (s) => mutate(s, 'if (opts.stale || hasAt) {', 'if (opts.stale) {'), /always shows its age|WITHOUT stale|stale:false with an `at`/],
+  ['a figure with no `at` and no flag still shows an age', (s) => mutate(s, 'if (opts.stale || hasAt) {', 'if (true) {'), /Updated time unknown|shows an age/],
+  ['the stale flag stops adding its emphasis', (s) => mutate(s, "(opts.stale ? ' figure-note-stale' : '')", "''"), /stale emphasis/],
   ['`at` is tested for truthiness: a timestamp of 0 is lost', (s) => mutate(s, 'if (at == null) return null;', 'if (!at) return null;'), /at: 0/],
   ['an unparseable date prints NaN', (s) => mutate(s, 't !== t || !isFinite(t)', 'false'), /garbage|object|NaN|bad age/],
   ['the unit is not escaped', (s) => mutate(s, "esc(opts.unit)", "String(opts.unit)"), /became an element|broke/],

@@ -25,7 +25,7 @@
  * STATES (markup comes from ui/states.js; do not hand-write it):
  *   <div class="state empty|state-error|state-offline" role="status"><svg><p class="state-text"><p class="state-hint">
  *   <div class="skeleton" role="status" aria-busy="true"><span class="skeleton-label"><div class="skeleton-row"><span class="skeleton-bar">
- *   <span class="figure" data-state="unknown|value|stale"><span class="figure-none"><span class="figure-u"><span class="figure-note">
+ *   <span class="figure" data-state="unknown|value|stale"><span class="figure-none"><span class="figure-u"><span class="figure-note [figure-note-stale]">
  *   <span class="sr-only"> text for a screen reader only
  * Icons are bare <svg> from icon(): put them straight inside any of the above.
  * A badge or an invalid field is never colour alone: carry a word and an icon in the markup as well.
@@ -524,8 +524,8 @@
 
 /* ---------- figure: one number, and what we know about it ----------
  * The dash, the 0 and the stale note are three different things. A figure with no value shows a dash; a real
- * zero shows 0; an old figure shows its value and how old it is. The unit and the note are quieter than the
- * number, and the note is in --warn with a clock and words, so it is never colour alone. */
+ * zero shows 0; a figure with an `at` shows its value and how old it is. The unit and the note are quieter than
+ * the number; a note marked stale is in --warn, with a clock and words, so it is never colour alone. */
 [data-v2] .figure {
   display: inline-block;
 }
@@ -541,10 +541,16 @@
 
 [data-v2] .figure-note {
   display: block;
-  color: var(--warn);
+  color: var(--ink-dim);
   font-size: var(--t6);
   font-weight: 400;
   line-height: var(--lh);
+}
+
+/* stale:true is emphasis on top of the age every figure with an `at` already shows: the note turns --warn (the clock
+ * and the words "Updated ... ago" are still there, so it is never colour alone). */
+[data-v2] .figure-note-stale {
+  color: var(--warn);
 }
 
 /* Text for a screen reader only: clipped to nothing, still in the accessibility tree (never display:none). */
