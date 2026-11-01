@@ -184,6 +184,46 @@ test('the six type sizes exist in both densities and descend from --t1 to --t6',
   }
 });
 
+/* ---------- contrast (WCAG 2.x) ---------- */
+test('contrast() agrees with the WCAG reference values', () => {
+  const near = (a, b) => Math.abs(a - b) < 0.01;
+  assert(near(contrast('hsl(0 0% 0%)', 'hsl(0 0% 100%)'), 21), 'black on white must be 21:1');
+  assert(near(contrast('hsl(0 0% 100%)', 'hsl(0 0% 100%)'), 1), 'identical colours must be 1:1');
+  assert(near(contrast('hsl(0 0% 46.7%)', 'hsl(0 0% 100%)'), 4.48), '#777 on white is 4.48:1');
+});
+
+const THEMES = () => [['light', LIGHT().decls], ['dark (OS)', DARK_OS().decls], ['dark (explicit)', DARK_USER().decls]];
+// Text pairs [foreground, background]. Every one is real text in the spec: body copy,
+// secondary copy, label on an accent button, accent as a link, and the three status words.
+const TEXT_PAIRS = [
+  ['--ink', '--surface'], ['--ink', '--surface-raised'],
+  ['--ink-dim', '--surface'], ['--ink-dim', '--surface-raised'],
+  ['--accent-ink', '--accent'],
+  ['--accent-text', '--surface'], ['--accent-text', '--surface-raised'],
+  ['--ok', '--surface'], ['--ok', '--surface-raised'],
+  ['--warn', '--surface'], ['--warn', '--surface-raised'],
+  ['--bad', '--surface'], ['--bad', '--surface-raised'],
+];
+test('body text on every surface meets 4.5:1, in light and both dark blocks', () => {
+  const failures = [];
+  for (const [theme, d] of THEMES()) {
+    for (const [fg, bg] of TEXT_PAIRS) {
+      assert(parseHsl(d[fg]) && parseHsl(d[bg]), fg + ' / ' + bg + ' must be opaque hsl() to be contrast-checked');
+      const c = contrast(d[fg], d[bg]);
+      if (c < 4.5) failures.push(theme + ': ' + fg + ' ' + d[fg] + ' on ' + bg + ' ' + d[bg] + ' = ' + c.toFixed(2) + ':1');
+    }
+  }
+  assert(failures.length === 0, failures.length + ' pair(s) under 4.5:1\n' + failures.join('\n'));
+});
+test('the accent as a focus ring / bar meets 3:1 against both surfaces (WCAG 1.4.11)', () => {
+  const failures = [];
+  for (const [theme, d] of THEMES()) for (const bg of ['--surface', '--surface-raised']) {
+    const c = contrast(d['--accent'], d[bg]);
+    if (c < 3) failures.push(theme + ': --accent on ' + bg + ' = ' + c.toFixed(2) + ':1');
+  }
+  assert(failures.length === 0, failures.join('\n'));
+});
+
 /* ---------- done ---------- */
 if (fails) { console.log('\n' + fails + ' FAILED'); process.exit(1); }
 console.log('\nall passed');
