@@ -101,8 +101,12 @@ ck() { # desc, actual, expected
 # So the body runs fire-and-forget and parks its answer on window.__gz, which is
 # then polled synchronously. $1 is the body, $2 what it should end up saying.
 aj() { # async-body, expected, tries
-  j "(async function(){window.__gz='';try{$1}catch(e){window.__gz='threw: '+e.message}})()" >/dev/null
-  settle "window.__gz" "$2" "${3:-40}" >/dev/null
+  # The OUTER function is synchronous and returns a plain string on purpose. Handing
+  # `js` a promise is what wedged this gate for a quarter of an hour with no output
+  # and no timeout -- it waits on one, sometimes forever. So the async work is only
+  # STARTED here, and window.__gz is polled synchronously afterwards.
+  j "(function(){window.__gz='';(async function(){try{$1}catch(e){window.__gz='threw: '+(e&&e.message||e)}})();return 'queued'})()" >/dev/null
+  settle "window.__gz" "$2" "${3:-30}" >/dev/null
   j "window.__gz"
 }
 settle() { # js-expression, expected, tries
