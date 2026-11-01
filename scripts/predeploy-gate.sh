@@ -93,6 +93,12 @@ PASS=0; FAIL=0
 # right place.
 j()  { perl -e 'alarm shift; exec @ARGV' 25 "$B" js "$1" 2>/dev/null; }
 ck() { # desc, actual, expected
+  # GS_GATE_STRICT=1 refuses a call that did not get exactly three arguments. Under macOS's bash 3.2 a "$(j "...")" whose
+  # JS has a { } holding a comma is brace-expanded INTO SEVERAL WORDS before it runs, so ck is handed four or more
+  # arguments, compares two junk words, and passes by accident. 26 of the checks above are written that way (run with
+  # GS_GATE_STRICT=1 to list them). Off by default because turning it on would block every push until those 26 are
+  # rewritten as the gallery block's are, which is a separate job.
+  if [ -n "${GS_GATE_STRICT:-}" ] && [ "$#" -ne 3 ]; then FAIL=$((FAIL+1)); printf '  ✗ %s (ck was called with %s arguments, not 3)\n' "${1:-?}" "$#"; return; fi
   if [ "$2" = "$3" ]; then PASS=$((PASS+1)); printf '  ✓ %s\n' "$1"
   else FAIL=$((FAIL+1)); printf '  ✗ %s (got "%s", expected "%s")\n' "$1" "$2" "$3"; fi
 }
@@ -639,6 +645,197 @@ for SCREEN in home jobs store me; do
   RES="$(j "var r=S.route.name;Array.from(document.querySelectorAll('input,select,textarea')).forEach(function(e){e.dispatchEvent(new MouseEvent('click',{bubbles:true}));});S.route.name===r?'stable':'MOVED'")"
   ck "owner/$SCREEN: form controls don't navigate" "$RES" "stable"
 done
+
+# ===========================================================================
+# 4) The design-system gallery (ui/gallery.html).
+#
+# The gallery is the page a person opens on an office PC (Windows 7, Chrome 109)
+# and on the oldest driver phone to find out whether the design system works
+# there; here it is also the fixture the gate drives. Everything above tested the
+# live app. This block tests ui/, which the live app does not load yet.
+#
+# It runs LAST, and on 127.0.0.1 rather than localhost: a different origin from
+# the one the checks above used, so the gallery never meets the app's service
+# worker, caches or IndexedDB, and the app's state is untouched. The viewport is
+# changed for the overflow checks and put back.
+#
+# THE EXPRESSIONS BELOW ARE IN SINGLE QUOTES, NOT INLINE IN "$(j "...")" AS ABOVE,
+# AND THAT IS DELIBERATE. This gate runs under macOS's bash 3.2, which brace-expands
+# the text of a "$(cmd "...")" even though it sits inside double quotes: any { }
+# holding a comma -- a function body that calls f(a,b), an object literal, a
+# "var a=1,b=2" -- splits the whole argument into several words. The JS that
+# reaches the browser is not the JS that was written, and ck is handed extra
+# arguments. 26 of the checks above are written that way and pass vacuously (see
+# GS_GATE_STRICT at ck()); that is a hole, and is not fixed here. A single-quoted
+# string is never touched, so gck() takes the expression that way and substitutes
+# @REQ@, @STATES@ and @EMOJI@ itself. Strings inside the expressions are therefore
+# double-quoted. ck is still called with exactly three arguments, as above.
+#
+# Two further rules (the gate has been fooled by both before):
+#  - a check that looks at "all the X" first counts the X and fails when there
+#    are none: querySelectorAll matching nothing must never read as a pass;
+#  - every expression is synchronous and returns a plain string. The one thing
+#    that is asynchronous (an overlay finishing its exit) is waited for with
+#    settle(), never by handing js a promise.
+# ===========================================================================
+echo "── design-system gallery ──"
+GAL="http://127.0.0.1:$PORT/ui/gallery.html"
+
+# desc, expression (single-quoted, may use @REQ@ @STATES@ @EMOJI@), expected
+GAL_REQ="button field select row card table badge tabs stat icons empty error offline skeleton figure sheet confirm toast"
+# component|selector pairs. Each must match at least once inside that component's yard panel AND its desk panel.
+GAL_STATES='button|.btn;button|.btn-primary;button|.btn-quiet;button|.btn-danger;button|.btn:disabled;button|.btn[aria-disabled=true];button|a.btn;button|.btn svg;button|.btn[aria-label];field|input.field:placeholder-shown;field|input.field:not(:placeholder-shown);field|textarea.field;field|.field[aria-invalid=true];field|.field:disabled;select|select.select;select|.select:disabled;row|div.row;row|button.row;row|a.row;row|.row .lead svg;row|.row .act .btn;row|.row .act .badge;row|.row .act .figure;row|[data-sample=long].row;row|.row[lang=hi];card|.card;card|.card .btn;card|.card .stat;table|table.table;table|.table th;table|.table td.fig .figure[data-state=value];table|.table td.fig .figure[data-state=unknown];table|.table .badge;badge|.badge:not(.badge-ok):not(.badge-warn):not(.badge-bad);badge|.badge-ok;badge|.badge-warn;badge|.badge-bad;badge|.badge svg;tabs|.tabs[role=tablist];tabs|.tabs [role=tab][aria-selected=true];tabs|.tabs [role=tab][aria-selected=false];stat|.stat .k;stat|.stat .v;stat|.stat .figure[data-state=stale];stat|.stat .figure[data-state=unknown];icons|[data-icon] svg;empty|.state.empty;empty|.state.empty .state-hint;empty|.state.empty svg;error|[data-sample=with-retry] .state-error [data-state-retry];error|[data-sample=no-retry] .state-error;offline|.state-offline;offline|.state-offline .state-hint;skeleton|.skeleton[aria-busy=true];skeleton|[data-sample=one-row] .skeleton-row;figure|[data-sample=unknown] .figure[data-state=unknown];figure|[data-sample=zero] .figure[data-state=value];figure|[data-sample=value] .figure[data-state=value];figure|[data-sample=unit] .figure-u;figure|[data-sample=recent] .figure-note;figure|[data-sample=stale] .figure[data-state=stale] .figure-note-stale;figure|[data-sample=stale-no-at] .figure-note-stale;figure|[data-sample=at-unreadable] .figure-note;figure|[data-sample=unknown-with-at] .figure[data-state=unknown];sheet|[data-open=sheet];sheet|[data-open=sheet-long];confirm|[data-open=confirm];confirm|[data-open=confirm-danger];toast|[data-open=toast-ok];toast|[data-open=toast-warn];toast|[data-open=toast-bad];toast|[data-open=toast-stay]'
+# The emoji detector: surrogate pairs (every emoji outside the BMP), the arrows, technical, enclosed, dingbat and symbol
+# blocks, the variation selector, the joiner and the keycap mark. A dash and an ellipsis are fine.
+GAL_EMOJI='function(s){return /[\uD800-\uDBFF][\uDC00-\uDFFF]|[←-⇿⌀-⏿①-➿⤀-⯿️‍⃣]/.test(s)?"found":"none"}'
+gck() {
+  local js="$2"
+  js="${js//@REQ@/$GAL_REQ}"; js="${js//@STATES@/$GAL_STATES}"; js="${js//@EMOJI@/$GAL_EMOJI}"
+  ck "$1" "$(j "$js")" "$3"
+}
+
+# 4a) The source files. These read the files, not the page, so they hold even if the page is broken.
+UI_NONASCII="$(perl -ne 'print "$ARGV " if /[^\x00-\x7F]/ and !$seen{$ARGV}++' "$REPO"/ui/* 2>/dev/null)"
+ck "ui/ is pure ASCII, so it holds no emoji or glyph a Windows 7 font lacks (gallery.html is in the scan)" \
+  "$([ -s "$REPO/ui/gallery.html" ] && echo present || echo absent):${UI_NONASCII:-none}" "present:none"
+ck "that ASCII scan can fail (it flags a file holding a bus emoji)" \
+  "$(printf '\xf0\x9f\x9a\x8c\n' | perl -ne 'print "flagged" if /[^\x00-\x7F]/')" "flagged"
+# Names the Chrome 109 floor forbids, plus ES6 syntax the oldest phones may lack. A grep finds only a name it is
+# given, so CSS nesting (which has no name) is NOT covered here; test_ui_components.js reads the stylesheets for that.
+GAL_BANNED_RE='oklch|color-mix|@starting-style|view-transition|popover|subgrid|text-wrap|@layer|=>|`|\?\.[A-Za-z_$]| \?\? |(^|[^A-Za-z_.'"'"'])(const|let) [A-Za-z_$][A-Za-z0-9_$]* *='
+GAL_BANNED="$(grep -oiE "$GAL_BANNED_RE" "$REPO/ui/gallery.html" 2>/dev/null | sort -u | tr '\n' ' ')"
+ck "gallery.html names none of: oklch, color-mix, @starting-style, view-transition, popover, subgrid, text-wrap, @layer, =>, a backtick, ?., ??, const, let" \
+  "$([ -s "$REPO/ui/gallery.html" ] && echo present || echo absent):${GAL_BANNED:-none}" "present:none"
+ck "that feature scan can fail (it flags an arrow function, a const and color-mix)" \
+  "$(printf 'var f = (a) => a;\nconst x = 1;\nbackground: color-mix(in srgb, red, blue);\n' | grep -oiE "$GAL_BANNED_RE" | sort -u | wc -l | tr -d ' ')" "3"
+
+# 4b) Open it.
+ORIG_VP="$(j "window.innerWidth+'x'+window.innerHeight")"
+"$B" console --clear >/dev/null 2>&1
+"$B" goto "$GAL" >/dev/null 2>&1
+settle "typeof renderDemoRows==='function'&&document.readyState==='complete'?'ready':'no'" "ready" 40 >/dev/null
+
+gck "the gallery page loads and defines renderDemoRows beside the design system's own functions" \
+  '[typeof renderDemoRows,typeof icon,typeof figure,typeof V2.openSheet,typeof emptyState].join("/")' \
+  "function/function/function/function/function"
+ck "the browser logged no console error while the gallery loaded" \
+  "$("$B" console --errors 2>/dev/null | grep -c '(no console errors)')" "1"
+# The console log does not hold an uncaught exception, so the page keeps its own list (a script at the top of the page).
+gck "the page recorded no uncaught script error and no file that failed to load" \
+  'Array.isArray(window.__errors)?(window.__errors.length+" errors"+(window.__errors.length?": "+window.__errors.join(" | "):"")):"no error list on the page"' "0 errors"
+gck "the gallery loads the design system's own stylesheets and scripts and nothing from the live app" \
+  '(function(){var s=[].map.call(document.styleSheets,function(x){return (x.href||"inline").split("/").pop()+(x.href&&x.cssRules.length===0?"(EMPTY)":"")}).sort().join(",");var c=[].map.call(document.scripts,function(x){return x.src?x.src.split("/").pop():"inline"}).sort().join(",");return (document.documentElement.hasAttribute("data-v2")?"data-v2":"NO-data-v2")+" | "+s+" | "+c})()' \
+  "data-v2 | components.css,inline,tokens.css | icons.js,inline,inline,overlay.js,states.js"
+
+# 4c) Coverage: every component, in both densities, in every state.
+gck "the gallery shows each of the 18 components once" \
+  '(function(){var want="@REQ@".split(" "),bad=want.filter(function(n){return document.querySelectorAll("[data-component="+n+"]").length!==1});return bad.length?"missing or repeated: "+bad.join(","):"all "+want.length})()' "all 18"
+gck "the gallery has at least the 12 components the plan promised" \
+  'document.querySelectorAll("[data-component]").length>=12' "true"
+gck "every component has one yard panel and one desk panel, and neither is empty" \
+  '(function(){var want="@REQ@".split(" "),bad=[];want.forEach(function(n){["yard","desk"].forEach(function(d){var p=document.querySelectorAll("[data-component="+n+"] [data-density="+d+"]");if(p.length!==1||p[0].children.length===0)bad.push(n+"/"+d)})});return bad.length?bad.join(","):"ok"})()' "ok"
+gck "every listed state of every component is drawn in both densities (the list is in this script)" \
+  '(function(){var pairs="@STATES@".split(";"),bad=[];pairs.forEach(function(p){var c=p.split("|");["yard","desk"].forEach(function(d){if(document.querySelectorAll("[data-component="+c[0]+"] [data-density="+d+"] "+c[1]).length===0)bad.push(c[0]+"/"+d+": "+c[1])})});return pairs.length<60?"only "+pairs.length+" states listed":(bad.length?"not drawn: "+bad.slice(0,4).join(" ; ")+(bad.length>4?" (+"+(bad.length-4)+" more)":""):"ok")})()' "ok"
+gck "every icon in the set is drawn in the yard panel, by name, at a real size" \
+  '(function(){var names=Object.keys(ICONS),bad=[];names.forEach(function(n){var c=document.querySelector("[data-component=icons] [data-density=yard] [data-icon="+n+"] svg path");if(!c||c.ownerSVGElement.getBoundingClientRect().width<=0)bad.push(n)});return names.length<25?"only "+names.length+" icons":(bad.length?"undrawn: "+bad.join(","):"ok")})()' "ok"
+gck "and none of the drawn icons is the dotted not-found square" \
+  '(function(){var n=document.querySelectorAll("[data-component=icons] [data-icon] svg").length;return n<50?"only "+n+" icons drawn":document.querySelectorAll("svg[data-missing]").length+" fallback squares"})()' "0 fallback squares"
+gck "the figure samples keep unknown, zero and stale apart: a dash with no digit, a 0, and a value that says how old it is" \
+  '(function(){function f(s){return document.querySelector("[data-component=figure] [data-density=yard] [data-sample="+s+"] .figure")}var u=f("unknown"),z=f("zero"),s=f("stale");if(!u||!z||!s)return "sample missing";var ut=u.textContent,zt=z.textContent.replace(/^\s+/,""),st=s.textContent;return [u.getAttribute("data-state")+(/[0-9]/.test(ut)?" has-digit":" no-digit"),z.getAttribute("data-state")+(zt.indexOf("0")===0?" starts-0":" not-0"),s.getAttribute("data-state")+(/Updated 3 hours ago/.test(st)?" aged":" no-age")].join(" / ")})()' \
+  "unknown no-digit / value starts-0 / stale aged"
+
+# 4d) No emoji anywhere the page renders (markup, text, attributes, titles).
+gck "no emoji or symbol glyph in anything the gallery renders" \
+  '(@EMOJI@)(document.documentElement.outerHTML.length>5000?document.documentElement.outerHTML:"🚌")' "none"
+gck "that emoji detector can fail (it flags a bus emoji, a sun, a check mark and an arrow, and spares a dash)" \
+  '[(@EMOJI@)("🚌"),(@EMOJI@)("☀"),(@EMOJI@)("✔"),(@EMOJI@)("→"),(@EMOJI@)("— - ...")].join(",")' "found,found,found,found,none"
+
+# 4e) Sizes. A yard control under 48px is a missed tap in a glove; a desk row taller than its token is a layout bug.
+gck "every yard button, field, select and tab is at least 48px tall" \
+  '(function(){var e=document.querySelectorAll("[data-component] [data-density=yard] .btn,[data-component] [data-density=yard] .field,[data-component] [data-density=yard] .select,[data-component] [data-density=yard] [role=tab]"),s=[];for(var i=0;i<e.length;i++){var h=e[i].getBoundingClientRect().height;if(h<48)s.push(e[i].className+" "+h)}return e.length<30?"only "+e.length+" controls found":(s.length?"small: "+s.slice(0,3).join(" | "):"ok")})()' "ok"
+gck "every desk button, field, select and tab is at least 32px tall" \
+  '(function(){var e=document.querySelectorAll("[data-component] [data-density=desk] .btn,[data-component] [data-density=desk] .field,[data-component] [data-density=desk] .select,[data-component] [data-density=desk] [role=tab]"),s=[];for(var i=0;i<e.length;i++){var h=e[i].getBoundingClientRect().height;if(h<32)s.push(e[i].className+" "+h)}return e.length<30?"only "+e.length+" controls found":(s.length?"small: "+s.slice(0,3).join(" | "):"ok")})()' "ok"
+gck "the two densities really differ: no desk button reaches 48px and no yard button is under it" \
+  '(function(){function hs(d){return [].map.call(document.querySelectorAll("[data-component] [data-density="+d+"] .btn"),function(x){return x.getBoundingClientRect().height})}var y=hs("yard"),d=hs("desk");if(y.length<10||d.length<10)return "too few buttons "+y.length+"/"+d.length;return (Math.min.apply(null,y)>=48&&Math.max.apply(null,d)<48)?"ok":"yard min "+Math.min.apply(null,y)+" desk max "+Math.max.apply(null,d)})()' "ok"
+gck "every yard row is at least 56px and every desk row at least 32px" \
+  '(function(){function m(d){var r=document.querySelectorAll("[data-component] [data-density="+d+"] .row"),lo=1e9;for(var i=0;i<r.length;i++)lo=Math.min(lo,r[i].getBoundingClientRect().height);return r.length<5?-1:lo}var y=m("yard"),d=m("desk");return (y>=56&&d>=32)?"ok":"yard "+y+" desk "+d+" (-1 means too few rows)"})()' "ok"
+gck "the Hindi row asks for Nirmala UI at a 1.7 line height (whether it DRAWS in Nirmala is for the office PC to say)" \
+  '(function(){var e=document.querySelector("[data-component=row] [data-density=yard] .row[lang=hi]");if(!e)return "no Hindi row";var c=getComputedStyle(e),r=parseFloat(c.lineHeight)/parseFloat(c.fontSize);return c.fontFamily.indexOf("Nirmala UI")===1&&r>1.69&&r<1.71?"ok":c.fontFamily+" "+r})()' "ok"
+
+# 4f) Nothing overflows sideways: the office PC is 1024 wide, the oldest driver phone about 360.
+"$B" viewport 1024x768 >/dev/null 2>&1
+settle "String(window.innerWidth)" "1024" 20 >/dev/null
+gck "nothing overflows sideways at 1024 wide" \
+  'document.querySelectorAll("[data-component]").length<12?"no gallery on screen":(window.innerWidth!==1024?"viewport is "+window.innerWidth:(document.documentElement.scrollWidth<=1024?"fits":"overflows by "+(document.documentElement.scrollWidth-1024)))' "fits"
+"$B" viewport 360x740 >/dev/null 2>&1
+settle "String(window.innerWidth)" "360" 20 >/dev/null
+gck "nothing overflows sideways at 360 wide (an old Android phone)" \
+  'document.querySelectorAll("[data-component]").length<12?"no gallery on screen":(window.innerWidth!==360?"viewport is "+window.innerWidth:(document.documentElement.scrollWidth<=360?"fits":"overflows by "+(document.documentElement.scrollWidth-360)))' "fits"
+# Back to the size the browser had, for everything after.
+GAL_VP="${ORIG_VP:-1280x720}"
+"$B" viewport "$GAL_VP" >/dev/null 2>&1
+settle "String(window.innerWidth)" "${GAL_VP%x*}" 20 >/dev/null
+
+# 4g) The two toggles.
+gck "the theme toggle makes the page light, dark, then hands back to the system, and marks the one that is on" \
+  '(function(){var h=document.documentElement;function lum(){var m=getComputedStyle(h).backgroundColor.match(/[0-9]+/g);return (+m[0]+ +m[1]+ +m[2])/3}function press(){return [].map.call(document.querySelectorAll("[data-set-theme]"),function(b){return b.getAttribute("aria-pressed")==="true"?b.getAttribute("data-set-theme"):""}).join("")}var o=[];["light","dark","auto"].forEach(function(t){var b=document.querySelector("[data-set-theme="+t+"]");if(!b){o.push("no "+t+" button");return}b.click();o.push(t+":"+(h.getAttribute("data-theme")||"none")+":"+(t==="auto"?"-":(lum()>200?"pale":(lum()<60?"dark":"mid")))+":"+press())});return o.join(" ")})()' \
+  "light:light:pale:light dark:dark:dark:dark auto:none:-:auto"
+gck "the density toggle shows yard only, desk only, or both, and the panels it hides really are hidden" \
+  '(function(){function vis(d){var p=document.querySelectorAll("[data-component] [data-density="+d+"]"),n=0;for(var i=0;i<p.length;i++)if(p[i].getClientRects().length>0)n++;return n+"/"+p.length}var o=[];["yard","desk","both"].forEach(function(v){var b=document.querySelector("[data-set-density="+v+"]");if(!b){o.push("no "+v+" button");return}b.click();o.push(v+"="+vis("yard")+","+vis("desk"))});return o.join(" ")})()' \
+  "yard=18/18,0/18 desk=0/18,18/18 both=18/18,18/18"
+
+# 4h) The overlays, opened by the gallery's own buttons, wearing the density and theme of the place they were opened from.
+# A person presses a button and Chrome focuses it first; ui/overlay.js reads document.activeElement to learn which panel
+# it was opened from. el.click() alone does not focus, so the checks focus the opener first, as a real press does.
+gck "a sheet opened from the desk panel is a desk-density, data-v2 dialog and locks the page behind it" \
+  '(function(){var b=document.querySelector("[data-component=sheet] [data-density=desk] [data-open=sheet]");if(!b)return "no opener";b.focus();b.click();var d=document.querySelector("dialog.ov-sheet[open]");window.__gopen=d?[d.getAttribute("data-density"),d.hasAttribute("data-v2"),document.documentElement.style.overflow].join("/"):"no sheet opened";return window.__gopen})()' "desk/true/hidden"
+j "V2.closeSheet();'x'" >/dev/null
+settle "document.querySelector('dialog.ov-modal')?'open':'gone'" "gone" 25 >/dev/null
+gck "closing that sheet removes it and gives the page its scroll back" \
+  'window.__gopen+" -> "+(document.querySelector("dialog.ov-modal")?"still open":"gone")+", overflow "+(document.documentElement.style.overflow||"restored")' \
+  "desk/true/hidden -> gone, overflow restored"
+gck "a sheet opened from the yard panel while the page is set to dark is a yard, dark dialog" \
+  '(function(){document.querySelector("[data-set-theme=dark]").click();var b=document.querySelector("[data-component=sheet] [data-density=yard] [data-open=sheet-long]");if(!b)return "no opener";b.focus();b.click();var d=document.querySelector("dialog.ov-sheet[open]");window.__gopen=d?[d.getAttribute("data-density"),d.getAttribute("data-theme"),d.querySelectorAll(".row").length>5?"long":"short"].join("/"):"no sheet opened";return window.__gopen})()' "yard/dark/long"
+j "V2.closeSheet();document.querySelector('[data-set-theme=auto]').click();'x'" >/dev/null
+settle "document.querySelector('dialog.ov-modal')?'open':'gone'" "gone" 25 >/dev/null
+# The action and the waiting are separate from the assertion, so that what is asserted is what the page ended up as.
+j '(function(){var b=document.querySelector("[data-component=confirm] [data-density=yard] [data-open=confirm]");if(!b)return "no opener";b.focus();b.click();var d=document.querySelector("dialog.ov-confirm[open]");if(!d){window.__gconf="no dialog";return "x"}window.__gconf=document.activeElement.className.indexOf("ov-no")>=0?"cancel-focused":"focus on "+document.activeElement.className;d.querySelector(".ov-no").click();return "x"})()' >/dev/null
+settle "document.querySelector('dialog.ov-modal')?'open':'gone'" "gone" 25 >/dev/null
+gck "a confirmation opens with Cancel focused, and pressing Cancel closes it and releases the scroll lock" \
+  'window.__gconf+" -> "+(document.querySelector("dialog.ov-modal")?"still open":"closed")+", "+(document.documentElement.style.overflow||"unlocked")' "cancel-focused -> closed, unlocked"
+gck "the gallery's readout says the cancelled confirmation answered no" \
+  '(function(){var l=document.querySelector("[data-component=confirm] [data-density=yard] [data-log]");return l?l.textContent:"no readout"})()' "Last answer: No"
+gck "a dangerous confirmation draws a danger Confirm button, and pressing it is answered yes" \
+  '(function(){var b=document.querySelector("[data-component=confirm] [data-density=desk] [data-open=confirm-danger]");if(!b)return "no opener";b.click();var y=document.querySelector("dialog.ov-confirm[open] .ov-yes");if(!y)return "no dialog";var k=y.classList.contains("btn-danger")?"danger":"not-danger";y.click();return k})()' "danger"
+settle "document.querySelector('dialog.ov-modal')?'open':'gone'" "gone" 25 >/dev/null
+gck "and the desk panel's readout says yes" \
+  '(function(){var l=document.querySelector("[data-component=confirm] [data-density=desk] [data-log]");return l?l.textContent:"no readout"})()' "Last answer: Yes"
+gck "an error toast says Error in words, does not take focus, and its Close button is there" \
+  '(function(){var b=document.querySelector("[data-component=toast] [data-density=yard] [data-open=toast-bad]");if(!b)return "no opener";var before=document.activeElement;b.click();var t=document.querySelector(".ov-toast-bad");if(!t)return "no toast";var k=t.querySelector(".ov-toast-kind").textContent.replace(/\s+/g,"");var f=(document.activeElement===before||document.activeElement===document.body)?"no-focus-taken":"FOCUS TAKEN";var c=t.querySelector(".ov-toast-close");if(!c)return k+" no close button";c.click();window.__gtoast=k+" "+f;return window.__gtoast})()' "Error no-focus-taken"
+settle "document.querySelector('.ov-toast')?'there':'gone'" "gone" 25 >/dev/null
+gck "once Close is pressed the toast goes, and no overlay or scroll lock is left behind" \
+  'window.__gtoast+" -> "+(document.querySelector(".ov-toast")?"toast left":"toast gone")+", "+(document.querySelector("dialog.ov-modal")?"modal left":"no modal")+", "+(document.documentElement.style.overflow||"unlocked")' "Error no-focus-taken -> toast gone, no modal, unlocked"
+
+# 4i) The performance budget. The timing includes the browser laying the rows out (reading offsetHeight forces it),
+# because appending 200 nodes is nearly free and the cost the office PC pays is style and layout.
+#
+# 250 ms is a PLACEHOLDER for the desk budget, set on a developer machine. The real number comes from opening this
+# gallery on an office PC (Windows 7, Chrome 109) and pressing "Draw 200 rows": it shows three runs on screen. Until
+# those results arrive the threshold means only "not absurdly slow here". TIGHTEN IT to the office PC's result, with
+# whatever margin the owner chooses, as soon as it is known.
+gck "#perf-bed starts empty, and is a desk-density container (so the rows timed below are desk rows)" \
+  '(function(){var b=document.getElementById("perf-bed");return b?(b.children.length===0?"empty":"has "+b.children.length+" children")+", --row-h "+getComputedStyle(b).getPropertyValue("--row-h").replace(/\s/g,""):"no bed"})()' "empty, --row-h 32px"
+# Three runs, the fastest counts: this machine is shared with other work, and a scheduling hiccup only ever makes a run
+# slower, so a budget that fails on one slow run of three would block pushes at random. Every run must still have drawn
+# 200 rows into the bed and given it a height, or there is no reading at all.
+PERF_RUNS="$(j '(function(){var bed=document.getElementById("perf-bed");if(!bed||bed.children.length)return "";var out=[],r;for(r=0;r<3;r++){bed.innerHTML="";var t=performance.now(),n=renderDemoRows(200),h=bed.offsetHeight,ms=performance.now()-t;if(n!==200||bed.querySelectorAll(".row").length!==200||h<=0)return "";out.push(Math.round(ms*10)/10)}return out.join(" ")})()')"
+echo "    (200 demo rows drawn and laid out, three runs: ${PERF_RUNS:-no reading} ms; limit 250 on the fastest)"
+PERF_AWK='BEGIN { n = split(r, a, " "); if (n != 3) { print "no reading"; exit } m = a[1] + 0; for (i = 2; i <= 3; i++) if (a[i] + 0 < m) m = a[i] + 0; print (m < 250) ? "ok" : "slow: fastest " m " ms" }'
+ck "200 rows render inside the desk budget (the fastest of three runs; each drew 200 rows into the bed and gave it a height)" \
+  "$(awk -v r="$PERF_RUNS" "$PERF_AWK")" "ok"
+gck "the gallery's own Draw 200 rows button leaves 200 rows in the bed and reports three timed runs" \
+  '(function(){var b=document.querySelector("[data-act=perf]");if(!b)return "no button";b.click();var r=document.getElementById("perf-readout"),n=document.querySelectorAll("#perf-bed > .row").length;return n+" rows; "+(/run 1 [0-9.]+ ms.*run 2 [0-9.]+ ms.*run 3 [0-9.]+ ms/.test(r?r.textContent:"")?"three runs shown":"readout: "+(r?r.textContent:"missing"))})()' "200 rows; three runs shown"
+# ── end of the gallery block ──
 
 echo "──"
 echo "RESULT: $PASS passed, $FAIL failed"

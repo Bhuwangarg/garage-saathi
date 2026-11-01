@@ -1,0 +1,430 @@
+<!doctype html>
+<!--
+  Garage Saathi design system - gallery.
+
+  WHAT IT IS FOR. The office PCs run Windows 7 with Chrome 109 (the last version that OS supports), and the drivers have
+  old Android phones. Everything in ui/ was built and tested on a modern Chrome. Open THIS PAGE on an office PC and on the
+  oldest driver phone to find out whether any of it is true there:
+    - the drawings draw (they are inline SVG, no font),
+    - both densities are usable (yard 48px targets, desk 32px),
+    - nothing runs off the side at 1024 wide (office) or 360 wide (phone),
+    - the Hindi row is set in Nirmala UI, not Mangal,
+    - and "Draw 200 rows" (at the bottom) gives a time. Send that number back: it is what the gate's budget is tightened to.
+  It is also the fixture scripts/predeploy-gate.sh drives, so every component carries data-component and every panel
+  carries data-density.
+
+  THE ONE RULE OF THE PAGE: it loads tokens.css and components.css and the three ui scripts, and NOTHING from the live app
+  (no styles.css, no app.js). data-v2 sits on <html>, which is safe only because no live stylesheet is here: in a page that
+  also loads styles.css the attribute must go on a wrapper element (see ui/tokens.css).
+
+  THE SCRIPTS. A small one in the head that reports any script error or missing file on screen, and one at the bottom that
+  draws the states through ui/states.js and ui/icons.js (their markup is not written by hand), wires the theme and density
+  toggles and the overlay buttons, and defines renderDemoRows(). Plain ES5 from bare tags.
+
+  Pure ASCII on purpose: Hindi is written as character references, and there is no emoji anywhere.
+-->
+<html lang="en" data-v2 data-view="both">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Garage Saathi design system gallery</title>
+<script>
+/* First on the page, so it hears everything after it. On an old browser the usual failure is a script that throws or a
+   file that does not load, and the page then just looks wrong. This makes it say so, on screen (#g-errors), and keeps a
+   list in window.__errors for the gate. The final true makes it hear a file that failed to load, which does not bubble. */
+window.__errors = [];
+function galleryShowErrors() {
+  var el = document.getElementById('g-errors');
+  if (el && window.__errors.length) { el.textContent = 'Script errors on this page: ' + window.__errors.join(' | '); el.hidden = false; }
+}
+window.addEventListener('error', function (e) {
+  var t = e && e.target, what;
+  if (t && t !== window && (t.src || t.href)) what = 'could not load ' + String(t.src || t.href).split('/').pop();
+  else what = (e && e.message ? e.message : 'error') + (e && e.filename ? ' (' + String(e.filename).split('/').pop() + ':' + e.lineno + ')' : '');
+  window.__errors.push(what);
+  galleryShowErrors();
+}, true);
+document.addEventListener('DOMContentLoaded', galleryShowErrors);
+</script>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="components.css">
+<style>
+/* The gallery's own page furniture. Colours, sizes and fonts all come from tokens.css; nothing here is a new value. */
+html[data-v2][data-theme="dark"] { color-scheme: dark; }
+html[data-v2][data-theme="light"] { color-scheme: light; }
+html[data-v2]:not([data-theme]) { color-scheme: light dark; }
+body { margin: 0; }
+.g-wrap { max-width: 72rem; margin: 0 auto; padding: 0 var(--s4) var(--s8); }
+.g-head { padding: var(--s6) 0 var(--s4); }
+.g-head h1 { margin: 0 0 var(--s2); font-size: var(--t2); line-height: var(--lh); }
+.g-lede { margin: 0 0 var(--s2); max-width: 48rem; color: var(--ink-dim); }
+.g-device { margin: 0; color: var(--ink-dim); font-size: var(--t6); overflow-wrap: anywhere; }
+.g-errors { margin: var(--s2) 0 0; padding: var(--s2) var(--s3); border: 1px solid var(--bad); border-radius: 8px; color: var(--bad); font-weight: 600; overflow-wrap: anywhere; }
+.g-bar { position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; gap: var(--s2) var(--s6); align-items: center; padding: var(--s3) 0; background: var(--surface); border-bottom: 1px solid var(--line); }
+.g-grp { display: flex; flex-wrap: wrap; gap: var(--s2); align-items: center; }
+.g-grp-k { color: var(--ink-dim); font-size: var(--t6); font-weight: 600; }
+[data-v2] .g-bar .btn[aria-pressed="true"] { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+.g-sec { margin: var(--s7) 0 0; }
+.g-sec > h2 { margin: 0; font-size: var(--t3); line-height: var(--lh); }
+.g-note { margin: var(--s1) 0 var(--s3); color: var(--ink-dim); font-size: var(--t6); max-width: 48rem; }
+.g-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s4); }
+.g-cell { min-width: 0; }
+.g-cell-k { margin: 0 0 var(--s1); color: var(--ink-dim); font-size: var(--t6); font-weight: 600; }
+.g-panel { min-width: 0; display: flex; flex-direction: column; gap: var(--s3); padding: var(--s4); border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+html[data-view="yard"] .g-cell-desk, html[data-view="desk"] .g-cell-yard { display: none; }
+html[data-view="yard"] .g-pair, html[data-view="desk"] .g-pair { grid-template-columns: minmax(0, 1fr); }
+.g-cluster { display: flex; flex-wrap: wrap; gap: var(--s2); align-items: center; }
+.g-cap { margin: 0; color: var(--ink-dim); font-size: var(--t6); }
+.g-lbl { display: block; }
+.g-lbl > span { display: block; margin-bottom: var(--s1); color: var(--ink-dim); font-size: var(--t6); }
+.g-msg { display: flex; align-items: center; gap: var(--s1); margin: var(--s1) 0 0; color: var(--bad); font-size: var(--t6); font-weight: 600; }
+.g-box { border: 1px solid var(--line); border-radius: 8px; background: var(--surface-raised); }
+.g-list { border: 1px solid var(--line); border-radius: 8px; background: var(--surface-raised); overflow: hidden; }
+.g-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-raised); }
+.g-h { margin: 0 0 var(--s2); font-size: var(--t4); line-height: var(--lh); }
+.g-p { margin: 0 0 var(--s3); }
+.g-stats { display: flex; flex-wrap: wrap; gap: var(--s4) var(--s6); }
+.g-icons { display: grid; grid-template-columns: repeat(auto-fill, minmax(5rem, 1fr)); gap: var(--s3); margin: 0; padding: 0; list-style: none; }
+.g-icons li { display: flex; flex-direction: column; align-items: center; gap: var(--s1); min-width: 0; color: var(--ink); }
+.g-icons li span { color: var(--ink-dim); font-size: var(--t6); overflow-wrap: anywhere; text-align: center; }
+.g-log { min-height: calc(var(--t6) * var(--lh)); }
+.g-readout { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+#perf-bed { margin-top: var(--s3); border: 1px solid var(--line); border-radius: 8px; background: var(--surface-raised); }
+#perf-bed:empty { display: none; }
+@media (max-width: 720px) {
+  .g-pair { grid-template-columns: minmax(0, 1fr); }
+  .g-bar { position: static; }
+}
+</style>
+</head>
+<body>
+<div class="g-wrap">
+  <header class="g-head">
+    <h1>Garage Saathi design system</h1>
+    <p class="g-lede">Every component, in every state, in both densities. Yard is the default: big targets, for gloves and bright sun. Desk is the dense one for the office. Use the buttons below to switch theme and to show one density at a time.</p>
+    <p class="g-device" id="g-device">This device: reading...</p>
+    <p class="g-errors" id="g-errors" role="alert" hidden></p>
+  </header>
+
+  <div class="g-bar" role="toolbar" aria-label="Gallery controls">
+    <div class="g-grp" role="group" aria-label="Theme">
+      <span class="g-grp-k">Theme</span>
+      <button type="button" class="btn" data-set-theme="auto" aria-pressed="true">Auto</button>
+      <button type="button" class="btn" data-set-theme="light" aria-pressed="false">Light</button>
+      <button type="button" class="btn" data-set-theme="dark" aria-pressed="false">Dark</button>
+    </div>
+    <div class="g-grp" role="group" aria-label="Density">
+      <span class="g-grp-k">Show</span>
+      <button type="button" class="btn" data-set-density="both" aria-pressed="true">Both</button>
+      <button type="button" class="btn" data-set-density="yard" aria-pressed="false">Yard only</button>
+      <button type="button" class="btn" data-set-density="desk" aria-pressed="false">Desk only</button>
+    </div>
+  </div>
+
+  <main id="g-main"></main>
+
+  <section class="g-sec" id="g-perf" aria-labelledby="g-perf-h">
+    <h2 id="g-perf-h">Timing</h2>
+    <p class="g-note">Draws 200 desk-density rows, each with a drawing, two lines, a figure, a badge and a button, and times the whole thing including the browser laying them out. It runs three times, so a cold first run can be told from a warm one. On an office PC, send back the three numbers. Nothing here is saved or sent.</p>
+    <div class="g-cluster">
+      <button type="button" class="btn btn-primary" data-act="perf">Draw 200 rows</button>
+      <button type="button" class="btn" data-act="perf-clear">Clear</button>
+    </div>
+    <p class="g-readout" id="perf-readout" role="status">Not run yet.</p>
+    <div id="perf-bed" data-density="desk"></div>
+  </section>
+</div>
+
+<script src="icons.js"></script>
+<script src="states.js"></script>
+<script src="overlay.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  var root = document.documentElement;
+  var FORMAT = function (v) { return Number(v).toLocaleString('en-IN'); };
+  var HOUR = 3600 * 1000;
+
+  // Hindi, as character references so this file stays ASCII: "the bus repair is under way" and "brake pads are being replaced".
+  var HI_T = '&#x92C;&#x938; &#x915;&#x940; &#x92E;&#x930;&#x92E;&#x94D;&#x92E;&#x924; &#x91C;&#x93E;&#x930;&#x940; &#x939;&#x948;';
+  var HI_SUB = '&#x92C;&#x94D;&#x930;&#x947;&#x915; &#x92A;&#x948;&#x921; &#x92C;&#x926;&#x932;&#x947; &#x91C;&#x93E; &#x930;&#x939;&#x947; &#x939;&#x948;&#x902;';
+
+  function ic(name, size) { return icon(name, { size: size }); }
+  function retryDemo() { V2.toast('Retry pressed', { kind: 'ok' }); }
+
+  /* ---------- one builder per component: build(density) -> markup. Called once for the yard panel, once for the desk one. ---------- */
+
+  function rowMarkup(extra, lead, t, sub, act) {
+    return '<div class="row"' + extra + '><span class="lead">' + lead + '</span><div class="txt"><div class="t">' + t + '</div><div class="sub">' + sub + '</div></div>'
+      + (act ? '<div class="act">' + act + '</div>' : '') + '</div>';
+  }
+
+  var COMPONENTS = [
+    { name: 'button', title: 'Button', note: 'Three kinds, plus disabled, a link styled as a button, and drawings.', build: function (d) {
+      return '<p class="g-cap">Kinds</p><div class="g-cluster">'
+        + '<button type="button" class="btn">Default</button>'
+        + '<button type="button" class="btn btn-primary">Primary</button>'
+        + '<button type="button" class="btn btn-quiet">Quiet</button>'
+        + '<button type="button" class="btn btn-danger">Danger</button></div>'
+        + '<p class="g-cap">Not available</p><div class="g-cluster">'
+        + '<button type="button" class="btn" disabled>Disabled</button>'
+        + '<button type="button" class="btn btn-primary" disabled>Disabled primary</button>'
+        + '<button type="button" class="btn" aria-disabled="true">Aria disabled</button></div>'
+        + '<p class="g-cap">A link, and with drawings</p><div class="g-cluster">'
+        + '<a class="btn" href="#">Link as button</a>'
+        + '<button type="button" class="btn btn-primary">' + ic('add', 20) + ' Add part</button>'
+        + '<button type="button" class="btn">' + ic('edit', 20) + ' Edit</button>'
+        + '<button type="button" class="btn btn-danger">' + ic('delete', 20) + ' Delete</button>'
+        + '<button type="button" class="btn" aria-label="More">' + ic('more', 20) + '</button></div>';
+    } },
+    { name: 'field', title: 'Field', note: 'Empty, filled, invalid (a second edge and a message, never colour alone), disabled, and a text area.', build: function (d) {
+      return '<label class="g-lbl"><span>Registration</span><input class="field" type="text" placeholder="RJ14 PA 1234"></label>'
+        + '<label class="g-lbl"><span>Driver</span><input class="field" type="text" placeholder="Name" value="Sumit Kumar"></label>'
+        + '<label class="g-lbl"><span>Mobile number</span><input class="field" type="text" placeholder="10 digits" value="98290" aria-invalid="true" aria-describedby="g-msg-' + d + '"></label>'
+        + '<p class="g-msg" id="g-msg-' + d + '">' + ic('bad', 16) + ' Enter all 10 digits</p>'
+        + '<label class="g-lbl"><span>Locked</span><input class="field" type="text" placeholder="Not editable" disabled></label>'
+        + '<label class="g-lbl"><span>Note</span><textarea class="field" placeholder="What happened?"></textarea></label>';
+    } },
+    { name: 'select', title: 'Select', note: 'Enabled and disabled.', build: function (d) {
+      return '<label class="g-lbl"><span>Bus</span><select class="select"><option>RJ14 PA 1234</option><option>RJ14 PB 5678</option><option>RJ14 PC 9012</option></select></label>'
+        + '<label class="g-lbl"><span>Workshop</span><select class="select" disabled><option>Sitapura</option></select></label>';
+    } },
+    { name: 'row', title: 'Row', note: 'The list item the app is mostly made of: plain, with a button, pressable (button and link), a long title that is cut with an ellipsis, a Hindi title, and one holding a figure.', build: function (d) {
+      return '<div class="g-list">'
+        + rowMarkup('', ic('bus', 20), 'RJ14 PA 1234', 'Brake pads, front axle', '<span class="badge badge-warn">' + ic('warn', 16) + ' In progress</span>')
+        + rowMarkup('', ic('job', 20), 'Oil change', 'Due in 1,200 km', '<button type="button" class="btn btn-quiet">Open</button><button type="button" class="btn">Done</button>')
+        + '<button type="button" class="row"><span class="lead">' + ic('part', 20) + '</span><div class="txt"><div class="t">Pressable row (a button)</div><div class="sub">The whole row is the target</div></div><div class="act"><span class="badge badge-ok">' + ic('ok', 16) + ' Done</span></div></button>'
+        + '<a class="row" href="#"><span class="lead">' + ic('person', 20) + '</span><div class="txt"><div class="t">Pressable row (a link)</div><div class="sub">Same look, a different element</div></div></a>'
+        + rowMarkup(' data-sample="long"', ic('doc', 20), 'A very long job title that could never fit on one line of a phone and has to be cut off with an ellipsis instead of pushing the button away', 'The action stays where it is', '<button type="button" class="btn">Open</button>')
+        + rowMarkup(' lang="hi"', ic('bus', 20), HI_T, HI_SUB, '')
+        + rowMarkup('', ic('map', 20), 'Odometer', 'Last reading', figure(48210, { unit: 'km', format: FORMAT }))
+        + '</div>';
+    } },
+    { name: 'card', title: 'Card', note: 'A plain surface, one holding actions, one holding a stat.', build: function (d) {
+      return '<div class="card"><h4 class="g-h">Bus RJ14 PA 1234</h4><p class="g-p">Last serviced 12 Oct. Next service due at 50,000 km.</p>'
+        + '<div class="g-cluster"><button type="button" class="btn btn-primary">Open job</button><button type="button" class="btn">History</button></div></div>'
+        + '<div class="card"><div class="stat"><span class="k">Parts spend this month</span><span class="v">' + figure(124500, { unit: 'Rs', format: FORMAT }) + '</span></div></div>';
+    } },
+    { name: 'table', title: 'Table', note: 'A figure column is right-aligned so the digits line up. An unknown cost is a dash, and a real zero is a 0.', build: function (d) {
+      return '<div class="g-scroll"><table class="table"><thead><tr><th>Bus</th><th>Status</th><th class="fig">Parts (Rs)</th></tr></thead><tbody>'
+        + '<tr><td>RJ14 PA 1234</td><td><span class="badge badge-warn">' + ic('warn', 16) + ' In progress</span></td><td class="fig">' + figure(12450, { format: FORMAT }) + '</td></tr>'
+        + '<tr><td>RJ14 PB 5678</td><td><span class="badge badge-ok">' + ic('ok', 16) + ' Done</span></td><td class="fig">' + figure(0, { format: FORMAT }) + '</td></tr>'
+        + '<tr><td>RJ14 PC 9012</td><td><span class="badge">' + ic('clock', 16) + ' Waiting</span></td><td class="fig">' + figure(null, { format: FORMAT }) + '</td></tr>'
+        + '</tbody></table></div>';
+    } },
+    { name: 'badge', title: 'Badge', note: 'Neutral and three statuses. Each carries a word and a drawing as well as a colour.', build: function (d) {
+      return '<div class="g-cluster">'
+        + '<span class="badge">' + ic('clock', 16) + ' Waiting</span>'
+        + '<span class="badge badge-ok">' + ic('ok', 16) + ' Done</span>'
+        + '<span class="badge badge-warn">' + ic('warn', 16) + ' In progress</span>'
+        + '<span class="badge badge-bad">' + ic('bad', 16) + ' Overdue</span></div>';
+    } },
+    { name: 'tabs', title: 'Tabs', note: 'The selected tab has a bar under it, not only a colour. Click one to move the selection.', build: function (d) {
+      return '<div class="tabs" role="tablist" aria-label="Jobs">'
+        + '<button type="button" role="tab" aria-selected="true">Open</button>'
+        + '<button type="button" role="tab" aria-selected="false">In progress</button>'
+        + '<button type="button" role="tab" aria-selected="false">' + ic('doc', 20) + ' Done</button>'
+        + '<button type="button" role="tab" aria-selected="false">Overdue</button>'
+        + '<button type="button" role="tab" aria-selected="false">Rejected</button></div>';
+    } },
+    { name: 'stat', title: 'Stat', note: 'A label and one big number. The number is a figure, so it can be unknown or old.', build: function (d) {
+      return '<div class="g-stats">'
+        + '<div class="stat"><span class="k">Open jobs</span><span class="v">14</span></div>'
+        + '<div class="stat"><span class="k">Odometer</span><span class="v">' + figure(48210, { unit: 'km', format: FORMAT }) + '</span></div>'
+        + '<div class="stat"><span class="k">Last synced reading</span><span class="v">' + figure(31200, { unit: 'km', format: FORMAT, at: Date.now() - 3 * HOUR, stale: true }) + '</span></div>'
+        + '<div class="stat"><span class="k">Challans</span><span class="v">' + figure(null) + '</span></div></div>';
+    } },
+    { name: 'icons', title: 'Icons', note: 'The whole set, drawn as inline SVG: no font, so nothing depends on Windows 7 having an emoji font. Each takes the colour of the text around it.', build: function (d) {
+      var size = d === 'yard' ? 28 : 20, names = Object.keys(ICONS), out = '<ul class="g-icons">', i;
+      for (i = 0; i < names.length; i++) out += '<li data-icon="' + names[i] + '">' + ic(names[i], size) + '<span>' + names[i] + '</span></li>';
+      return out + '</ul>';
+    } },
+    { name: 'empty', title: 'Empty state', note: 'Means "I asked, and there are none". It is never drawn for a list that has not loaded.', build: function (d) {
+      return '<div class="g-box">' + emptyState('No challans outstanding', { hint: 'Checked just now.' }) + '</div>'
+        + '<div class="g-box">' + emptyState('No jobs on this bus yet', { icon: 'job' }) + '</div>';
+    } },
+    { name: 'error', title: 'Error state', note: 'With a Retry button when there is something to retry, without one when there is not.', build: function (d) {
+      return '<div class="g-box" data-sample="with-retry">' + errorState('Could not load the jobs', retryDemo) + '</div>'
+        + '<div class="g-box" data-sample="no-retry">' + errorState('This bus is not in the register') + '</div>';
+    } },
+    { name: 'offline', title: 'Offline state', note: 'For when there is nothing to show and no connection to fetch it.', build: function (d) {
+      return '<div class="g-box">' + offlineState() + '</div>';
+    } },
+    { name: 'skeleton', title: 'Skeleton', note: 'Loading. Static on purpose: it says "Loading" in words and does not animate.', build: function (d) {
+      return '<div class="g-box">' + skeleton(3) + '</div><div class="g-box" data-sample="one-row">' + skeleton(1) + '</div>';
+    } },
+    { name: 'figure', title: 'Figure', note: 'One number and what is known about it. Unknown (a dash), zero (a 0) and old (the value and its age) are three different things and must never look alike.', build: function (d) {
+      function fr(sample, label, code, html) {
+        return rowMarkup(' data-sample="' + sample + '"', '', label, code, html);
+      }
+      return '<div class="g-list">'
+        + fr('unknown', 'No value', 'figure(null)', figure(null))
+        + fr('zero', 'A real zero', 'figure(0, {unit})', figure(0, { unit: 'challans' }))
+        + fr('value', 'Lakh grouping', 'figure(4821000, {format})', figure(4821000, { unit: 'Rs', format: FORMAT }))
+        + fr('unit', 'With a unit', 'figure(48210, {unit})', figure(48210, { unit: 'km' }))
+        + fr('recent', 'Seen 2 minutes ago', 'figure(v, {at})', figure(48210, { unit: 'km', at: Date.now() - 2 * 60000 }))
+        + fr('stale', 'Old, and known to be', 'figure(v, {at, stale})', figure(48210, { unit: 'km', at: Date.now() - 3 * HOUR, stale: true }))
+        + fr('stale-no-at', 'Old, age unknown', 'figure(v, {stale})', figure(48210, { stale: true }))
+        + fr('at-unreadable', 'Unreadable time', 'figure(v, {at: "?"})', figure(48210, { at: 'not a date' }))
+        + fr('unknown-with-at', 'No value, with a time', 'figure(null, {at, stale})', figure(null, { at: Date.now() - 1000000, stale: true }))
+        + '</div>';
+    } },
+    { name: 'sheet', title: 'Sheet', note: 'A panel from the bottom edge. It wears the density and theme of the place it was opened from. Escape or Close dismisses it.', build: function (d) {
+      return '<div class="g-cluster"><button type="button" class="btn btn-primary" data-open="sheet">Open a sheet</button>'
+        + '<button type="button" class="btn" data-open="sheet-long">Open a long sheet</button></div>';
+    } },
+    { name: 'confirm', title: 'Confirmation', note: 'A modal question. Anything but a press on the Confirm button, including Escape, is "No", and the safe answer starts with focus.', build: function (d) {
+      return '<div class="g-cluster"><button type="button" class="btn" data-open="confirm">Ask a question</button>'
+        + '<button type="button" class="btn btn-danger" data-open="confirm-danger">Ask a dangerous one</button></div>'
+        + '<p class="g-cap g-log" data-log role="status">Last answer: none yet</p>';
+    } },
+    { name: 'toast', title: 'Toast', note: 'A short message that does not take focus. Done, Warning and Error are said in words as well as colour.', build: function (d) {
+      return '<div class="g-cluster"><button type="button" class="btn" data-open="toast-ok">Done</button>'
+        + '<button type="button" class="btn" data-open="toast-warn">Warning</button>'
+        + '<button type="button" class="btn" data-open="toast-bad">Error</button>'
+        + '<button type="button" class="btn" data-open="toast-stay">Error that stays</button></div>';
+    } }
+  ];
+
+  function section(c) {
+    function cell(d, label) {
+      return '<div class="g-cell g-cell-' + d + '"><h3 class="g-cell-k">' + label + '</h3><div class="g-panel" data-density="' + d + '">' + c.build(d) + '</div></div>';
+    }
+    return '<section class="g-sec" data-component="' + c.name + '" aria-labelledby="g-h-' + c.name + '"><h2 id="g-h-' + c.name + '">' + c.title + '</h2>'
+      + '<p class="g-note">' + c.note + '</p><div class="g-pair">' + cell('yard', 'Yard') + cell('desk', 'Desk') + '</div></section>';
+  }
+
+  function drawAll() {
+    var html = '', i;
+    for (i = 0; i < COMPONENTS.length; i++) html += section(COMPONENTS[i]);
+    document.getElementById('g-main').innerHTML = html;
+  }
+
+  /* ---------- the two toggles ---------- */
+
+  function press(attr, value) {
+    var list = document.querySelectorAll('[' + attr + ']'), i;
+    for (i = 0; i < list.length; i++) list[i].setAttribute('aria-pressed', list[i].getAttribute(attr) === value ? 'true' : 'false');
+  }
+
+  // data-theme goes on <html>, the same element as data-v2 (tokens.css). Auto removes it so the OS decides.
+  function setTheme(v) {
+    if (v === 'auto') root.removeAttribute('data-theme'); else root.setAttribute('data-theme', v);
+    press('data-set-theme', v);
+  }
+
+  function setDensity(v) {
+    root.setAttribute('data-view', v);
+    press('data-set-density', v);
+  }
+
+  /* ---------- the overlay buttons ---------- */
+
+  function logFor(btn, text) {
+    var panel = btn.closest('[data-density]'), line = panel ? panel.querySelector('[data-log]') : null;
+    if (line) line.textContent = 'Last answer: ' + text;
+  }
+
+  function longBody() {
+    var out = '', i;
+    for (i = 1; i <= 24; i++) out += rowMarkup('', ic('job', 20), 'Job card ' + i, 'A long list, to show the sheet scrolling inside itself', '');
+    return out;
+  }
+
+  function openDemo(kind, btn) {
+    if (kind === 'sheet') {
+      V2.openSheet('Bus RJ14 PA 1234', '<p class="g-p">Brake pads, front axle. Opened from the ' + (btn.closest('[data-density]').getAttribute('data-density')) + ' panel, so it uses that density.</p>'
+        + '<label class="g-lbl"><span>Note</span><input class="field" type="text" placeholder="What did you find?"></label>'
+        + '<div class="g-cluster" style="margin-top:var(--s3)"><button type="button" class="btn btn-primary" data-sheet-close>Done</button></div>');
+    } else if (kind === 'sheet-long') {
+      V2.openSheet('Job cards', longBody());
+    } else if (kind === 'confirm') {
+      V2.confirmDialog('Send the 14 reminders now?', { title: 'Send reminders', yes: 'Send', no: 'Not now' })
+        .then(function (ok) { logFor(btn, ok ? 'Yes' : 'No'); });
+    } else if (kind === 'confirm-danger') {
+      V2.confirmDialog('This removes the job card and its photos for everyone.', { title: 'Delete job card', yes: 'Delete', no: 'Keep it', danger: true })
+        .then(function (ok) { logFor(btn, ok ? 'Yes' : 'No'); });
+    } else if (kind === 'toast-ok') {
+      V2.toast('Job card saved', { kind: 'ok' });
+    } else if (kind === 'toast-warn') {
+      V2.toast('Parts running low: brake pads', { kind: 'warn' });
+    } else if (kind === 'toast-bad') {
+      V2.toast('Could not reach the server', { kind: 'bad' });
+    } else if (kind === 'toast-stay') {
+      V2.toast('This stays until you press Close', { kind: 'bad', ms: 0 });
+    }
+  }
+
+  /* ---------- the timing bed ---------- */
+
+  // One representative list row: a drawing, two lines, a figure, a badge and a button.
+  function demoRow(i) {
+    var kind = i % 3, badge = kind === 0 ? '<span class="badge badge-ok">' + ic('ok', 16) + ' Done</span>'
+      : (kind === 1 ? '<span class="badge badge-warn">' + ic('warn', 16) + ' In progress</span>' : '<span class="badge badge-bad">' + ic('bad', 16) + ' Overdue</span>');
+    return '<div class="row"><span class="lead">' + ic('bus', 20) + '</span><div class="txt"><div class="t">RJ14 PA ' + (1000 + i) + '</div>'
+      + '<div class="sub">Brake pads, front axle, job ' + (i + 1) + '</div></div>'
+      + '<div class="act">' + figure(48210 + i, { unit: 'km' }) + badge + '<button type="button" class="btn btn-quiet">Open</button></div></div>';
+  }
+
+  // Appends n demo rows to #perf-bed and returns how many it appended. n is a whole number from 0 to 5000; anything else is 0.
+  function renderDemoRows(n) {
+    var bed = document.getElementById('perf-bed'), count = Math.floor(Number(n)), html = '', i, before;
+    if (!bed || !(count > 0)) return 0;
+    if (count > 5000) count = 5000;
+    before = bed.children.length;
+    for (i = 0; i < count; i++) html += demoRow(i);
+    bed.insertAdjacentHTML('beforeend', html);
+    return bed.children.length - before;
+  }
+
+  function timeRuns() {
+    var bed = document.getElementById('perf-bed'), out = [], run, t, n;
+    for (run = 1; run <= 3; run++) {
+      bed.innerHTML = '';
+      t = performance.now();
+      n = renderDemoRows(200);
+      void bed.offsetHeight;                 // force style and layout inside the timed region
+      out.push('run ' + run + ' ' + (Math.round((performance.now() - t) * 10) / 10) + ' ms');
+    }
+    document.getElementById('perf-readout').textContent = '200 rows, laid out: ' + out.join(', ') + '.';
+  }
+
+  /* ---------- one listener for every button ---------- */
+
+  document.addEventListener('click', function (ev) {
+    var t = ev.target, el;
+    if (!t || !t.closest) return;
+    if ((el = t.closest('[data-set-theme]'))) { setTheme(el.getAttribute('data-set-theme')); return; }
+    if ((el = t.closest('[data-set-density]'))) { setDensity(el.getAttribute('data-set-density')); return; }
+    if ((el = t.closest('[data-open]'))) { openDemo(el.getAttribute('data-open'), el); return; }
+    if (t.closest('[data-sheet-close]')) { V2.closeSheet(); return; }
+    if ((el = t.closest('[data-act]'))) {
+      if (el.getAttribute('data-act') === 'perf') timeRuns();
+      else if (el.getAttribute('data-act') === 'perf-clear') { document.getElementById('perf-bed').innerHTML = ''; document.getElementById('perf-readout').textContent = 'Cleared.'; }
+      return;
+    }
+    if ((el = t.closest('.tabs [role="tab"]'))) {
+      var tabs = el.parentNode.querySelectorAll('[role="tab"]'), i;
+      for (i = 0; i < tabs.length; i++) tabs[i].setAttribute('aria-selected', tabs[i] === el ? 'true' : 'false');
+      return;
+    }
+    if ((el = t.closest('a[href="#"]'))) ev.preventDefault();
+  });
+
+  /* ---------- this device ---------- */
+
+  function describeDevice() {
+    var dark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    document.getElementById('g-device').textContent = 'This device: ' + window.innerWidth + ' x ' + window.innerHeight + ' px, pixel ratio ' + (window.devicePixelRatio || 1)
+      + ', system theme ' + dark + '. ' + navigator.userAgent;
+  }
+
+  window.renderDemoRows = renderDemoRows;
+  drawAll();
+  describeDevice();
+  window.addEventListener('resize', describeDevice);
+})();
+</script>
+</body>
+</html>
