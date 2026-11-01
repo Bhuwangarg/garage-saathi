@@ -1,7 +1,9 @@
 /* Garage Saathi v2 - the static component layer.
  * Button (3 kinds), field, select, row, card, table, badge (3 kinds), tabs, stat, and the states (empty, error,
- * offline, skeleton, figure; their markup is made by ui/states.js). Overlays are Task 5.
- * Consumes ui/tokens.css; defines no colour, no size and no font of its own. Test: test_ui_components.js.
+ * offline, skeleton, figure; their markup is made by ui/states.js), and the overlays (sheet, confirmation dialog, toast;
+ * their markup is made by ui/overlay.js).
+ * Consumes ui/tokens.css; defines no colour, no size and no font of its own. Test: test_ui_components.js (this file as text and
+ * through a cascade model) and test_ui_overlay.js (the overlays in real Chrome).
  *
  * Browser floor is Chrome 109 (Windows 7 office PCs): no oklch(), color-mix(), nesting, @starting-style,
  * subgrid or text-wrap. :is(), :not(), grid and gap are all fine there.
@@ -27,6 +29,12 @@
  *   <div class="skeleton" role="status" aria-busy="true"><span class="skeleton-label"><div class="skeleton-row"><span class="skeleton-bar">
  *   <span class="figure" data-state="unknown|value|stale"><span class="figure-none"><span class="figure-u"><span class="figure-note [figure-note-stale]">
  *   <span class="sr-only"> text for a screen reader only
+ * OVERLAYS (markup from ui/overlay.js; every class is ov- prefixed because the live styles.css owns .sheet and .toast):
+ *   <dialog class="ov-modal ov-sheet|ov-confirm" data-v2 [data-mounted]><div class="ov-scrim"><div class="ov-panel">
+ *       <div class="ov-head"><h2 class="ov-title"><button class="ov-close"></div><div class="ov-body">   (sheet)
+ *       <h2 class="ov-title"><p class="ov-text"><div class="ov-actions"><button class="ov-no"><button class="ov-yes">   (confirmation)
+ *   <div class="ov-toasts" data-v2><dialog class="ov-toast ov-toast-ok|warn|bad" open [data-mounted]>
+ *       <div class="ov-toast-msg"><span class="ov-toast-kind"><span class="ov-toast-text"><button class="ov-toast-close">
  * Icons are bare <svg> from icon(): put them straight inside any of the above.
  * A badge or an invalid field is never colour alone: carry a word and an icon in the markup as well.
  *
@@ -56,7 +64,8 @@
  * Navigation, lists and tab switches do not animate. prefers-reduced-motion removes the movement and keeps
  * the acknowledgement as opacity. No animation or @keyframes: the skeleton is deliberately STATIC (a looping
  * shimmer cannot stay under 300ms without strobing, and costs frames on the oldest PCs; the word "Loading" and
- * aria-busy say it is loading). Overlays arrive in Task 5.
+ * aria-busy say it is loading). The overlays are the only things that move beyond a press: a sheet, a confirmation and a
+ * toast enter in 200-250ms and leave quicker, by CSS transition (see the overlay section for the rules).
  *
  * STATES AND THE LIVE APP. The live styles.css has an unlayered `.empty` (text-align, colour, padding), so
  * `.empty` here sets all three itself, like every other component. Unknown, zero and stale are three different
@@ -566,6 +575,283 @@
   white-space: nowrap;
 }
 
+/* ---------- overlays: sheet, confirmation dialog, toast (markup is made by ui/overlay.js; do not hand-write it) ----------
+ * Every overlay is a <dialog> that ui/overlay.js appends to <body> and marks data-v2 ITSELF (with the app's data-theme and
+ * data-density), so the rules that start at the dialog or the toast lane are compounds on that element: [data-v2].ov-modal,
+ * not [data-v2] .ov-modal. Class names are all ov- prefixed because the live styles.css already owns .sheet and .toast
+ * (and unlayered, with properties this file would then have to cancel one by one). Nothing here reads ::backdrop for colour:
+ * before Chrome 122 it does not inherit custom properties, so the dialog fills the viewport and holds its own scrim.
+ *
+ * ENTER AND EXIT. @starting-style is Chrome 117, so entering uses the data-mounted pattern: ui/overlay.js renders the dialog
+ * once without data-mounted, flushes style, then sets it. The transition that runs is the one declared on the state being
+ * ENTERED: the [data-mounted] rule carries the enter, the rule without it carries the exit, and the exit is always the
+ * shorter. Only transform and opacity, ease-out both ways (bare ease-in withholds movement while the user is watching),
+ * nothing over 300ms, nothing from scale(0): the dialog starts at 0.95 and a modal keeps transform-origin: center, because
+ * it is not anchored to anything. Transitions, not keyframes, so a toast asked for again halfway through leaving reverses
+ * from where it is. Distances come from the spacing tokens, so a desk container moves less than a yard one.
+ *
+ * THE SCRIM is --accent-ink at half opacity: that token is near-black in BOTH themes (tokens.css), which is what a scrim
+ * needs; --ink would turn into a pale veil in dark mode. */
+[data-v2].ov-modal {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  overflow: hidden;
+}
+
+/* display only when open: a bare display: flex would show a closed dialog */
+[data-v2].ov-modal[open] {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+[data-v2].ov-sheet[open] {
+  align-items: flex-end;
+}
+
+[data-v2].ov-modal::backdrop {
+  background: transparent;
+}
+
+[data-v2] .ov-scrim {
+  position: absolute;
+  inset: 0;
+  background: var(--accent-ink);
+  opacity: 0;
+  transition: opacity 150ms ease-out;
+}
+
+[data-v2].ov-modal[data-mounted] .ov-scrim {
+  opacity: 0.5;
+  transition: opacity 200ms ease-out;
+}
+
+[data-v2] .ov-panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  margin: 0;
+  background: var(--surface-raised);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  box-shadow: none;
+  opacity: 0;
+}
+
+/* sheet: a bottom panel that slides up a short way while it fades */
+[data-v2].ov-sheet .ov-panel {
+  width: 100%;
+  max-width: 40rem;
+  max-height: 90%;
+  border-bottom: 0;
+  border-radius: 12px 12px 0 0;
+  transform: translateY(var(--s8));
+  transform-origin: center;
+  transition: transform 180ms ease-out, opacity 180ms ease-out;
+}
+
+[data-v2].ov-sheet[data-mounted] .ov-panel {
+  opacity: 1;
+  transform: none;
+  transition: transform 250ms ease-out, opacity 250ms ease-out;
+}
+
+/* confirmation: centred, grows from 0.95 */
+[data-v2].ov-confirm .ov-panel {
+  width: min(28rem, calc(100% - var(--s8)));
+  max-height: calc(100% - var(--s8));
+  padding: var(--pad);
+  gap: var(--s3);
+  overflow: auto;
+  border-radius: 12px;
+  transform: scale(0.95);
+  transform-origin: center;
+  transition: transform 150ms ease-out, opacity 150ms ease-out;
+}
+
+[data-v2].ov-confirm[data-mounted] .ov-panel {
+  opacity: 1;
+  transform: none;
+  transition: transform 200ms ease-out, opacity 200ms ease-out;
+}
+
+[data-v2] .ov-head {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--s3);
+  min-height: var(--row-h);
+  padding: 0 var(--pad);
+  border-bottom: 1px solid var(--line);
+}
+
+[data-v2] .ov-close {
+  flex: 0 0 auto;
+}
+
+[data-v2] .ov-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-size: var(--t3);
+  font-weight: 700;
+  line-height: var(--lh);
+  letter-spacing: normal;
+  overflow-wrap: anywhere;
+}
+
+[data-v2].ov-confirm .ov-title {
+  flex: 0 0 auto;
+  font-size: var(--t4);
+}
+
+[data-v2] .ov-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: var(--pad);
+  padding-bottom: calc(var(--pad) + env(safe-area-inset-bottom));
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+[data-v2] .ov-text {
+  margin: 0;
+  font-size: var(--t5);
+  line-height: var(--lh);
+  overflow-wrap: anywhere;
+}
+
+[data-v2] .ov-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--s2);
+}
+
+/* Two answers side by side that are never narrower than two thumbs; they wrap under each other when the screen is tight. */
+[data-v2] .ov-no,
+[data-v2] .ov-yes {
+  min-width: calc(var(--tap) * 2);
+}
+
+/* toasts: one lane, fixed to the bottom; the lane lets clicks through, each toast takes them */
+[data-v2].ov-toasts {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(var(--s4) + env(safe-area-inset-bottom));
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0 var(--s4);
+  background: transparent;
+  pointer-events: none;
+}
+
+[data-v2] .ov-toast {
+  position: relative;
+  inset: auto;
+  align-items: center;
+  gap: var(--s3);
+  width: auto;
+  max-width: min(36rem, 100%);
+  height: auto;
+  margin: 0;
+  padding: var(--s2) var(--s3) var(--s2) var(--pad);
+  background: var(--surface-raised);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--line);
+  border-radius: 8px;
+  overflow: visible;
+  font-size: var(--t5);
+  line-height: var(--lh);
+  pointer-events: auto;
+  opacity: 0;
+  transform: translateY(var(--s2));
+  transition: transform 150ms ease-out, opacity 150ms ease-out;
+}
+
+[data-v2] .ov-toast[open] {
+  display: flex;
+}
+
+[data-v2] .ov-toast[data-mounted] {
+  opacity: 1;
+  transform: none;
+  transition: transform 200ms ease-out, opacity 200ms ease-out;
+}
+
+[data-v2] .ov-toast-ok {
+  border-left-color: var(--ok);
+}
+
+[data-v2] .ov-toast-warn {
+  border-left-color: var(--warn);
+}
+
+[data-v2] .ov-toast-bad {
+  border-left-color: var(--bad);
+}
+
+[data-v2] .ov-toast-msg {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* the word that says what kind it is, with the drawing; the colour is a third cue, never the only one */
+[data-v2] .ov-toast-kind {
+  display: flex;
+  align-items: center;
+  gap: var(--s1);
+  font-size: var(--t6);
+  font-weight: 700;
+}
+
+[data-v2] .ov-toast-kind svg {
+  flex-shrink: 0;
+}
+
+[data-v2] .ov-toast-ok .ov-toast-kind {
+  color: var(--ok);
+}
+
+[data-v2] .ov-toast-warn .ov-toast-kind {
+  color: var(--warn);
+}
+
+[data-v2] .ov-toast-bad .ov-toast-kind {
+  color: var(--bad);
+}
+
+/* A message can be anything a caller had to hand, including a server's whole error body: bound it, scroll the rest. */
+[data-v2] .ov-toast-text {
+  display: block;
+  max-height: calc(var(--t5) * var(--lh) * 6);
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+  overscroll-behavior: contain;
+}
+
+[data-v2] .ov-toast-close {
+  flex: 0 0 auto;
+}
+
 /* ---------- Hindi: after everything that sets a font or a line-height ---------- */
 [data-v2]:lang(hi),
 [data-v2] :lang(hi) {
@@ -589,5 +875,32 @@
   [data-v2] a.row:active {
     transform: none;
     opacity: 0.8;
+  }
+}
+
+/* ---------- overlays under reduced motion: the movement goes, the fade stays ----------
+ * Each selector below repeats the one in the overlay section above, so it ties on specificity and wins on order. */
+@media (prefers-reduced-motion: reduce) {
+  [data-v2].ov-sheet .ov-panel,
+  [data-v2].ov-confirm .ov-panel {
+    transform: none;
+    transition: opacity 150ms ease-out;
+  }
+
+  [data-v2] .ov-toast {
+    transform: none;
+    transition: opacity 150ms ease-out;
+  }
+
+  [data-v2].ov-sheet[data-mounted] .ov-panel {
+    transition: opacity 250ms ease-out;
+  }
+
+  [data-v2].ov-confirm[data-mounted] .ov-panel {
+    transition: opacity 200ms ease-out;
+  }
+
+  [data-v2] .ov-toast[data-mounted] {
+    transition: opacity 200ms ease-out;
   }
 }

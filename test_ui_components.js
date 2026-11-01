@@ -473,7 +473,7 @@ test('never removes the focus outline (no outline: none, outline: 0, outline-sty
   assert.deepEqual(find('.a{outline:2px solid red}'), []);
   assert.deepEqual(find(need()), []);
 });
-test('declares no animation or @keyframes (the skeleton is static on purpose, see the header and the states section below; Task 5 must extend the motion tests when it adds overlay motion)', () => {
+test('declares no animation or @keyframes anywhere, overlays included (the skeleton is static on purpose; the overlays move by CSS transition only, so a re-triggered toast retargets, and the overlay motion tests at the end of this file hold them to the motion rules)', () => {
   const find = (css) => [].concat(absent(css, /@keyframes\b/), declsOf(css).filter((d) => /^animation/.test(d.prop)).map((d) => d.prop));
   hits(find('@keyframes x{from{opacity:0}}'), 'blind to @keyframes'); hits(find('.a{animation:x 1s}'), 'blind to animation:');
   assert.deepEqual(find(need()), []);
@@ -1287,6 +1287,161 @@ test('a hand-written .empty on its own (the live app\'s class, with no .state be
     assert.notStrictEqual(broken, css, 'mutation did not apply for ' + prop);
     hits(leakFailures(broken, liveFirst, liveOnly).filter((x) => x.startsWith('empty-alone')), 'a bare .empty that no longer overrides the live ' + prop + ' was not caught');
   }
+});
+
+
+/* =====================================================================================================
+ * OVERLAYS (Task 5): the first real motion in this stylesheet
+ * Everything above this line held because nothing moved. The sheet, the confirmation dialog and the toast do, so the
+ * motion rules are asked of the CASCADE here, for each part of each overlay in both of its states:
+ *   - ENTERING is the state with [data-mounted]; EXITING is the state without it (ui/overlay.js toggles the attribute,
+ *     see the overlay section of ui/components.css). The transition that runs is the one declared on the state being entered.
+ *   - only transform and opacity, nothing over 300ms (delay included), entering at most 250ms, ease-out both ways,
+ *     never a bare ease-in, and EXIT strictly quicker than ENTER for every property that is entered.
+ *   - the unmounted state is invisible (opacity 0) and, for a panel or toast, displaced; the mounted state is shown and
+ *     at rest; nothing starts below scale(0.95); a modal panel keeps transform-origin: center.
+ *   - prefers-reduced-motion: no transform in either state and no transform in either transition, opacity kept.
+ * test_ui_overlay.js asks the same questions of real Chrome with the real script; this half needs no browser, so it runs
+ * wherever the other suites run. The generic motion tests further up already scan every transition in the file, overlays
+ * included (the next test proves they do). */
+function overlayScene() {
+  const html = mk(null, 'html'), F = {};
+  for (const [name, kind] of [['sheet', 'ov-sheet'], ['confirm', 'ov-confirm']]) for (const mounted of [false, true]) {
+    const dlg = mk(html, 'dialog.ov-modal.' + kind, Object.assign({ 'data-v2': '', open: '' }, mounted ? { 'data-mounted': '' } : {}));
+    const key = name + (mounted ? '+' : '-');
+    F[key] = dlg; F[key + ':scrim'] = mk(dlg, 'div.ov-scrim'); F[key + ':panel'] = mk(dlg, 'div.ov-panel');
+  }
+  const lane = mk(html, 'div.ov-toasts', { 'data-v2': '' });
+  F['toast-'] = mk(lane, 'dialog.ov-toast.ov-toast-ok', { open: '' });
+  F['toast+'] = mk(lane, 'dialog.ov-toast.ov-toast-ok', { open: '', 'data-mounted': '' });
+  return F;
+}
+// [name, exiting fixture, entering fixture, a part that moves, a modal panel]
+const OVERLAY_PARTS = [
+  ['sheet panel', 'sheet-:panel', 'sheet+:panel', true, true], ['sheet scrim', 'sheet-:scrim', 'sheet+:scrim', false, false],
+  ['confirm panel', 'confirm-:panel', 'confirm+:panel', true, true], ['confirm scrim', 'confirm-:scrim', 'confirm+:scrim', false, false],
+  ['toast', 'toast-', 'toast+', true, false],
+];
+const spanOf = (t) => ms(t.duration) + (t.delay ? ms(t.delay) : 0);
+function overlayMotionFailures(css, sheetsFn) {
+  const out = [], F = overlayScene(), m = model((sheetsFn || v2Sheets)(css));
+  for (const [name, off, on, moves, modal] of OVERLAY_PARTS) {
+    const enter = transitionOf(m, F[on]), exit = transitionOf(m, F[off]);
+    if (!enter.length) out.push(name + ': nothing is transitioned when it enters');
+    if (!exit.length) out.push(name + ': nothing is transitioned when it exits');
+    for (const [label, el] of [['enters', F[on]], ['exits', F[off]]]) {
+      const decl = m.declared(el, 'transition');
+      if (decl !== undefined) for (const f of motionFailures('.a{transition:' + decl + '}')) out.push(name + ' ' + label + ': ' + f);
+    }
+    for (const t of enter.concat(exit)) if (t.timing !== 'ease-out') out.push(name + ': ' + t.property + ' eases with ' + t.timing + ', not ease-out');
+    for (const t of enter) {
+      if (spanOf(t) > 250) out.push(name + ': ' + t.property + ' takes ' + spanOf(t) + 'ms to enter, over 250ms');
+      const x = exit.find((e) => e.property === t.property);
+      if (!x) out.push(name + ': ' + t.property + ' is transitioned entering but not exiting');
+      else if (!(spanOf(x) < spanOf(t))) out.push(name + ': ' + t.property + ' exits in ' + spanOf(x) + 'ms, not quicker than the ' + spanOf(t) + 'ms it takes to enter');
+    }
+    if (m.declared(F[off], 'opacity') !== '0') out.push(name + ': is not invisible before it enters (opacity ' + m.declared(F[off], 'opacity') + ')');
+    if (!(parseFloat(m.declared(F[on], 'opacity')) > 0)) out.push(name + ': is not shown once entered (opacity ' + m.declared(F[on], 'opacity') + ')');
+    if (moves) {
+      const from = m.declared(F[off], 'transform'), to = m.declared(F[on], 'transform');
+      if (!from || from === 'none') out.push(name + ': has no starting transform, so it does not move in');
+      if (to !== 'none') out.push(name + ': does not come to rest at transform: none (' + to + ')');
+      for (const sc of String(from).matchAll(/scale\(\s*([\d.]+)\s*\)/g)) if (!(parseFloat(sc[1]) >= 0.95)) out.push(name + ': enters from scale(' + sc[1] + '), under 0.95');
+      if (/scale\(\s*0?\s*\)/.test(String(from))) out.push(name + ': enters from scale(0)');
+    } else if (m.declared(F[off], 'transform') !== undefined && m.declared(F[off], 'transform') !== 'none') out.push(name + ': moves, but only the panels and the toast should');
+    if (modal) for (const [s, el] of [['entering', F[on]], ['exiting', F[off]]]) if (m.declared(el, 'transform-origin') !== 'center') out.push(name + ' ' + s + ': transform-origin is ' + m.declared(el, 'transform-origin') + ', not center');
+  }
+  return out;
+}
+function overlayReducedFailures(css, sheetsFn) {
+  const out = [], F = overlayScene(), m = model((sheetsFn || v2Sheets)(css), { reduced: true });
+  for (const [name, off, on] of OVERLAY_PARTS) {
+    for (const [label, el] of [['entering', F[on]], ['exiting', F[off]]]) {
+      const tf = m.declared(el, 'transform');
+      if (tf !== undefined && tf !== 'none') out.push(name + ' ' + label + ': still has transform ' + tf);
+      const items = transitionOf(m, el);
+      if (items.some((x) => x.property === 'transform')) out.push(name + ' ' + label + ': still transitions transform');
+      if (!items.some((x) => x.property === 'opacity')) out.push(name + ' ' + label + ': no longer fades (no opacity transition)');
+      const decl = m.declared(el, 'transition');
+      if (decl !== undefined) for (const f of motionFailures('.a{transition:' + decl + '}')) out.push(name + ' ' + label + ': ' + f);
+    }
+    if (m.declared(F[off], 'opacity') !== '0' || !(parseFloat(m.declared(F[on], 'opacity')) > 0)) out.push(name + ': the fade has no start and end any more');
+  }
+  return out;
+}
+test('the overlay fixture finds the known answers: invisible and displaced before, shown and at rest after, the dialog from 0.95, the scrim only fading', () => {
+  const F = overlayScene(), m = model(v2Sheets(need()));
+  assert.strictEqual(m.declared(F['sheet-:panel'], 'opacity'), '0'); assert.strictEqual(m.declared(F['sheet+:panel'], 'opacity'), '1');
+  assert.strictEqual(m.declared(F['confirm-:panel'], 'transform'), 'scale(0.95)'); assert.strictEqual(m.declared(F['confirm+:panel'], 'transform'), 'none');
+  assert.strictEqual(m.declared(F['sheet-:scrim'], 'opacity'), '0'); assert.strictEqual(m.declared(F['sheet+:scrim'], 'opacity'), '0.5'); assert.strictEqual(m.declared(F['sheet+:scrim'], 'transform'), undefined);
+  assert.strictEqual(m.declared(F['toast-'], 'opacity'), '0'); assert.strictEqual(m.declared(F['toast+'], 'opacity'), '1');
+  assert.strictEqual(m.declared(F['confirm-:panel'], 'transform-origin'), 'center');
+  const bare = model(v2Sheets(need())).declared(mk(mk(null, 'html'), 'div.ov-panel'), 'opacity');
+  assert.strictEqual(bare, undefined, 'an .ov-panel outside a [data-v2] dialog must match nothing (the fixture would be vacuous otherwise)');
+});
+test('the generic motion tests above really do scan the overlay transitions (at least ten overlay transition items, transform and opacity both among them, and no transition longhand the scan cannot read)', () => {
+  const { items, problems } = transitionItems(need()), ov = items.filter((t) => /\.ov-/.test(t.sel));
+  assert(ov.length >= 10, 'only ' + ov.length + ' overlay transition items were found by transitionItems');
+  assert.deepEqual(problems, []);
+  assert(ov.some((t) => t.property === 'transform') && ov.some((t) => t.property === 'opacity'));
+});
+test('the overlay motion checker goes red for a 400ms enter, an enter over 250ms, an exit that is not quicker, a bare ease-in, an ease-in-out, a property that is not transform or opacity, all, a delay past 300ms, scale(0), scale(0.9), a toast that starts visible, a corner origin, an unfaded scrim and a missing exit', () => {
+  const css = need(), ENT = 'transition: transform 250ms ease-out, opacity 250ms ease-out;', EXT = 'transition: transform 180ms ease-out, opacity 180ms ease-out;';
+  assert.deepEqual(overlayMotionFailures(css), [], 'the real stylesheet must be clean for the mutants below to mean anything');
+  const cases = {
+    'sheet enter 400ms': mutate(css, ENT, 'transition: transform 400ms ease-out, opacity 400ms ease-out;'),
+    'sheet enter 260ms': mutate(css, ENT, 'transition: transform 260ms ease-out, opacity 260ms ease-out;'),
+    'sheet exit slower than enter': mutate(css, EXT, 'transition: transform 300ms ease-out, opacity 300ms ease-out;'),
+    'sheet exit as slow as enter': mutate(css, EXT, 'transition: transform 250ms ease-out, opacity 250ms ease-out;'),
+    'sheet enter bare ease-in': mutate(css, ENT, 'transition: transform 250ms ease-in, opacity 250ms ease-in;'),
+    'sheet exit bare ease-in': mutate(css, EXT, 'transition: transform 180ms ease-in, opacity 180ms ease-in;'),
+    'sheet enter ease-in-out': mutate(css, ENT, 'transition: transform 250ms ease-in-out, opacity 250ms ease-in-out;'),
+    'toast exit animates height': mutate(css, 'transition: transform 150ms ease-out, opacity 150ms ease-out;', 'transition: height 150ms ease-out, opacity 150ms ease-out;'),
+    'toast enter transitions all': mutate(css, 'transition: transform 200ms ease-out, opacity 200ms ease-out;\n}\n\n[data-v2] .ov-toast-ok', 'transition: all 200ms ease-out;\n}\n\n[data-v2] .ov-toast-ok'),
+    'delay past 300ms': mutate(css, ENT, 'transition: transform 250ms ease-out 100ms, opacity 250ms ease-out 100ms;'),
+    'dialog from scale(0)': mutate(css, 'transform: scale(0.95);', 'transform: scale(0);'),
+    'dialog from scale(0.9)': mutate(css, 'transform: scale(0.95);', 'transform: scale(0.9);'),
+    'toast starts visible': mutate(css, '  opacity: 0;\n  transform: translateY(var(--s2));', '  transform: translateY(var(--s2));'),
+    'toast never comes to rest': mutate(css, '[data-v2] .ov-toast[data-mounted] {\n  opacity: 1;\n  transform: none;', '[data-v2] .ov-toast[data-mounted] {\n  opacity: 1;'),
+    'sheet does not slide': mutate(css, 'transform: translateY(var(--s8));', 'transform: none;'),
+    'dialog from a corner': mutate(css, 'transform: scale(0.95);\n  transform-origin: center;', 'transform: scale(0.95);\n  transform-origin: top left;'),
+    'sheet origin not set': mutate(css, 'transform: translateY(var(--s8));\n  transform-origin: center;', 'transform: translateY(var(--s8));'),
+    'scrim does not fade': mutate(css, 'opacity: 0.5;\n  transition: opacity 200ms ease-out;', 'opacity: 0.5;'),
+    'toast has no exit': mutate(css, '  opacity: 0;\n  transform: translateY(var(--s2));\n  transition: transform 150ms ease-out, opacity 150ms ease-out;', '  opacity: 0;\n  transform: translateY(var(--s2));'),
+    'sheet never shown': mutate(css, '[data-v2].ov-sheet[data-mounted] .ov-panel {\n  opacity: 1;', '[data-v2].ov-sheet[data-mounted] .ov-panel {\n  opacity: 0;'),
+    'scrim moves': mutate(css, '  opacity: 0;\n  transition: opacity 150ms ease-out;\n}', '  opacity: 0;\n  transform: scale(0.95);\n  transition: opacity 150ms ease-out;\n}'),
+  };
+  for (const k of Object.keys(cases)) hits(overlayMotionFailures(cases[k]), 'missed: ' + k);
+});
+test('every overlay part enters and exits with transform and opacity only, at most 250ms in and strictly quicker out, ease-out both ways, invisible before and shown after, nothing from below scale(0.95), and modal panels about their centre', () => {
+  assert.deepEqual(overlayMotionFailures(need()), []);
+  for (const [name, fn] of [['live first', liveFirst], ['live last', liveLast]]) assert.deepEqual(overlayMotionFailures(need(), fn), [], name);
+});
+test('the overlay reduced-motion checker goes red when the block is missing, leaves a transform or a transform transition on any part in either state, or drops the fade', () => {
+  const css = need();
+  assert.deepEqual(overlayReducedFailures(css), [], 'the real stylesheet must be clean for the mutants below to mean anything');
+  const TAIL = /\/\* -+ overlays under reduced motion[\s\S]*$/;
+  const cases = {
+    'block removed': mutate(css, TAIL, ''),
+    'toast keeps its transform': mutate(css, /(prefers-reduced-motion: reduce\) \{\n  \[data-v2\]\.ov-sheet[\s\S]*?\[data-v2\] \.ov-toast \{\n    )transform: none;\n    /, '$1'),
+    'panels keep their transform': mutate(css, /(prefers-reduced-motion: reduce\) \{\n  \[data-v2\]\.ov-sheet \.ov-panel,\n  \[data-v2\]\.ov-confirm \.ov-panel \{\n    )transform: none;\n    /, '$1'),
+    'movement comes back when entered': mutate(css, '[data-v2].ov-sheet[data-mounted] .ov-panel {\n    transition: opacity 250ms ease-out;', '[data-v2].ov-sheet[data-mounted] .ov-panel {\n    transform: translateY(1px);\n    transition: transform 250ms ease-out, opacity 250ms ease-out;'),
+    'sheet fade dropped when entering': mutate(css, '[data-v2].ov-sheet[data-mounted] .ov-panel {\n    transition: opacity 250ms ease-out;', '[data-v2].ov-sheet[data-mounted] .ov-panel {\n    transition: none;'),
+    'toast fade dropped when entering': mutate(css, '[data-v2] .ov-toast[data-mounted] {\n    transition: opacity 200ms ease-out;', '[data-v2] .ov-toast[data-mounted] {\n    transition: none;'),
+    'toast reduced rule missing': mutate(css, /  \[data-v2\] \.ov-toast \{\n    transform: none;\n    transition: opacity 150ms ease-out;\n  \}\n\n/, ''),
+    'reduced fade over 300ms': mutate(css, '[data-v2].ov-confirm[data-mounted] .ov-panel {\n    transition: opacity 200ms ease-out;', '[data-v2].ov-confirm[data-mounted] .ov-panel {\n    transition: opacity 400ms ease-out;'),
+  };
+  for (const k of Object.keys(cases)) hits(overlayReducedFailures(cases[k]), 'missed: ' + k);
+});
+test('under prefers-reduced-motion no overlay part has a transform in either state or in either transition, and every part still fades by opacity', () => {
+  assert.deepEqual(overlayReducedFailures(need()), []);
+  for (const [name, fn] of [['live first', liveFirst], ['live last', liveLast]]) assert.deepEqual(overlayReducedFailures(need(), fn), [], name);
+});
+test('without the reduced-motion preference the overlays DO move (so the reduced-motion test above is not green because nothing ever moved)', () => {
+  const F = overlayScene(), m = model(v2Sheets(need()), { reduced: false });
+  for (const [name, off, , moves] of OVERLAY_PARTS) if (moves) assert.notStrictEqual(m.declared(F[off], 'transform'), undefined, name + ' has no transform before it enters');
+  const mr = model(v2Sheets(need()), { reduced: true });
+  for (const [name, off, , moves] of OVERLAY_PARTS) if (moves) assert(mr.declared(F[off], 'transform') === 'none', name + ' still has transform ' + mr.declared(F[off], 'transform') + ' when reduced');
 });
 
 /* ---------- done ---------- */
