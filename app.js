@@ -14159,6 +14159,15 @@ function recentUsers() { const users = S.cache.users || []; return recentIds().m
 function userPhoto(u) { return crewFace(crewForUser(u.id)) || null; }
 
 /* -------------------------------- Boot ------------------------------------ */
+/* Where boot time actually goes, readable from the console as window.__bootMarks.
+ *
+ * Kept because three separate rounds of "the login is slow" were each spent
+ * optimising a layer that turned out not to be the cost. An app that cannot say
+ * where its first six seconds went invites exactly that. One array push per step. */
+const _bootMark = (name) => {
+  try { (window.__bootMarks || (window.__bootMarks = [])).push(name + '=' + Math.round(performance.now())); } catch (e) {}
+};
+
 /* Resolves when the slow half of boot() has finished. enterApp() waits on it, so
  * nobody reaches a screen that would draw empty lists as though the fleet were
  * gone. Showing the pad early is free; showing a HALF-LOADED app is not. */
@@ -14173,11 +14182,16 @@ let bootDone = false;
    * whole fix for "the login takes ages": everything below this block used to run
    * before renderLogin(), with nothing on screen while it did. */
   try {
+    _bootMark('start');
     await seedIfEmpty(isDemoMode());   // first: it is what creates the roster
+    _bootMark('seedIfEmpty');
     seedCreds();
     dropSharedCrewPin();
+    _bootMark('creds');
     await loadForLogin();
+    _bootMark('loadForLogin');
     renderLogin();
+    _bootMark('padDrawn');
     // Straight after the pad, not after the slow half: it asks the server for
     // staff added on another device, and a name that arrives late is a tile
     // somebody cannot sign in from.
@@ -14195,10 +14209,13 @@ let bootDone = false;
 async function bootRest() {
   try {
   await applyBundledSeed();           // load the real fleet/parts/vendors/crew from the bundled data
+  _bootMark('bundledSeed');
   await applyDriveDocs();             // link buses to their Google Drive document folders
+  _bootMark('driveDocs');
   // Before the login screen is drawn, not after signing in — the name on the
   // tile is the whole point of the rename.
   await renameSeededStaffOnce();
+  _bootMark('renameStaff');
   await load();
   // Business name now comes from garage config (set in db.js seed for the demo,
   // and via Garage setup for a real garage) — refreshBiz() in load() applies it.
@@ -14293,6 +14310,7 @@ async function bootRest() {
     console.error('Garage Saathi boot error (continuing to login):', e);
     try { await load(); } catch (_) { /* keep whatever cache we have */ }
   }
+  _bootMark('bootRestDone');
   bootDone = true;
   // Redraw the pad only if nobody has signed in while this was running: the roster
   // is bigger now than loadForLogin() could see, and a tile added by the bundled

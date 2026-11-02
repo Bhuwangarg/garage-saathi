@@ -219,6 +219,18 @@ if [ "$CLEAN" != "0/0/0/0" ]; then
 fi
 "$B" goto "$URL" >/dev/null 2>&1; sleep 3
 
+# The one load in this run that is genuinely COLD -- the origin was just proved
+# empty above, so this page creates the IndexedDB schema and seeds the roster from
+# nothing, exactly as a new phone or an incognito window does.
+#
+# Taken HERE on purpose. The budget check used to read window.__padAt wherever it
+# happened to run, which by then was several logins and several navigations later,
+# on a warm database -- so it passed at 72ms while a cold boot was the thing anyone
+# would complain about. A budget measured on the easy case is not a budget.
+COLD_PAD="$(j "String(window.__padAt==null?-1:window.__padAt)")"
+COLD_MARKS="$(j "(window.__bootMarks||[]).join(' ')")"
+echo "    (cold boot: ${COLD_MARKS:-no marks})"
+
 # 1) Login smoke for every role.
 login owner      u-owner 1 1 1 1; jck "owner login"      "S.user?S.user.role:'none'" "owner"
 login supervisor u-sup   2 2 2 2; jck "supervisor login" "S.user?S.user.role:'none'" "supervisor"
@@ -263,8 +275,17 @@ jck "mechanic has no close button" \
 # so a cold device showed a blank screen for all of it, and nothing here measured
 # that because the app worked fine once it appeared. It is drawn on the roster alone
 # now, with the rest of boot behind it.
-jck "the PIN pad is drawn promptly, not after the whole of boot" \
-  "(window.__padAt==null?'never':(window.__padAt<2000?'ok':'slow:'+window.__padAt))" "ok"
+ck "the PIN pad is drawn promptly on a COLD boot, not after the whole of boot" \
+  "$([ "${COLD_PAD:--1}" -ge 0 ] 2>/dev/null && [ "${COLD_PAD:-99999}" -lt 2000 ] 2>/dev/null && echo ok || echo "slow-or-missing:${COLD_PAD:-?}")" "ok"
+# The marks are what made the cold number findable at all, after three rounds of
+# optimising the wrong layer. If they disappear, the next person is guessing again.
+# Computed into a variable first. Written inline as "$(case "$X" in ...)" the inner
+# quotes close the outer ones under bash 3.2 and the space-separated marks split
+# into eleven arguments -- the same shape as the 26 checks that passed for years
+# without running. An assignment's right-hand side is never word-split.
+MARKS_OK=missing
+case "${COLD_MARKS:-}" in *padDrawn=*) MARKS_OK=ok ;; esac
+ck "the boot records where its time went" "$MARKS_OK" "ok"
 
 jck "mechanics still on the roster" \
   "(S.cache.users||[]).filter(function(u){return u.role==='mechanic'}).length>0" "true"
