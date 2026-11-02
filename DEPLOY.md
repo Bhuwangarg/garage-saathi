@@ -31,6 +31,54 @@ curl -s https://garage-saathi-sync.vercel.app/health | python3 -m json.tool
 
 ---
 
+## The records table needs two indexes
+
+Run this once against the production database, in the Supabase SQL editor. The
+server creates both on a best effort at start-up too, but do it here first: this
+way the speed-up lands immediately instead of on the next cold start, and
+CONCURRENTLY means neither index build ever blocks a push.
+
+Run them **one at a time**, not pasted together: `CONCURRENTLY` cannot run inside
+a transaction block, and an editor that submits several statements at once wraps
+them in one. If it still refuses with `cannot run inside a transaction block`,
+drop the word `CONCURRENTLY` — on a table this size the build takes a fraction of
+a second, and it blocks pushes rather than reads while it runs.
+
+```sql
+CREATE INDEX CONCURRENTLY IF NOT EXISTS records_rev ON records(rev);
+```
+
+```sql
+CREATE INDEX CONCURRENTLY IF NOT EXISTS records_store_rev ON records(store, rev);
+```
+
+Why: every `/pull` is `WHERE rev > cursor ORDER BY rev LIMIT n`, and it reads
+`MAX(rev)` first to clamp the page. The primary key is `(store, id)`, which
+answers neither — so both statements read the entire records table, on every
+request, from every device, every four seconds. Measured on a fleet-sized table
+of 81,680 rows:
+
+| | reading the table | through the index |
+|---|---|---|
+| a poll that returns nothing, because nothing changed | 94 ms | 0.1 ms |
+| the pass that fills the home screen on a first sync | 888 ms | 195 ms |
+| the full drain of a first sync (19 requests) | 2,359 ms | 536 ms |
+
+A hundred devices polling every four seconds is 1,500 of those polls a minute.
+At 94 ms each that is **141 seconds of database time per minute of clock** — a
+database held permanently past saturation by devices asking whether anything has
+changed. Nothing fails; everything queues. And it gets worse every time the table
+grows, which is what "it used to be faster" means here.
+
+To confirm on the real table rather than taking the numbers above on trust:
+
+```sql
+EXPLAIN ANALYZE SELECT store,id,data,updatedAt,rev FROM records WHERE rev > 0 ORDER BY rev ASC LIMIT 2000;
+```
+
+`Seq Scan on records` means the index is missing. `Index Scan using records_rev`
+means it is doing its job.
+
 ## Local development
 One server: `sync_server.py` serves the app and the sync API from the same port.
 

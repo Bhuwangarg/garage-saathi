@@ -449,10 +449,18 @@ def c_n_plus_one():
 
 
 def c_indexes():
+    # This read GUARDED on "CREATE INDEX" appearing anywhere plus the records
+    # primary key -- and both were true while the only index in the file was on
+    # loginfails and every /pull scanned the whole records table twice. It graded
+    # the table it was not looking at. Name the indexes the hot query needs.
     s = SERVER()
-    if "CREATE INDEX" in s and "PRIMARY KEY(store, id)" in s:
-        return GUARDED, "records is keyed on (store, id) and the hot lookup tables are indexed"
-    return GAP, "the main tables have no index beyond their primary key"
+    need = ["records_rev ON records(rev)", "records_store_rev ON records(store, rev)"]
+    missing = [n for n in need if n not in s]
+    if missing:
+        return GAP, ("/pull is WHERE rev>cursor ORDER BY rev, and MAX(rev) runs before every "
+                     "page -- with no index on rev both are a full scan of records on every "
+                     "request. Missing: " + ", ".join(missing))
+    return GUARDED, "records is indexed on rev and (store, rev) -- the two shapes /pull issues"
 
 
 def c_read_replicas():

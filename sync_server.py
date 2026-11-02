@@ -550,6 +550,41 @@ def db():
         c.execute("""CREATE TABLE IF NOT EXISTS records(
             store TEXT, id TEXT, data TEXT, updatedAt BIGINT, rev BIGINT,
             PRIMARY KEY(store, id))""")
+        # Every /pull is "WHERE rev>cursor ORDER BY rev LIMIT n", and reads MAX(rev)
+        # first to clamp the page. The primary key is (store, id), which answers
+        # neither -- so both of those were a full scan of the whole records table,
+        # on every request, from every device, every four seconds. Measured on a
+        # fleet-sized table (81,680 rows): a poll that returns nothing because
+        # nothing changed cost 94ms of pure scanning, and a hundred devices polling
+        # every four seconds is 1,500 of those a minute -- 141 seconds of database
+        # time per minute of clock. That is a database kept permanently past
+        # saturation by devices asking "anything new?", which is why everything was
+        # slow at once, why it got worse as the table grew, and why nothing ever
+        # appeared as an error: no request failed, they all just queued.
+        #
+        # Two indexes because /pull has two shapes. The plain drain and the poll
+        # filter `store NOT IN (...)`, which no index can satisfy, so they want rev
+        # alone for the range and the ordering. The first-screen and deferred passes
+        # filter `store IN (...)`, and (store, rev) turns those into one seek per
+        # store instead of a scan: the pass that fills the home screen went 888ms ->
+        # 195ms. The full first-sync drain went 2,359ms -> 536ms.
+        #
+        # CREATE INDEX on 80k rows takes a fraction of a second and blocks writes,
+        # not reads, while it runs -- and IF NOT EXISTS makes it a no-op on every
+        # cold start after the first.
+        # Guarded, not because IF NOT EXISTS can be wrong, but because this runs on
+        # every cold start in every container: two of them creating the same index
+        # in the same moment can collide on Postgres, and an exception raised HERE
+        # takes db() down and with it every request that container would serve. A
+        # missing index is slow; a raising db() is an outage. So the index is
+        # created on a best effort, and the production table gets it from the SQL
+        # in DEPLOY.md instead -- CONCURRENTLY, so it never blocks a push either.
+        for _ix in ("CREATE INDEX IF NOT EXISTS records_rev ON records(rev)",
+                    "CREATE INDEX IF NOT EXISTS records_store_rev ON records(store, rev)"):
+            try:
+                c.execute(_ix)
+            except Exception:
+                pass
         c.execute("""CREATE TABLE IF NOT EXISTS users(
             id TEXT PRIMARY KEY, name TEXT, role TEXT, salt TEXT, pin_hash TEXT)""")
         # When this account last authenticated. Without it two accounts with the

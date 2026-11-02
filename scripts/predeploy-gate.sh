@@ -385,6 +385,25 @@ ck "and every other static file is revalidated behind the request, not in front 
 ck "no static file is served on a bare max-age any more" \
   "$(grep -c 'public, max-age=300' sync_server.py)" "0"
 
+# A pull reaches its page through an index instead of reading the whole table.
+#
+# /pull is "WHERE rev>cursor ORDER BY rev LIMIT n" and reads MAX(rev) first to
+# clamp the page. The records primary key is (store, id), which answers neither,
+# so both statements were a full scan of the whole table -- on every request, from
+# every device, every four seconds. Measured on 81,680 rows: a poll that returns
+# nothing because nothing changed cost 94ms of scanning, and a hundred devices
+# doing that is 141 seconds of database time per minute of clock. Nothing failed.
+# Everything queued. It got worse every time the table grew, which is why the app
+# felt slower each month with no deploy to blame.
+#
+# test_pullindex.py asks the database what it would DO with the three query shapes
+# pull() issues, so an index dropped in a migration or a query rewritten into a
+# shape the index cannot serve both fail it -- which a grep for CREATE INDEX would
+# not. Run here because none of the Python tests were in this gate at all; they
+# only ever ran by hand, which is why a server-side regression could ship green.
+PULLIDX="$(cd "$REPO" && python3 test_pullindex.py 2>&1 | tail -1)"
+ck "every shape of /pull reaches its page through an index" "$PULLIDX" "RESULT: 5 passed, 0 failed"
+
 # A dead session gets more than one chance, and says so when it has none left.
 #
 # Two production devices were answered 401 on every pull for as long as the logs
