@@ -1378,16 +1378,10 @@ const LOCAL_HISTORY_DAYS = { gpsevents: 60, triplog: 150, stockmoves: 210, usage
 async function pruneOldHistory() {
   let dropped = 0;
   for (const [store, days] of Object.entries(LOCAL_HISTORY_DAYS)) {
-    const cutoff = Date.now() - days * day;
-    let rows = [];
-    try { rows = await (DB._rawAll ? DB._rawAll(store) : DB.all(store)); } catch (e) { continue; }
-    for (const r of rows || []) {
-      const at = Number(r.at || r.lastAt || r.updatedAt || 0);
-      if (!at || at >= cutoff) continue;
-      const id = store === 'challans' ? r.rc : r.id;
-      if (!id) continue;
-      try { await DB.del(store, id); dropped++; } catch (e) { /* leave it */ }
-    }
+    // One transaction per store rather than one per row -- see DB.pruneBefore for
+    // what that cost and who was paying it. A store that fails is skipped, not
+    // fatal: this is housekeeping, and the app is fine with a little extra history.
+    try { dropped += await DB.pruneBefore(store, Date.now() - days * day); } catch (e) { continue; }
   }
   if (dropped) console.info(`pruned ${dropped} old history row(s) from this device`);
   return dropped;
@@ -14019,6 +14013,7 @@ async function bootRest() {
   await renameSeededStaffOnce();
   _bootMark('renameStaff');
   await load();
+  _bootMark('load');
   // Business name now comes from garage config (set in db.js seed for the demo,
   // and via Garage setup for a real garage) — refreshBiz() in load() applies it.
 
@@ -14059,9 +14054,28 @@ async function bootRest() {
     await load();
   }
 
-  // Shed history this device no longer needs before sync starts, so the first
-  // load() of the session is already working on the smaller set.
-  try { await pruneOldHistory(); } catch (e) { /* never block the boot */ }
+  /* Shed history this device no longer needs -- NOT awaited, and not before the
+   * first screen.
+   *
+   * The comment here used to say this ran "before sync starts, so the first
+   * load() of the session is already working on the smaller set". load() runs
+   * twenty lines above, so that was never true: the prune has always been pure
+   * housekeeping with nothing on any screen waiting on its result.
+   *
+   * It was awaited all the same, and enterApp() awaits bootReady -- so a correct
+   * PIN bought the owner a progress screen until every expired row had been
+   * deleted one transaction at a time. Measured on a fleet-sized device with a
+   * week of accumulation: 3,567ms on a fast Mac, on top of the 535ms load(). The
+   * office machines are Core 2 Duos, and the PCs are also the machines that sit
+   * unused for days, so they are the ones with the most to delete. That is the
+   * whole of "the owner's login hangs after the fourth digit, mostly on the PCs".
+   *
+   * Deferred to an idle moment rather than a timer, so it cannot land in the
+   * middle of the first render; the timeout is the ceiling that guarantees it
+   * still happens on a device that never goes idle. */
+  const _prune = () => { pruneOldHistory().catch(() => { /* housekeeping, never fatal */ }); };
+  if (window.requestIdleCallback) requestIdleCallback(_prune, { timeout: 15000 });
+  else setTimeout(_prune, 5000);
 
   // Start live sync with the shared server. Local-first: the app is fully usable
   // even if the server is unreachable (status shows "Offline", changes queue).

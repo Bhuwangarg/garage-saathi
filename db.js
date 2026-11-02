@@ -259,6 +259,65 @@ const DB = {
     if (typeof DB.onChange === 'function') DB.onChange(store, id);
     return obj;
   },
+  /* Drop a history store's rows older than `cutoff`, in ONE transaction.
+   *
+   * pruneOldHistory() read the whole store, then awaited del() once per expired
+   * row -- and del() opens a transaction of its own, so the cost was one
+   * transaction per row, paid while somebody watched a progress screen. Measured
+   * on a fleet-sized device: 8,000 expired GPS events took 3,567ms on a fast Mac,
+   * and the office machines are Core 2 Duos. It is the owner's and supervisor's
+   * logins that pay it, because gpsevents is the only history store of that size
+   * and they are the only two roles sent it.
+   *
+   * One getAll, then the deletes issued together on the same store and awaited
+   * once, at the transaction. Written as a per-row cursor first, which is the
+   * obvious shape and the wrong one: a cursor costs an event-loop turn per row,
+   * so walking 40,000 rows to delete none of them took 1,504ms against the old
+   * code's 416ms. The read is not the expensive part -- the transactions were.
+   *
+   * readWRITE for the read too, so the scan and the deletes are one transaction:
+   * nothing can rewrite a row in between and have it deleted on the strength of
+   * the timestamp it used to have. The old read-then-delete had that race; it
+   * cost nothing in practice because the server trims this history at 30 days and
+   * never re-sends it, but one transaction removes the question.
+   *
+   * Nothing here needs the row's key path for anything but the delete, which is
+   * also how the old code's `challans` special case disappears -- that store is
+   * not in LOCAL_HISTORY_DAYS, so that branch never ran.
+   *
+   * `at` is read the same three ways the caller read it, because the history
+   * stores disagree on the field: gpsevents and triplog carry `at`, usage carries
+   * `lastAt`, the rest fall back to updatedAt. A row with NO timestamp is kept --
+   * a missing date is not an old date, and dropping those would silently delete
+   * any row written before its store grew a date field.
+   *
+   * Tombstones are pruned along with everything else, which is what the old code
+   * did too (it read _rawAll): a deletion old enough to fall outside the window
+   * has long since been pushed to the server.
+   *
+   * Dirty is marked only on completion, and only if something actually went: the
+   * store genuinely changed at that point, and a prune that dropped nothing must
+   * not make load() re-read the largest store in the app for no reason. */
+  async pruneBefore(store, cutoff) {
+    const key = STORES[store] || 'id';
+    const os = await tx(store, 'readwrite');
+    return new Promise((res, rej) => {
+      let dropped = 0;
+      const r = os.getAll();
+      r.onsuccess = () => {
+        for (const v of r.result || []) {
+          const at = Number((v && (v.at || v.lastAt || v.updatedAt)) || 0);
+          if (!at || at >= cutoff) continue;
+          const k = v[key];
+          if (k == null) continue;
+          os.delete(k); dropped++;        // queued on this transaction, not awaited
+        }
+      };
+      r.onerror = () => rej(r.error);
+      os.transaction.oncomplete = () => { if (dropped) _markDirty(store); res(dropped); };
+      os.transaction.onerror = () => rej(os.transaction.error);
+    });
+  },
   // Raw get that DOES return tombstones (sync internals only).
   // Every row INCLUDING tombstones. `all()` hides deleted records, which is right
   // for the app but wrong for anything deciding whether a record is already known

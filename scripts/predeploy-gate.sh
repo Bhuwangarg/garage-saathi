@@ -910,6 +910,81 @@ jck "every cache key names a store" \
 jck "a marked store is dirty, and clearing takes only what was named" \
   "(function(){DB.markDirty('zq');var a=DB.dirtySnapshot().has('zq');DB.clearDirty(new Set(['zq']));return String(a&&!DB.dirtySnapshot().has('zq'))})()" "true"
 
+# 2s) The history prune, which is what "the owner's login hangs after the fourth
+# digit, mostly on the PCs" actually was.
+#
+# pruneOldHistory() read each history store in full and then awaited DB.del once
+# per expired row -- and del() opens a transaction of its own. It was awaited in
+# bootRest(), and enterApp() awaits bootReady, so a correct PIN bought a progress
+# screen until every expired row had been deleted one transaction at a time.
+# Measured on a fleet-sized device with a week of accumulation: 8,000 expired GPS
+# events cost 3,567ms on a fast Mac, on top of load()'s 535ms. The office machines
+# are Core 2 Duos, and the PCs are also the ones that sit unused for days, so they
+# have the most to delete. Only the owner and supervisor are sent gpsevents, which
+# is the only history store of that size -- hence "owner side only".
+#
+# A cutoff of 2000 is 1970, so it can only ever match the rows planted here: no
+# real event predates it. The planted rows are removed again at the end.
+j "window.__zprune='';(async function(){
+  try{
+    var out=[],i;
+    await DB.putRaw('gpsevents',{id:'zq-p1',reg:'ZQ 1',type:'idle',at:1000});
+    await DB.putRaw('gpsevents',{id:'zq-p2',reg:'ZQ 2',type:'idle',at:Date.now()});
+    await DB.putRaw('gpsevents',{id:'zq-p3',reg:'ZQ 3',type:'idle'});
+    DB.clearDirty(new Set(['gpsevents']));
+    var n=await DB.pruneBefore('gpsevents',2000);
+    out.push('dropped='+n);
+    out.push('gone='+String(!(await DB.get('gpsevents','zq-p1'))));
+    out.push('kept='+String(!!(await DB.get('gpsevents','zq-p2'))));
+    out.push('undated='+String(!!(await DB.get('gpsevents','zq-p3'))));
+    out.push('dirty='+String(DB.dirtySnapshot().has('gpsevents')));
+    DB.clearDirty(new Set(['gpsevents']));
+    var z=await DB.pruneBefore('gpsevents',2000);
+    out.push('again='+z);
+    out.push('quiet='+String(!DB.dirtySnapshot().has('gpsevents')));
+    var batch=[]; for(i=0;i<400;i++) batch.push({id:'zq-b'+i,reg:'ZQ B',type:'idle',at:1000});
+    await DB.bulkPutRaw('gpsevents',batch);
+    var t0=performance.now(); await DB.pruneBefore('gpsevents',2000); var one=performance.now()-t0;
+    for(i=0;i<400;i++) await DB.putRaw('gpsevents',{id:'zq-b'+i,reg:'ZQ B',type:'idle',at:1000});
+    var t1=performance.now();
+    for(i=0;i<400;i++) await DB.del('gpsevents','zq-b'+i);
+    var each=performance.now()-t1;
+    out.push('faster='+String(one<each)); out.push('ratio='+Math.round(each/Math.max(one,0.01)));
+    await DB.del('gpsevents','zq-p2'); await DB.del('gpsevents','zq-p3');
+    DB.clearDirty(new Set(['gpsevents']));
+    window.__zprune=out.join('|');
+  }catch(e){ window.__zprune='threw='+(e&&e.name||e); }
+})()" >/dev/null
+settle "window.__zprune?'done':''" "done" 40 >/dev/null
+jck "the prune block ran at all" "(window.__zprune||'empty').split('|')[0].indexOf('threw')<0?'ok':(window.__zprune||'empty')" "ok"
+jck "a row older than the window is dropped" "/dropped=(\\d+)/.exec(window.__zprune||'')[1]" "1"
+jck "…and is really gone from the store" "/gone=(\\w+)/.exec(window.__zprune||'')[1]" "true"
+jck "a row inside the window is kept" "/kept=(\\w+)/.exec(window.__zprune||'')[1]" "true"
+# A missing date is not an old date. Reading it as 0 and comparing would delete
+# every row written before its store grew a timestamp field.
+jck "a row with no date at all is kept, not treated as ancient" "/undated=(\\w+)/.exec(window.__zprune||'')[1]" "true"
+jck "a prune that dropped something marks the store for re-reading" "/dirty=(\\w+)/.exec(window.__zprune||'')[1]" "true"
+jck "a second prune finds nothing left to do" "/again=(\\d+)/.exec(window.__zprune||'')[1]" "0"
+# gpsevents is the largest store in the app. A prune that marks it dirty having
+# deleted nothing buys a 500ms re-read of it for free, on every boot.
+jck "…and does not mark the biggest store dirty for nothing" "/quiet=(\\w+)/.exec(window.__zprune||'')[1]" "true"
+# The regression guard, and the whole point: one transaction for the store, not
+# one per row. Written as a per-row cursor first, which was SLOWER than the code
+# it replaced -- 1,504ms against 416ms to delete nothing -- because a cursor costs
+# an event-loop turn per row. The transactions were always the cost.
+jck "400 expired rows go in one transaction, not four hundred" "/faster=(\\w+)/.exec(window.__zprune||'')[1]" "true"
+
+# And it is not on the login's critical path at all. enterApp() awaits bootReady,
+# so anything awaited in bootRest() is time somebody spends looking at a progress
+# screen having already typed the right PIN. Nothing on any screen reads the
+# prune's result -- it only deletes history the device has stopped needing.
+ck "the login does not wait for the history prune" \
+  "$(grep -c 'await pruneOldHistory' app.js)" "0"
+ck "the prune is scheduled for an idle moment instead" \
+  "$(grep -c 'requestIdleCallback(_prune' app.js)" "1"
+ck "and still runs on a device that never goes idle" \
+  "$(grep -c 'setTimeout(_prune' app.js)" "1"
+
 # The bulk pair sync's pull now applies a page through. The decision is covered by
 # test_pullapply.js (against every combination of timestamp and redaction flag) and
 # the server paging by test_pullbytes.py / test_pulldefer.py; this is the only place
