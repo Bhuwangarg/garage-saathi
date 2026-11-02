@@ -78,6 +78,7 @@ const I18N = {
     photoNoStore: 'The server cannot store photos right now — the picture stays on this phone. Tell whoever runs the app.',
     photoSignedOut: 'Signed out, so the photo could not be uploaded — sign in again',
     stillLoading: 'Still loading', stillLoadingHint: 'Some figures are still filling in — totals shown are what has arrived so far.',
+    coReviewsWord: 'reviews',
     back: 'Back', pinBack: 'Delete',
     bootLoading: 'Getting your garage ready…',
     bootLoadingOnce: 'Only the first time on this device.',
@@ -2492,11 +2493,18 @@ function coachHomeCard() {
   return `<div class="card" data-nav="coaching" style="cursor:pointer"><div class="row between"><h3>${icon('edit')} ${t('coTitle')}</h3>
     <span class="badge ${n ? 'b-amber' : 'b-green'}">${n} ${t('coToApprove')}</span></div></div>`;
 }
+/* A one-line TEXT summary. The caller escapes it -- correctly, these are names and
+ * counts out of the database -- so nothing in here may be markup.
+ *
+ * It briefly carried icon() calls after the icon migration and the caller escaped
+ * them faithfully: every driver on the coaching screen showed
+ * `<svg xmlns="http://ww...` under their name. Words belong here; drawings belong
+ * in the markup around it. */
 const _coFacts = (f) => [
-  f.reviews ? `${icon('star')} ${f.reviews}${f.avgStars ? ' · ★' + f.avgStars : ''}${f.low ? ' · ' + f.low + ' ≤3★' : ''}${f.notTheirs ? ' · ' + f.notTheirs + ' ' + t('coNotTheirs') : ''}` : '',
-  Object.keys(f.incidents || {}).length ? '⚠️ ' + Object.entries(f.incidents).map(([k, v]) => `${(INCIDENT[k] || INCIDENT.other).label} ×${v}`).join(', ') : '',
-  Object.keys(f.gps || {}).length ? '📡 ' + Object.entries(f.gps).map(([k, v]) => `${(GPS_EVENT[k] || { label: k }).label} ×${v}`).join(', ') : '',
-  f.role === 'driver' ? `${icon('gate', { size: 14 })} ${f.gateChecks} ${t('coGates')}` : '', f.reported ? `${icon('bad', { size: 14 })} ${f.reported} ${t('coReported')}` : '',
+  f.reviews ? `${f.reviews} ${t('coReviewsWord')}${f.avgStars ? ' · ' + f.avgStars + '/5' : ''}${f.low ? ' · ' + f.low + ' low' : ''}${f.notTheirs ? ' · ' + f.notTheirs + ' ' + t('coNotTheirs') : ''}` : '',
+  Object.keys(f.incidents || {}).length ? Object.entries(f.incidents).map(([k, v]) => `${(INCIDENT[k] || INCIDENT.other).label} ×${v}`).join(', ') : '',
+  Object.keys(f.gps || {}).length ? Object.entries(f.gps).map(([k, v]) => `${(GPS_EVENT[k] || { label: k }).label} ×${v}`).join(', ') : '',
+  f.role === 'driver' ? `${f.gateChecks} ${t('coGates')}` : '', f.reported ? `${f.reported} ${t('coReported')}` : '',
 ].filter(Boolean).join(' · ');
 function viewCoaching() {
   if (!_coRun && Date.now() - _coLast > 120000 && Sync.aiCoaching) setTimeout(coachRun, 0, true);
@@ -2743,7 +2751,7 @@ const v2Density = () => {
   try { return (window.matchMedia && matchMedia('(any-pointer: fine)').matches) ? 'desk' : 'yard'; }
   catch (e) { return 'yard'; }
 };
-const v2 = (html) => `<div data-v2 data-density="${v2Density()}">${html}</div>`;
+const v2 = (html) => `<div data-v2 data-density="${v2Density()}" class="v2wrap">${html}</div>`;
 
 /* ===== Fleet-dashboard components =========================================
  *

@@ -287,6 +287,28 @@ MARKS_OK=missing
 case "${COLD_MARKS:-}" in *padDrawn=*) MARKS_OK=ok ;; esac
 ck "the boot records where its time went" "$MARKS_OK" "ok"
 
+# The desktop layout of a real screen, at a real desktop width.
+#
+# Nothing here checked this, and a change that broke THIRTY-SIX rules went through
+# 186 green checks: wrapping each screen's body for the design system turned every
+# card into a grandchild of .content, and styles.css places them with
+# `.content > .greet`, `.content > .kpirow`, `.content > *` and the rest. Every
+# screen collapsed to one column on every PC in the office. It was invisible here
+# because the gate drives a phone-width window, where .content is one column
+# anyway, and the only desktop checks were on the login, which does not use
+# .content at all.
+VP_WAS="$(j "window.innerWidth+'x'+window.innerHeight")"
+bb viewport 1366x768 >/dev/null
+j "route({name:'home'})" >/dev/null
+settle "S.route.name" "home" 20 >/dev/null
+jck "on a desktop the home lays out in the content grid, not one column" \
+  "(function(){var c=document.querySelector('.content');if(!c)return 'no .content';var cs=getComputedStyle(c);if(cs.display!=='grid')return 'display is '+cs.display;var n=cs.gridTemplateColumns.trim().split(/\\s+/).length;return n>=2?'grid':'only '+n+' column'})()" "grid"
+# A wrapper that keeps its box is the exact failure above: the cards stop being
+# grid items and nothing places them.
+jck "and the cards are the grid items, not a wrapper holding them" \
+  "(function(){var c=document.querySelector('.content');if(!c)return 'no .content';var w=c.querySelector('[data-v2]');if(!w)return 'no v2 wrapper';if(getComputedStyle(w).display!=='contents')return 'wrapper is a box: '+getComputedStyle(w).display;var xs={};[].slice.call(w.children).forEach(function(e){xs[Math.round(e.getBoundingClientRect().left)]=1});return Object.keys(xs).length>=2?'two columns':'all in one column'})()" "two columns"
+bb viewport "$VP_WAS" >/dev/null
+
 jck "mechanics still on the roster" \
   "(S.cache.users||[]).filter(function(u){return u.role==='mechanic'}).length>0" "true"
 

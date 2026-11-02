@@ -165,3 +165,19 @@
 /* The bus card itself, so it reads as a panel in this palette rather than a
  * shadow in the old one. */
 [data-v2] .vcard { background: var(--surface-raised); border: 1px solid var(--line); border-radius: 12px; box-shadow: none; overflow: hidden; }
+
+/* The screen wrapper generates NO BOX.
+ *
+ * v2() wraps a screen's body so the tokens and the density scope apply, and that
+ * wrapper quietly broke every desktop layout in the app: styles.css lays the
+ * content area out as a two-column grid and places things with `.content > .greet`,
+ * `.content > .kpirow`, `.content > *` and thirty-odd more. One wrapper in between
+ * turned every card into a GRANDchild, so not one of those rules matched and each
+ * screen collapsed into a single undifferentiated column -- which is what "lots of
+ * alignment issues on the PC, on all the screens" was.
+ *
+ * display:contents removes the box and leaves the children as the grid items they
+ * were, while custom properties still inherit through it, so [data-v2] keeps
+ * scoping the tokens. Chrome 65+, well inside the Chrome 109 floor.
+ */
+[data-v2].v2wrap { display: contents; }
