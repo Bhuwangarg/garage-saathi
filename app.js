@@ -77,6 +77,7 @@ const I18N = {
     tidyHint: 'Older photos were saved inside the records themselves, so every phone carries them. This uploads each one and leaves a link behind.',
     photoNoStore: 'The server cannot store photos right now — the picture stays on this phone. Tell whoever runs the app.',
     photoSignedOut: 'Signed out, so the photo could not be uploaded — sign in again',
+    back: 'Back', pinBack: 'Delete',
     bootLoading: 'Getting your garage ready…',
     bootLoadingOnce: 'Only the first time on this device.',
     tagline: 'Garage maintenance, Jaipur', enterPin: 'Enter PIN', wrongPin: 'Wrong PIN', serverWaking: 'Signing in… the server is starting up, this can take a few seconds', loginOff: 'This login has been switched off — speak to the office', pinRetired: 'That PIN no longer works — ask the office for your new PIN',
@@ -492,6 +493,7 @@ const I18N = {
     tidyHint: 'पुरानी फोटो रिकॉर्ड के अंदर ही सेव हुई थीं, इसलिए हर फ़ोन उन्हें ढोता है। यह हर फोटो को सर्वर पर चढ़ाकर उसकी जगह लिंक रख देता है।',
     photoNoStore: 'सर्वर अभी फोटो नहीं रख पा रहा — तस्वीर इसी फ़ोन में रहेगी। ऐप संभालने वाले को बताइए।',
     photoSignedOut: 'साइन-आउट होने से फोटो नहीं चढ़ी — दोबारा लॉगिन कीजिए',
+    back: 'वापस', pinBack: 'मिटाेँ',
     bootLoading: 'आपका गैराज तैयार हो रहा है…',
     bootLoadingOnce: 'इस डिवाइस पर सिर्फ़ पहली बार।',
     tagline: 'गैराज मरम्मत, जयपुर', enterPin: 'पिन डालें', wrongPin: 'गलत पिन', serverWaking: 'लॉगिन हो रहा है… सर्वर चालू हो रहा है, कुछ सेकंड लग सकते हैं', loginOff: 'यह लॉगिन बंद कर दिया गया है — दफ़्तर से बात करें', pinRetired: 'यह पिन अब नहीं चलेगा — ऑफिस से अपना नया पिन लें',
@@ -13728,25 +13730,24 @@ function renderLogin() {
   // A mechanic on a recent-users tile would walk straight past the role picker,
   // so filter that list too.
   const recent = recentUsers().filter((u) => !NO_LOGIN_ROLES.has(u.role));
-  root().innerHTML = `<div class="login">
-    <div class="row" style="width:100%;max-width:420px;justify-content:center">${langSwitch()}</div>
-    <div class="bigicon">🚌</div>
-    <h1 style="margin:0">${esc(BIZ)}</h1>
-    <div class="muted small">${t('appName')} · ${t('tagline')}</div>
-    ${recent.length ? `<div class="muted small" style="margin-top:16px">${t('recentHere')}</div>
-      <div class="userpick">${recent.map((u) => `<div class="u" data-recent="${esc(u.id)}">
-        ${userPhoto(u) ? `<img class="ava" style="margin:0 auto 6px" src="${esc(userPhoto(u))}" alt="">` : `<div style="font-size:22px">${ROLE_META[u.role] ? ROLE_META[u.role][0] : '👤'}</div>`}
-        <div style="font-weight:700;font-size:14px">${esc(u.name.split(' ')[0])}</div>
-        <div class="tiny muted">${ROLE_META[u.role] ? ROLE_META[u.role][1] : esc(u.role)}</div></div>`).join('')}</div>` : ''}
-    <div class="muted small" style="margin-top:18px">${t('whoAreYou')}</div>
-    <div class="userpick">${roles.map((r) => `<div class="u" data-role="${esc(r)}">
-      <div style="font-size:22px">${ROLE_META[r][0]}</div>
-      <div style="font-weight:700;font-size:14px">${ROLE_META[r][1]}</div>
-      <div class="tiny muted">${counts[r]} ${counts[r] > 1 ? 'people' : 'person'}</div></div>`).join('')}</div>
-    ${'' /* The demo-PIN hint used to print working credentials under the role
-            tiles. It was meant for a local demo, but it is a login screen: a
-            screen whose entire job is to keep people out should never display
-            a way in. Removed outright rather than re-gated. */}
+  root().innerHTML = `<div data-v2 data-density="yard" class="lg">
+    <div class="lg-top">${langSwitch()}</div>
+    <div class="lg-mark">${icon('bus', { size: 30 })}</div>
+    <h1 class="lg-biz">${esc(BIZ)}</h1>
+    <p class="lg-tag">${t('appName')} · ${t('tagline')}</p>
+    ${recent.length ? `<p class="lg-label">${t('recentHere')}</p>
+      <div class="lg-list">${recent.map((u) => `<button type="button" class="row" data-recent="${esc(u.id)}">
+        <span class="lead">${userPhoto(u)
+          ? `<img class="lg-ava" src="${esc(userPhoto(u))}" alt="">`
+          : icon('person', { size: 20 })}</span>
+        <span><span class="t">${esc(u.name.split(' ')[0])}</span><span class="sub">${ROLE_META[u.role] ? esc(ROLE_META[u.role][1]) : esc(u.role)}</span></span>
+      </button>`).join('')}</div>` : ''}
+    <p class="lg-label">${t('whoAreYou')}</p>
+    <div class="lg-list">${roles.map((r) => `<button type="button" class="row" data-role="${esc(r)}">
+      <span class="lead">${icon('person', { size: 20 })}</span>
+      <span><span class="t">${esc(ROLE_META[r][1])}</span></span>
+      <span class="act"><span class="badge">${counts[r]}</span></span>
+    </button>`).join('')}</div>
   </div>`;
   root().onclick = (e) => {
     if (handleLoginLang(e, renderLogin)) return;
@@ -13760,14 +13761,16 @@ function renderLogin() {
 function renderRolePick(role) {
   _pinUser = null; _pin = '';
   const list = (S.cache.users || []).filter((u) => u.role === role).sort((a, b) => a.name.localeCompare(b.name));
-  root().innerHTML = `<div class="login">
-    <div class="row between" style="width:100%;max-width:420px">
-      <button class="backbtn" data-loginback aria-label="Back">‹</button>
-      <span class="muted small">${ROLE_META[role][1]}</span>${langSwitch()}</div>
-    <div class="bigicon">${ROLE_META[role][0]}</div>
-    <div style="font-weight:700">${t('selectName')}</div>
-    ${list.length > 6 ? `<input id="login-search" placeholder="${t('searchName')}" autocomplete="off" style="max-width:420px;margin:10px 0">` : '<div class="spacer"></div>'}
-    <div class="userpick" id="namelist"></div>
+  root().innerHTML = `<div data-v2 data-density="yard" class="lg">
+    <div class="lg-top lg-top-back">
+      <button type="button" class="btn btn-quiet lg-back" data-loginback aria-label="${esc(t('back'))}">${icon('back', { size: 20 })}</button>
+      <span class="lg-crumb">${esc(ROLE_META[role][1])}</span>${langSwitch()}</div>
+    <div class="lg-mark">${icon('person', { size: 30 })}</div>
+    <h1 class="lg-biz">${t('selectName')}</h1>
+    ${list.length > 6
+      ? `<input id="login-search" class="field lg-search" placeholder="${esc(t('searchName'))}" autocomplete="off">`
+      : ''}
+    <div class="lg-list" id="namelist"></div>
   </div>`;
   const renderList = (q) => {
     const f = q ? list.filter((u) => u.name.toLowerCase().includes(q)) : list;
@@ -13777,10 +13780,14 @@ function renderRolePick(role) {
     // account id is shown under it; it is the only thing that differs.
     const shared = {};
     list.forEach((u) => { const k = _nameKey(u.name); shared[k] = (shared[k] || 0) + 1; });
-    el.innerHTML = f.length ? f.map((u) => `<div class="u" data-login="${esc(u.id)}">
-      <div style="font-size:20px">${ROLE_META[role][0]}</div>
-      <div style="font-weight:700;font-size:14px">${esc(u.name)}</div>
-      ${shared[_nameKey(u.name)] > 1 ? `<div class="tiny muted" style="letter-spacing:.3px">${esc(u.id)}</div>` : ''}</div>`).join('') : `<div class="muted small">No match</div>`;
+    el.innerHTML = f.length ? f.map((u) => `<button type="button" class="row" data-login="${esc(u.id)}">
+      <span class="lead">${icon('person', { size: 20 })}</span>
+      <span><span class="t">${esc(u.name)}</span>${
+        // Two accounts can carry the same name. Identical rows are unpickable, so
+        // when a name is shared the account id goes underneath -- the only thing
+        // that differs between them.
+        shared[_nameKey(u.name)] > 1 ? `<span class="sub">${esc(u.id)}</span>` : ''}</span>
+    </button>`).join('') : `<div class="muted small">No match</div>`;
   };
   renderList('');
   const s = $('#login-search'); if (s) { s.oninput = () => renderList(s.value.trim().toLowerCase()); s.focus(); }
@@ -13802,7 +13809,7 @@ function renderPin(user) {
   // Self-removing: the first keystroke after the pad leaves the DOM detaches it,
   // so navigating away cannot leave a stray handler swallowing keys.
   const onKey = (e) => {
-    if (!$('.pinpad')) { document.removeEventListener('keydown', onKey); return; }
+    if (!$('.lg-pad')) { document.removeEventListener('keydown', onKey); return; }
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     if (e.key >= '0' && e.key <= '9') {
       e.preventDefault();
@@ -13820,17 +13827,23 @@ function renderPin(user) {
   };
   document.addEventListener('keydown', onKey);
   const draw = () => {
-    root().innerHTML = `<div class="login">
-      <div class="row" style="width:100%;max-width:420px;justify-content:center">${langSwitch()}</div>
-      <div class="bigicon">🔒</div>
-      <div style="font-weight:700">${esc(user.name)}</div>
-      <div class="muted small">${t('enterPin')}</div>
-      <div class="pindots">${'●'.repeat(_pin.length)}${'○'.repeat(Math.max(0,4-_pin.length))}</div>
-      <div class="pinpad">
-        ${[1,2,3,4,5,6,7,8,9].map((n) => `<button data-k="${esc(n)}">${n}</button>`).join('')}
-        <button data-k="back">⌫</button><button data-k="0">0</button><button data-k="ok">✓</button>
+    // The dots are ELEMENTS, not characters. They were ● and ○, and the two keys
+    // below them were ⌫ and ✓ -- all glyphs a Windows 7 font may not carry, which
+    // is the whole reason the icon set exists. Same reason the keypad digits are
+    // the only text left on this screen.
+    root().innerHTML = `<div data-v2 data-density="yard" class="lg">
+      <div class="lg-top">${langSwitch()}</div>
+      <h1 class="lg-biz lg-who">${esc(user.name)}</h1>
+      <p class="lg-tag">${t('enterPin')}</p>
+      <div class="lg-dots" role="status" aria-label="${_pin.length} of 4 digits entered">${
+        [0,1,2,3].map((i) => `<span class="lg-dot${i < _pin.length ? ' on' : ''}"></span>`).join('')}</div>
+      <div class="lg-pad">
+        ${[1,2,3,4,5,6,7,8,9].map((n) => `<button type="button" class="btn" data-k="${esc(n)}">${n}</button>`).join('')}
+        <button type="button" class="btn btn-quiet" data-k="back" aria-label="${esc(t('pinBack'))}">${icon('back', { size: 22 })}</button>
+        <button type="button" class="btn" data-k="0">0</button>
+        <button type="button" class="btn btn-primary" data-k="ok" aria-label="${esc(t('enterPin'))}">${icon('ok', { size: 22 })}</button>
       </div>
-      <button class="btn ghost sm" data-k="cancel" style="margin-top:14px">${t('cancel')}</button>
+      <button type="button" class="btn btn-quiet lg-cancel" data-k="cancel">${t('cancel')}</button>
     </div>`;
     root().onclick = async (e) => {
       if (handleLoginLang(e, draw)) return;
@@ -13842,8 +13855,10 @@ function renderPin(user) {
       if (_pin.length === 4 || key === 'ok') {
         // Four digits are in and the request is on its way. Without this the pad
         // simply sits there for a second or three and looks like it missed the tap.
-        const dots = $('.pindots');
-        if (dots) { dots.textContent = '⋯'; dots.style.opacity = '.6'; }
+        // Was: replace the dots with an ellipsis character. The dots are elements
+        // now, so mark the row as working and let CSS show it.
+        const dots = $('.lg-dots');
+        if (dots) dots.setAttribute('data-working', '1');
         return attemptLogin(user, _pin, draw);
       }
     };

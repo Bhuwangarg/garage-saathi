@@ -40,6 +40,13 @@
   <!-- face-api is fetched on demand by loadFaceLib(), only when a face capture
        actually starts, and only where the browser has no native FaceDetector. -->
   <link rel="stylesheet" href="styles.css" />
+  <!-- The v2 design system. Every selector in both files is prefixed [data-v2],
+       so loading them changes nothing outside a [data-v2] subtree -- which is how
+       one screen at a time can move across without a second document. The login
+       is the first screen that uses them. -->
+  <link rel="stylesheet" href="ui/tokens.css" />
+  <link rel="stylesheet" href="ui/components.css" />
+  <link rel="stylesheet" href="ui/login.css" />
 </head>
 <body>
   <div id="app"></div>
@@ -50,6 +57,10 @@
   <script src="db.js"></script>
   <!-- Before sync.js: pullPage() decides which pulled record wins through it. -->
   <script src="pullapply.js"></script>
+  <!-- icon()/ICONS: ~25 inline SVGs replacing the emoji Windows 7 cannot draw.
+       Checked before loading: the app defines neither name and makes no bare
+       icon() call, so there is nothing here to collide with. -->
+  <script src="ui/icons.js"></script>
   <script src="sync.js"></script>
   <script src="duty.js"></script>
   <script src="gate.js"></script>
