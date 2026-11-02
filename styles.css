@@ -1306,3 +1306,25 @@ body.printing-gp .gp-screen{display:none !important}
 .rbn-row:first-of-type{border-top:0}
 .rbn-acts{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
 .rbn-acts .btn.sm{min-height:36px}
+
+/* The one-off "getting your garage ready" bar.
+ *
+ * The PIN pad now draws on the roster alone and the rest of boot runs behind it,
+ * so somebody can sign in while the bundled fleet is still being stored. This is
+ * what they see instead of a pad that has stopped responding -- which is what
+ * "I entered my PIN and nothing opened" actually was.
+ *
+ * Plain on purpose: no gradient, no shadow, one transform. It runs on the oldest
+ * machine in the office, where a cheap paint matters more than a pretty one, and
+ * Chrome 109 is the ceiling there so nothing here is newer than that.
+ */
+.bootbar { height: 4px; max-width: 280px; margin: 0 auto; border-radius: 999px;
+  background: var(--line); overflow: hidden; }
+.bootbar > span { display: block; height: 100%; width: 40%; border-radius: inherit;
+  background: var(--accent); animation: bootslide 1.1s ease-in-out infinite; }
+@keyframes bootslide { from { transform: translateX(-110%) } to { transform: translateX(260%) } }
+/* Honoured here as it is five other places in this file: an indeterminate bar that
+ * cannot be turned off is worse than no bar for anyone who asked for less motion. */
+@media (prefers-reduced-motion: reduce) {
+  .bootbar > span { animation: none; width: 100%; }
+}

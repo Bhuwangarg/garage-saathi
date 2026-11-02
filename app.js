@@ -77,6 +77,8 @@ const I18N = {
     tidyHint: 'Older photos were saved inside the records themselves, so every phone carries them. This uploads each one and leaves a link behind.',
     photoNoStore: 'The server cannot store photos right now — the picture stays on this phone. Tell whoever runs the app.',
     photoSignedOut: 'Signed out, so the photo could not be uploaded — sign in again',
+    bootLoading: 'Getting your garage ready…',
+    bootLoadingOnce: 'Only the first time on this device.',
     tagline: 'Garage maintenance, Jaipur', enterPin: 'Enter PIN', wrongPin: 'Wrong PIN', serverWaking: 'Signing in… the server is starting up, this can take a few seconds', loginOff: 'This login has been switched off — speak to the office', pinRetired: 'That PIN no longer works — ask the office for your new PIN',
     recentHere: 'Recent on this phone', whoAreYou: 'Who are you?', selectName: 'Select your name', searchName: 'Search name…',
     cantReach: "Can't reach the server — check internet and try again",
@@ -490,6 +492,8 @@ const I18N = {
     tidyHint: 'पुरानी फोटो रिकॉर्ड के अंदर ही सेव हुई थीं, इसलिए हर फ़ोन उन्हें ढोता है। यह हर फोटो को सर्वर पर चढ़ाकर उसकी जगह लिंक रख देता है।',
     photoNoStore: 'सर्वर अभी फोटो नहीं रख पा रहा — तस्वीर इसी फ़ोन में रहेगी। ऐप संभालने वाले को बताइए।',
     photoSignedOut: 'साइन-आउट होने से फोटो नहीं चढ़ी — दोबारा लॉगिन कीजिए',
+    bootLoading: 'आपका गैराज तैयार हो रहा है…',
+    bootLoadingOnce: 'इस डिवाइस पर सिर्फ़ पहली बार।',
     tagline: 'गैराज मरम्मत, जयपुर', enterPin: 'पिन डालें', wrongPin: 'गलत पिन', serverWaking: 'लॉगिन हो रहा है… सर्वर चालू हो रहा है, कुछ सेकंड लग सकते हैं', loginOff: 'यह लॉगिन बंद कर दिया गया है — दफ़्तर से बात करें', pinRetired: 'यह पिन अब नहीं चलेगा — ऑफिस से अपना नया पिन लें',
     recentHere: 'इस फ़ोन पर हाल के', whoAreYou: 'आप कौन हैं?', selectName: 'अपना नाम चुनें', searchName: 'नाम खोजें…',
     cantReach: 'सर्वर से संपर्क नहीं — इंटरनेट जाँचें और फिर कोशिश करें',
@@ -1564,6 +1568,26 @@ async function load(force) {
   DB.clearDirty(done);
   refreshBiz();   // keep the displayed business name in sync with garage config
 }
+/* Just enough of the cache to draw the PIN pad: the roster, and the garage name
+ * above it.
+ *
+ * renderLogin() is the LAST line of boot(). Everything before it -- seeding the
+ * roster, parsing and storing the bundled fleet, linking the drive-doc folders,
+ * three migrations, a history prune and a full load() of all forty object stores
+ * -- ran first, so a cold device showed a BLANK SCREEN for the whole lot. Measured
+ * at 869ms on a fast Mac; on the Core 2 Duos in the office it is what "the login
+ * takes ages" actually was. None of it is needed to list who can sign in.
+ *
+ * Every other cache key is set to an empty array so nothing downstream reads
+ * undefined, and _cacheLoaded is deliberately NOT set: the full load() that runs
+ * behind the pad must still read everything. */
+async function loadForLogin() {
+  for (const k of Object.keys(CACHE_STORES)) if (!S.cache[k]) S.cache[k] = [];
+  try { S.cache.users = await DB.all('users'); } catch (e) { S.cache.users = []; }
+  try { S.cache.garage = await DB.get('meta', 'garage'); } catch (e) { /* name falls back */ }
+  refreshBiz();
+}
+
 const byId = (arr, id) => arr.find((x) => x.id === id);
 const userName = (id) => (byId(S.cache.users, id) || {}).name || '—';
 const busName = (id) => (byId(S.cache.buses, id) || {}).regNo || '—';
@@ -13688,6 +13712,15 @@ async function refreshRosterAtLogin() {
 }
 
 function renderLogin() {
+  /* When the pad first appeared, in ms since the page started loading.
+   *
+   * This is the number the office actually experiences, and it used to be awful
+   * for a reason nothing measured: renderLogin() was the LAST line of boot(), so
+   * it waited on the bundled fleet, three migrations, a history prune and a full
+   * read of all forty object stores. The gate now asserts a budget on it, because
+   * a regression here is invisible in every other check -- the app still works,
+   * it just makes somebody stand there. */
+  if (!window.__padAt) window.__padAt = Math.round(performance.now());
   _pinUser = null; _pin = '';
   const users = S.cache.users || [];
   const counts = {}; users.forEach((u) => { counts[u.role] = (counts[u.role] || 0) + 1; });
@@ -14064,7 +14097,42 @@ async function attemptLogin(user, pin, redraw) {
   offlineFail(user.id);
   toast(t('wrongPin')); _pin = ''; redraw();
 }
-function enterApp(user) { pushRecent(user.id); S.user = user; if (Sync.setActor) Sync.setActor(user.id); dropManagerPins(); maybeAutoActivateCrew(user); maybeBackfillContacts(user); maybeBackfillConductors(user); reconcileStaffNames(user); reconcileJobParts(); route({ name: 'home' }); }
+/* The PIN was right. Get on with it, and say so while the rest of boot finishes.
+ *
+ * The pad is now drawn on the roster alone, which means the bundled fleet, the
+ * migrations and the full cache load may still be in flight when somebody signs
+ * in. Two things must both be true here: the app must not sit on a dead pad with
+ * no explanation (that is "I entered my PIN and nothing opened"), and it must not
+ * open a screen whose lists are still empty, which would read as the fleet having
+ * vanished. So: say what is happening, wait for the data, then go.
+ *
+ * On a warm device bootReady has long since resolved and this is one microtask --
+ * the common case costs nothing. */
+async function enterApp(user) {
+  pushRecent(user.id); S.user = user;
+  if (Sync.setActor) Sync.setActor(user.id);
+  if (!bootDone && bootReady) {
+    showBootProgress();
+    try { await bootReady; } catch (e) { /* bootRest reports its own errors */ }
+  }
+  dropManagerPins(); maybeAutoActivateCrew(user); maybeBackfillContacts(user);
+  maybeBackfillConductors(user); reconcileStaffNames(user); reconcileJobParts();
+  route({ name: 'home' });
+}
+
+/* Deliberately not a spinner alone. A spinner says "something is happening"; the
+ * complaint this answers was that the app looked broken, so it names what it is
+ * doing and admits it only happens once on this device. */
+function showBootProgress() {
+  const el = $('#app');
+  if (!el) return;
+  el.innerHTML = `<div class="login" style="text-align:center;padding:48px 20px">
+    <div class="h1" style="margin-bottom:8px">${esc(BIZ)}</div>
+    <div class="muted" style="margin-bottom:20px">${esc(t('bootLoading'))}</div>
+    <div class="bootbar" aria-hidden="true"><span></span></div>
+    <div class="tiny muted" style="margin-top:16px">${esc(t('bootLoadingOnce'))}</div>
+  </div>`;
+}
 
 /* "Recent on this phone" — remembers who has signed in on THIS device so a
  * personal phone can skip role→name and go straight to the PIN pad. Just ids in
@@ -14076,13 +14144,41 @@ function recentUsers() { const users = S.cache.users || []; return recentIds().m
 function userPhoto(u) { return crewFace(crewForUser(u.id)) || null; }
 
 /* -------------------------------- Boot ------------------------------------ */
+/* Resolves when the slow half of boot() has finished. enterApp() waits on it, so
+ * nobody reaches a screen that would draw empty lists as though the fleet were
+ * gone. Showing the pad early is free; showing a HALF-LOADED app is not. */
+let bootReady = null;
+let bootDone = false;
+
 (async function boot() {
   // Apply the saved theme before first paint so there's no light-mode flash.
   try { const s = localStorage.getItem('gs-theme'); if (s) document.documentElement.dataset.theme = s; } catch (e) {}
+
+  /* The pad first, on the roster alone. See loadForLogin() for why this is the
+   * whole fix for "the login takes ages": everything below this block used to run
+   * before renderLogin(), with nothing on screen while it did. */
   try {
-  await seedIfEmpty(isDemoMode());   // production seeds roster+config only, never demo buses/jobs
-  seedCreds();
-  dropSharedCrewPin();
+    await seedIfEmpty(isDemoMode());   // first: it is what creates the roster
+    seedCreds();
+    dropSharedCrewPin();
+    await loadForLogin();
+    renderLogin();
+    // Straight after the pad, not after the slow half: it asks the server for
+    // staff added on another device, and a name that arrives late is a tile
+    // somebody cannot sign in from.
+    refreshRosterAtLogin();
+  } catch (e) {
+    // A seed or DB-upgrade hiccup must never leave a blank screen. Draw the pad
+    // on whatever we have; the roster refresh below fills in the names.
+    console.error('Garage Saathi: could not draw the login early:', e);
+    try { renderLogin(); } catch (_) { /* the slow path below renders again */ }
+  }
+
+  bootReady = bootRest();              // deliberately NOT awaited
+})();
+
+async function bootRest() {
+  try {
   await applyBundledSeed();           // load the real fleet/parts/vendors/crew from the bundled data
   await applyDriveDocs();             // link buses to their Google Drive document folders
   // Before the login screen is drawn, not after signing in — the name on the
@@ -14182,12 +14278,16 @@ function userPhoto(u) { return crewFace(crewForUser(u.id)) || null; }
     console.error('Garage Saathi boot error (continuing to login):', e);
     try { await load(); } catch (_) { /* keep whatever cache we have */ }
   }
-  renderLogin();
-  refreshRosterAtLogin();      // paint immediately, then pick up staff added elsewhere
+  bootDone = true;
+  // Redraw the pad only if nobody has signed in while this was running: the roster
+  // is bigger now than loadForLogin() could see, and a tile added by the bundled
+  // seed should appear without a reload. Redrawing over a signed-in screen would
+  // throw the user back to the login, which is why this is guarded.
+  if (!S.user) renderLogin();
   healSeedClobberOnce();       // once per device: let the server correct seed-clobbered rows
   // Camera (selfies, job photos) and GPS only work over HTTPS (or localhost).
   // Warn loudly on a plain-http public host so it isn't a silent field failure.
   if (location.protocol === 'http:' && !isLocalHost()) {
     setTimeout(() => toast('⚠️ Open this app over HTTPS — camera & GPS need it'), 800);
   }
-})();
+}

@@ -258,6 +258,14 @@ jck "mechanic has no close button" \
   "(function(){var u=S.user.id;var j=(S.cache.jobs||[]).filter(function(x){return isOnJob(x,u)})[0];if(!j)return 'nojob';var was=j.status;j.status='in-progress';route({name:'jobs',id:j.id});var r=S.route.name!=='jobs'?'bounced':document.querySelector('[data-act=markDone]')?'yes':'no';j.status=was;return r})()" "no"
 # ...and they are still assignable people: the scorecard and pilferage radar are
 # built on knowing who did the work.
+# The PIN pad's own budget. boot() used to draw it LAST -- after the bundled fleet,
+# three migrations, a history prune and a full read of all forty object stores --
+# so a cold device showed a blank screen for all of it, and nothing here measured
+# that because the app worked fine once it appeared. It is drawn on the roster alone
+# now, with the rest of boot behind it.
+jck "the PIN pad is drawn promptly, not after the whole of boot" \
+  "(window.__padAt==null?'never':(window.__padAt<2000?'ok':'slow:'+window.__padAt))" "ok"
+
 jck "mechanics still on the roster" \
   "(S.cache.users||[]).filter(function(u){return u.role==='mechanic'}).length>0" "true"
 
