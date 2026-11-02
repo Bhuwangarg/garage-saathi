@@ -336,6 +336,40 @@ jck "and the PIN keys are a mouse target, not a 43px sliver" \
 j "renderLogin()" >/dev/null
 bb viewport "$VP_WAS" >/dev/null
 
+# A drawing must be DRAWN, not printed.
+#
+# The office scoreboard showed `<svg xmlns="http://ww...` as the subtitle under
+# every driver's name, on every row of three lists. officeCrewRow built the line
+# as one string -- an icon followed by the rating -- and escaped the whole thing,
+# so the markup for the star arrived as literal text. _coFacts had the identical
+# bug one screen over and was fixed by hand; this one shipped because nothing
+# looks for the shape.
+#
+# Asserted against the DOM rather than the string, because that is the only way
+# to tell a drawing from a description of one: parse the row, and require an
+# <svg> ELEMENT in it and no "<svg" in its visible TEXT. The office login has no
+# seeded account here, so the row is built directly -- it is a pure function of
+# a crew member and their score.
+jck "a crew row draws its star instead of printing the drawing" \
+  "(function(){var d={id:'gate-x',name:'Gate Test',busId:null},o={n:3,avg:4.2,overall:55,passenger:4.2};var h;try{h=officeCrewRow(d,o)}catch(e){return 'threw: '+e.message}var el=document.createElement('div');el.innerHTML=h;var txt=el.innerText||el.textContent||'';if(txt.indexOf('<svg')>=0)return 'prints markup as text';return el.querySelector('svg')?'draws it':'no icon at all'})()" "draws it"
+# The same question asked of whatever is currently on screen, which costs nothing
+# and catches the next one of these wherever it is.
+jck "and no screen the gate has drawn prints markup as text" \
+  "(document.body.innerText||'').indexOf('<svg')>=0?'markup on screen':'clean'" "clean"
+
+# Every sync request is bounded.
+#
+# Only login() and the warm-up ping had an AbortController; /pull and /push had
+# none, and fetch has no useful default. Against production about one request in
+# twenty-five answers in 30-36s rather than 0.24s -- it succeeds, it is just that
+# slow -- and with no bound the drain stopped for the whole stall. Checked in the
+# source rather than by timing a request, because the failure is the ABSENCE of a
+# signal, which no passing request can reveal.
+SYNC_FETCH_TOTAL="$(grep -c 'await fetch(baseUrl()' sync.js)"
+SYNC_PULLPUSH_BOUND="$(grep -c 'signal: bound.signal' sync.js)"
+ck "the pull and both push requests carry an abort signal" "$SYNC_PULLPUSH_BOUND" "3"
+ck "and a timed-out request clears its timer instead of leaking it" "$(grep -c 'finally { bound.clear(); }' sync.js)" "3"
+
 jck "mechanics still on the roster" \
   "(S.cache.users||[]).filter(function(u){return u.role==='mechanic'}).length>0" "true"
 

@@ -117,6 +117,36 @@ const Sync = (function () {
  * reached first ends the batch; the rest goes next tick, four seconds later. */
 const PUSH_PER_TICK = 250;
 const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
+  /* Every request this engine makes is bounded. None of them were.
+   *
+   * Only login() and the warm-up ping carried an AbortController; /pull and
+   * /push had no timeout of any kind, and fetch has no useful default. Measured
+   * against production, roughly one request in twenty-five answers in 30-36
+   * seconds instead of 0.24 -- it SUCCEEDS, with dbOk true, it just takes that
+   * long. With no bound, the drain stops dead for the whole stall, which is the
+   * "everything is there but the data is still loading" the office reports. And
+   * push() runs before pull() on a steady tick, so a stalled push withholds data
+   * just as effectively as a stalled pull.
+   *
+   * Aborting is safe here and that is why this is the fix: the cursor advances
+   * only on a page that came back, tick() catches and the next tick retries, so
+   * a timed-out pull costs one round trip and loses nothing.
+   *
+   * The pull bound is deliberately generous. A page is capped at 2.5MB, which on
+   * a driver's phone on a bad signal is a slow but HEALTHY transfer, and an abort
+   * cannot tell that apart from a stall -- too short a bound would turn weak
+   * signal into a retry loop and the backoff would then sync them less often,
+   * not more. 25s sits above a realistic transfer and below the stalls actually
+   * observed. Push is one record, so it gets far less. */
+  const PULL_TIMEOUT_MS = 25000;
+  const PUSH_TIMEOUT_MS = 15000;
+  function boundRequest(ms) {
+    if (typeof AbortController === 'undefined') return { signal: undefined, clear: function () {} };
+    const c = new AbortController();
+    const id = setTimeout(function () { c.abort(); }, ms);
+    return { signal: c.signal, clear: function () { clearTimeout(id); } };
+  }
+
   let lastRev = parseInt(ls.getItem('lastRev') || '0', 10);
   /* Stores fetched LAST, on a cursor of their own.
    *
@@ -785,10 +815,14 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
 
     let res;
     try {
-      res = await fetch(baseUrl() + '/push', {
-        method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ deviceId, records: recs }),
-      });
+      const bound = boundRequest(PUSH_TIMEOUT_MS);
+      try {
+        res = await fetch(baseUrl() + '/push', {
+          method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify({ deviceId, records: recs }),
+          signal: bound.signal,
+        });
+      } finally { bound.clear(); }
     } catch (e) { throw e; }                    // offline → retry later, keep keys
 
     if (res.status === 401) throw sessionDead('push');
@@ -835,10 +869,14 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
       if (!rec) { outbox.delete(key); saveOutbox(); continue; }
       let one;
       try {
-        one = await fetch(baseUrl() + '/push', {
-          method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
-          body: JSON.stringify({ deviceId, records: [rec] }),
-        });
+        const bound = boundRequest(PUSH_TIMEOUT_MS);
+        try {
+          one = await fetch(baseUrl() + '/push', {
+            method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
+            body: JSON.stringify({ deviceId, records: [rec] }),
+            signal: bound.signal,
+          });
+        } finally { bound.clear(); }
       } catch (e) { throw e; }
       if (one.ok) { outbox.delete(key); saveOutbox(); continue; }
       if (one.status === 401) throw sessionDead('push');
@@ -958,12 +996,20 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
     const since = scratch ? scratchRev : only ? lastRevDeferred : lastRev;
     const filter = only ? '&store=' + encodeURIComponent(only.join(','))
       : defer ? '&defer=' + encodeURIComponent(defer.join(',')) : '';
-    const res = await fetch(baseUrl() + '/pull?since=' + since + '&deviceId=' + encodeURIComponent(deviceId) + filter,
-      { headers: authHeaders() });
-    if (res.status === 401) throw sessionDead('pull');
-    if (res.status === 429) throw await throttled(res, 'pull');
-    if (!res.ok) throw new Error('pull ' + res.status);
-    const j = await res.json();
+    // Bounded, and the bound covers reading the body too -- a stall can just as
+    // easily be mid-response as before the first byte, so clearing the timer the
+    // moment the headers land would leave the part that carries the records
+    // unguarded.
+    const bound = boundRequest(PULL_TIMEOUT_MS);
+    let j;
+    try {
+      const res = await fetch(baseUrl() + '/pull?since=' + since + '&deviceId=' + encodeURIComponent(deviceId) + filter,
+        { headers: authHeaders(), signal: bound.signal });
+      if (res.status === 401) throw sessionDead('pull');
+      if (res.status === 429) throw await throttled(res, 'pull');
+      if (!res.ok) throw new Error('pull ' + res.status);
+      j = await res.json();
+    } finally { bound.clear(); }
     if (typeof j.serverTime === 'number') { clockOffset = j.serverTime - Date.now(); ls.setItem('clockOffset', String(clockOffset)); }
     if (typeof j.tableMax === 'number' && j.tableMax > tableMax) {
       tableMax = j.tableMax; ls.setItem('tableMax', String(tableMax));

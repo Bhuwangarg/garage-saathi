@@ -2423,13 +2423,20 @@ function crewNotesCard(crewId) {
 
 function officeCrewRow(d, o) {
   const face = crewFace(d);
-  const stars = o.n ? `${icon('star')}${o.avg.toFixed(1)} · ${o.n} ${t('ofReviewsWord')}` : t('ofNoReviews');
+  /* The icon is MARKUP and the rest is TEXT, so they are escaped separately.
+   * Built as one string and escaped as one string, this line printed
+   * `<svg xmlns="http://ww...` under every name on the office scoreboard --
+   * which is what the office has been looking at. Same mistake as _coFacts,
+   * one screen over. */
+  const stars = o.n
+    ? `${icon('star')} ${esc(o.avg.toFixed(1) + ' · ' + o.n + ' ' + t('ofReviewsWord'))}`
+    : esc(t('ofNoReviews'));
   return `<div class="li" data-driver="${esc(d.id)}" style="cursor:pointer">
     <div class="ava ava-round">${face ? `<img src="${esc(face)}" alt="">` : CREW_ROLE_META[crewRoleOf(d)][0]}</div>
     <div class="main"><div class="t">${esc(d.name)}</div>
       <div class="crewmeta"><span class="rolepill">${CREW_ROLE_META[crewRoleOf(d)][0]} ${esc(crewRoleLabel(crewRoleOf(d)))}</span>${
         d.busId ? `<span class="buschip">${icon('bus')} ${esc(busName(d.busId))}</span>` : ''}</div>
-      <div class="s">${esc(stars)}</div></div>
+      <div class="s">${stars}</div></div>
     ${o.passenger == null ? `<span class="badge b-low">—</span>`
       : `<span class="badge ${scoreClass(o.overall)}">${o.overall}</span>`}</div>`;
 }
