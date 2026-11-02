@@ -430,6 +430,44 @@ ck "and retries once when that wait times out" \
 ck "the server starts waking at the login screen, not only at the keypad" \
   "$(grep -c 'Sync.warmUp();' app.js)" "2"
 
+# BACK leaves a tab, and never leaves the app.
+#
+# Every forward move pushes a history entry, but a tab switch RESET the stack to
+# one root -- so after a single tap on the nav, history was deeper than the stack,
+# popstate landed on the root trap, re-pushed, and drew nothing. The back button
+# stopped working, and only after a tab switch, which is why it was "sometimes":
+# drilling into a job and backing out of it always worked.
+#
+# As the owner, because fleet and money have to be tabs this role actually has:
+# a route the login cannot reach is bounced home by the permission guard, which
+# calls route() and resets the trail -- so run against a mechanic (the role
+# logged in above) this sequence tests the guard, not the back button. It was
+# written that way first and the gate caught it.
+login owner u-owner 1 1 1 1
+# route() resets the trail, so this sequence is the same every run.
+j "route({name:'home'})" >/dev/null
+j "navTab('fleet')" >/dev/null
+j "navTab('money')" >/dev/null
+j "history.back()" >/dev/null
+settle "S.route&&S.route.name" "fleet" 20 >/dev/null
+jck "the back button leaves a tab instead of doing nothing" "S.route&&S.route.name" "fleet"
+j "history.back()" >/dev/null
+settle "S.route&&S.route.name" "home" 20 >/dev/null
+# The whole reason the trap exists: back at the first screen must not drop
+# somebody onto the login, which is what it used to do before any of this.
+j "history.back()" >/dev/null
+settle "S.user?'in':'out'" "in" 12 >/dev/null
+jck "and at the first screen it stays in the app rather than dropping to the login" \
+  "(S.user?'in':'out')+'/'+(S.route&&S.route.name)" "in/home"
+# Tapping the tab you are already on is not a move, and must not cost a press of
+# BACK to undo.
+j "route({name:'home'})" >/dev/null
+j "navTab('fleet')" >/dev/null
+j "navTab('fleet')" >/dev/null
+j "history.back()" >/dev/null
+settle "S.route&&S.route.name" "home" 20 >/dev/null
+jck "and tapping the same tab twice does not cost an extra press" "S.route&&S.route.name" "home"
+
 jck "mechanics still on the roster" \
   "(S.cache.users||[]).filter(function(u){return u.role==='mechanic'}).length>0" "true"
 

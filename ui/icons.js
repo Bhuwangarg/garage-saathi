@@ -20,6 +20,14 @@
     job: 'M15 4.5h3a1 1 0 0 1 1 1V21a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V5.5a1 1 0 0 1 1-1h3 M9 3h6v3H9z M8.5 11h7 M8.5 15h7',
     part: 'M10.6 4.9L10.8 2.5L13.2 2.5L13.4 4.9L16 6L17.9 4.4L19.6 6.1L18 8L19.1 10.6L21.5 10.8L21.5 13.2L19.1 13.4L18 16L19.6 17.9L17.9 19.6L16 18L13.4 19.1L13.2 21.5L10.8 21.5L10.6 19.1L8 18L6.1 19.6L4.4 17.9L6 16L4.9 13.4L2.5 13.2L2.5 10.8L4.9 10.6L6 8L4.4 6.1L6.1 4.4L8 6z M14.8 12a2.8 2.8 0 1 0-5.6 0 2.8 2.8 0 0 0 5.6 0z',
     person: 'M12 4a4 4 0 1 0 0 8 4 4 0 0 0 0-8z M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1',
+    /* A tyre and a battery, because both were drawn with `part` -- and at the top
+       of a bus's component card they are two ICON-ONLY buttons side by side, so
+       the same cog did "fit tyres" and "fit batteries" with nothing to tell them
+       apart. The tyre is a wheel (rim, hub, spokes) and the battery is a battery
+       (body, two posts, the plus and minus); neither can be mistaken for the
+       cog or for each other at 20px. */
+    tyre: 'M12 2.6a9.4 9.4 0 1 0 0 18.8 9.4 9.4 0 0 0 0-18.8z M12 7.9a4.1 4.1 0 1 0 0 8.2 4.1 4.1 0 0 0 0-8.2z M12 2.6v5.3 M12 16.1v5.3 M2.6 12h5.3 M16.1 12h5.3',
+    battery: 'M2.6 8.4h18.8v11.2H2.6z M6.8 8.4V5.6h3.2v2.8 M14 8.4V5.6h3.2v2.8 M6.2 14h3.4 M14.4 14h3.4 M16.1 12.3v3.4',
     // Added for the bottom nav, which is on every screen and was five emoji.
     // `me` is a person INSIDE a ring so it cannot be mistaken for `person` two
     // tabs along -- the owner's nav carries both at once.

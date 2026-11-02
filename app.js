@@ -3755,8 +3755,8 @@ function viewBusDetail(id) {
   const comps = componentsOfBus(b.id);
   if (comps.length || can(S.user.role, 'issuePart')) {
     body += `<div class="card"><div class="row between"><h3>${icon('part')} Tyres &amp; components</h3><span>${
-      can(S.user.role, 'manageComponents') ? `<button class="btn sm" data-act="fitTyres" data-bus="${esc(b.id)}">${icon('part')}</button>
-        <button class="btn sm" data-act="fitBatteries" data-bus="${esc(b.id)}">${icon('part')}</button> ` : ''
+      can(S.user.role, 'manageComponents') ? `<button class="btn sm" data-act="fitTyres" data-bus="${esc(b.id)}" aria-label="${esc(t('tyFit'))}" title="${esc(t('tyFit'))}">${icon('tyre')}</button>
+        <button class="btn sm" data-act="fitBatteries" data-bus="${esc(b.id)}" aria-label="${esc(t('btFit'))}" title="${esc(t('btFit'))}">${icon('battery')}</button> ` : ''
     }${can(S.user.role, 'issuePart') ? `<button class="btn sm" data-act="openComponents">All</button>` : ''}</span></div>`;
     body += comps.length ? comps.sort((a, c) => componentLife(c).pct - componentLife(a).pct).map((c) => { const lf = componentLife(c), km = compKind(c);
       return `<div class="li" data-act="openComp" data-id="${esc(c.id)}"><div class="ava">${km[0]}</div>
@@ -5173,8 +5173,8 @@ function viewComponents() {
     ${alerts.map((a) => `<div class="li" data-act="openComp" data-id="${esc(a.c.id)}" style="border:none;padding:6px 0"><div class="ava">${compKind(a.c)[0]}</div><div class="main"><div class="s">${a.msg}</div></div></div>`).join('')}</div>`;
   const kinds = ['all', ...Object.keys(COMP_KINDS).filter((k) => comps.some((c) => c.kind === k))];
   if (can(S.user.role, 'manageComponents')) body += `<div class="row" style="gap:8px;margin-bottom:12px">
-    <button class="btn primary" data-act="fitTyres" style="flex:1">${icon('part')} ${esc(t('tyFit'))}</button>
-    <button class="btn" data-act="fitBatteries" style="flex:1">${icon('part')} ${esc(t('btFit'))}</button></div>`;
+    <button class="btn primary" data-act="fitTyres" style="flex:1">${icon('tyre')} ${esc(t('tyFit'))}</button>
+    <button class="btn" data-act="fitBatteries" style="flex:1">${icon('battery')} ${esc(t('btFit'))}</button></div>`;
   body += `<div class="chiprow">${kinds.map((k) => `<button class="chip ${_compFilter === k ? 'active' : ''}" data-act="compFilter" data-v="${esc(k)}">${k === 'all' ? 'All' : COMP_KINDS[k][0] + ' ' + COMP_KINDS[k][1]}</button>`).join('')}</div>`;
   const list = comps.filter((c) => _compFilter === 'all' || c.kind === _compFilter)
     .sort((a, b) => (COMP_RANK[a.state] - COMP_RANK[b.state]) || (componentLife(b).pct - componentLife(a).pct));
@@ -12827,7 +12827,22 @@ function render(r) {
 // is the single place the stack pops; at the root we re-push so back can never
 // exit the app to the login screen.
 function histPush() { try { history.pushState({ gs: S.stack.length }, ''); } catch (e) { /* ignore */ } }
-function navTab(name) { S.stack = [{ name }]; render(current()); histPush(); }
+/* The tabs visited, so BACK can leave one.
+ *
+ * Every forward move pushes a history entry, but a tab switch RESETS the stack
+ * to a single root -- so after one tap on the nav, history is deeper than the
+ * stack and popstate lands on the root trap, which re-pushes and draws nothing.
+ * The back button simply stopped working, and only after a tab switch, which is
+ * what "sometimes" meant. Drilling into a job and backing out of it always
+ * worked, so nothing about it looked broken.
+ *
+ * Consecutive duplicates are not recorded: tapping the tab you are already on
+ * is not a move, and it must not cost a press of BACK to undo. */
+let _tabTrail = [];
+function navTab(name) {
+  if (_tabTrail[_tabTrail.length - 1] !== name) _tabTrail.push(name);
+  S.stack = [{ name }]; render(current()); histPush();
+}
 function push(r) { S.stack.push(r); render(r); histPush(); }
 function back() { try { history.back(); } catch (e) { if (S.stack.length > 1) { S.stack.pop(); render(current()); } } }
 /* Is the user in the middle of entering something?
@@ -12858,11 +12873,21 @@ function flushPendingRender() {
 function rerender() { render(current()); }
 // Back-compat shim: existing callers that say route({name,...}) now reset to that
 // screen as a fresh root (used by login + a few in-view fallbacks).
-function route(r) { S.stack = [r]; render(r); histPush(); }
+function route(r) { S.stack = [r]; _tabTrail = [r.name]; render(r); histPush(); }
 window.addEventListener('popstate', () => {
   if (!S.user) return;                                   // on the login screen — nothing to pop
-  if (S.stack.length > 1) { S.stack.pop(); render(current()); }
-  else histPush();                                       // trap at root: stay in the app, don't exit to login
+  if (S.stack.length > 1) { S.stack.pop(); render(current()); return; }
+  // At a tab's root, with a tab behind it: go there. This is the entry the tab
+  // switch pushed, so consuming it here is what keeps history depth and stack
+  // depth honest -- without this the entry was spent on a press that drew
+  // nothing at all.
+  if (_tabTrail.length > 1) {
+    _tabTrail.pop();
+    S.stack = [{ name: _tabTrail[_tabTrail.length - 1] }];
+    render(current());
+    return;
+  }
+  histPush();                                            // the first screen: stay in the app, don't exit to login
 });
 
 /* ----------------------------- Event binding ------------------------------ */

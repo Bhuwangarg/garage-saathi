@@ -40,7 +40,7 @@ const names = () => Object.keys(ICONS());
  * and that is exactly the kind of approximation this list exists to stop. */
 const REQUIRED = ['bus', 'job', 'part', 'person', 'fuel', 'money', 'review', 'star', 'gate', 'map', 'alert', 'warn', 'ok',
   'bad', 'clock', 'search', 'filter', 'add', 'edit', 'delete', 'back', 'more', 'camera', 'doc', 'offline',
-  'home', 'me', 'sun', 'moon'];
+  'home', 'me', 'sun', 'moon', 'tyre', 'battery'];
 
 /* ---------- helpers ---------- */
 // Everything inside the outer <svg ...> ... </svg>.
