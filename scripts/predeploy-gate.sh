@@ -315,6 +315,25 @@ jck "on a desktop the home lays out in the content grid, not one column" \
 # grid items and nothing places them.
 jck "and the cards are the grid items, not a wrapper holding them" \
   "(function(){var c=document.querySelector('.content');if(!c)return 'no .content';var w=c.querySelector('[data-v2]');if(!w)return 'no v2 wrapper';if(getComputedStyle(w).display!=='contents')return 'wrapper is a box: '+getComputedStyle(w).display;var xs={};[].slice.call(w.children).forEach(function(e){xs[Math.round(e.getBoundingClientRect().left)]=1});return Object.keys(xs).length>=2?'two columns':'all in one column'})()" "two columns"
+# The login card has a width of its own, and the PIN pad is a pad.
+#
+# #app centres a login with place-items:center, and justify-items:center sizes a
+# grid item to its CONTENT. Every width in ui/login.css is a max-width, so for
+# three deploys the v2 card was as wide as whatever its widest child needed: 332px
+# on the role list, and 186px on the PIN pad -- 14% of this very viewport, with
+# 43x38px keys. It was centred the whole time, which is what the earlier checks
+# asserted, so they passed while the office was shown a collapsed box. Centred is
+# not the property that was broken. Width is, so width is what is measured, and
+# the pad is measured on the screen where the collapse was worst.
+j "renderLogin()" >/dev/null
+settle "document.querySelector('.lg')?'yes':'no'" "yes" 20 >/dev/null
+jck "at 1366 the login card is a stated width, not shrunk to its content" \
+  "(function(){var l=document.querySelector('.lg');if(!l)return 'no login';var w=Math.round(l.getBoundingClientRect().width);return w>=420?'wide enough':'collapsed to '+w+'px'})()" "wide enough"
+j "(function(){var u=(S.cache.users||[]).filter(function(x){return x.role==='owner'})[0];if(u)renderPin(u);return 'x'})()" >/dev/null
+settle "document.querySelector('.lg-pad')?'yes':'no'" "yes" 20 >/dev/null
+jck "and the PIN keys are a mouse target, not a 43px sliver" \
+  "(function(){var k=document.querySelector('.lg-pad .btn');if(!k)return 'no keys';var r=k.getBoundingClientRect(),w=Math.round(r.width),h=Math.round(r.height);return (w>=72&&h>=44)?'usable':'key is '+w+'x'+h})()" "usable"
+j "renderLogin()" >/dev/null
 bb viewport "$VP_WAS" >/dev/null
 
 jck "mechanics still on the roster" \

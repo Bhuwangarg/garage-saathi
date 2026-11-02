@@ -106,3 +106,49 @@
 @media (prefers-reduced-motion: reduce) {
   [data-v2] .lg-dot { transition: none; }
 }
+
+/* ==========================================================================
+   Desktop: state a width, because nothing else will
+   --------------------------------------------------------------------------
+   #app centres this screen with `place-items:center`, which is `align-items`
+   AND `justify-items` -- and justify-items:center sizes a grid item to its
+   CONTENT. Every width in this file is a max-width, so the card had no width
+   of its own and came out as wide as whatever its widest child happened to
+   need: 332px on the role list, and 186px on the PIN pad, where the widest
+   child is a three-column grid of digits. On a 1366px office screen that is
+   14% of the width, with 43x38px keys. Centring the card -- which is what was
+   "fixed" first -- only centred the collapse.
+
+   The live stylesheet hit this twice before and wrote it down both times; the
+   note above .userpick states it in one line, and .login carries an explicit
+   `width:min(860px,92vw)` for exactly this reason. Adding .lg to that selector
+   without giving it a width made it the third time. So the width is declared
+   here rather than inferred from content.
+
+   The breakpoint matches the rule that causes it (min-width:1024px). Below it
+   #app is display:block and the card already fills the column.
+   ====================================================================== */
+@media (min-width: 1024px) {
+  [data-v2].lg {
+    width: min(460px, 92vw);
+    min-height: auto;
+    align-self: center;
+    padding: var(--s8) var(--s7);
+    background: var(--surface-raised);
+    border: 1px solid var(--line);
+    border-radius: 20px;
+    box-shadow: 0 24px 60px -30px rgba(24, 26, 32, .30), 0 1px 3px rgba(24, 26, 32, .05);
+  }
+  /* The 380px cap is a phone gutter. Inside a card of a stated width the
+     children should use it. */
+  [data-v2].lg > * { max-width: none; }
+  /* The pad fills the card rather than sitting in a 300px well inside it: the
+     rows above it are full width, and an inset block of keys under full-width
+     rows reads as a mistake. Stated here rather than left to the source order
+     of the rule above, which is what was deciding it. */
+  [data-v2] .lg-pad { max-width: none; }
+  /* A pointer does not need the 48px yard key. It does need more than the 38px
+     the collapse produced. 52px against a 123px-wide key is a comfortable
+     mouse target and still reads as a keypad. */
+  [data-v2] .lg-pad .btn { min-height: 52px; }
+}
