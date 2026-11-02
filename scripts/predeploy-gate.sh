@@ -681,6 +681,58 @@ jck "every cache key names a store" \
 jck "a marked store is dirty, and clearing takes only what was named" \
   "(function(){DB.markDirty('zq');var a=DB.dirtySnapshot().has('zq');DB.clearDirty(new Set(['zq']));return String(a&&!DB.dirtySnapshot().has('zq'))})()" "true"
 
+# The bulk pair sync's pull now applies a page through. The decision is covered by
+# test_pullapply.js (against every combination of timestamp and redaction flag) and
+# the server paging by test_pullbytes.py / test_pulldefer.py; this is the only place
+# the IndexedDB half runs at all, because the gate serves the app with no sync
+# endpoint. Without these they would ship untested.
+#
+# Fired and then polled, never awaited through `js`: handing a promise back to the
+# browser is what held this gate open for fourteen minutes once. One async block
+# does all of it and leaves a single flat string behind.
+j "window.__zbulk='';(async function(){
+  try{
+    var out=[];
+    var c=await DB.bulkPutRaw('parts',[{id:'zb1',name:'A',updatedAt:777},{id:'zb2',name:'B',updatedAt:777}]);
+    var g=await DB.bulkRawGet('parts',['zb1','zb2']);
+    out.push('count='+c);
+    out.push('names='+(((g.zb1||{}).name||'-')+((g.zb2||{}).name||'-')));
+    await DB.bulkPutRaw('parts',[{id:'zb3',name:'C',updatedAt:12345}]);
+    var g3=await DB.bulkRawGet('parts',['zb3']);
+    out.push('stamp='+String((g3.zb3||{}).updatedAt));
+    DB.clearDirty(new Set(['parts']));
+    await DB.bulkPutRaw('parts',[{id:'zb4',updatedAt:1}]);
+    out.push('dirty='+String(DB.dirtySnapshot().has('parts')));
+    var seen=0,was=DB.onChange; DB.onChange=function(){seen++};
+    await DB.bulkPutRaw('parts',[{id:'zb5',updatedAt:1}]);
+    DB.onChange=was; out.push('echo='+seen);
+    var gm=await DB.bulkRawGet('parts',['zb1','zb-missing']);
+    out.push('got='+String(!!gm.zb1)+'/'+String('zb-missing' in gm));
+    var ge=await DB.bulkRawGet('parts',[]);
+    out.push('empty='+Object.keys(ge).length);
+    var rows=[],i; for(i=0;i<600;i++) rows.push({id:'zp'+i,updatedAt:1});
+    var t0=performance.now(); await DB.bulkPutRaw('parts',rows); var bulk=performance.now()-t0;
+    var t1=performance.now();
+    for(i=0;i<60;i++) await DB.putRaw('parts',{id:'zs'+i,updatedAt:1});
+    var per=(performance.now()-t1)/60*600;
+    out.push('faster='+String(bulk<per)); out.push('ratio='+Math.round(per/Math.max(bulk,0.01)));
+    window.__zbulk=out.join('|');
+  }catch(e){ window.__zbulk='threw='+(e&&e.name||e); }
+})()" >/dev/null
+settle "window.__zbulk?'done':''" "done" 40 >/dev/null
+# Read back as plain synchronous string lookups, so each failure names itself.
+jck "the bulk IO block ran at all"                                    "(window.__zbulk||'empty').split('|')[0].indexOf('threw')<0?'ok':(window.__zbulk||'empty')" "ok"
+jck "bulkPutRaw writes every row in the page"                         "/count=(\\d+)/.exec(window.__zbulk||'')[1]" "2"
+jck "…and they read back through bulkRawGet"                          "/names=(\\S\\S)/.exec(window.__zbulk||'')[1]" "AB"
+# A bulk version that stamped updatedAt would make every pulled record look locally
+# edited, and the device would push the whole table back as its own changes.
+jck "bulkPutRaw keeps the server's updatedAt instead of stamping now" "/stamp=(\\d+)/.exec(window.__zbulk||'')[1]" "12345"
+jck "bulkPutRaw marks the store dirty, so load() reads it back"       "/dirty=(\\w+)/.exec(window.__zbulk||'')[1]" "true"
+jck "bulkPutRaw does not echo the server's records into the outbox"   "/echo=(\\d+)/.exec(window.__zbulk||'')[1]" "0"
+jck "bulkRawGet returns what is there and omits what is not"          "/got=(\\S+?)\\|/.exec(window.__zbulk+'|')[1]" "true/false"
+jck "bulkRawGet of nothing is empty, not a thrown transaction"        "/empty=(\\d+)/.exec(window.__zbulk||'')[1]" "0"
+jck "a page applies faster in bulk than one record at a time"         "/faster=(\\w+)/.exec(window.__zbulk||'')[1]" "true"
+
 # gpsEventsForBus scanned all forty thousand events per call, normalising every
 # registration as it went, and driverScore calls it once per driver -- 4.4 million
 # string rewrites to draw one crew list. Grouped once now.

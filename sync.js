@@ -118,6 +118,20 @@ const Sync = (function () {
 const PUSH_PER_TICK = 250;
 const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
   let lastRev = parseInt(ls.getItem('lastRev') || '0', 10);
+  /* Stores fetched LAST, on a cursor of their own.
+   *
+   * gpsevents is an order of magnitude bigger than everything else put together,
+   * and only the owner and supervisor are sent it -- so on exactly the two logins
+   * that matter most, the whole app used to wait behind ~40,000 telemetry rows
+   * before a single job card appeared. Nothing renders them live either: the live
+   * map comes from Sync.fleet(), and these feed a 24-hour count, a 7-day count and
+   * a per-bus history, none of which is on the first screen anybody opens.
+   *
+   * The main drain therefore skips them and its cursor moves past them, which is
+   * only safe BECAUSE this second cursor goes back for them afterwards. The two
+   * must be reset together for the same reason -- see the scope rewind below. */
+  const DEFERRED_STORES = ['gpsevents'];
+  let lastRevDeferred = parseInt(ls.getItem('lastRevDeferred') || '0', 10);
   let lastSyncAt = parseInt(ls.getItem('lastSyncAt') || '0', 10);
   let outbox = new Set(JSON.parse(ls.getItem('outbox') || '[]'));
   // Who made each pending change. The outbox is device-wide, so changes one
@@ -255,7 +269,13 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
       const had = ls.getItem('pullScope') || '';
       const widened = had.indexOf('redacted') === 0 && scope.indexOf('full') === 0;
       const entitlementMoved = !!had && had.slice(had.indexOf(':') + 1) !== SCOPE_V;
-      if (widened || entitlementMoved) { lastRev = 0; ls.removeItem('lastRev'); }
+      if (widened || entitlementMoved) {
+        lastRev = 0; ls.removeItem('lastRev');
+        // Both, always. Rewinding one cursor and not the other is how a login that
+        // just gained an entitlement would re-read everything except the stores it
+        // gained -- the exact failure this rewind exists to cure.
+        lastRevDeferred = 0; ls.removeItem('lastRevDeferred');
+      }
       ls.setItem('pullScope', scope);
       tick();
       return { user: j.user };
@@ -869,17 +889,51 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
    * and the newest — a staff member added this morning, an archived record —
    * arrive last and so never arrived at all. */
   async function pull() {
+    // The screens people open first come from the main drain, so it goes first and
+    // finishes before the telemetry starts arriving.
+    await drain(() => pullPage({ defer: DEFERRED_STORES }));
+    await drain(() => pullPage({ only: DEFERRED_STORES }));
+  }
+
+  async function drain(step) {
     let guard = 0;
     for (;;) {
-      const more = await pullPage();
+      const more = await step();
       if (!more) return;
       if (++guard > 200) return;           // a cursor that never advances must not spin forever
     }
   }
 
-  async function pullPage() {
+  /* The old per-record path, kept for the two cases a batch cannot serve: a store
+   * that will not read at all, and a batch that aborted because one row in it
+   * could not be stored. Reading and deciding again here is deliberate rather than
+   * wasteful -- it is the only way to learn WHICH row failed, and a record written
+   * by another tab between the batch and this retry should win on its own merits
+   * rather than be overwritten by a decision taken before it existed. */
+  async function applyEachInTurn(rows, onStored, onFailed, onConflict) {
+    for (const r of rows) {
+      const key = r.store + '|' + r.id;
+      let local = null;
+      try {
+        local = DB._rawGet ? await DB._rawGet(r.store, r.id) : await DB.get(r.store, r.id);
+      } catch (e) { onFailed(r, e); continue; }
+      const one = {}; one[key] = local;
+      const d = PullApply.decidePage([r], one, { now: Date.now(), inOutbox: (k) => outbox.has(k) });
+      if (d.conflicts.length) { d.conflicts.forEach(onConflict); saveOutbox(); }
+      if (!d.winners.length) continue;
+      try { await DB.putRaw(r.store, r.data); onStored(r); }
+      catch (e) { onFailed(r, e); }
+    }
+  }
+
+  async function pullPage(opts) {
     setStatus('syncing');
-    const res = await fetch(baseUrl() + '/pull?since=' + lastRev + '&deviceId=' + encodeURIComponent(deviceId),
+    const only = (opts && opts.only) || null;
+    const defer = (opts && opts.defer) || null;
+    const since = only ? lastRevDeferred : lastRev;
+    const filter = only ? '&store=' + encodeURIComponent(only.join(','))
+      : defer ? '&defer=' + encodeURIComponent(defer.join(',')) : '';
+    const res = await fetch(baseUrl() + '/pull?since=' + since + '&deviceId=' + encodeURIComponent(deviceId) + filter,
       { headers: authHeaders() });
     if (res.status === 401) throw sessionDead('pull');
     if (res.status === 429) throw await throttled(res, 'pull');
@@ -890,57 +944,95 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
     // which is the difference between being read and not being read.
     if (Array.isArray(j.flags)) { flags = j.flags; ls.setItem('featureFlags', JSON.stringify(flags)); }
     let applied = 0; let conflicts = 0; let holdRev = 0;
+
+    /* Apply the page a STORE at a time, not a record at a time.
+     *
+     * This loop used to do two awaited IndexedDB transactions per record -- a get
+     * to compare against the local copy, then a put. At 600 records to a page and
+     * 135 pages in a fleet-sized first sync that is ~162,000 serialised
+     * transactions: measured at 277ms per page against 54ms for the same work as
+     * one transaction each way, so roughly 37 seconds of IndexedDB before any data
+     * appears, on a fast machine, and minutes on the office PCs and the drivers'
+     * phones. That is most of what "the app takes forever after login" was.
+     *
+     * Which copy wins did NOT change. That rule moved to pullapply.js so it could
+     * be tested on its own, and test_pullapply.js checks it against a transcription
+     * of this loop's old condition across every combination of timestamp and
+     * redaction flag. Everything the old comments protected is still protected;
+     * each fallback below says which failure it is for.
+     */
+    const usable = [];
     for (const r of (j.records || [])) {
       if (!STORES.includes(r.store) || !r.data) continue;
       // A record is stored under its own key, so that key must be the one the
       // server authorised. A mismatch would overwrite some OTHER record; a
       // non-object cannot be stored at all and would stall the cursor forever.
       if (typeof r.data !== 'object' || Array.isArray(r.data)) continue;
-      const kp = keyField(r.store);
-      if (String(r.data[kp]) !== String(r.id)) continue;
+      if (String(r.data[keyField(r.store)]) !== String(r.id)) continue;
+      usable.push(r);
+    }
+
+    const noteStored = (r) => {
       const key = r.store + '|' + r.id;
-      const local = (DB._rawGet ? await DB._rawGet(r.store, r.id) : await DB.get(r.store, r.id));
-      const unredact = local && local._redacted && !r.data._redacted;
-      // A local copy dated far in the future (from a bad clock, or a forged
-      // write pulled before the server clamped timestamps) must not outrank
-      // every later correction forever.
-      const localTs = local ? (local.updatedAt || 0) : 0;
-      const localAt = localTs > Date.now() + 86400000 ? 0 : localTs;
-      if (!local || unredact || (r.data.updatedAt || 0) > localAt) {
-        // Concurrent-overwrite signal: a server copy newer than a LOCAL edit we
-        // still owe the server (in the outbox). Last-write-wins still applies
-        // (server is newer), but the local editor must be told their change was
-        // superseded so they don't trust a stale screen.
-        if (outbox.has(key)) {
-          conflicts++;
-          outbox.delete(key); saveOutbox();   // server already has a newer copy
-        }
-        try {
-          await DB.putRaw(r.store, r.data);   // keep server timestamp, no echo
-          applied++;
-          if (pullSkips[key]) { delete pullSkips[key]; savePullSkips(); }
-        } catch (e) {
-          // A record that will not store must not be walked past. The cursor
-          // used to advance to the page's maxRev regardless, so the server
-          // never offered that record again and the device was quietly missing
-          // something every other device had — 22 crew added on one phone,
-          // five of them showing on another.
-          const prev = pullSkips[key] || { tries: 0 };
-          pullSkips[key] = { tries: prev.tries + 1, rev: r.rev || 0, at: Date.now(), why: String((e && e.name) || e) };
-          savePullSkips();
-          if (pullSkips[key].tries < PULL_STORE_TRIES && r.rev) {
-            // Hold the cursor just before it so the next pull brings it back.
-            if (!holdRev || r.rev < holdRev) holdRev = r.rev;
-          }
-          console.warn('pull: could not store', key, e);
-        }
+      applied++;
+      if (pullSkips[key]) { delete pullSkips[key]; savePullSkips(); }
+    };
+    /* A record that will not store must not be walked past. The cursor used to
+     * advance to the page's maxRev regardless, so the server never offered that
+     * record again and the device was quietly missing something every other device
+     * had -- 22 crew added on one phone, five of them showing on another. */
+    const noteFailure = (r, e) => {
+      const key = r.store + '|' + r.id;
+      const prev = pullSkips[key] || { tries: 0 };
+      pullSkips[key] = { tries: prev.tries + 1, rev: r.rev || 0, at: Date.now(), why: String((e && e.name) || e) };
+      savePullSkips();
+      // Hold the cursor just before it so the next pull brings it back.
+      if (pullSkips[key].tries < PULL_STORE_TRIES && r.rev && (!holdRev || r.rev < holdRev)) holdRev = r.rev;
+      console.warn('pull: could not store', key, e);
+    };
+    const noteConflict = (key) => { conflicts++; outbox.delete(key); };
+
+    const grouped = PullApply.byStore(usable);
+    for (const store of Object.keys(grouped)) {
+      const rows = grouped[store];
+      let locals = null;
+      try {
+        const got = await DB.bulkRawGet(store, rows.map((r) => r.id));
+        locals = {};
+        for (const r of rows) locals[r.store + '|' + r.id] = got[r.id] || null;
+      } catch (e) {
+        // The store would not even read. Fall back to one record at a time, which
+        // reads, decides and writes each on its own and records its own failure,
+        // so one unreadable store cannot cost the rest of the page.
+        locals = null;
+      }
+      if (!locals) { await applyEachInTurn(rows, noteStored, noteFailure, noteConflict); continue; }
+
+      const d = PullApply.decidePage(rows, locals, { now: Date.now(), inOutbox: (k) => outbox.has(k) });
+      /* Last-write-wins still applies -- the server copy is newer -- but a local
+       * editor whose change was superseded has to be told, or they keep trusting a
+       * screen that has already been overruled. */
+      d.conflicts.forEach(noteConflict);
+      if (d.conflicts.length) saveOutbox();
+      if (!d.winners.length) continue;
+      try {
+        await DB.bulkPutRaw(store, d.winners.map((r) => r.data));
+        d.winners.forEach(noteStored);
+      } catch (e) {
+        // One bad row aborts the whole transaction, so NOTHING in this store
+        // landed. Redo it a record at a time to find which row it was and to hold
+        // the cursor at exactly that rev rather than at the whole page's.
+        await applyEachInTurn(d.winners, noteStored, noteFailure, noteConflict);
       }
     }
-    const before = lastRev;
+    const before = since;
     if (typeof j.maxRev === 'number') {
       // Never past a record this device still owes itself.
       const next = holdRev ? Math.min(j.maxRev, holdRev - 1) : j.maxRev;
-      if (next > lastRev) { lastRev = next; ls.setItem('lastRev', String(lastRev)); }
+      if (next > since) {
+        if (only) { lastRevDeferred = next; ls.setItem('lastRevDeferred', String(lastRevDeferred)); }
+        else { lastRev = next; ls.setItem('lastRev', String(lastRev)); }
+      }
     }
     const stuck = Object.keys(pullSkips).length;
     if (stuck && cbStoreFail) cbStoreFail(stuck, pullSkips);
@@ -948,7 +1040,7 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
     if (conflicts && cbConflict) await cbConflict(conflicts);
     // Only keep going while the cursor is actually moving, so a server that
     // reports `more` without advancing cannot loop us.
-    return !!j.more && lastRev > before;
+    return !!j.more && (only ? lastRevDeferred : lastRev) > before;
   }
 
   // One-time backfill for stores that were added to STORES after records already
@@ -1005,7 +1097,11 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
   // run at any time — pull only overwrites a local record when the server copy
   // is NEWER by updatedAt, and anything this device still owes the server is
   // held in the outbox and pushed first.
-  function reset() { ls.removeItem('lastRev'); lastRev = 0; return tick(); }
+  function reset() {
+    ls.removeItem('lastRev'); lastRev = 0;
+    ls.removeItem('lastRevDeferred'); lastRevDeferred = 0;
+    return tick();
+  }
 
   /* One-time heal, on the deploy that fixed the paging bug above.
    *
@@ -1022,7 +1118,7 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
       await reset();
     } catch (e) { /* the 4s tick carries on regardless */ }
   }
-  const info = () => ({ deviceId, lastRev, pending: outbox.size,
+  const info = () => ({ deviceId, lastRev, lastRevDeferred, pending: outbox.size,
     heldForOthers: [...outbox].filter((k) => outboxBy[k] && outboxBy[k] !== actor).length, url: baseUrl(), status, authed: !!token, lastSyncAt, lastError, lastErrorAt, notStored: Object.keys(pullSkips).length,
                         photosPending: Object.keys(photoQ).length, quarantined: Object.keys(quarantine).length });
 

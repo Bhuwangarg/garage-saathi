@@ -186,6 +186,50 @@ const DB = {
     await this._write(store, obj);
     return obj;
   },
+  /* The two below are putRaw and _rawGet done a page at a time, for sync's pull.
+   *
+   * pullPage() asked for each row on its own and then wrote it on its own: two
+   * awaited IndexedDB transactions per record, 600 records to a page, 135 pages in
+   * a fleet-sized first sync. Measured at 277ms per page against 54ms for the same
+   * work in one transaction each way -- about 37 seconds of IndexedDB before any
+   * data appears, on a fast machine, and minutes on the office PCs.
+   *
+   * Both issue every request up front and wait on the TRANSACTION rather than
+   * chaining request to request, which is where the time actually went: a chained
+   * get/put cannot overlap, and one transaction per record cannot either. */
+  async bulkRawGet(store, ids) {
+    if (!ids || !ids.length) return {};
+    const os = await tx(store);
+    return new Promise((res, rej) => {
+      const out = {};
+      let left = ids.length;
+      os.transaction.onerror = () => rej(os.transaction.error);
+      os.transaction.onabort = () => rej(os.transaction.error || new Error('bulkRawGet aborted'));
+      ids.forEach((id) => {
+        const r = os.get(id);
+        r.onsuccess = () => { if (r.result) out[id] = r.result; if (--left === 0) res(out); };
+        r.onerror = () => rej(r.error);
+      });
+    });
+  },
+  // Remote writes for one store in one transaction: keeps each row's own
+  // updatedAt and does NOT notify onChange, exactly as putRaw does, so sync never
+  // echoes the server's own records back at it as local edits.
+  async bulkPutRaw(store, rows) {
+    if (!rows || !rows.length) return 0;
+    _markDirty(store);
+    const os = await tx(store, 'readwrite');
+    await new Promise((res, rej) => {
+      os.transaction.oncomplete = () => res();
+      os.transaction.onerror = () => rej(os.transaction.error);
+      os.transaction.onabort = () => rej(os.transaction.error || new Error('bulkPutRaw aborted'));
+      // One bad row aborts the whole transaction, which is why the caller falls
+      // back to writing that store a record at a time -- that path is where a
+      // record that cannot be stored gets counted and the cursor held back.
+      rows.forEach((o) => { const r = os.put(o); r.onerror = () => rej(r.error); });
+    });
+    return rows.length;
+  },
   _write(store, obj) {
     _markDirty(store);
     return tx(store, 'readwrite').then((os) => new Promise((res, rej) => {

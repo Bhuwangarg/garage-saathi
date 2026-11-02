@@ -20,7 +20,7 @@
  * Data lives in IndexedDB, so the shell is all this caches. Cross-origin
  * requests (the sync server, uploads, the Anthropic API) are NOT intercepted.
  */
-const CACHE = 'garage-saathi-v143';
+const CACHE = 'garage-saathi-v144';
 const SHELL = [
   './',
   './index.html',
@@ -28,6 +28,7 @@ const SHELL = [
   './seed-data.js',
   './seed-docs.js',
   './db.js',
+  './pullapply.js',
   './sync.js',
   './duty.js',
   './gate.js',

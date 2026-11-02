@@ -3623,7 +3623,23 @@ def register_roster(crew=None, pins_out=None):
     return created
 
 
-PULL_LIMIT = int(os.environ.get("PULL_LIMIT", "600"))
+# A pull page is really governed by BYTES, not by a record count. Six hundred rows
+# of text and six hundred rows carrying a photo are the same number and two very
+# different responses, and the platform's body limit is 4.5 MB. The client's push
+# has had a byte budget since it was written; pull only ever had the count -- so the
+# count had to be small enough for the worst-case page, and was therefore small for
+# every page. A fleet-sized first sync became 135 sequential round trips, measured
+# at 96ms of request overhead each before Postgres does any work.
+#
+# With a byte budget the count can be the backstop it should be: whichever runs out
+# first ends the page, and a page always ends on a rev boundary.
+_STORE_NAME = re.compile(r"^[a-z][a-z0-9]{1,30}$")
+PULL_LIMIT = int(os.environ.get("PULL_LIMIT", "2000"))
+PULL_MAX_BYTES = int(os.environ.get("PULL_MAX_BYTES", "2500000"))   # ~2.5 MB, well under 4.5
+# Per-record JSON overhead beyond the stored `data` blob: the store name, the id,
+# updatedAt, rev and their punctuation. Deliberately generous -- going over the
+# budget costs a 413 from the platform, going under costs one extra round trip.
+PULL_REC_OVERHEAD = 160
 
 
 # Who may see crew contact details, identity documents and pay. Everyone else still
@@ -3802,7 +3818,7 @@ def redact_for(actor, rec):
     return dict(rec, data=d)
 
 
-def pull(since, limit=None, actor=None):
+def pull(since, limit=None, actor=None, only=None, defer=None):
     """One page of records newer than `since`, oldest rev first.
 
     This used to return the whole table. On a serverless host that meant a first
@@ -3821,7 +3837,22 @@ def pull(since, limit=None, actor=None):
     # must use the same filter, or completing a rev group would quietly readmit a
     # row the page had just excluded.
     skip = sorted(_never_for(actor))
+    if defer:
+        # Stores this device is choosing to fetch later, on a cursor of their own.
+        # Treated exactly like the stores it may never have: left out of the page,
+        # and the cursor still clears past them, which is only safe BECAUSE the
+        # second cursor goes back for them. See DEFERRED_STORES in sync.js.
+        skip = sorted(set(skip) | set(defer))
     gap = (" AND store NOT IN (%s)" % ",".join(["?"] * len(skip))) if skip else ""
+    if only:
+        # The mirror image: fetch nothing BUT these, for the deferred drain. A store
+        # the actor may never see stays excluded even if it is asked for by name.
+        allow = sorted(set(only) - set(_never_for(actor)))
+        if not allow:
+            return {"records": [], "maxRev": since, "more": False,
+                    "tableMax": since, "serverTime": now_ms()}
+        gap = " AND store IN (%s)" % ",".join(["?"] * len(allow))
+        skip = allow
     with _lock:
         c = db()
         # The bound is read BEFORE the page and the page is clamped to it. Read the
@@ -3836,10 +3867,38 @@ def pull(since, limit=None, actor=None):
         rows = c.execute(
             "SELECT store,id,data,updatedAt,rev FROM records WHERE rev>? AND rev<=?" + gap +
             " ORDER BY rev ASC LIMIT ?", tuple([since, maxrev] + skip + [limit])).fetchall()
+        # Trim to the byte budget before anything else looks at the page. The cut
+        # lands on a rev boundary for the same reason the count-based one does:
+        # push() gives every record in one batch the same rev, and splitting a group
+        # would let the client advance its cursor past records it never received.
+        trimmed_for_bytes = False
+        if rows:
+            total = 0
+            over_at = None
+            for n, row in enumerate(rows):
+                total += len(row[2] or "") + PULL_REC_OVERHEAD
+                if total > PULL_MAX_BYTES:
+                    over_at = n
+                    break
+            if over_at is not None:
+                boundary = rows[over_at][4]
+                keep = [r for r in rows if r[4] < boundary]
+                if not keep:
+                    # The very first rev group is over budget on its own. Send it
+                    # whole anyway: trimming to nothing would mean the client asks
+                    # for this same page for ever and never gets past it. One
+                    # oversized batch is a big response; no response is a dead device.
+                    first = rows[0][4]
+                    keep = [r for r in rows if r[4] == first]
+                rows = keep
+                trimmed_for_bytes = True
         # Whether the page stopped because it filled up, read before the rev-group
-        # fix-up below can push the count past the limit.
-        full = len(rows) == limit
-        if rows and full:
+        # fix-up below can push the count past the limit. A byte-trimmed page is
+        # already on a rev boundary, so it skips that fix-up but still counts as
+        # full -- otherwise the cursor would jump to the table maximum and step over
+        # everything this page just left behind.
+        full = trimmed_for_bytes or len(rows) == limit
+        if rows and full and not trimmed_for_bytes:
             last = rows[-1][4]
             # Drop the trailing partial rev group unless it is the whole page, in
             # which case take the rest of that group so progress is still made.
@@ -5166,8 +5225,28 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(401, {"error": "unauthorized"})
             if self._rate_limited(me, "sync"):
                 return None
-            since = int((parse_qs(u.query).get("since") or ["0"])[0])
-            out = pull(since, actor=me)
+            q = parse_qs(u.query)
+            since = int((q.get("since") or ["0"])[0])
+
+            def _stores(param):
+                """A comma-separated store list from the query, cleaned.
+
+                Neither of these can widen what a login receives. `defer` only
+                removes stores from the page, and `only` is intersected with what
+                redact_for would have allowed anyway -- so the worst a crafted
+                request can do to itself is ask for less."""
+                raw = (q.get(param) or [""])[0]
+                names = [x.strip() for x in raw.split(",") if x.strip()]
+                # Shape, not a list: there is no single server-side register of
+                # store names to check against, and inventing a second copy of one
+                # is how the skip list and redact_for would drift apart. A name
+                # that is not a real store simply matches no rows -- the SQL is
+                # parameterised either way -- so the cost of a typo is our own GPS
+                # data not arriving, which is visible, rather than anything leaking.
+                return [x for x in names if _STORE_NAME.match(x)][:40]
+
+            out = pull(since, actor=me, only=_stores("store") or None,
+                       defer=_stores("defer") or None)
             # Carried on every pull rather than fetched separately: a flag the
             # client learns about a tick late is fine, one it has to make an
             # extra request for will not be read at all.
