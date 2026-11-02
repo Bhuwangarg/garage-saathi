@@ -2527,7 +2527,7 @@ function viewMoney() {
   const cardSpend = trips.reduce((s, t) => s + tripCash(t).card, 0);
   const cashOwed = trips.filter((t) => t.status !== 'closed').reduce((s, t) => s + Math.max(0, -tripCash(t).remaining), 0);
 
-  let body = `<div class="greet"><div class="greet-av">💰</div>
+  let body = `<div class="greet"><div class="greet-av">${icon('money')}</div>
     <div><div class="greet-hi">${t('money')}</div><div class="muted small">${esc(BIZ)} · ${fmtToday()}</div></div></div>`;
 
   // Window selector.
@@ -2554,13 +2554,13 @@ function viewMoney() {
   if (total > 0) {
     body += `<div style="display:flex;height:14px;border-radius:7px;overflow:hidden;margin:4px 0 10px">${segs.map(([, v], i) => v > 0 ? `<i style="width:${(v / total * 100).toFixed(1)}%;background:var(--accent);opacity:${opac[i]}"></i>` : '').join('')}</div>`;
     body += segs.filter(([, v]) => v > 0).map(([lbl, v], i) => `<div class="row between small" style="padding:3px 0"><span><i style="display:inline-block;width:10px;height:10px;border-radius:3px;background:var(--accent);opacity:${opac[segs.findIndex((s) => s[0] === lbl)]};margin-right:7px"></i>${esc(lbl)}</span><b class="money">${money(v)}</b></div>`).join('');
-    body += `<div class="tiny muted" style="margin-top:6px">✓ ${t('reconciles')} ${money(total)}</div>`;
+    body += `<div class="tiny muted" style="margin-top:6px">${icon('ok', { size: 14 })} ${t('reconciles')} ${money(total)}</div>`;
   } else body += `<div class="muted small">No spend in ${w.label.toLowerCase()} yet.</div>`;
   body += `</div>`;
 
   // ZONE 5 — Money-pit buses (₹/km). Honest empty state until odometers exist.
   const withOdo = S.cache.buses.filter((b) => (b.odometer || 0) > 0);
-  body += `<div class="card"><h3>🕳️ ${t('moneyPit')}</h3>`;
+  body += `<div class="card"><h3>${icon('alert', { size: 18 })} ${t('moneyPit')}</h3>`;
   if (!withOdo.length) {
     body += `<div class="muted small">${t('needsOdometer')}</div>`;
   } else {
@@ -2575,18 +2575,18 @@ function viewMoney() {
   body += `</div>`;
 
   // ZONE 6 — Trip cash roll-up.
-  body += `<div class="card" data-act="openAccounting" style="cursor:pointer"><div class="row between"><h3>🚌 ${t('tripCash')}</h3><span class="tiny muted">per-bus ›</span></div>
+  body += `<div class="card" data-act="openAccounting" style="cursor:pointer"><div class="row between"><h3>${icon('bus', { size: 18 })} ${t('tripCash')}</h3><span class="tiny muted">per-bus ›</span></div>
     <div class="grid2" style="margin-top:4px">
       <div><div class="tiny muted">On company card (diesel/FASTag)</div><b class="money">${money(cardSpend)}</b></div>
       <div><div class="tiny muted">Cash over allowance</div><b class="money" style="color:${cashOwed > 0 ? 'var(--red)' : 'var(--text)'}">${money(cashOwed)}</b></div></div></div>`;
 
   // ZONE 7 — Quick row.
   body += `<div class="card"><h3>${t('more')}</h3>
-    <div class="trow" data-act="openPurchases"><div class="ti">🧾</div><div class="tm"><div class="tt">${t('bills')}</div></div><div class="tc">${(S.cache.purchases || []).length}</div></div>
-    <div class="trow" data-act="openVendors"><div class="ti">🏪</div><div class="tm"><div class="tt">Vendors</div></div><div class="tc">${(S.cache.vendors || []).length}</div></div>
-    <div class="trow" data-act="openFuel"><div class="ti">⛽</div><div class="tm"><div class="tt">${t('fuel')} & mileage</div></div><div class="tc">${(S.cache.fuel || []).length}</div></div>
-    <div class="trow" data-act="openReports"><div class="ti">📊</div><div class="tm"><div class="tt">Reports</div></div><div class="tc">›</div></div></div>`;
-  shell(t('money'), body);
+    <div class="trow" data-act="openPurchases"><div class="ti">${icon('money')}</div><div class="tm"><div class="tt">${t('bills')}</div></div><div class="tc">${(S.cache.purchases || []).length}</div></div>
+    <div class="trow" data-act="openVendors"><div class="ti">${icon('part')}</div><div class="tm"><div class="tt">Vendors</div></div><div class="tc">${(S.cache.vendors || []).length}</div></div>
+    <div class="trow" data-act="openFuel"><div class="ti">${icon('fuel')}</div><div class="tm"><div class="tt">${t('fuel')} & mileage</div></div><div class="tc">${(S.cache.fuel || []).length}</div></div>
+    <div class="trow" data-act="openReports"><div class="ti">${icon('doc')}</div><div class="tm"><div class="tt">Reports</div></div><div class="tc">›</div></div></div>`;
+  shell(t('money'), v2(body));
 }
 
 // Monthly TOTAL running-cost buckets (repairs + fuel + misc) — shares the Money
@@ -3685,7 +3685,7 @@ function busLi(b) {
   // The row taps into bus detail; the Track button (its own data-act) taps into
   // the live tracking page — closest() matches the button first, so they don't clash.
   return `<div class="li" data-bus="${esc(b.id)}">
-    ${avatar(busImg(b), '🚌')}
+    ${avatar(busImg(b), icon('bus'))}
     <div class="main"><div class="t">${sd[0]} ${esc(b.regNo)}</div>
       <div class="s">${esc(b.company)} · ${esc(b.model)} · ${(b.odometer||0).toLocaleString('en-IN')} km</div></div>
     ${alerts ? `<span class="badge b-red">${alerts}!</span>` : ''}
@@ -4255,7 +4255,7 @@ function viewJobs() {
   // The supervisor assigns every job but had no route to the mechanics' figures —
   // their nav has no People tab. One row, above the board they work from.
   if (['owner', 'supervisor'].includes(S.user.role)) {
-    body += `<div class="trow" data-act="openScoreboard" style="margin-bottom:10px"><div class="ti">📊</div>
+    body += `<div class="trow" data-act="openScoreboard" style="margin-bottom:10px"><div class="ti">${icon('doc')}</div>
       <div class="tm"><div class="tt">${t('mpTitle')}</div>
         <div class="ts">${t('mpSub')}</div></div><div class="tc">›</div></div>`;
   }
@@ -7111,7 +7111,7 @@ function viewVendorDetail(id) {
       ${v.gstin ? `<div><div class="tiny muted">GSTIN</div><b style="font-size:12px">${esc(v.gstin)}</b></div>` : ''}
     </div>${v.notes ? `<div class="tiny muted" style="margin-top:8px">${esc(v.notes)}</div>` : ''}</div>`;
   body += `<div class="card"><div class="row between"><h3>Bills</h3>${can(S.user.role, 'addPurchase') ? `<button class="btn sm" data-act="addPurchase">+ Bill</button>` : ''}</div>`;
-  body += bills.length ? bills.map((p) => `<div class="li"><div class="ava">🧾</div>
+  body += bills.length ? bills.map((p) => `<div class="li"><div class="ava">${icon('doc')}</div>
     <div class="main"><div class="t">${money(p.amount)}</div><div class="s">${esc(p.items || '')} · ${fmtDate(p.at)}</div></div>
     <span class="badge ${p.paymentStatus === 'paid' ? 'b-green' : 'b-amber'}">${p.paymentStatus}</span>
     ${p.billPhoto ? `<img class="thumb" style="width:42px;height:42px" src="${esc(p.billPhoto)}" data-act="viewPhoto" data-src="${esc(p.billPhoto)}">` : ''}</div>`).join('') : `<div class="muted small">No bills mapped yet.</div>`;
@@ -7711,15 +7711,15 @@ function viewPurchases() {
   const _nPend = list.filter((p) => p.paymentStatus === 'pending').length;
   let body = pageSub('What the garage owes, and what it has settled');
   body += kpiRow([
-    { icon: '🧾', label: 'Pending to suppliers', value: money(pending),
+    { icon: icon('money'), label: 'Pending to suppliers', value: money(pending),
       delta: _nPend ? _nPend + ' bill' + (_nPend === 1 ? '' : 's') : '', dir: _nPend ? 'bad' : 'flat' },
-    { icon: '✅', label: 'Paid, last 30 days', value: money(_paid30) },
+    { icon: icon('ok'), label: 'Paid, last 30 days', value: money(_paid30) },
   ]);
   body += `<input id="pur-search" class="searchbox" placeholder="Search supplier or item…" autocomplete="off">`;
   body += `<div class="card listwrap" id="pur-list"><h3>${t('purchases')}</h3>`;
   const canPay = can(S.user.role, 'addPurchase');
   body += list.length ? list.map((p) => `<div class="li">
-    <div class="ava">🧾</div>
+    <div class="ava">${icon('doc')}</div>
     <div class="main"><div class="t">${esc(p.supplier)} — ${money(p.amount)}</div><div class="s">${esc(p.items||'')} · ${fmtDate(p.at)}</div></div>
     ${p.paymentStatus !== 'paid' && canPay
       ? `<button class="btn sm" data-act="togglePaid" data-pur="${esc(p.id)}">Mark paid</button>`
@@ -7727,7 +7727,7 @@ function viewPurchases() {
     ${p.billPhoto?`<img class="thumb" style="width:42px;height:42px" src="${esc(p.billPhoto)}" data-act="viewPhoto" data-src="${esc(p.billPhoto)}">`:''}
   </div>`).join('') : `<div class="muted small">No bills yet</div>`;
   body += `</div>`;
-  shell(t('purchases'), body, can(S.user.role,'addPurchase') ? { act: 'addPurchase', icon: '+' } : null);
+  shell(t('purchases'), v2(body), can(S.user.role,'addPurchase') ? { act: 'addPurchase', icon: '+' } : null);
   attachSearch('pur-search', 'pur-list');
 }
 
@@ -7944,7 +7944,7 @@ function viewCompanyDetail(company) {
   let body = `<div class="card"><div class="row between"><div><div class="muted small">Lifetime repair cost</div>
       <div class="stat" style="color:var(--brand2)">${money(grand)}</div></div>
       <div style="text-align:right"><div class="tiny muted">${buses.length} bus(es) · ${jobs.length} job(s)</div></div></div>
-    <button class="btn primary" data-act="shareBill" data-company="${esc(company)}" style="margin-top:10px">📤 Share / copy bill</button></div>`;
+    <button class="btn primary" data-act="shareBill" data-company="${esc(company)}" style="margin-top:10px">Share / copy bill</button></div>`;
   for (const b of buses) {
     const bj = jobs.filter((j) => j.busId === b.id).sort((a, b2) => b2.createdAt - a.createdAt);
     const bt = bj.reduce((s, j) => s + jobCost(j).total, 0);
@@ -7955,7 +7955,7 @@ function viewCompanyDetail(company) {
         <b>${money(c.total)}</b></div>`; }).join('') : `<div class="muted small">No jobs</div>`;
     body += `</div>`;
   }
-  shell(esc(company), body);
+  shell(esc(company), v2(body));
 }
 function companyBillText(company) {
   const buses = S.cache.buses.filter((b) => b.company === company);
@@ -8115,22 +8115,22 @@ function viewReports() {
   const _worst = rows[0];
   body += pageSub('Maintenance spend' + periodLabel() + ' \u00b7 ' + rows.length + ' buses');
   body += kpiRow([
-    { icon: '💰', label: 'Total spend' + periodLabel(), value: money(fleetTotal) },
-    { icon: '🚌', label: 'Average per bus', value: money(Math.round(_perBus)) },
-    { icon: '🔧', label: 'Job cards', value: fleetJobs },
-    { icon: '🔺', label: 'Costliest bus', value: _worst ? _worst.b.regNo : '—',
+    { icon: icon('money'), label: 'Total spend' + periodLabel(), value: money(fleetTotal) },
+    { icon: icon('bus'), label: 'Average per bus', value: money(Math.round(_perBus)) },
+    { icon: icon('job'), label: 'Job cards', value: fleetJobs },
+    { icon: icon('bad'), label: 'Costliest bus', value: _worst ? _worst.b.regNo : '—',
       act: _worst ? 'busReport' : '', data: _worst ? { bus: _worst.b.id } : null },
   ]);
   body += `<div class="card"><h3>By bus — highest spend first</h3>`;
   body += rows.length ? rows.map(({ b, r }) => {
     const cpk = busCostPerKm(b);
-    return `<div class="li" data-act="busReport" data-bus="${esc(b.id)}" style="cursor:pointer">${avatar(busImg(b), '🚌')}
+    return `<div class="li" data-act="busReport" data-bus="${esc(b.id)}" style="cursor:pointer">${avatar(busImg(b), icon('bus'))}
       <div class="main"><div class="t">${esc(b.regNo)}</div>
         <div class="s">${esc(b.company)} · ${r.n} job(s)${cpk ? ' · ₹' + cpk.toFixed(1) + '/km' : ''}</div></div>
       <b>${money(r.cost.total)}</b></div>`;
   }).join('') : `<div class="empty">No buses yet</div>`;
   body += `</div>`;
-  shell('Bus reports', body);
+  shell('Bus reports', v2(body));
 }
 function viewBusReport(busId) {
   const b = byId(S.cache.buses, busId); if (!b) return viewReports();
@@ -8147,7 +8147,7 @@ function viewBusReport(busId) {
       unit: sv0.dueIn > 0 ? 'km' : '', delta: sv0.status === 'overdue' ? 'due' : '', dir: 'bad' },
   ]);
   body += `<div class="card">${panelTitle('Maintenance cost' + periodLabel(),
-      `<button class="btn sm" data-act="shareBusReport" data-bus="${esc(b.id)}">📤 Share</button>`)}
+      `<button class="btn sm" data-act="shareBusReport" data-bus="${esc(b.id)}">Share</button>`)}
     ${detailRow('🔩', 'Parts', money(c.parts))}
     ${detailRow('👷', 'Labour', money(c.labour))}
     ${detailRow('🏪', 'Outside vendor', money(c.ext))}
@@ -8203,7 +8203,7 @@ function viewBusReport(busId) {
   }
   body += `${can(S.user.role, 'addFuel') ? `<div class="spacer"></div><button class="btn sm" data-act="addFuel" data-bus="${esc(b.id)}">⛽ Log fuel</button>` : ''}</div>`;
   body += `<div class="card">${panelTitle('Jobs & downtime')}` + miniGrid([
-    { icon: '🔧', label: 'Job cards', value: r.n },
+    { icon: icon('job'), label: 'Job cards', value: r.n },
     { icon: '🌍', label: 'Done outside', value: r.extJobs },
     { icon: '🕒', label: 'Total bay time', value: Math.round(r.downDays), unit: 'days' },
     { icon: '📋', label: 'Still open', value: r.byStatus.open + r.byStatus['in-progress'] },
@@ -8787,7 +8787,7 @@ function viewFuel() {
     body += `</div>`;
   }
   body += `<div class="card"><h3>Mileage by bus</h3>`;
-  body += rows.length ? rows.map(({ b, m }) => `<div class="li" data-act="busReport" data-bus="${esc(b.id)}" style="cursor:pointer">${avatar(busImg(b), '🚌')}
+  body += rows.length ? rows.map(({ b, m }) => `<div class="li" data-act="busReport" data-bus="${esc(b.id)}" style="cursor:pointer">${avatar(busImg(b), icon('bus'))}
     <div class="main"><div class="t">${esc(b.regNo)}${m.drop ? ' <span class="badge b-red">mileage ↓</span>' : ''}</div>
       <div class="s">${m.avgKmpl != null ? m.avgKmpl.toFixed(1) + ' km/l' : 'no data'} · ${money(m.totalCost)} · ${m.fills} fill(s)</div></div>
     ${m.fuelPerKm != null ? `<b>₹${m.fuelPerKm.toFixed(1)}/km</b>` : ''}</div>`).join('') : `<div class="empty">No buses</div>`;
@@ -8866,7 +8866,7 @@ function viewDef() {
   ]);
   if (!defBuses.length) body += `<div class="banner warn">No bus is marked as using DEF yet. Logging a top-up marks that bus automatically.</div>`;
   body += `<div class="card"><h3>DEF by bus</h3>`;
-  body += rows.length ? rows.map(({ b, s }) => `<div class="li" data-act="addDef" data-bus="${esc(b.id)}" style="cursor:pointer">${avatar(busImg(b), '🚌')}
+  body += rows.length ? rows.map(({ b, s }) => `<div class="li" data-act="addDef" data-bus="${esc(b.id)}" style="cursor:pointer">${avatar(busImg(b), icon('bus'))}
     <div class="main"><div class="t">${esc(b.regNo)}${s.flag ? ` <span class="badge ${s.flag.sev === 'high' ? 'b-red' : 'b-amber'}">DEF ⚠️</span>` : ''}</div>
       <div class="s">${s.perHundred != null ? s.perHundred.toFixed(1) + ' L/100km' : 'no data'} · ${money(s.costTotal)} · ${s.fills} top-up(s)</div>
       ${s.flag ? `<div class="tiny" style="color:${s.flag.sev === 'high' ? 'var(--red)' : 'var(--amber)'}">${esc(s.flag.msg)}</div>` : ''}</div>
@@ -11250,7 +11250,7 @@ function viewBusAccounting(busId) {
     ${drv && can(S.user.role, 'manageDrivers') ? `<button class="btn sm" data-act="setSalary" data-driver="${esc(drv.id)}" style="margin-top:10px">💵 Set ${esc(drv.name)}'s monthly salary</button>` : ''}</div>`;
   const catRows = Object.entries(a.byCat).sort((x, y) => y[1] - x[1]).map(([c, v]) => `<div class="row between small" style="padding:3px 0"><span>${catMeta(c).icon} ${catMeta(c).label}</span><b>${money(v)}</b></div>`).join('');
   body += `<div class="card"><h3>By category</h3>${catRows || '<div class="muted small">No expenses yet</div>'}</div>`;
-  body += `<div class="card"><h3>Trips</h3>` + (trips.length ? trips.map((t) => { const c = tripCash(t); return `<div class="li"><div class="ava">🧾</div>
+  body += `<div class="card"><h3>Trips</h3>` + (trips.length ? trips.map((t) => { const c = tripCash(t); return `<div class="li"><div class="ava">${icon('doc')}</div>
     <div class="main"><div class="t">${esc(t.fromTo || 'Trip')} ${t.status === 'active' ? '<span class="badge b-green">active</span>' : ''}</div>
       <div class="s">${fmtDate(t.startedAt)} · ${esc(driverName(t.driverId))} · ${(t.expenses || []).length} expense(s) · cash left ${money(c.remaining)}</div></div>
     <b>${money(c.total)}</b></div>`; }).join('') : `<div class="empty">No trips yet</div>`) + `</div>`;

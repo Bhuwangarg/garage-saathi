@@ -1,4 +1,11 @@
-/* The home screens, in the v2 design system.
+/* The screens, in the v2 design system.
+ *
+ * Named screens.css and not home.css because the pieces in it -- the card, the
+ * greeting, the KPI row, the triage row, the detail row -- are not the home's.
+ * They are what the app is built from, and each screen family that moves across
+ * finds most of its work already done here.
+ *
+ * Originally written for the home screens, in the v2 design system.
  *
  * Eight screens, one per role, built from four shared pieces -- the greeting, the
  * KPI row, the triage row and the detail row. Moving the PIECES moves all eight,
@@ -117,3 +124,34 @@
 [data-v2] .ai-ic { display: grid; place-items: center; color: var(--accent); font-size: 0; }
 [data-v2] .ai-ic svg { width: 18px; height: 18px; }
 [data-v2] .ai-ic.big svg { width: 28px; height: 28px; }
+
+/* ---- pieces the money family brought with it -------------------------- */
+/* .li is the app's other list item -- 100 uses, older than .trow and not going
+ * anywhere. Same treatment: a separator instead of a card edge, and room for a
+ * drawing where a glyph used to sit. */
+[data-v2] .li {
+  display: flex; align-items: center; gap: var(--s3);
+  min-height: var(--row-h); padding: var(--s2) 0;
+  background: transparent; border: 0; border-radius: 0;
+  box-shadow: inset 0 -1px 0 var(--line); color: var(--ink);
+}
+[data-v2] .card > .li:last-child, [data-v2] .li:last-child { box-shadow: none; }
+[data-v2] .li .t { font-weight: 600; font-size: var(--t5); }
+[data-v2] .li .s { font-size: var(--t6); color: var(--ink-dim); }
+[data-v2] .li .main { flex: 1; min-width: 0; }
+
+/* The trend chip beside a figure. Its arrow is U+25B2/U+25BC, which Windows 7
+ * does carry -- unlike the emoji -- so it stays a character; what changes is that
+ * the direction is stated in colour as well, because the same arrow means the
+ * opposite thing one tile along. */
+[data-v2] .schip {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: var(--t6); font-weight: 600; font-variant-numeric: tabular-nums;
+}
+[data-v2] .schip.ok { color: var(--ok); }
+[data-v2] .schip.crit { color: var(--bad); }
+/* The live chip puts an 8px coloured square beside the arrow. That is two marks
+ * for one fact -- and the square's colour comes from --red/--green, which v2 does
+ * not define, so inside the wrapper it was drawing in the old palette. The arrow
+ * and the text colour already say direction and severity. */
+[data-v2] .schip i { display: none; }
