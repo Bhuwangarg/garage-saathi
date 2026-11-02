@@ -289,13 +289,44 @@ that changes, this is the shape.
 
 **Command — owner, supervisor.** Everything.
 
-### An open decision: supervisor
+### Settled: supervisor keeps operations, not company money
 
-A supervisor currently reaches **all 47 screens — identical to the owner** —
+A supervisor used to reach **all 47 screens — identical to the owner** —
 including money, accounting and company billing. For a business handling cash
-that is a governance question, not a bug, and the new system should answer it
-deliberately rather than inherit it. Recommendation: supervisor keeps the whole
-workshop and fleet and loses company-level money. **Needs the owner's decision.**
+that was a governance question, not a bug, and the new system answers it
+deliberately rather than inheriting it.
+
+**Owner's decision, 2 November 2026: operations only, no company money.** A
+supervisor keeps jobs, crew, store, duty, gate, challans and fuel. They lose
+company-level money: cash reconciliation, bills and purchase totals, P&L and
+cost per km.
+
+Measured against today's code rather than assumed: a supervisor holds **35 of
+the 37 permissions in `PERMS`**. The only two they are already denied are
+`deleteJob` and `bulkArchiveCrew`.
+
+Two conflations in the v1 model make this impossible to express as a v1 edit, and
+they are the reason this belongs to the deny-by-default work below rather than to
+a patch of `PERMS`:
+
+- **`dashboard` guards two unrelated things.** `ROUTE_PERM` maps both the
+  `company` route (company billing) and `alerts` (the operational alert list) to
+  it. Dropping `dashboard` from supervisor removes the alerts a supervisor needs
+  hourly; keeping it leaves company billing open. There is no third answer
+  without splitting the capability.
+- **`bills` guards supplier-bill management and the purchase totals together**,
+  and `store` holds it too for the operational half. Removing it from supervisor
+  alone would be incoherent while the store keeps it.
+
+So the capability split is a prerequisite, not a follow-up: `dashboard` becomes
+at least `viewAlerts` and `viewCompanyBilling`, and `bills` at least
+`manageSupplierBills` and `viewSpendTotals`. The supervisor then holds the
+operational half of each and neither money half.
+
+One thing to confirm with the office before this ships, because it takes a screen
+away from someone who may be using it daily: whether any supervisor currently
+does the cash reconciliation. If they do, that work has to move to a login that
+keeps it before the permission changes, not after.
 
 ---
 
