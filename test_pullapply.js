@@ -149,8 +149,8 @@ check(`agrees with the old per-record rule on all ${cases} combinations`, mismat
 
 const plan = (a, b) => P.drainPlan(a, b).join('+');
 
-check('a device with nothing yet fetches the small stores first', plan(0, 0) === 'defer+only');
-check('…and that is the only time it costs two drains', P.drainPlan(0, 0).length === 2);
+check('a device with nothing yet fetches the first screen before anything else', plan(0, 0) === 'first+defer+only');
+check('…and that is the only time it costs more than one drain', P.drainPlan(0, 0).length === 3);
 
 // The regression this function exists for: once caught up it must be ONE request a
 // tick. Running both drains for ever cost every device in the yard a second request
@@ -165,8 +165,8 @@ check('…including when it never started', plan(500, 0) === 'only+plain');
 
 // Treat missing/undefined cursors as zero rather than throwing or, worse, deciding
 // a device is caught up when nothing is known.
-check('undefined cursors read as a first sync', plan(undefined, undefined) === 'defer+only');
-check('a null main cursor reads as a first sync', plan(null, 500) === 'defer+only');
+check('undefined cursors read as a first sync', plan(undefined, undefined) === 'first+defer+only');
+check('a null main cursor reads as a first sync', plan(null, 500) === 'first+defer+only');
 
 // A deferred cursor AHEAD of the main one should not trigger catch-up: it is not
 // behind, so there is nothing to finish.
@@ -208,6 +208,24 @@ check('…and reports no negative shortfall', rs(900, 500, 0).behind === 0);
 
 check('missing arguments read as a fresh device', rs().complete === false && rs().behind === 0);
 check('a device with only a seed and no pull is not complete', rs(0, 0, 0).complete === false);
+
+/* ---- the first-screen pass ------------------------------------------- */
+
+// It runs ONLY on a first sync. On any later tick it would be pure waste: those
+// records are already on the device and the main cursor has long passed them.
+check('the first-screen pass runs only on a first sync',
+      P.drainPlan(500, 500).indexOf('first') < 0 && P.drainPlan(500, 200).indexOf('first') < 0);
+check('…and it runs before the main drain, not after',
+      P.drainPlan(0, 0).indexOf('first') === 0);
+
+// The list is the point: short, and only stores a first screen actually draws.
+// One that grows to cover everything is the same as having no list.
+check('the first-screen list is short', P.FIRST_STORES.length <= 20);
+check('…and holds no duplicates', new Set(P.FIRST_STORES).size === P.FIRST_STORES.length);
+check('…and does not carry the telemetry it exists to get ahead of',
+      P.FIRST_STORES.indexOf('gpsevents') < 0);
+check('…and covers what a home screen draws from',
+      ['users', 'buses', 'jobcards', 'parts', 'drivers'].every((s) => P.FIRST_STORES.indexOf(s) >= 0));
 
 console.log(fails ? `\n${fails} FAILED` : '\nall ok');
 process.exit(fails ? 1 : 0);

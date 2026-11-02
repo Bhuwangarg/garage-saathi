@@ -766,7 +766,7 @@ body.printing-gp .gp-screen{display:none !important}
    ====================================================================== */
 @media (min-width:700px){
   /* Not the dashboard shell: no rail, no topbar, nothing to place. */
-  #app:has(.login){
+  #app:has(.login), #app:has(.lg){
     display:block;
     max-width:none;
     background:transparent;
@@ -853,7 +853,7 @@ body.printing-gp .gp-screen{display:none !important}
     padding:52px 56px;
     box-shadow:0 30px 80px -30px rgba(24,26,32,.35),0 2px 8px rgba(24,26,32,.06);
   }
-  #app:has(.login){
+  #app:has(.login), #app:has(.lg){
     display:grid;
     place-items:center;
     padding:32px;

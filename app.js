@@ -422,424 +422,27 @@ const I18N = {
     cmShortHands: '{d} buses have no driver and {c} no conductor that filling the board cannot fix: there are {dp} drivers for {n} buses on the road. That is a hiring question, not a duty-board one.',
     cmAllSet: 'Every bus has its driver and conductor', cmOpenBoard: 'Open the duty board',
   },
-  hi: {
-    appName: 'गैराज साथी', home: 'होम', buses: 'बसें', jobs: 'काम', store: 'स्टोर', me: 'मैं',
-    todayJobs: 'आज के खुले काम', lowStock: 'कम स्टॉक पुर्जे', docAlerts: 'कागज़ात अलर्ट',
-    costMonth: 'मरम्मत खर्च (30 दिन)', addBus: 'बस जोड़ें', addJob: 'नया जॉब कार्ड', issuePart: 'पुर्जा जारी करें',
-    receiveStock: 'स्टॉक प्राप्त करें', checkin: 'हाज़िरी लगाएं', checkout: 'छुट्टी', verify: 'जाँचें',
-    markDone: 'पूरा करें', beforePhotos: 'पहले की फोटो', afterPhotos: 'बाद की फोटो', partsUsed: 'इस्तेमाल पुर्जे',
-    save: 'सेव', cancel: 'रद्द', open: 'खुला', logout: 'लॉगआउट', lang: 'EN', theme: 'थीम', attendance: 'हाज़िरी',
-    today: 'आज', money: 'पैसा', fleet: 'बेड़ा', people: 'लोग', bills: 'बिल', myWork: 'मेरा काम', myDuty: 'मेरी ड्यूटी',
-    needsYouNow: 'अभी ध्यान दें', allClear: 'सब ठीक है', stockValue: 'स्टॉक मूल्य', reorderSoon: 'जल्द मंगाएं', pendingSuppliers: 'सप्लायर को बकाया', issuePartBtn: 'पुर्जा जारी करें', storeHealth: 'स्टोर स्थिति', openJobsParts: 'खुले काम (पुर्जे चाहिए)', searchParts: 'पुर्जा खोजें…', fuel: 'ईंधन',
-    thisMonth: 'इस महीने', lastMonth: 'पिछले महीने', thisYear: 'इस साल', prevWindow: 'पिछला', runningCost: 'कुल खर्च', youOwe: 'आपको देना है', whereMoneyGoes: 'पैसा कहाँ जाता है', reconciles: 'कुल मिलाकर', moneyPit: 'ज़्यादा खर्च वाली बसें', needsOdometer: 'ओडोमीटर डेटा चाहिए — ₹/किमी देखने के लिए GPS जोड़ें या बस का ओडोमीटर डालें।', tripCash: 'ट्रिप कैश',
-    purchases: 'खरीद / बिल', serviceHistory: 'सेवा इतिहास', documents: 'कागज़ात',
-    addPhotoNote: 'काम बंद करने के लिए पहले और बाद दोनों की फोटो ज़रूरी हैं (बाहर मरम्मत: बिल की फोटो)', noJobs: 'अभी कोई काम नहीं', expired: 'समाप्त',
-    // Login
-    sessionEnded: 'साइन-आउट हो गया — मैं → लॉग आउट करके दोबारा लॉगिन कीजिए, तभी डेटा चलता रहेगा',
-    notStored: 'यह फ़ोन {n} रिकॉर्ड सेव नहीं कर पाया जो दूसरों को दिख रहे हैं — जगह खाली कीजिए, फिर मैं → डिवाइस और सर्वर → सब दोबारा डाउनलोड करें',
-    notStoredRow: 'जो रिकॉर्ड यह फ़ोन सेव नहीं कर पाया',
-    aiInsights: 'AI विश्लेषण', aiInsightsSub: 'चोरी की पकड़, खर्च की बचत, और सलाहकार',
-    aiFooter: 'जवाब क्लॉड देता है, आपके अपने सर्वर से — खर्च, किसी बस, किसी मैकेनिक या किसी महीने के बारे में पूछिए।',
-    advPh: 'अपनी बसों, ड्राइवरों, ख़र्च, रिव्यू के बारे में पूछें…', advLooking: 'आपके रिकॉर्ड देख रहे हैं…', advLooked: 'देखा',
-    advEx1: 'इस महीने किस बस पर सबसे ज़्यादा ख़र्च हुआ, और क्यों?', advEx2: 'किन ड्राइवरों की अपनी गलती वाली रेटिंग सबसे ख़राब है?',
-    advEx3: 'इंदौर रूट पर यात्री सबसे ज़्यादा किस बात की शिकायत करते हैं?', advEx4: 'इस हफ़्ते किन बसों का गेट चेक नहीं हुआ?',
-    advTool_find: 'खोज', advTool_bus_overview: 'बस रिकॉर्ड', advTool_crew_overview: 'स्टाफ़ रिकॉर्ड', advTool_rank: 'रैंकिंग', advTool_reviews: 'रिव्यू',
-    advTool_stock: 'स्टॉक', advTool_money: 'पैसा',
-    aiAsk60: 'हर आदमी को रोज़ 60 सवाल।',
-    aiServerOn: 'AI सलाहकार: सर्वर पर लगा है — जो भी लॉगिन करेगा उसे मिलेगा',
-    aiServerOff: 'AI सलाहकार: सर्वर पर नहीं लगा। होस्टिंग सेटिंग में ANTHROPIC_API_KEY डालिए, फिर हर फ़ोन पर सबके लिए चलेगा।',
-    aiDeviceKey: 'सिर्फ़ इसी फ़ोन की कुंजी (टेस्टिंग)', aiDeviceKeyHint: 'यहाँ डाली कुंजी इसी फ़ोन में रहती है और यहीं चलती है। सबके लिए सर्वर वाली कुंजी ही काम आती है।',
-    aiClearKey: 'इस फ़ोन से कुंजी हटाएँ', aiCleared: 'कुंजी इस फ़ोन से हटा दी',
-    refusedRow: 'जो बदलाव सर्वर ने नहीं लिए', refusedToast: 'सर्वर ने यह बदलाव नहीं लिया:',
-    refusedRetry: 'दोबारा भेजकर देखिए',
-    photoKept: 'फोटो इसी फ़ोन में रखी है — नेट आते ही अपने आप चढ़ जाएगी',
-    renameBtn: 'नाम बदलें', renamePrompt: 'इस लॉगिन का नया नाम', renamedOk: 'नाम बदला:',
-    renameSame: 'यही नाम पहले से है', renameNeed: 'नाम लिखिए',
-    renamePinNote: 'पिन नहीं बदलता। अगर आदमी बदला है तो नया पिन भी दीजिए।',
-    cmLiveMap: 'लाइव नक्शा', cmLiveMapSub: 'अभी बसें कहाँ हैं',
-    tyFit: 'बस पर टायर लगाएँ', tyRow: 'टायर', tyNew: 'नए टायर का नंबर', tyOld: 'जो पुराना टायर उतरा',
-    tyOldNone: '— कोई नहीं / पहली बार —', tyOldOther: 'दर्ज नहीं है — नंबर लिखिए', tyOldTyped: 'पुराने टायर का नंबर',
-    tyPos: 'जगह', tyCost: 'दाम (ज़रूरी नहीं)', tyAddRow: '+ एक और टायर', tyRemoveRow: 'हटाएँ',
-    tyNeedBus: 'बस चुनिए', tyNeedOne: 'कम से कम एक टायर नंबर भरिए', tyFitted: 'टायर लगे',
-    tyOldStored: 'पुराने टायर स्टोर में गए',
-    // ---- Batteries: same flow as tyres, but they die by age, not by km ----
-    btFit: 'बस पर बैटरी लगाएँ', btRow: 'बैटरी', btNew: 'नई बैटरी का नंबर',
-    btOld: 'जो पुरानी बैटरी उतरी', btOldTyped: 'पुरानी बैटरी का नंबर',
-    btAddRow: '+ एक और बैटरी', btNeedOne: 'कम से कम एक बैटरी नंबर भरिए',
-    btFitted: 'बैटरी लगीं', btOldStored: 'पुरानी बैटरी स्टोर में गईं',
-    btWarranty: 'वारंटी (महीने)', btWarrantyPh: 'जैसे 18', btLifeMonths: 'उम्र (महीने)',
-    btInWarranty: 'वारंटी इस तारीख़ तक', btWarrantyOver: 'वारंटी ख़त्म',
-    btClaim: 'अभी वारंटी में है — नई ख़रीदने से पहले दावा कीजिए',
-    btAgeUsed: 'कितनी पुरानी', btMonths: 'महीने',
-    vcDriver: 'ड्राइवर', vcNoDriver: 'कोई ड्राइवर नहीं',
-    cmFuel: 'ईंधन और माइलेज', cmFuelSub: 'डीज़ल भरना दर्ज कीजिए, पंप के साथ', cmDef: 'AdBlue / DEF', cmTyres: 'टायर और पुर्जे',
-    fuPump: 'पंप / फ़िलिंग स्टेशन', fuPumpPh: 'जैसे जियो-बीपी, अजमेर रोड',
-    fuWhere: 'कहाँ (ज़रूरी नहीं)', fuWherePh: 'गूगल मैप्स लिंक चिपकाइए, या 26.9124, 75.7873',
-    fuHere: 'मेरी लोकेशन लीजिए', fuLocGot: 'लोकेशन ले ली', fuLocFail: 'लोकेशन नहीं मिली — GPS की अनुमति देखिए',
-    fuByPump: 'पंप के हिसाब से दाम', fuPerL: 'प्रति लीटर', fuFills: 'बार भरा', fuNoPump: 'पंप दर्ज नहीं', fuOpenMap: 'नक्शा',
-    // ---- What the last fill said, shown while this one is being typed ----
-    fuLastFill: 'पिछली बार डला', fuFirstFill: 'इस बस का पहला फ़िल — km/l अगली बार से बनेगा।',
-    fuSince: 'उसके बाद की दूरी', fuThisTank: 'इस टंकी पर', fuUsual: 'आमतौर पर', fuTypeOdo: 'ऊपर रीडिंग लिखिए',
-    fuTypeLitres: 'ऊपर लीटर लिखिए', fuNoOdoYet: 'पिछले फ़िल पर रीडिंग नहीं थी, इसलिए दूरी नहीं नाप सकते।',
-    fuBackwards: 'पिछली बार से कम है। रीडिंग जाँचिए।',
-    fuSaveAnyway: 'रीडिंग पिछली बार से कम है — फिर भी दर्ज करना है तो सेव दोबारा दबाइए',
-    fuTankByTank: 'टंकी दर टंकी', fuPartFill: 'आधा भरा', fuPartHint: 'अगली पूरी टंकी में गिना जाएगा',
-    fuOdoOff: 'ओडोमीटर खराब बताया है — इस फ़िल की दूरी या km/l नहीं बनेगी।',
-    noBusesHere: 'इस फ़ोन पर अभी कोई बस नहीं है', noBusesFix: 'मैं → डिवाइस और सर्वर → सब दोबारा डाउनलोड करें',
-    onThisPhone: 'इस फ़ोन पर', busesWord: 'बसें', crewWord: 'स्टाफ़',
-    tidyTitle: 'रिकॉर्ड के अंदर पड़ी तस्वीरें', tidyFound: 'फोटो चढ़नी बाकी हैं',
-    tidyBtn: 'अभी चढ़ाएँ', tidyWorking: 'चढ़ाई जा रही हैं', tidyDone: 'हो गया — चढ़ गईं',
-    tidyNone: 'कुछ बाकी नहीं — सारी तस्वीरें सर्वर पर हैं', tidyLeft: 'अभी बाकी — दोबारा चलाइए',
-    tidyStopped: 'रुक गया — सर्वर अगली तस्वीर नहीं ले रहा। बाद में दोबारा कीजिए।',
-    tidyHint: 'पुरानी फोटो रिकॉर्ड के अंदर ही सेव हुई थीं, इसलिए हर फ़ोन उन्हें ढोता है। यह हर फोटो को सर्वर पर चढ़ाकर उसकी जगह लिंक रख देता है।',
-    photoNoStore: 'सर्वर अभी फोटो नहीं रख पा रहा — तस्वीर इसी फ़ोन में रहेगी। ऐप संभालने वाले को बताइए।',
-    photoSignedOut: 'साइन-आउट होने से फोटो नहीं चढ़ी — दोबारा लॉगिन कीजिए',
-    stillLoading: 'लोड हो रहा है', stillLoadingHint: 'कुछ आंकड़े अभी आ रहे हैं — अभी जो दिख रहा है वह अधूरा हो सकता है।',
-    back: 'वापस', pinBack: 'मिटाेँ',
-    bootLoading: 'आपका गैराज तैयार हो रहा है…',
-    bootLoadingOnce: 'इस डिवाइस पर सिर्फ़ पहली बार।',
-    tagline: 'गैराज मरम्मत, जयपुर', enterPin: 'पिन डालें', wrongPin: 'गलत पिन', serverWaking: 'लॉगिन हो रहा है… सर्वर चालू हो रहा है, कुछ सेकंड लग सकते हैं', loginOff: 'यह लॉगिन बंद कर दिया गया है — दफ़्तर से बात करें', pinRetired: 'यह पिन अब नहीं चलेगा — ऑफिस से अपना नया पिन लें',
-    recentHere: 'इस फ़ोन पर हाल के', whoAreYou: 'आप कौन हैं?', selectName: 'अपना नाम चुनें', searchName: 'नाम खोजें…',
-    cantReach: 'सर्वर से संपर्क नहीं — इंटरनेट जाँचें और फिर कोशिश करें',
-    odoBroken: 'इस बस का ओडोमीटर काम नहीं कर रहा',
-    wizStep1: 'बस और खराबी', wizStep2: 'कौन और कब', wizStep3: 'खर्च और नोट',
-    wizNext: 'आगे', wizBack: 'पीछे', wizCreate: 'जॉब कार्ड बनाएं',
-    wizCheck: 'बनाने से पहले देख लीजिए', wizCheckHint: 'कुछ बदलना हो तो किसी भी कदम पर वापस जाइए।',
-    isPart: 'पुर्जा', isSearch: 'पुर्जे का नाम, कोड या श्रेणी लिखिए…', isToJob: 'किस जॉब कार्ड पर',
-    isPickFirst: 'पहले पुर्जा खोजकर चुनिए',
-    isInStock: 'स्टॉक में', isOutOfStock: 'स्टॉक खत्म', isNoMatch: 'कोई पुर्जा नहीं मिला।',
-    jbBusWord: 'बस', jbChangeBus: 'बस बदलें', jbChangeBusTitle: 'इस जॉब कार्ड की बस ठीक कीजिए',
-    jbMoveWarn: 'इस कार्ड का सब कुछ — पुर्जे, मज़दूरी, बाहर का काम — उसी बस पर चला जाएगा जो आप चुनेंगे। जाँचे हुए कार्ड में और कुछ नहीं बदलता।',
-    jbReason: 'वजह (ज़रूरी नहीं)', jbReasonPh: 'जैसे ग़लत बस पर लिख दिया था',
-    jbSameBus: 'इस कार्ड पर यही बस पहले से है', jbMoved: 'भेजा गया', jbOwnerOnly: 'जाँचा हुआ जॉब कार्ड सिर्फ़ मालिक बदल सकते हैं',
-    jbCorrected: 'बस ठीक की गई — {bus} से',
-    isPickBoth: 'पुर्जा और काम दोनों चुनिए', isChooseJob: 'जॉब कार्ड चुनिए', isPickJob: 'यह पुर्जा किस जॉब कार्ड का है, चुनिए',
-    jpRestored: 'स्टॉक लेजर से जॉब कार्ड पर वापस लगाया:', isGate: 'पुर्जा सिर्फ़ जॉब कार्ड पर ही जारी होगा। इसी से बिना हिसाब चोरी रुकती है।',
-    isReused: 'पुराना / सेकंड-हैंड पुर्जा', isReusedShort: 'पुराना', isReusedCost: 'इसकी असली कीमत',
-    isReusedHint: 'पुराने पुर्जे की जो असली कीमत है वही लिखिए, नए के दाम नहीं — वरना इस बस का प्रति किमी खर्च गलत निकलेगा, और लगाने वाले का हिसाब अच्छा दिखेगा। रद्दी से उठाए पुर्जे के लिए शून्य लिखना भी ठीक है।',
-    hmNothing: 'अभी कुछ बाकी नहीं', hmNotCheckedIn: 'आज आपकी हाज़िरी नहीं लगी है।',
-    hmLast30: 'पिछले 30 दिन', hmOnRoad: 'सड़क पर', hmInShopShort: 'वर्कशॉप में', hmLast7: 'मरम्मत खर्च', hmReports: 'रिपोर्ट',
-    hmToVerify: 'आपकी जाँच बाकी', hmToVerifySub: 'किसी और ने बंद किए',
-    hmUnexplained: 'बिना वजह बदला स्टॉक', hmUnexplainedSub: 'जॉब कार्ड के बिना मात्रा बदली',
-    hmPilferage: 'पिलफ़रेज निशान', hmPilferageSub: 'पूछने लायक',
-    hmChallans: 'बकाया चालान', hmDocsExpired: 'कागज़ात समाप्त',
-    hmDocsExpiredSub: 'बस चलाना कानूनी नहीं', hmDocsSoon: 'कागज़ात समाप्त हो रहे',
-    hmDocsSoonSub: '15 दिन के अंदर', hmOwed: 'सप्लायर को देना है', hmOwedSub: 'बकाया बिल',
-    hmFleetHealth: 'बेड़े की सेहत', hmBreakdownsSub: 'रास्ते में खराबी, 90 दिन',
-    hmServiceDue: 'सर्विस बाकी', hmAllServiced: 'हर बस की सर्विस समय पर है',
-    hmInShop: 'अभी वर्कशॉप में', hmShopEmpty: 'वर्कशॉप खाली है। अच्छी बात है।',
-    hmIdle: 'खाली खड़ी', hmMore: 'और', hmAllJobs: 'सारे काम',
-    hmComplaints: 'ड्राइवर शिकायतें', hmNoDriver: 'बिना ड्राइवर वाली बसें',
-    hmLowStock: 'पुर्जे कम पड़ रहे', hmLowStockSub: 'काम रुकने से पहले मंगाइए',
-    hmWaitingSignoff: 'किसी और पर बाकी', hmWaitingSignoffSub: 'ये आपने बंद किए हैं। जाँच मालिक या दूसरा सुपरवाइज़र करेगा — आपको कुछ नहीं करना।',
-    hmLoad: 'किसके पास कितना काम',
-    bdTitle: 'ब्रेकडाउन', bdSub: 'रास्ते में हुई खराबी — पिछले 90 दिन',
-    bdBlurb: 'रास्ते में हुई हर खराबी। पूरे सिस्टम का मक़सद ही यह है कि ये न हों, इसलिए यहाँ के आँकड़े वही हैं जिन्हें घटते देखना है।',
-    bdLast180: 'ब्रेकडाउन (180 दिन)', bdOffRoad: 'बसें बंद रहीं', bdHrs: 'घं',
-    bdBySystem: 'क्या खराब हो रहा है', bdTopHint: 'सबसे ज़्यादा खराबी:',
-    bdWorstBuses: 'सबसे ज़्यादा बंद होने वाली बसें', bdBetween: 'दो खराबी के बीच', bdNotEnough: 'अभी पर्याप्त रिकॉर्ड नहीं',
-    bdAll: 'सारे ब्रेकडाउन', bdNone: 'कोई ब्रेकडाउन दर्ज नहीं। ऐसे ही रहे।',
-    bdSearch: 'नंबर, हिस्सा या जगह खोजें…', bdLinked: 'जॉब कार्ड', bdNoJob: 'काम बाकी',
-    bdNew: 'ब्रेकडाउन दर्ज करें', bdEdit: 'ब्रेकडाउन', bdWhatFailed: 'क्या खराब हुआ',
-    bdWhatHappened: 'क्या हुआ', bdDescHint: 'जैसे: जयपुर–दिल्ली रास्ते में क्लच प्लेट फेल',
-    bdTime: 'समय', bdWhere: 'कहाँ', bdWhereHint: 'जैसे: NH48, शाहपुरा के पास',
-    bdOdo: 'ओडोमीटर (किमी)', bdDowntime: 'कितने घंटे बंद', bdTowed: 'टो करवाना पड़ा',
-    bdWhyHint: 'ओडोमीटर ज़रूरी है: दो खराबी के बीच कितने किलोमीटर चले — यही बताता है कि बस बिगड़ रही है, किसी को रास्ते में छोड़ने से पहले।',
-    bdMakeJob: 'इसका जॉब कार्ड बनाएं', bdSaved: 'ब्रेकडाउन दर्ज हुआ',
-    bdNeedBus: 'बस चुनिए', bdNeedWhat: 'क्या हुआ यह बताइए',
-    mpTitle: 'मैकेनिक प्रदर्शन', mpSub: 'स्कोर, खुला काम, दोबारा काम और समय — पिछले 90 दिन',
-    mpBlurb: 'पिछले 90 दिन का काम-गुणवत्ता स्कोर — दोबारा किया काम, सबूत फोटो, समय और समय-पालन से बनता है। कॉलम वही आँकड़े हैं जिनसे यह बना है। पूरा हिसाब देखने के लिए नाम दबाइए।',
-    mpOpen: 'खुले', mpRework: 'दोबारा', mpDays: 'औसत', mpJobs: 'काम', mpLate: 'देर',
-    mchToday: 'आपके लिए बाकी', mchMyDay: 'मेरा काम', mchSince: 'आई',
-    mchStarted: 'शुरू', mchNotStarted: 'अभी शुरू नहीं', mchNothingToday: 'आपको कोई काम नहीं दिया गया।',
-    odoBrokenHint: 'अंदाज़े से नंबर डालने के बजाय यह लगाइए। ठीक होने तक इस बस का प्रति किमी खर्च और माइलेज खाली रहेगा — रुके हुए ओडोमीटर से निकाला गया गलत आँकड़ा नहीं दिखेगा।',
-    tooManyTries: 'बहुत बार गलत पिन। कुछ मिनट बाद कोशिश कीजिए, या सुपरवाइज़र से कहिए।',
-    // Menu (More)
-    more: 'और', supplierBills: 'सप्लायर बिल और भुगतान', drivers: 'ड्राइवर', staff: 'स्टाफ', sync: 'सिंक', changePin: 'मेरा पिन बदलें',
-    // Home / actions
-    namaste: 'नमस्ते', addStock: 'स्टॉक जोड़ें', myBus: 'मेरी बस', myTrips: 'मेरी ट्रिप', myReports: 'मेरी रिपोर्ट',
-    yourRating: 'आपकी रेटिंग', reportProblem: 'मेरी बस में समस्या बताएं', noBusAssigned: 'अभी कोई बस नहीं दी गई। अपने सुपरवाइज़र से कहें।',
-    reportArea: 'हिस्सा', reportWhat: 'ट्रिप में क्या महसूस हुआ?', submit: 'भेजें', reportSubmitted: 'रिपोर्ट भेज दी',
-    trips: 'ट्रिप', fixed: 'ठीक हुआ', openStatus: 'खुला', noReportsYet: 'अभी कोई रिपोर्ट नहीं। ट्रिप के बाद ऊपर बटन दबाएं।',
-    // Jobs filter + edit/reassign + verify
-    filterAll: 'सभी', filterAllMechs: 'सभी मैकेनिक', statusInProgress: 'चालू', statusVerified: 'जाँचा गया',
-    toVerify: 'जाँचना है', jobsAwaitingVerify: 'जाँच बाकी', noJobsMatch: 'कोई काम नहीं मिला', editReassign: 'बदलें / दोबारा सौंपें',
-    jobUpdated: 'काम अपडेट हुआ', describeProblem: 'समस्या बताएं', pickAssignee: 'किसे सौंपना है चुनें',
-    // Close-with-hours + photo gate
-    closeJobBtn: 'काम बंद करें', closeJobDone: 'काम बंद — जाँच बाकी', closeJobHint: 'काम के घंटे पक्के करें, फिर बंद करें।',
-    closeJobHours: 'काम के घंटे', photoGateBefore: 'पहले और बाद की फोटो पहले जोड़ें', photoGateAfter: 'बाद की फोटो', photoGateBill: 'बिल / रसीद फोटो',
-    photoNotCaptured: 'कोई फोटो नहीं ली', photoSaving: 'फोटो सेव हो रही है…', photoSavedOnPhone: 'फ़ोन में सेव — ऑनलाइन होने पर अपलोड होगा',
-    // Request part
-    reqPartBtn: 'पुर्जा चाहिए', reqPartWhich: 'कौन सा पुर्जा?', reqPartQty: 'मात्रा', reqPartNote: 'स्टोरकीपर यह देखकर इस काम पर पुर्जा जारी करेगा।',
-    reqPartSent: 'माँग स्टोर को भेजी', reqPartPending: 'बाकी पुर्जा माँगें', reqPartFulfil: 'पूरा करें', reqPartNoParts: 'अभी कोई पुर्जा नहीं।',
-    // Driver reports (voice/photo/cancel) + rating tips
-    drvPhotoBtn: 'फोटो', drvVoiceBtn: 'आवाज़', drvAttachHint: 'टाइप करना मुश्किल हो तो फोटो या आवाज़ जोड़ें।',
-    drvPhotoFail: 'फोटो नहीं ली जा सकी', drvVoiceUnsupported: 'इस फ़ोन पर आवाज़ टाइपिंग नहीं है',
-    drvNoBus: 'कोई बस नहीं दी गई', drvNeedDetail: 'नोट, फोटो या आवाज़ जोड़ें', drvCancelBtn: 'रिपोर्ट रद्द करें',
-    drvCancelBlocked: 'रद्द नहीं — काम जुड़ चुका है।', drvCancelConfirm: 'यह रिपोर्ट रद्द करें?', drvCancelled: 'रिपोर्ट रद्द',
-    drvLast90: 'पिछले 90 दिन', drvCleanRecord: 'पिछले 90 दिन साफ़ रिकॉर्ड। ',
-    drvTipGreat: 'बढ़िया ड्राइविंग — ऐसे ही चलाएं!', drvTipGood: 'अच्छा। आराम से ब्रेक और सावधानी से पार्किंग रेटिंग ऊँची रखती है।',
-    drvTipLow: 'आराम से चलाएं; खरोंच, डेंट और तेज़ ब्रेक से बचें ताकि स्कोर बढ़े।',
-    driverReportsWaiting: 'ड्राइवर रिपोर्ट बाकी', noDriverReports: 'इस बस के लिए कोई खुली ड्राइवर रिपोर्ट नहीं।', useThisReport: 'इसे लें',
-    // Report categories
-    catBrakes: 'ब्रेक', catEngine: 'इंजन', catAC: 'एसी', catSuspension: 'सस्पेंशन', catElectrical: 'बिजली',
-    catTyres: 'टायर', catGearbox: 'गियरबॉक्स', catBody: 'बॉडी', catOther: 'अन्य',
-    crewTitle: 'इस काम पर मैकेनिक', crewHint: 'जो-जो इस पर काम कर रहा है सबको जोड़िए, और कौन क्या कर रहा है — एक वायरिंग पर, दूसरा ब्रेक पर।',
-    crewWho: 'मैकेनिक', crewTask: 'क्या कर रहा है', crewTaskPh: 'जैसे बिजली का काम', crewAdd: 'मैकेनिक जोड़ें',
-    crewRemove: 'हटाएँ', crewTwice: 'एक ही मैकेनिक दो बार जुड़ गया है', crewEveryone: 'सारे मैकेनिक पहले से इस काम पर हैं',
-    // ---- The bus itself is away: work being done outside our garage ----
-    owAsk: 'यह काम अपने गैराज के बाहर हो रहा है?',
-    owHint: 'जब बस खुद बाहर खड़ी हो — किसी दूसरे शहर की वर्कशॉप में, अपने यार्ड में नहीं — तब यह चालू कीजिए।',
-    owCity: 'शहर', owCityPh: 'जैसे नोएडा', owLoc: 'गूगल लोकेशन (ज़रूरी नहीं)',
-    owLocPh: 'मैप्स लिंक चिपकाइए, या 26.91, 75.78', owOpenMap: 'मैप्स में खोलें',
-    owBadge: 'बाहर', owAway: 'बाहर मरम्मत पर', owNoCity: 'बस किस शहर में है?',
-    owCrewNote: 'अपने गैराज का कोई इस पर होना ज़रूरी नहीं — अगर अपने लोग इस बस पर काम नहीं कर रहे तो मैकेनिक हटा दीजिए।',
-    owReached: 'वर्कशॉप पहुँचने का समय', owVendNote: 'यही वर्कशॉप बस को रोके हुए है। वह जो लेगी वह “बाहर का खर्च” में डालिए।',
-    owWhere: 'कहाँ है', owAwayFor: 'कितने दिन से बाहर',
-    // ---- Deleting a job card (owner only) ----
-    djTitle: 'यह जॉब कार्ड मिटाएँ', djBtn: 'यह जॉब कार्ड मिटाएँ',
-    djWarn: 'कार्ड हर फ़ोन से हट जाएगा। यह वापस नहीं आएगा।',
-    djKeep: 'अगर काम सच में हुआ है तो मत मिटाइए — पुर्जे जा चुके हैं और यही कार्ड उनका एकमात्र हिसाब है।',
-    djParts: 'पुर्जे स्टोर में वापस चले जाएँगे', djReports: 'ड्राइवर शिकायत फिर से लंबित हो जाएगी',
-    djReason: 'क्यों (ज़रूरी नहीं)', djReasonPh: 'जैसे टेस्टिंग में बना था',
-    djGo: 'हाँ, मिटा दीजिए', djDone: 'जॉब कार्ड मिट गया · पुर्जे स्टोर में वापस',
-    djOwnerOnly: 'जॉब कार्ड सिर्फ़ मालिक मिटा सकते हैं', djLedger: 'मिटाए गए जॉब कार्ड से वापस',
-    // ---- Outside job / gate pass ----
-    closedAndSigned: 'बंद हुआ और जाँच भी हो गई',
-    ojTitle: 'बाहर का काम', ojSub: 'जो पर्ची सामान के साथ बाहर जाती है, और वापसी पर उसी से मिलान होता है',
-    ojNew: 'नया बाहर का काम', ojNewHint: 'सामान निकलने से पहले भरिए। छापकर एक कॉपी वेंडर के साथ भेजिए।',
-    ojVendor: 'वेंडर का नाम', ojVendorPh: 'काम कौन कर रहा है', ojDate: 'तारीख़',
-    ojBus: 'बस', ojReg: 'रजिस्ट्रेशन नं.', ojEngine: 'इंजन नं.', ojChassis: 'चेसिस नं.',
-    ojSerial: 'यूनिट सीरियल नं.', ojSerialPh: 'यूनिट पर ठुका हुआ नंबर',
-    ojSerialWhy: 'यही सबसे ज़रूरी है — इसी से साबित होता है कि जो लौटा वही भेजा गया था।',
-    ojUnitName: 'यूनिट का नाम', ojUnitPh: 'जैसे अल्टरनेटर, अगला टायर, सेल्फ़',
-    ojPiece: 'ट्रैक किया हुआ पुर्जा (वैकल्पिक)', ojPieceNone: 'ट्रैक किया हुआ नहीं है',
-    ojRemark: 'रिमार्क', ojRemarkPh: 'क्या काम होना है', ojAuthSig: 'अधि. हस्ताक्षर',
-    ojIssue: 'गेट पास बनाइए', ojIssued: 'गेट पास बन गया', ojPrint: 'छापें',
-    ojWillPrint: 'यह छपेगा', ojNeedVendor: 'वेंडर का नाम डालिए', ojNeedUnit: 'यूनिट का नाम डालिए',
-    ojAtVendor: 'वेंडर के पास', ojOverdue: '14+ दिन से बाहर', ojBack: 'वापस आया', ojOutFor: 'से बाहर',
-    ojSearch: 'वेंडर, यूनिट, सीरियल या बस खोजें…', ojNone: 'अभी कुछ बाहर नहीं भेजा गया।',
-    ojNoneBack: 'अभी कुछ वापस नहीं आया।', ojIssuedBy: 'बनाया',
-    ojReceive: 'वापस लिया', ojReceiveHint: 'लेने से पहले यूनिट पर लिखा नंबर पर्ची के नंबर से मिलाइए।',
-    ojSerialBack: 'लौटी यूनिट का सीरियल', ojSerialBackPh: 'यूनिट से पढ़कर लिखिए',
-    ojSerialBackWhy: 'उनके बिल से नहीं, यूनिट पर से पढ़िए।',
-    ojBill: 'वेंडर का बिल', ojBillPhoto: 'बिल की फोटो', ojMarkBack: 'वापस आया — दर्ज करें',
-    ojReturnRemarkPh: 'हालत, क्या किया', ojReceivedBy: 'लिया',
-    ojMismatch: 'सीरियल नहीं मिला', ojWentOut: 'गया था', ojCameBack: 'लौटा',
-    ojWentOutAs: 'गया था',
-    ojMismatchWhy: 'दर्ज कर लिया गया है ताकि वेंडर से बात हो सके। सफ़ाई मिलने तक भुगतान मत कीजिए।',
-    ojBackOk: 'वापस लिया — सीरियल मिल गया', ojBackMismatch: 'वापस लिया — सीरियल नहीं मिला',
-    ojConfirmMismatch: 'पर्ची पर #{a} है, पर आपने #{b} लिखा है।\n\nयह वह यूनिट नहीं है जो भेजी गई थी। फिर भी दर्ज करके निशान लगाएँ?',
-    // ---- Completed work & preventive tracking ----
-    histTitle: 'पूरा हुआ काम', histSub: 'हर पूरा हुआ काम, और अगली बार क्या होगा',
-    histDue: 'अभी करना है', histDueSoon: 'जल्दी करना है', histRepeat: 'फिर आया',
-    histNoWork: 'अभी कोई काम पूरा नहीं हुआ।', histDone: 'बार हुआ', histEvery: 'हर',
-    histLastDone: 'पिछली बार', histDaysAgo: 'दिन पहले', histNever: 'पहली बार',
-    histWatch: 'ध्यान देने वाले', histWatchSub: 'जो काम बार-बार आ रहा है — जड़ ठीक करें, लक्षण नहीं',
-    histSearch: 'बस, समस्या या मैकेनिक खोजें…', histAll: 'सभी बसें',
-    // ---- Crew data bank (drivers & conductors) ----
-    cbTitle: 'स्टाफ बैंक', cbOnRoll: 'लोग काम पर', cbDrivers: 'ड्राइवर', cbConductors: 'कंडक्टर', cbLeft: 'छोड़ चुके',
-    roleDriver: 'ड्राइवर', roleConductor: 'कंडक्टर',
-    cbMissingDocsOne: 'व्यक्ति के ज़रूरी कागज़ नहीं हैं।', cbMissingDocsMany: 'लोगों के ज़रूरी कागज़ नहीं हैं।',
-    cbAllOnFile: 'सभी ज़रूरी कागज़ मौजूद हैं।', cbExpiringSoon: 'कागज़ 30 दिन में खत्म हो रहे हैं।',
-    cbSearchPh: 'नाम, फ़ोन, लाइसेंस, आधार के आखिरी 4…', cbExport: 'सूची डाउनलोड (CSV)',
-    cbFAll: 'सभी', cbFDrivers: 'ड्राइवर', cbFConductors: 'कंडक्टर', cbFIncomplete: 'कागज़ बाकी', cbFExpiring: 'खत्म हो रहे', cbFLeft: 'पुराने स्टाफ',
-    cbNobody: 'इस सूची में कोई नहीं', cbNobodyMatch: 'कोई नहीं मिला', cbNoPhone: 'फ़ोन नहीं', cbNoBus: 'बस नहीं',
-    cbKpiDocs: 'कुछ दर्ज नहीं', cbKpiExp: 'जल्द ख़त्म', cbKpiScan: 'स्कैन नहीं',
-    cbNoScan: 'स्कैन नहीं', cbOnFileWord: 'दर्ज', cbScannedWord: 'स्कैन',
-    cbNothingOnFile: 'ना नंबर ना स्कैन — कुछ भी नहीं', cbNumberOnly: 'नंबर दर्ज है, स्कैन अभी नहीं',
-    cbDocsShort: 'कागज़', cbLeftBadge: 'छोड़ा', cbExported: 'लोगों की सूची डाउनलोड — आधार छिपा हुआ',
-    // Joining form
-    cbNewJoining: 'नई भर्ती', cbTakePhoto: 'फोटो लें', cbFullName: 'पूरा नाम', cbNamePh: 'जैसे रमेश कुमार',
-    cbPhone: 'फ़ोन', cbAltPhone: 'दूसरा फ़ोन', cbPh10: '10 अंक', cbPh12: '12 अंक',
-    cbLicenceNo: 'लाइसेंस नंबर', cbLicenceExp: 'लाइसेंस वैधता', cbAadhaarNo: 'आधार नंबर',
-    cbJoinDate: 'भर्ती की तारीख़', cbDob: 'जन्म तारीख़', cbAssignBus: 'बस दें', cbUnassigned: '— कोई बस नहीं —',
-    cbAddress: 'पता (गाँव / शहर)', cbBlood: 'ब्लड ग्रुप', cbSalary: 'महीने की तनख्वाह ₹',
-    cbEmgHint: 'रास्ते में कुछ हो जाए तो किसे फ़ोन करें?',
-    cbEmgName: 'आपात संपर्क', cbEmgPhone: 'उनका फ़ोन', cbEmgRel: 'रिश्ता', cbRelPh: 'जैसे भाई, पत्नी',
-    cbRefName: 'सिफ़ारिश (कौन जानता है)', cbRefPhone: 'सिफ़ारिश का फ़ोन', cbAddBtn: 'रजिस्टर में जोड़ें',
-    cbDocsLater: 'कागज़ों की फोटो (लाइसेंस, आधार, पुलिस वेरिफिकेशन) बाद में उसकी कागज़ात स्क्रीन से जोड़ें।',
-    cbNeedName: 'उसका नाम डालें', cbNeedPhone: '10 अंकों का फ़ोन नंबर डालें',
-    cbNeedLicence: 'ड्राइवर का लाइसेंस नंबर ज़रूरी है', cbNeedAadhaar12: 'आधार 12 अंकों का होना चाहिए',
-    cbAdded: 'रजिस्टर में जुड़ गया', cbNotAllowed: 'अनुमति नहीं',
-    // Duplicates
-    cbDupTitle: 'पहले से रजिस्टर में है', cbDupAsk: 'को फिर भी नया जोड़ें?', cbDupAddWord: '',
-    cbDupWorking: 'अभी काम कर रहा है', cbDupOn: 'पर', cbDupLeftWord: 'छोड़ चुका', cbDupReason: 'कारण',
-    cbDupRehire: 'दोबारा रखें', cbSamePhone: 'वही फ़ोन', cbSameAadhaar: 'वही आधार', cbSameLicence: 'वही लाइसेंस',
-    cbDupPhoneOn: 'यह फ़ोन पहले से इन पर है:', cbSaveAnyway: 'फिर भी सेव करें?',
-    // Profile / details
-    cbDetails: 'जानकारी', cbEdit: 'बदलें', cbEditDetails: 'जानकारी बदलें', cbSaved: 'जानकारी सेव हुई',
-    cbNeedNameNotEmpty: 'नाम खाली नहीं हो सकता', cbNoDetails: 'अभी कुछ दर्ज नहीं — बदलें दबाकर जानकारी भरें।',
-    cbAadhaar: 'आधार', cbJoined: 'भर्ती', cbAge: 'उम्र', cbYrs: 'साल', cbYr: 'साल',
-    cbBus: 'बस', cbAssignedBus: 'दी गई बस', cbRating: 'रेटिंग', cbChangeBus: 'बस बदलें', cbLogReport: 'रिपोर्ट लिखें',
-    // Leaving / rejoining
-    cbMarkLeftBtn: 'नौकरी छोड़ी', cbMarkLeftTitle: 'नौकरी छोड़ी', cbMarkedLeft: 'की नौकरी छोड़ी दर्ज',
-    cbExitHint: 'उसका रिकॉर्ड रजिस्टर में हमेशा रहेगा। यह सिर्फ़ उसे काम की सूची से हटाता है और उसकी बस खाली करता है।',
-    cbLastDay: 'आख़िरी काम का दिन', cbReason: 'कारण', cbNote: 'नोट (दफ़्तर को क्या पता होना चाहिए)', cbOptional: 'ज़रूरी नहीं',
-    cbRehireQ: 'क्या दोबारा रखेंगे?', cbRehireYes: 'हाँ — अच्छा कर्मचारी', cbRehireMaybe: 'शायद', cbRehireNo: 'नहीं — दोबारा न रखें',
-    cbRejoinBtn: 'वापस लें', cbRejoined: 'दोबारा काम पर', cbNotRecorded: 'दर्ज नहीं',
-    cbNoRehireWarn: 'को “दोबारा न रखें” चिह्नित किया गया था।', cbBringBack: 'फिर भी वापस लें?', cbLeftOn: 'छोड़ा',
-    lrResigned: 'खुद छोड़ा', lrBetterOffer: 'कहीं बेहतर काम मिला', lrAbsconded: 'बिना बताए चला गया',
-    lrMisconduct: 'निकाला — बदसलूकी', lrAccident: 'निकाला — दुर्घटना', lrPilferage: 'निकाला — चोरी',
-    lrMedical: 'बीमारी / अनफिट', lrRetired: 'सेवानिवृत्त', lrOther: 'अन्य',
-    // Documents
-    docLicense: 'ड्राइविंग लाइसेंस', docAadhaar: 'आधार कार्ड', docPhoto: 'फोटो',
-    docPan: 'पैन कार्ड', docPolice: 'पुलिस वेरिफिकेशन', docMedical: 'मेडिकल सर्टिफिकेट',
-    cbMandatoryWord: 'ज़रूरी', cbTotalOnFile: 'कुल मौजूद',
-    cbMandMissing: 'ज़रूरी कागज़ नहीं हैं', cbMandOk: 'सभी ज़रूरी कागज़ मौजूद',
-    cbRequired: 'ज़रूरी', cbAddWord: 'जोड़ें', cbValid: 'सही', cbOnFile: 'मौजूद', cbExpiresWord: 'खत्म',
-    cbPhotoNeeded: 'फोटो चाहिए', cbMandTag: 'ज़रूरी',
-    cbMandDocFor: 'ज़रूरी कागज़ — हर', cbOptDoc: 'यह कागज़ ज़रूरी नहीं है।',
-    cbTakeDocPhoto: 'कागज़ की फोटो लें', cbReplacePhoto: 'फोटो बदलें', cbNumberWord: 'नंबर',
-    deviceServer: 'डिवाइस और सर्वर', deviceServerSub: 'पता, API key, और दोबारा डाउनलोड', saveWord: 'सेव करें',
-    cbFrontSide: 'सामने', cbBackSide: 'पीछे', cbDocumentWord: 'कागज़', cbTapToAdd: 'फोटो लगाएँ',
-    cbRetake: 'दोबारा', cbPhotoFailed: 'यह फोटो नहीं आई — दोबारा लें',
-    cbCamera: 'कैमरा', cbUpload: 'अपलोड', cbUploadPhoto: 'फोटो अपलोड करें', cbPdfWord: 'PDF', cbPickPhotoOrPdf: 'फोटो या PDF चुनिए',
-    cbPdfTooBig: 'यह PDF 3 MB से बड़ी है — छोटी कॉपी या फोटो लगाएँ', cbPdfNoScan: 'PDF से नंबर नहीं पढ़ सकते — टाइप कीजिए',
-    cbPdfNeedsNet: 'PDF सेव करने के लिए इंटरनेट चाहिए — नेट आने पर दोबारा करें',
-    cbBackLicense: 'पीछे की तरफ़ गाड़ी की कैटेगरी लिखी होती है। ज़रूरी नहीं, पर रखना अच्छा है।',
-    cbBackAadhaar: 'पीछे की तरफ़ पता होता है। ज़रूरी नहीं।',
-    cbBackGeneric: 'अगर कागज़ के दो तरफ़ हैं तो पीछे की फोटो भी लगाएँ। ज़रूरी नहीं।',
-    cbEnterOrScan: 'डालें या स्कैन करें', cbExpiryDate: 'खत्म होने की तारीख़', cbSaveDoc: 'कागज़ सेव करें',
-    cbShowFull: 'पूरा नंबर दिखाएं', cbChangeWord: 'बदलें', cbScanNumber: 'नंबर स्कैन करें',
-    cbDocSaved: 'कागज़ सेव हुआ', cbDocNeedPhoto: 'कागज़ की फोटो लें',
-    cbInsMissingMany: 'स्टाफ के ज़रूरी कागज़ नहीं हैं', cbInsDocsIncomplete: 'के कागज़ अधूरे',
-    cbInsMissingDetail: 'और', cbInsMore: 'और लोग। स्टाफ बैंक खोलकर “कागज़ बाकी” छाँटें।', cbInsMissingList: 'नहीं है',
-    cbIncomplete: 'अधूरा', cbOpenWord: 'खोलें',
-    // ---- Archived records ----
-    cbFArchived: 'पुराने रिकॉर्ड', cbArchivedBadge: 'पुराना', cbArchiveBtn: 'रिकॉर्ड पुराना करें',
-    cbRestoreBtn: 'वापस लाएं', cbArchivedOn: 'पुराना किया', cbArchivedToast: 'पुराना कर दिया — खोजने पर मिलेगा',
-    cbRestoredToast: 'दोबारा काम पर',
-    cbArchivedNote: 'पुराना कागज़ी रिकॉर्ड, संभालकर रखा है। इसका मतलब नौकरी छोड़ना नहीं है।',
-    cbBulkArchive: 'पूरा रजिस्टर पुराना करें', cbBulkDone: 'रिकॉर्ड पुराने कर दिए', cbBulkNothing: 'पुराना करने को कुछ नहीं',
-    cbBulkConfirm: 'अभी काम पर मौजूद सभी ड्राइवर और कंडक्टर को पुराना कर दें?',
-    cbBulkExplain: 'कुछ भी मिटेगा नहीं। सब “पुराने रिकॉर्ड” में चले जाएंगे और नाम, फ़ोन, लाइसेंस या आधार से खोजने पर मिलते रहेंगे। जब तक नए लोग नहीं जुड़ते हर बस खाली रहेगी। दफ़्तर जब किसी को दोबारा भरेगा, बैंक उसका पुराना रिकॉर्ड दिखाएगा ताकि लाइसेंस, कागज़ और हाज़िरी का इतिहास साथ चले।',
-    cbBulkType: 'यह सब पर लागू होगा। पक्का करने के लिए ARCHIVE लिखें।',
-    // ---- Duplicate: reuse or add new ----
-    cbDupSheetHint: 'आपने जो लिखा उससे मिलता-जुलता कोई पहले से बैंक में है। उसी रिकॉर्ड को इस्तेमाल करने से उसका पुराना लाइसेंस नंबर, कागज़ और हाज़िरी का इतिहास बना रहेगा, और नई जानकारी अपडेट हो जाएगी।',
-    cbDupReuse: 'यही रिकॉर्ड इस्तेमाल करें', cbDupAddNew: 'अलग व्यक्ति के रूप में जोड़ें',
-    cbDupReused: 'अपडेट होकर दोबारा काम पर', cbDupStatusArchived: 'पुराना रिकॉर्ड',
-    cbDupStatusLeft: 'नौकरी छोड़ चुका', cbDupStatusActive: 'अभी काम कर रहा है',
-    // ---- Duty board (driver/conductor ↔ bus) + Crew Manager ----
-    gcTitle: 'गेट चेक', gcStart: 'गेट चेक शुरू करें', gcStartSub: 'बस निकलने से पहले: बस के पास सेल्फी, फिर 10 जाँच। लगभग 3 मिनट।',
-    gcSelfieCap: 'गेट चेक — बस के पास', gcNeedFace: 'गेट चेक शुरू करने के लिए बस के पास सेल्फी ज़रूरी है', gcGps: 'लोकेशन बंद है — ऑफिस को दिखेगा कि इस चेक में लोकेशन नहीं है',
-    gcPass: 'ठीक', gcFail: 'दिक्कत', gcWhatWrong: 'क्या खराब है?', gcWhatWrongPh: 'जैसे पीछे AC ठंडा नहीं कर रहा', gcAddPhoto: 'फ़ोटो जोड़ें (ज़रूरी नहीं)', gcNoteNeeded: 'पहले लिखें क्या खराब है',
-    gcPhotoFirst: 'ठीक करने के लिए फ़ोटो लें', gcPhotoNeeded: 'फ़ोटो चाहिए', gcItemsLeft: 'जाँच बाकी', gcFinishHint: 'हर चीज़ को ठीक या दिक्कत चुनें।', gcHoldHint: 'थोड़ी देर दबाकर रखें। छोड़ने पर रद्द।',
-    gcHoldRelease: 'बस छोड़ने के लिए दबाए रखें', gcHoldSend: 'ऑफिस भेजने के लिए दबाए रखें', gcKeepHolding: 'दबाए रखें…', gcSentToOffice: 'ऑफिस को भेजा — चलो या रुको का इंतज़ार करें',
-    gcOpen: 'चल रहा है', gcReleased: 'बस छूटी', gcAwaiting: 'ऑफिस के जवाब का इंतज़ार', gcAwaitingSub: 'एक जाँच में दिक्कत है। ऑफिस के "चलो" कहने तक न निकलें — उन्हें सूचना दे दी गई है।',
-    gcApproved: 'ऑफिस: चलो', gcHeld: 'ऑफिस: रुको', gcRecheck: 'ठीक करके फिर जाँचें', gcNewDep: 'नई रवानगी का चेक', gcFailedEarlier: 'पहले दिक्कत थी, फिर जाँचा',
-    gcStartedAt: 'शुरू', gcNotFound: 'यह गेट चेक अभी इस फ़ोन पर नहीं आया।', gcNoLocation: 'लोकेशन नहीं', gcFaceNo: 'चेहरा पक्का नहीं', gcNotOnBoardShort: 'ड्यूटी में नाम नहीं',
-    gcOffice: 'गेट चेक', gcWaiting: 'आपका इंतज़ार', gcNoneWaiting: 'कोई बस गेट पर इंतज़ार में नहीं।', gcToday: 'आज', gcNoneToday: 'आज अभी कोई चेक नहीं।', gcNoCheck: 'आज बिना चेक वाली बसें',
-    gcGo: 'चलो', gcHold: 'रुको', gcReason: 'वजह (ज़रूरी)', gcReasonGoPh: 'जैसे मथुरा स्टॉप पर AC ठीक होगा', gcReasonHoldPh: 'जैसे निकलने से पहले AC ठीक करें', gcReasonNeeded: 'पहले वजह लिखें', gcDecided: 'फ़ैसला ड्राइवर को भेजा',
-    gcService: 'सर्विस', gcServicePick: 'यह बस किस सर्विस पर जा रही है?', gcPickServiceFirst: 'पहले सर्विस चुनें', gcSuggested: 'इस बस के लिए सुझाव', gcAllServices: 'सभी सर्विस', gcSearchSvc: 'शहर या समय खोजें', gcChange: 'बदलें', gcPick: 'चुनें',
-    rvTitle: 'redBus रिव्यू', rvHomeTitle: 'redBus रिव्यू (7 दिन)', rvLast7: 'पिछले 7 दिन', rvAvg: 'औसत', rvTraced: 'बस तक पहुँचे', rvConflicts: 'स्रोतों में फ़र्क',
-    rvNone: 'अभी कोई redBus रिव्यू नहीं — ऑफिस कलेक्टर चालू होने पर आएँगे।', rvNoneHere: 'यहाँ कुछ नहीं।', rvNoComplaints: 'अभी कोई शिकायत नहीं।',
-    rvTabReviews: 'रिव्यू', rvTabComplaints: 'शिकायतें', rvLow: '1–3★', rvSafety: 'सुरक्षा', rvConflict: 'फ़र्क', rvUnresolved: 'बस पता नहीं', rvAll: 'सभी',
-    rvHigh: 'गेट चेक', rvMedium: 'redBus / ITS', rvConflictChip: 'स्रोतों में फ़र्क', rvNoneChip: 'बस पता नहीं',
-    rvWhyService: 'यह सर्विस अभी सूची में नहीं है', rvWhyNoSource: 'उस यात्रा का न गेट चेक है न redBus असाइनमेंट', rvCrewNotRecorded: 'उस समय का स्टाफ़ ड्यूटी लॉग में नहीं',
-    rvSources: 'यह जानकारी कहाँ से', rvSrcGate: 'गेट चेक', rvSrcRedpro: 'redBus असाइनमेंट', rvSrcIts: 'ITS बुकिंग', rvAsTyped: 'जैसा redBus में लिखा', rvSwapped: 'उस दिन बस बदली',
-    rvCrew: 'उस यात्रा का स्टाफ़', rvSafetyK: 'सुरक्षा', rvGenuine: 'सेवा', rvFaq: 'सवाल', rvPraise: 'तारीफ़', rvBoarded: 'चढ़े',
-    wndTitle: 'ड्राइवर क्यों नहीं?', wndHint: 'हर 1–3★ रिव्यू और शिकायत — कहाँ रुकती है, और क्या ठीक करना है।', wndTotal: 'रिव्यू और शिकायतें (1–3★)',
-    wndShow: 'दिखाएँ', wndTrips: 'यात्राएँ', itsLooked: 'देखे गए',
-    wndOk: 'ड्राइवर मिला', wndOkFix: 'व्यक्ति तक पहुँचा — कुछ नहीं करना।',
-    wndNoNumber: 'ITS: उस यात्रा पर ड्राइवर नंबर नहीं', wndNoNumberFix: 'ITS में इन यात्राओं का ड्राइवर नंबर नहीं डाला गया। बस निकलते समय ITS में डालें।',
-    wndNotInBank: 'ITS: ड्राइवर नंबर स्टाफ़ बैंक में नहीं', wndNotInBankFix: 'ITS में ड्राइवर का नंबर है जो Garage Saathi में नहीं। सही स्टाफ़ रिकॉर्ड में जोड़ें; अगली खोज में मिल जाएगा।',
-    wndShared: 'ITS: नंबर दो रिकॉर्ड में', wndSharedFix: 'दो स्टाफ़ रिकॉर्ड में एक ही फ़ोन है। स्टाफ़ बैंक में दोहराव ठीक करें।',
-    wndBusNoCrew: 'बस पता, ड्यूटी में कोई नहीं', wndBusNoCrewFix: 'बस पता है पर उस समय ड्यूटी में ड्राइवर नहीं था। ड्यूटी भरें, या redBus नाम पक्के करें।',
-    wndNoSource: 'उस रात का कोई स्रोत नहीं', wndNoSourceFix: 'न गेट चेक, न redBus बस इतिहास, न ITS जवाब। ITS में देखें; आगे गेट चेक से भरेगा।',
-    wndUnmapped: 'रूट redBus सूची में नहीं', wndUnmappedFix: 'redPro यह रूट नहीं दिखाता (सबसे बड़ी सर्विस)। ITS में देखें।',
-    wndNotFound: 'ITS: PNR नहीं मिला', wndNotFoundFix: 'ITS में इस PNR की बुकिंग नहीं। कम होता है — एक ITS में जाँचें।',
-    itsDiagBtn: 'ITS का जवाब देखें', itsDiagTitle: 'ITS ने क्या लौटाया (एक PNR)', itsDiagWait: 'ITS से पूछ रहे हैं…', itsDiagNone: 'अभी कुछ नहीं देखा गया',
-    itsDiagFound: 'मिला', itsDiagPage: 'पेज', itsDiagMsgs: 'ITS के संदेश', itsDiagFilled: 'भरे हुए खाने', itsDiagEmpty: 'खाली खाने', itsDiagButtons: 'पेज के बटन',
-    itsDiagNote: 'सिर्फ़ खानों के नाम और संदेश — कोई नाम, नंबर या मान नहीं भेजा या रखा जाता।',
-    itsTitle: 'ITS में देखें', itsSub: 'बिना बस वाले 1–3★ रिव्यू — ITS PNR से ड्राइवर बता सकता है', itsBtn: 'देखें', itsRunning: 'ITS में देख रहे हैं…',
-    itsFound: 'ITS में मिले', itsDriver: 'ड्राइवर मिला', itsDone: 'ITS खोज पूरी', itsOff: 'ITS खोज अभी चालू नहीं (Vercel में लुकअप यूज़र नहीं)', rvViaIts: 'ITS ड्राइवर',
-    rbnTitle: 'redBus नाम', rbnHint: 'redBus हर बस का ड्राइवर लिखे हुए नाम से दिखाता है। हर बस पर हर नाम एक बार पक्का करें कि वह कौन है; फिर उस बस के रिव्यू उन्हीं से जुड़ेंगे। Claude सिर्फ़ साफ़ मामले ख़ुद मिलाता है (नीचे देखें); बाक़ी इंसान तय करता है, और Claude का कोई भी मिलान वापस ले सकता है।',
-    rbnToConfirm: 'पक्का करना है', rbnConfirmed: 'पक्के', rbnAllDone: 'redBus के सभी नाम पक्के हो चुके।', rbnDay: 'दिन दिखा', rbnDays: 'दिन दिखा',
-    rbnWhyBefore: 'दूसरी बस पर पक्का', rbnWhyBoard: 'ड्यूटी में', rbnWhyName: 'मिलता नाम', rbnSomeoneElse: 'कोई और…', rbnNotAName: 'असली नाम नहीं',
-    rbnNotInFleet: 'बेड़े की सूची में नहीं', rbnWho: 'यह कौन है?', rbnSaved: 'सेव हुआ', rbnBanner: 'पक्के करने वाले redBus नाम', rbViaDuty: 'ड्यूटी', rbViaRedpro: 'redBus नाम',
-    dpRvTitle: 'इनसे जुड़े redBus रिव्यू', dp30: '30 दिन', dp90: '90 दिन', dpAll: 'सब', dpRvNone: 'इस अवधि में कोई रिव्यू इनसे नहीं जुड़ा।', dpAvg: 'औसत', dpReviews: 'रिव्यू',
-    dpMappedBy: 'कैसे जुड़ा', dpComplaintsAbout: 'कम रेटिंग में', dpSeeAll: 'इनके सारे रिव्यू', dpOverall: 'कुल प्रदर्शन', dpConduct: 'आचरण',
-    dpConductSub: 'घटनाएँ + GPS', dpConductSubC: 'घटनाएँ', dpPassenger: 'यात्री', dpRated: 'रेटिंग', dpOverallHow: 'आधा आचरण, आधा यात्री स्टार (1★ = 0, 5★ = 100), पिछले 90 दिन।',
-    myRvTitle: 'यात्रियों ने आपकी यात्राओं पर क्या कहा', myRvSub: 'आपकी यात्राओं के redBus रिव्यू, पिछले 90 दिन', myRvAll: 'आपके सारे रिव्यू',
-    myRvNone: 'अभी कोई रिव्यू आपसे नहीं जुड़ा। हर रवानगी से पहले सर्विस चुनकर गेट चेक करें: इसी से यात्रियों के रिव्यू आपसे जुड़ते हैं।',
-    myRvNoneC: 'अभी कोई रिव्यू आपसे नहीं जुड़ा। ये ड्यूटी बोर्ड से जुड़ते हैं, ऑफिस से पक्का करें कि आप सही बस पर दर्ज हैं।',
-    myRvLoading: 'आपके रिव्यू आ रहे हैं…', myRvOffline: 'रिव्यू नहीं आ सके। फ़ोन ऑनलाइन होने पर दिखेंगे।', myRvFew: '10 से कम रेटिंग: अभी आपकी रेटिंग में नहीं गिने गए।', myRvWork: 'कम रेटिंग में', myRvNoText: 'कोई टिप्पणी नहीं, सिर्फ़ स्टार।',
-    dgTitle: 'सोमवार सारांश', dgHint: 'हर सोमवार सुबह Claude पिछले हफ़्ते के रिकॉर्ड से लिखता है। हर आँकड़ा आपके रिकॉर्ड से है।',
-    dgNow: 'अभी लिखें', dgNone: 'अभी कोई सारांश नहीं। पहला सोमवार सुबह लिखा जाएगा, या अभी लिखें दबाएँ।', dgActions: 'इस हफ़्ते',
-    dgBy: 'आँकड़े आपके रिकॉर्ड से; शब्द Claude के।', dgEarlier: 'पिछले हफ़्ते',
-    coTitle: 'हफ़्ते की सलाह', coToApprove: 'मंज़ूरी बाक़ी', coNotTheirs: 'इनकी नहीं', coGates: 'गेट चेक', coReported: 'रिपोर्ट',
-    coHint: 'Claude हर ड्राइवर और कंडक्टर के लिए पिछले हफ़्ते (उनके रिव्यू, घटनाएँ, GPS, गेट चेक) से तीन लाइन की सलाह लिखता है। पढ़ें, कोई भी लाइन बदलें, फिर मंज़ूर करें। सिर्फ़ मंज़ूर सलाह उनके फ़ोन पर जाती है।',
-    coWeekOf: 'हफ़्ता', coDraftNow: 'अभी लिखें', co_good: 'अच्छा रहा', co_fix: '🎯 सुधारें', co_tip: '💡 सुझाव', coApprove: 'मंज़ूर', coSkip: 'छोड़ें',
-    coAllDone: 'इस हफ़्ते की सब सलाह तय हो गई।', coNone: 'इस हफ़्ते अभी कोई सलाह नहीं। हफ़्ते भर में थोड़ी-थोड़ी लिखी जाती है।', coDecided: 'इस हफ़्ते तय',
-    coDrafted: 'सलाह लिखी', coMore: 'और बाक़ी', coApproved: 'मंज़ूर: अब उनके फ़ोन पर है', coSkipped: 'छोड़ी', coMine: 'इस हफ़्ते आपके लिए सलाह',
-    raiUnsafe: 'चलाना असुरक्षित हो सकता है', rai_high: 'ज़्यादा', rai_medium: 'मध्यम', rai_low: 'कम', raiRepeat: 'दोबारा आई समस्या', raiInStock: 'स्टॉक में',
-    raiDraftBy: 'ड्राइवर की रिपोर्ट से Claude का ड्राफ़्ट: काम शुरू करने से पहले जाँचें।', raiCause: 'संभावित कारण', raiCheck: 'पहले जाँचें', raiParts: 'शायद चाहिए',
-    raiRepeatNote: 'यह इस बस पर हाल ही में ठीक हुई समस्या जैसी लगती है: पिछला जॉब देखें।', raiDriverSaid: 'ड्राइवर ने कहा',
-    caiWorn: 'घिसा', cai_worn: 'पूरा घिसा', cai_partial: 'आधा घिसा', cai_looks_new: 'नया लगता है', cai_unclear: 'फ़ोटो साफ़ नहीं', caiUnreadable: 'Claude यह फ़ोटो नहीं खोल सका',
-    caiF_not_this_part: 'लगाया गया पार्ट नहीं', caiF_looks_new: 'नया लगता है', caiF_claim_mismatch: 'कहा घिसा, दिखता कम इस्तेमाल', caiF_dup_photo: 'दूसरी वापसी वाली फ़ोटो',
-    billScanHint: 'छपा या हाथ से लिखा (कच्चा) बिल खींचें। Claude सप्लायर, बिल नंबर, हर लाइन और टोटल पढ़ता है; आप जाँचें और सेव करें।',
-    billReading: 'Claude बिल पढ़ रहा है…', billFallback: 'फ़ोन पर पढ़ रहे हैं', billAsWritten: 'बिल पर', billQtyRate: 'मात्रा × रेट', billWritten: 'बिल में',
-    billNoTotal: 'टोटल नहीं पढ़ा गया: रकम लिखें', billSumTotal: 'सबटोटल + GST टोटल के बराबर नहीं', billSumLines: 'लाइनें सबटोटल के बराबर नहीं',
-    billLineSums: 'कुछ लाइनों का जोड़ नहीं मिलता (लाल में)', billDup: 'इस सप्लायर का यह बिल नंबर पहले ही दर्ज है:', billNewVendor: 'सप्लायर आपकी सूची में नहीं',
-    billUnmatched: 'लाइनें किसी पार्ट से नहीं मिलीं: पार्ट चुनें या लाइन हटाएँ', billLegible_partial: 'बिल का कुछ हिस्सा पढ़ना मुश्किल था', billLegible_poor: 'बिल पढ़ना मुश्किल था: हर आँकड़ा जाँचें',
-    billReadTitle: 'Claude ने पढ़ा', billLines: 'लाइनें', billSubtotal: 'सबटोटल', billTotal: 'टोटल', billHandwritten: 'हाथ से लिखा', billAllAdds: 'सब जोड़ सही है।',
-    billCheckSave: 'सप्लायर, पार्ट और रकम जाँचें, फिर सेव करें। आपके सेव करने तक कुछ दर्ज नहीं होता।', billReadToast: 'बिल पढ़ा, जाँचें और सेव करें',
-    gai_ok: 'फ़ोटो सही लगती है', gai_doubt: 'फ़ोटो पर शक', gai_wrong: 'फ़ोटो में यह नहीं है', gaiSameAs: 'वही फ़ोटो जो', gaiReused: 'पिछले चेक की फ़ोटो दोबारा',
-    gaiUnreadable: 'Claude फ़ोटो नहीं खोल सका', gaiDoubt1: 'फ़ोटो देखनी है', gaiDoubts: 'फ़ोटो देखनी हैं', gaiHomeChip: 'फ़ोटो पर शक',
-    rbnAiTitle: 'Claude नाम मिलाता है', rbnAiMatched: 'Claude ने मिलाए', rbnAiGeneric: 'नाम नहीं माने', rbnAiSuggested: 'सुझाए',
-    rbnAiRule: 'Claude ख़ुद तभी पक्का करता है जब वह निश्चित हो और ड्यूटी लॉग में वही व्यक्ति उन ज़्यादातर रातों उस बस पर हो। बाक़ी आपके लिए नीचे हैं।',
-    rbnAiNights: 'रातें इस बस पर (ड्यूटी लॉग)', rbnAiConf_high: 'पक्का', rbnAiConf_medium: 'शायद', rbnAiConf_low: 'पता नहीं',
-    rbnByClaude: 'Claude द्वारा', rbnUndo: 'वापस लें', rbnUnsure: 'बिना मिलाए छोड़ें',
-    aiNotTheirs: 'नहीं गिने: Claude के अनुसार बस, ऑफिस या redBus की गलती', aiNotYours: 'आपके ख़िलाफ़ नहीं गिने: गलती बस, ऑफिस या redBus की थी',
-    aiNotCounted: 'नहीं गिना', aiNoComplaint: 'कोई शिकायत नहीं', aiWhose: 'किसकी गलती', aiByClaude: 'Claude ने पढ़ा। स्टाफ़ के स्कोर में सिर्फ़ स्टाफ़ की गलती गिनी जाती है।',
-    aiRvTitle: 'किसकी गलती (Claude)', aiRvBtn: 'अभी पढ़ें', aiRvRead: 'टिप्पणी वाले रिव्यू पढ़े', aiRvNotCrew: 'स्टाफ़ की गलती नहीं', aiRvRunning: 'पढ़ रहे हैं…',
-    aiRvBatch: 'रिव्यू एक बैच में Claude को भेजे; नतीजे कुछ घंटों में', aiRvBatchWait: 'बैच अभी पढ़ा जा रहा है', aiRvDone: 'रिव्यू पढ़े',
-    fltDriver: 'ड्राइवर', fltConductor: 'कंडक्टर', fltCrew: 'स्टाफ़', fltBus: 'बस', fltOffice: 'ऑफिस', fltRedbus: 'redBus', fltPassenger: 'यात्री',
-    top_driving: 'ड्राइविंग', top_punctuality: 'समय', top_staff_behaviour: 'स्टाफ़ व्यवहार', top_cleanliness: 'सफ़ाई', top_ac: 'एसी', top_bus_condition: 'बस की हालत',
-    top_seats: 'सीट', top_blankets: 'कंबल', top_boarding_point: 'बोर्डिंग पॉइंट', top_breakdown: 'ब्रेकडाउन', top_refund: 'रिफ़ंड', top_booking: 'बुकिंग',
-    top_amenities: 'सुविधाएँ', top_safety: 'सुरक्षा', top_other: 'अन्य',
-    dpShowLess: 'कम दिखाएँ', cmRatings: 'यात्रियों की नज़र में स्टाफ़', cmRatingsSub: 'सबसे कम पहले, 90 दिन, 10+ रेटेड यात्राओं वाले। रिव्यू देखने के लिए टैप करें।',
-    cmRatingsWait: 'अभी किसी की 10 रेटेड यात्राएँ नहीं जुड़ीं। ड्यूटी बोर्ड सही रखने और redBus नाम पक्के करने से भरेगा।',
-    dpOverallWait: 'अभी सिर्फ़ आचरण। 90 दिन में 10 रेटेड यात्राएँ जुड़ने पर यात्री स्टार भी गिने जाएँगे।',
-    rvBusCard: 'redBus रिव्यू (30 दिन)', rvCrewReviews: 'इनकी यात्राओं के redBus रिव्यू (30 दिन)', rvMinSample: '10 से कम रेटिंग, अभी फ़ैसला नहीं', cmpNotes: 'redBus एजेंट नोट',
-    gcHomeTitle: 'आज के गेट चेक', gcNoCheckShort: 'बिना चेक', gcHistory: 'पहले के फ़ैसले', hmGateWaiting: 'बस गेट पर इंतज़ार में', hmGateWaitingSub: 'जाँच में दिक्कत — चलो या रुको?', asGateLine: 'गेट चेक',
-    gi_ac: 'AC ठंडा कर रहा है', gi_blankets: 'हर बर्थ पर कंबल और तकिया', gi_cabin: 'बर्थ, फ़र्श और वॉशरूम साफ़', gi_charging: 'चार्जिंग पॉइंट चालू', gi_water: 'पानी की बोतलें रखीं',
-    gi_tyres: 'टायर और लाइट ठीक', gi_fuel: 'पहले हिस्से के लिए पूरा डीज़ल', gi_papers: 'RC, परमिट, बीमा, PUC बस में', gi_safety: 'फ़र्स्ट-एड, फ़ायर एक्सटिंग्विशर, इमरजेंसी हथौड़ा', gi_uniform: 'स्टाफ़ वर्दी में',
-    asWhoWas: 'उस दिन बस पर कौन था', asWhoWasHint: 'रिव्यू, शिकायत या चालान के लिए: यात्रा की तारीख और बस चुनें।', asLookUp: 'देखें', asPickBus: 'बस चुनें',
-    asNotRecorded: 'रिकॉर्ड नहीं — ड्यूटी लॉग शुरू हुआ', asNobodySeat: 'उस दिन इस सीट पर कोई नहीं', asAllDay: 'पूरा दिन', asFromT: 'से', asUntilT: 'तक',
-    asByBus: 'बस के हिसाब से', asBusSeats: 'हर बस, दोनों सीटों के साथ — सीट भरने के लिए उस पर दबाइए', noMatch: 'इससे कुछ नहीं मिला', drvSearch: 'नाम, बस नंबर या फ़ोन खोजें…', asSearch: 'बस नंबर या नाम खोजें…',
-    asTitle: 'ड्यूटी', asHint: 'बस बदलने के लिए नाम दबाएं, या खाली सीट भरने के लिए बस दबाएं।',
-    asNoBus: 'कोई बस नहीं', asAssigned: 'दी गई', asUnassigned: 'नहीं दी',
-    asBusesNoDriver: 'बिना ड्राइवर की बसें', asBusesNoConductor: 'बिना कंडक्टर की बसें',
-    asAssignWord: 'दें', asAllHaveDriver: 'हर बस पर ड्राइवर है', asAllHaveConductor: 'हर बस पर कंडक्टर है',
-    asAssignDriver: 'ड्राइवर दें', asAssignConductor: 'कंडक्टर दें', asNone: '— कोई नहीं —',
-    asSeat: 'सीट', asDriverN: 'ड्राइवर', asSeat2Hint: 'दूसरा ड्राइवर, रात / लंबा रूट', asFirstFree: 'पहली खाली सीट', asSeatEmpty: 'खाली', asExtraDriver: 'यह भी इसी बस पर दर्ज है — सीट या दूसरी बस दें',
-    asDriverAssigned: 'ड्राइवर दे दिया', asConductorAssigned: 'कंडक्टर दे दिया', asForThisBus: 'इस बस के लिए',
-    asNobodyYet: 'अभी रोल पर कोई नहीं', asNobody: 'कोई नहीं',
-    cmToday: 'आज की ड्यूटी', cmNeedDriver: 'बसों को ड्राइवर चाहिए', cmNeedConductor: 'बसों को कंडक्टर चाहिए',
-    // ---- The office login ----
-    // ---- The conversation log ----
-    cnTitle: 'बातचीत का रिकॉर्ड', cnNew: 'नोट जोड़ें', cnKind: 'किस तरह की बात',
-    cnTalked: 'बात की', cnWarned: 'चेतावनी दी', cnPraised: 'तारीफ़ की', cnOther: 'नोट',
-    cnWhat: 'क्या बात हुई', cnWhatPh: 'जैसे: दिल्ली रूट पर झटके से ब्रेक लगाने की तीन एक-तारा शिकायतों पर बात हुई। इनका कहना है कि ब्रेक पकड़ते हैं।',
-    cnOnce: 'सेव होने के बाद नोट न बदला जा सकता है न मिटाया। वैसे ही लिखिए जैसे साल भर बाद पढ़ा जाना चाहिए।',
-    cnNone: 'इस व्यक्ति से किसी बातचीत का रिकॉर्ड नहीं है।',
-    cnSaved: 'दर्ज हो गया', cnNeedText: 'क्या बात हुई, लिखिए', cnNotAllowed: 'यह लॉगिन नोट नहीं जोड़ सकता',
-    cnScoreThen: 'तब अंक', cnLogged: 'इस महीने के नोट',
-    ofTitle: 'क्रू का प्रदर्शन', ofCrew: 'क्रू', ofReviews: 'समीक्षाएँ',
-    ofBlurb: 'हर ड्राइवर और कंडक्टर, सबसे कम अंक वाला पहले, और उसके पीछे यात्रियों की समीक्षाएँ। यह लॉगिन न रोस्टर बदल सकता है, न बस, न रेटिंग — यह सिर्फ़ पढ़ने के लिए है।',
-    ofAvgStars: 'औसत रेटिंग · 90 दिन', ofOneStar: 'एक-तारा समीक्षाएँ', ofRatedCrew: 'जिनकी रेटिंग है',
-    ofNeedTalk: 'इनसे बात करनी चाहिए', ofNeedTalkSub: 'व्यवहार और यात्री समीक्षा मिलाकर 100 में से 60 से कम।',
-    ofLeaderboard: 'सब लोग, सबसे कम पहले', ofReviewsWord: 'समीक्षाएँ', ofNoReviews: 'अभी कोई समीक्षा नहीं',
-    ofNoneYet: 'अभी किसी क्रू की इतनी समीक्षाएँ नहीं कि अंक दिए जा सकें।',
-    ofNotEnough: 'अंक देने लायक़ समीक्षाएँ नहीं', ofNotEnoughSub: '90 दिन में {n} से कम रेटेड ट्रिप। दो-चार समीक्षाओं से किसी को आँकना ठीक नहीं, इसलिए इन्हें क्रम में नहीं रखा गया।',
-    cmFreeDrivers: 'बिना बस के ड्राइवर', cmFreeConductors: 'बिना बस के कंडक्टर', cmCanFill: 'भर सकते हैं',
-    cmInWorkshop: 'वर्कशॉप या बाहर',
-    cmShortHands: '{d} बसों पर ड्राइवर और {c} पर कंडक्टर नहीं — यह बोर्ड भरने से नहीं सुधरेगा: {n} बसों के लिए {dp} ड्राइवर ही हैं। यह भर्ती का सवाल है।',
-    cmAllSet: 'हर बस पर ड्राइवर और कंडक्टर हैं', cmOpenBoard: 'ड्यूटी बोर्ड खोलें',
-  },
 };
+/* Hindi arrives from i18n-hi.js, which loads only for somebody reading Hindi.
+ * Absent, every lookup falls through to English -- the same fallback t() has
+ * always used for a key Hindi did not carry. */
+if (window.I18N_HI) I18N.hi = window.I18N_HI;
+
+/* Fetch Hindi the first time somebody asks for it.
+ *
+ * index.html loads it up front for a device already set to Hindi, so this only
+ * runs on an actual switch. If the fetch fails the switch still happens and every
+ * lookup falls back to English -- a language toggle that does nothing because a
+ * file 404'd would be worse than one that lands in the wrong language. */
+function ensureLang(lang, then) {
+  if (lang !== 'hi' || I18N.hi) return then();
+  var s = document.createElement('script');
+  s.src = 'i18n-hi.js';
+  s.onload = function () { if (window.I18N_HI) I18N.hi = window.I18N_HI; then(); };
+  s.onerror = then;
+  document.head.appendChild(s);
+}
+
 let LANG = localStorage.getItem('lang') || 'en';
 const t = (k) => (I18N[LANG] && I18N[LANG][k]) || I18N.en[k] || k;
 
@@ -3121,7 +2724,16 @@ const notCheckedInBanner = () => {
  * screen and leaves every other one exactly as it was. That is the whole
  * migration strategy: one screen at a time, in the same document. */
 const v2Density = () => {
-  try { return (window.matchMedia && matchMedia('(pointer: coarse)').matches) ? 'yard' : 'desk'; }
+  /* Asked of any-pointer, not pointer.
+   *
+   * `(pointer: coarse)` describes the PRIMARY pointer, and a touch-capable
+   * laptop answers yes to it -- so an office machine with a mouse was getting
+   * yard's 48px targets and looking like a phone blown up. `(any-pointer: fine)`
+   * asks whether a mouse exists at all, which is the thing that actually decides
+   * whether 32px rows are reachable. A phone has no fine pointer and still gets
+   * yard; a touchscreen laptop has both and gets desk, which is right, because
+   * the person is using the trackpad. */
+  try { return (window.matchMedia && matchMedia('(any-pointer: fine)').matches) ? 'desk' : 'yard'; }
   catch (e) { return 'yard'; }
 };
 const v2 = (html) => `<div data-v2 data-density="${v2Density()}">${html}</div>`;
@@ -13307,7 +12919,7 @@ const _dispatchClick = async (e) => {
 
     switch (act) {
       case 'back': return back();
-      case 'lang': LANG = LANG === 'en' ? 'hi' : 'en'; localStorage.setItem('lang', LANG); return rerender();
+      case 'lang': LANG = LANG === 'en' ? 'hi' : 'en'; localStorage.setItem('lang', LANG); return ensureLang(LANG, rerender);
       case 'theme': {
         const cur = document.documentElement.dataset.theme
           || (matchMedia('(prefers-color-scheme:dark)').matches ? 'dark' : 'light');
@@ -13689,8 +13301,8 @@ function langSwitch() {
 // if it handled the event (so callers can early-return).
 function handleLoginLang(e, redraw) {
   const ls = e.target.closest('[data-setlang]');
-  if (ls) { LANG = ls.getAttribute('data-setlang'); localStorage.setItem('lang', LANG); redraw(); return true; }
-  if (e.target.closest('[data-loginlang]')) { LANG = LANG === 'en' ? 'hi' : 'en'; localStorage.setItem('lang', LANG); redraw(); return true; }
+  if (ls) { LANG = ls.getAttribute('data-setlang'); localStorage.setItem('lang', LANG); ensureLang(LANG, redraw); return true; }
+  if (e.target.closest('[data-loginlang]')) { LANG = LANG === 'en' ? 'hi' : 'en'; localStorage.setItem('lang', LANG); ensureLang(LANG, redraw); return true; }
   return false;
 }
 /* Somebody added on one device was invisible on every other device's login
@@ -13764,7 +13376,7 @@ function renderLogin() {
   // A mechanic on a recent-users tile would walk straight past the role picker,
   // so filter that list too.
   const recent = recentUsers().filter((u) => !NO_LOGIN_ROLES.has(u.role));
-  root().innerHTML = `<div data-v2 data-density="yard" class="lg">
+  root().innerHTML = `<div data-v2 data-density="${v2Density()}" class="lg">
     <div class="lg-top">${langSwitch()}</div>
     <div class="lg-mark">${icon('bus', { size: 30 })}</div>
     <h1 class="lg-biz">${esc(BIZ)}</h1>
@@ -13795,7 +13407,7 @@ function renderLogin() {
 function renderRolePick(role) {
   _pinUser = null; _pin = '';
   const list = (S.cache.users || []).filter((u) => u.role === role).sort((a, b) => a.name.localeCompare(b.name));
-  root().innerHTML = `<div data-v2 data-density="yard" class="lg">
+  root().innerHTML = `<div data-v2 data-density="${v2Density()}" class="lg">
     <div class="lg-top lg-top-back">
       <button type="button" class="btn btn-quiet lg-back" data-loginback aria-label="${esc(t('back'))}">${icon('back', { size: 20 })}</button>
       <span class="lg-crumb">${esc(ROLE_META[role][1])}</span>${langSwitch()}</div>
@@ -13865,7 +13477,7 @@ function renderPin(user) {
     // below them were ⌫ and ✓ -- all glyphs a Windows 7 font may not carry, which
     // is the whole reason the icon set exists. Same reason the keypad digits are
     // the only text left on this screen.
-    root().innerHTML = `<div data-v2 data-density="yard" class="lg">
+    root().innerHTML = `<div data-v2 data-density="${v2Density()}" class="lg">
       <div class="lg-top">${langSwitch()}</div>
       <h1 class="lg-biz lg-who">${esc(user.name)}</h1>
       <p class="lg-tag">${t('enterPin')}</p>

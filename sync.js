@@ -132,6 +132,9 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
    * must be reset together for the same reason -- see the scope rewind below. */
   const DEFERRED_STORES = ['gpsevents'];
   let lastRevDeferred = parseInt(ls.getItem('lastRevDeferred') || '0', 10);
+  // The first-screen pass's cursor. In memory and never written down: it is a
+  // head start, not a record of what this device has.
+  let scratchRev = 0;
   /* How many revisions the SERVER has. Every pull has carried this since paging
    * was added and nothing has ever read it, so the app could not tell the
    * difference between "this is the total" and "this is the total SO FAR".
@@ -904,7 +907,13 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
      * every device in the yard, to fetch nothing, and only showed up by watching
      * production. See drainPlan() for what each name means and why. */
     for (const step of PullApply.drainPlan(lastRev, lastRevDeferred)) {
-      if (step === 'defer') await drain(() => pullPage({ defer: DEFERRED_STORES }));
+      if (step === 'first') {
+        /* Its own cursor, thrown away afterwards: this pass exists only to put
+         * the first screen's rows on the device early. The full drain below still
+         * starts from zero and re-sends them, which is what keeps the main cursor
+         * honest -- nothing is skipped on the strength of this shortcut. */
+        await drain(() => pullPage({ only: PullApply.FIRST_STORES, scratch: true }));
+      } else if (step === 'defer') await drain(() => pullPage({ defer: DEFERRED_STORES }));
       else if (step === 'only') await drain(() => pullPage({ only: DEFERRED_STORES }));
       else await drain(() => pullPage());
     }
@@ -945,7 +954,8 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
     setStatus('syncing');
     const only = (opts && opts.only) || null;
     const defer = (opts && opts.defer) || null;
-    const since = only ? lastRevDeferred : lastRev;
+    const scratch = !!(opts && opts.scratch);
+    const since = scratch ? scratchRev : only ? lastRevDeferred : lastRev;
     const filter = only ? '&store=' + encodeURIComponent(only.join(','))
       : defer ? '&defer=' + encodeURIComponent(defer.join(',')) : '';
     const res = await fetch(baseUrl() + '/pull?since=' + since + '&deviceId=' + encodeURIComponent(deviceId) + filter,
@@ -1048,7 +1058,8 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
       // Never past a record this device still owes itself.
       const next = holdRev ? Math.min(j.maxRev, holdRev - 1) : j.maxRev;
       if (next > since) {
-        if (only) {
+        if (scratch) { scratchRev = next; }        // in memory only; never stored
+        else if (only) {
           lastRevDeferred = next; ls.setItem('lastRevDeferred', String(lastRevDeferred));
         } else {
           lastRev = next; ls.setItem('lastRev', String(lastRev));
@@ -1067,7 +1078,7 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
     if (conflicts && cbConflict) await cbConflict(conflicts);
     // Only keep going while the cursor is actually moving, so a server that
     // reports `more` without advancing cannot loop us.
-    return !!j.more && (only ? lastRevDeferred : lastRev) > before;
+    return !!j.more && (scratch ? scratchRev : only ? lastRevDeferred : lastRev) > before;
   }
 
   // One-time backfill for stores that were added to STORES after records already

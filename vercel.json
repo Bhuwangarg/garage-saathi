@@ -5,7 +5,7 @@
   ],
   "functions": {
     "api/index.py": {
-      "includeFiles": "{*.py,index.html,export.html,app.js,db.js,pullapply.js,sync.js,duty.js,gate.js,trace.js,seed-data.js,seed-docs.js,sw.js,styles.css,manifest.webmanifest,icons/**,assets/**,ui/**}",
+      "includeFiles": "{*.py,index.html,export.html,app.js,db.js,i18n-hi.js,pullapply.js,sync.js,duty.js,gate.js,trace.js,seed-data.js,seed-docs.js,sw.js,styles.css,manifest.webmanifest,icons/**,assets/**,ui/**}",
       "maxDuration": 300
     }
   },

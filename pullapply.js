@@ -93,8 +93,21 @@
   function drainPlan(lastRev, lastRevDeferred) {
     const main = lastRev || 0;
     const dfr = lastRevDeferred || 0;
-    // Nothing yet: the screens people open first come before the telemetry.
-    if (!main) return ['defer', 'only'];
+    /* Nothing yet. Fetch what the FIRST SCREEN needs before anything else.
+     *
+     * A first sync walks the table in rev order, so the few hundred rows the home
+     * actually draws -- buses, crew, open jobs, parts, challans -- are scattered
+     * through tens of thousands of log rows and arrive whenever their rev comes
+     * up. That is why the app could be "loaded" and still show empty figures for
+     * a minute: the screens were waiting on records that had no reason to be last.
+     *
+     * 'first' asks for those stores alone, on their own cursor. It is one or two
+     * pages, so the home fills almost immediately, and the full drain behind it
+     * re-sends those same records -- which costs a little bandwidth and nothing
+     * else, because decidePage() sees they are not newer and skips them. Paying
+     * that twice on one sync is worth a home screen that is right in a second.
+     */
+    if (!main) return ['first', 'defer', 'only'];
     // An interrupted first sync. Finish the deferred stores on their own cursor
     // before anything else, then carry on normally.
     if (dfr < main) return ['only', 'plain'];
@@ -125,7 +138,15 @@
     };
   }
 
+  /* The stores a first screen draws from. Deliberately short: everything else can
+   * arrive behind it, and a list that grows to cover every screen is the same as
+   * no list at all. */
+  const FIRST_STORES = ['meta', 'users', 'buses', 'parts', 'jobcards', 'drivers',
+                        'challans', 'fuel', 'rbreviews', 'incidents', 'routes',
+                        'vendors', 'components', 'attendance', 'stockmoves', 'breakdowns'];
+
   const api = { decidePage: decidePage, byStore: byStore, drainPlan: drainPlan,
+                FIRST_STORES: FIRST_STORES,
                 replicaState: replicaState, FUTURE_MS: FUTURE_MS };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.PullApply = api;

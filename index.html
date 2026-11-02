@@ -55,6 +55,21 @@
        device is seeded. It was being downloaded, parsed and held in memory on
        every single load, for every device that had long since been seeded.
        loadSeedData() now fetches it only when there is seeding left to do. -->
+  <!-- Hindi is 83 KB of dictionary and only one language is ever read, so it
+       lives in its own file. Written with document.write on purpose: it has to
+       block the parser here, BEFORE app.js, or app.js builds its I18N without
+       Hindi and the first paint is in the wrong language. A dynamically inserted
+       script cannot promise that ordering against a parser-inserted one.
+       Everything else loads it on demand -- see ensureLang() in app.js. -->
+  <script>
+    (function () {
+      try {
+        if ((localStorage.getItem('lang') || 'en') === 'hi') {
+          document.write('<scr' + 'ipt src="i18n-hi.js"><\/scr' + 'ipt>');
+        }
+      } catch (e) { /* no storage: English, and the toggle still fetches it */ }
+    })();
+  </script>
   <script src="db.js"></script>
   <!-- Before sync.js: pullPage() decides which pulled record wins through it. -->
   <script src="pullapply.js"></script>

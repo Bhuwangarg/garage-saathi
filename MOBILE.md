@@ -103,9 +103,8 @@ against the live server on 2026-09-07:
 
 The hosted PWA needs no CORS entry at all: Vercel serves it from the same origin as the API.
 
-> **The bundled copies of `sync.js` under `mobile/` are stale** — they still pin `PROD_SYNC`
-> to the retired `garage-saathi-sync.onrender.com`. Run `npx cap sync` to refresh them from
-> the repo root before building either app, or the packaged phone app talks to a dead host.
+> Run `npx cap sync` from the repo root before building either app, so the packaged
+> copies of the web assets match what the hosted PWA is serving.
 
 ## Permissions
 `AndroidManifest.xml`: `INTERNET`, `CAMERA`, `ACCESS_FINE_LOCATION`,

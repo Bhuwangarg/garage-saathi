@@ -170,10 +170,8 @@ the `WRITE_ROLES` change for `crewmanager` lands with the client that needs it.
 Verify after pushing: `/health` reports the deployed `commit`, and the live
 `app.js` should match `git show HEAD:app.js`.
 
-**`render.yaml`, `Procfile` and `Dockerfile` have been deleted** (Sep 2026). They
-were left from the Render era (the app moved to Vercel in Aug 2026, commit
-`4d23aea`) and described a manual-deploy workflow that no longer exists — they had
-already produced one wrong deploy plan.
+**Hosting is Vercel and Supabase, and nothing else.** A push to `main` deploys;
+there is no manual step and no second host to keep in step.
 
 **Creating the login itself is an owner action** — Me → Staff → Add staff →
 Crew Manager, with a 4-digit PIN the owner chooses. Only the owner sees that

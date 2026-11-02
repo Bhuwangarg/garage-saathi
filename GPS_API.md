@@ -8,7 +8,7 @@ supported — **Push (recommended)** and **Pull**. The app maps every vehicle by
 **registration number** (e.g. `RJ14 PA 1023`), so please send that with each event.
 
 ```
-Base URL : https://garage-saathi-sync.vercel.app   # live (the old onrender.com host is retired)
+Base URL : https://garage-saathi-sync.vercel.app   # live
 Format   : JSON over HTTPS (UTF-8)
 ```
 
