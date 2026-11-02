@@ -155,3 +155,13 @@
  * not define, so inside the wrapper it was drawing in the old palette. The arrow
  * and the text colour already say direction and severity. */
 [data-v2] .schip i { display: none; }
+
+/* The three facts under a bus card -- odometer, km/l, open jobs -- were a glyph
+ * and a number each. The glyph is a drawing now, so it needs the box the text
+ * used to take up and the dim colour its label already had. */
+[data-v2] .vc-mv { display: flex; align-items: center; gap: 5px; font-variant-numeric: tabular-nums; }
+[data-v2] .vc-mv svg { width: 15px; height: 15px; color: var(--ink-dim); flex: none; }
+[data-v2] .vc-ml { color: var(--ink-dim); font-size: var(--t6); }
+/* The bus card itself, so it reads as a panel in this palette rather than a
+ * shadow in the old one. */
+[data-v2] .vcard { background: var(--surface-raised); border: 1px solid var(--line); border-radius: 12px; box-shadow: none; overflow: hidden; }

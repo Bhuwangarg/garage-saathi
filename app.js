@@ -142,7 +142,7 @@ const I18N = {
     // Home / actions
     namaste: 'Namaste', addStock: 'Add stock', myBus: 'My Bus', myTrips: 'My Trips', myReports: 'My reports',
     yourRating: 'Your rating', reportProblem: 'Report a problem on my bus', noBusAssigned: 'No bus assigned yet. Ask your supervisor.',
-    reportArea: 'Area', reportWhat: 'What did you notice on the trip?', submit: 'Submit', reportSubmitted: 'Report submitted ✓',
+    reportArea: 'Area', reportWhat: 'What did you notice on the trip?', submit: 'Submit', reportSubmitted: 'Report submitted',
     trips: 'trips', fixed: 'fixed', openStatus: 'open', noReportsYet: 'No reports yet. Tap the button above after a trip.',
     // Jobs filter + edit/reassign + verify
     filterAll: 'All', filterAllMechs: 'All mechanics', statusInProgress: 'In progress', statusVerified: 'Verified',
@@ -161,7 +161,7 @@ const I18N = {
     drvNoBus: 'No bus assigned', drvNeedDetail: 'Add a note, photo or voice', drvCancelBtn: 'Cancel report',
     drvCancelBlocked: 'Cannot cancel — a job is already linked.', drvCancelConfirm: 'Cancel this report?', drvCancelled: 'Report cancelled',
     drvLast90: 'Last 90 days', drvCleanRecord: 'Clean record in the last 90 days. ',
-    drvTipGreat: 'Great driving — keep it up! 👏', drvTipGood: 'Good. Smooth braking and careful parking keep it high.',
+    drvTipGreat: 'Great driving — keep it up!', drvTipGood: 'Good. Smooth braking and careful parking keep it high.',
     drvTipLow: 'Drive smoothly; avoid scratches, dents and harsh braking to raise your score.',
     driverReportsWaiting: 'driver reports waiting', noDriverReports: 'No open driver reports for this bus.', useThisReport: 'use this',
     // Report categories
@@ -188,7 +188,7 @@ const I18N = {
     djGo: 'Yes, delete it', djDone: 'Job card deleted · पुर्जे स्टोर में वापस',
     djOwnerOnly: 'Only the owner can delete a job card', djLedger: 'Back from a deleted job card',
     // ---- Outside job / gate pass ----
-    closedAndSigned: 'Closed and signed off ✓',
+    closedAndSigned: 'Closed and signed off',
     ojTitle: 'Outside job', ojSub: 'The slip that goes out with a unit, and what it is checked against coming back',
     ojNew: 'New outside job', ojNewHint: 'Fill this in before the unit leaves. Print it and send a copy with the vendor.',
     ojVendor: 'Vendor name', ojVendorPh: 'who is doing the work', ojDate: 'Date',
@@ -244,14 +244,14 @@ const I18N = {
     cbDocsLater: 'Document photos (licence, Aadhaar, police verification) are added afterwards from his Documents screen.',
     cbNeedName: 'Enter his name', cbNeedPhone: 'Enter a 10-digit phone number',
     cbNeedLicence: 'A driver needs a licence number', cbNeedAadhaar12: 'Aadhaar must be 12 digits',
-    cbAdded: 'added to the bank ✓', cbNotAllowed: 'Not allowed',
+    cbAdded: 'added to the bank', cbNotAllowed: 'Not allowed',
     // Duplicates
     cbDupTitle: 'Already in the bank', cbDupAsk: 'as a new record anyway?', cbDupAddWord: 'Add',
     cbDupWorking: 'currently working', cbDupOn: 'on', cbDupLeftWord: 'LEFT', cbDupReason: 'Reason',
     cbDupRehire: 'Marked rehire', cbSamePhone: 'same phone', cbSameAadhaar: 'same Aadhaar', cbSameLicence: 'same licence',
     cbDupPhoneOn: 'That phone is already on:', cbSaveAnyway: 'Save anyway?',
     // Profile / details
-    cbDetails: 'Details', cbEdit: 'Edit', cbEditDetails: 'Edit details', cbSaved: 'Details saved ✓',
+    cbDetails: 'Details', cbEdit: 'Edit', cbEditDetails: 'Edit details', cbSaved: 'Details saved',
     cbNeedNameNotEmpty: 'Name cannot be empty', cbNoDetails: 'Nothing recorded yet — tap Edit to fill his details.',
     cbAadhaar: 'Aadhaar', cbJoined: 'Joined', cbAge: 'Age', cbYrs: 'yrs', cbYr: 'yr',
     cbBus: 'Bus', cbAssignedBus: 'Assigned bus', cbRating: 'Rating', cbChangeBus: 'Change bus', cbLogReport: 'Log report',
@@ -260,7 +260,7 @@ const I18N = {
     cbExitHint: 'His record stays in the bank forever. This only takes him off the working roster and frees his bus.',
     cbLastDay: 'Last working day', cbReason: 'Reason', cbNote: 'Note (what the office should know)', cbOptional: 'optional',
     cbRehireQ: 'Would you take him back?', cbRehireYes: 'Yes — good worker', cbRehireMaybe: 'Maybe', cbRehireNo: 'No — do not rehire',
-    cbRejoinBtn: 'Rejoin', cbRejoined: 'is back on the roster ✓', cbNotRecorded: 'not recorded',
+    cbRejoinBtn: 'Rejoin', cbRejoined: 'is back on the roster', cbNotRecorded: 'not recorded',
     cbNoRehireWarn: 'was marked DO NOT REHIRE.', cbBringBack: 'Bring him back anyway?', cbLeftOn: 'Left',
     lrResigned: 'Resigned', lrBetterOffer: 'Better offer elsewhere', lrAbsconded: 'Absconded',
     lrMisconduct: 'Terminated — misconduct', lrAccident: 'Terminated — accident', lrPilferage: 'Terminated — pilferage',
@@ -285,23 +285,23 @@ const I18N = {
     cbBackGeneric: 'Add the back too if the document has one. Optional.',
     cbEnterOrScan: 'Enter or scan', cbExpiryDate: 'Expiry date', cbSaveDoc: 'Save document',
     cbShowFull: 'Show full number', cbChangeWord: 'Change', cbScanNumber: 'Scan number',
-    cbDocSaved: 'Document saved ✓', cbDocNeedPhoto: 'Take a photo of the document',
+    cbDocSaved: 'Document saved', cbDocNeedPhoto: 'Take a photo of the document',
     cbInsMissingMany: 'crew are missing a mandatory document', cbInsDocsIncomplete: 'docs incomplete',
     cbInsMissingDetail: 'and', cbInsMore: 'more. Open the crew bank and use the “Docs missing” filter.', cbInsMissingList: 'Missing',
     cbIncomplete: 'incomplete', cbOpenWord: 'open',
     // ---- Archived records ----
     cbFArchived: 'Archived', cbArchivedBadge: 'archived', cbArchiveBtn: 'Archive this record',
     cbRestoreBtn: 'Bring back', cbArchivedOn: 'Archived', cbArchivedToast: 'archived — still searchable',
-    cbRestoredToast: 'is back on the roster ✓',
+    cbRestoredToast: 'is back on the roster',
     cbArchivedNote: 'Old paperwork, kept for reference. This is not a resignation — nothing here says he left.',
-    cbBulkArchive: 'Archive the whole register', cbBulkDone: 'records archived ✓', cbBulkNothing: 'Nothing to archive',
+    cbBulkArchive: 'Archive the whole register', cbBulkDone: 'records archived', cbBulkNothing: 'Nothing to archive',
     cbBulkConfirm: 'Archive every driver and conductor currently on the roll?',
     cbBulkExplain: 'Nothing is deleted. All of them move to the Archived filter, still searchable by name, phone, licence and Aadhaar, and every bus loses its crew until you add people back. When the office re-enters somebody, the bank offers his old record so his licence, documents and attendance history carry over.',
     cbBulkType: 'This affects everyone on the roll. Type ARCHIVE to confirm.',
     // ---- Duplicate: reuse or add new ----
     cbDupSheetHint: 'Somebody in the bank already matches what you typed. Reusing his record keeps his old licence number, documents and attendance history, and updates it with the details you just entered.',
     cbDupReuse: 'Reuse this record', cbDupAddNew: 'Add as a different person',
-    cbDupReused: 'updated and back on the roster ✓', cbDupStatusArchived: 'archived record',
+    cbDupReused: 'updated and back on the roster', cbDupStatusArchived: 'archived record',
     cbDupStatusLeft: 'left the company', cbDupStatusActive: 'currently working',
     // ---- Duty board (driver/conductor ↔ bus) + Crew Manager ----
     gcTitle: 'Gate check', gcStart: 'Start gate check', gcStartSub: 'Before the bus leaves: a selfie at the bus, then 10 checks. About 3 minutes.',
@@ -353,7 +353,7 @@ const I18N = {
     dgBy: 'Figures from your records; words by Claude.', dgEarlier: 'Earlier weeks',
     coTitle: 'Weekly coaching notes', coToApprove: 'to approve', coNotTheirs: 'not theirs', coGates: 'gate checks', coReported: 'reported',
     coHint: 'Claude drafts a three-line note for each driver and conductor from last week (reviews that were theirs, incidents, GPS, gate checks). Read it, change any line, then approve. Only approved notes reach their app.',
-    coWeekOf: 'Week of', coDraftNow: 'Draft now', co_good: '👍 Went well', co_fix: '🎯 To fix', co_tip: '💡 Tip', coApprove: 'Approve', coSkip: 'Skip',
+    coWeekOf: 'Week of', coDraftNow: 'Draft now', co_good: 'Went well', co_fix: '🎯 To fix', co_tip: '💡 Tip', coApprove: 'Approve', coSkip: 'Skip',
     coAllDone: 'All of this week\'s notes are decided.', coNone: 'No notes yet this week. They are drafted through the week, a few at a time.', coDecided: 'Decided this week',
     coDrafted: 'notes drafted', coMore: 'more to come', coApproved: 'Approved: it is on their phone now', coSkipped: 'Skipped', coMine: 'Your note for this week',
     raiUnsafe: 'may be unsafe to run', rai_high: 'high', rai_medium: 'medium', rai_low: 'low', raiRepeat: 'repeat problem', raiInStock: 'in stock',
@@ -395,7 +395,7 @@ const I18N = {
     asTitle: 'Duty board', asHint: 'Tap a name to change their bus, or tap a bus to fill the empty seat.',
     asNoBus: 'no bus assigned', asAssigned: 'assigned', asUnassigned: 'unassigned',
     asBusesNoDriver: 'Buses without a driver', asBusesNoConductor: 'Buses without a conductor',
-    asAssignWord: 'assign', asAllHaveDriver: 'Every bus has a driver 👍', asAllHaveConductor: 'Every bus has a conductor 👍',
+    asAssignWord: 'assign', asAllHaveDriver: 'Every bus has a driver', asAllHaveConductor: 'Every bus has a conductor',
     asAssignDriver: 'Assign driver', asAssignConductor: 'Assign conductor', asNone: '— none —',
     asSeat: 'Seat', asDriverN: 'Driver', asSeat2Hint: 'relief driver, night / long route', asFirstFree: 'First free seat', asSeatEmpty: 'Empty', asExtraDriver: 'Also marked on this bus — move to a seat or another bus',
     asDriverAssigned: 'Driver assigned', asConductorAssigned: 'Conductor assigned', asForThisBus: 'for this bus',
@@ -420,7 +420,7 @@ const I18N = {
     cmFreeDrivers: 'Drivers with no bus', cmFreeConductors: 'Conductors with no bus', cmCanFill: 'can be filled',
     cmInWorkshop: 'in the workshop or away',
     cmShortHands: '{d} buses have no driver and {c} no conductor that filling the board cannot fix: there are {dp} drivers for {n} buses on the road. That is a hiring question, not a duty-board one.',
-    cmAllSet: 'Every bus has its driver and conductor ✓', cmOpenBoard: 'Open the duty board',
+    cmAllSet: 'Every bus has its driver and conductor', cmOpenBoard: 'Open the duty board',
   },
   hi: {
     appName: 'गैराज साथी', home: 'होम', buses: 'बसें', jobs: 'काम', store: 'स्टोर', me: 'मैं',
@@ -559,7 +559,7 @@ const I18N = {
     // Home / actions
     namaste: 'नमस्ते', addStock: 'स्टॉक जोड़ें', myBus: 'मेरी बस', myTrips: 'मेरी ट्रिप', myReports: 'मेरी रिपोर्ट',
     yourRating: 'आपकी रेटिंग', reportProblem: 'मेरी बस में समस्या बताएं', noBusAssigned: 'अभी कोई बस नहीं दी गई। अपने सुपरवाइज़र से कहें।',
-    reportArea: 'हिस्सा', reportWhat: 'ट्रिप में क्या महसूस हुआ?', submit: 'भेजें', reportSubmitted: 'रिपोर्ट भेज दी ✓',
+    reportArea: 'हिस्सा', reportWhat: 'ट्रिप में क्या महसूस हुआ?', submit: 'भेजें', reportSubmitted: 'रिपोर्ट भेज दी',
     trips: 'ट्रिप', fixed: 'ठीक हुआ', openStatus: 'खुला', noReportsYet: 'अभी कोई रिपोर्ट नहीं। ट्रिप के बाद ऊपर बटन दबाएं।',
     // Jobs filter + edit/reassign + verify
     filterAll: 'सभी', filterAllMechs: 'सभी मैकेनिक', statusInProgress: 'चालू', statusVerified: 'जाँचा गया',
@@ -578,7 +578,7 @@ const I18N = {
     drvNoBus: 'कोई बस नहीं दी गई', drvNeedDetail: 'नोट, फोटो या आवाज़ जोड़ें', drvCancelBtn: 'रिपोर्ट रद्द करें',
     drvCancelBlocked: 'रद्द नहीं — काम जुड़ चुका है।', drvCancelConfirm: 'यह रिपोर्ट रद्द करें?', drvCancelled: 'रिपोर्ट रद्द',
     drvLast90: 'पिछले 90 दिन', drvCleanRecord: 'पिछले 90 दिन साफ़ रिकॉर्ड। ',
-    drvTipGreat: 'बढ़िया ड्राइविंग — ऐसे ही चलाएं! 👏', drvTipGood: 'अच्छा। आराम से ब्रेक और सावधानी से पार्किंग रेटिंग ऊँची रखती है।',
+    drvTipGreat: 'बढ़िया ड्राइविंग — ऐसे ही चलाएं!', drvTipGood: 'अच्छा। आराम से ब्रेक और सावधानी से पार्किंग रेटिंग ऊँची रखती है।',
     drvTipLow: 'आराम से चलाएं; खरोंच, डेंट और तेज़ ब्रेक से बचें ताकि स्कोर बढ़े।',
     driverReportsWaiting: 'ड्राइवर रिपोर्ट बाकी', noDriverReports: 'इस बस के लिए कोई खुली ड्राइवर रिपोर्ट नहीं।', useThisReport: 'इसे लें',
     // Report categories
@@ -605,7 +605,7 @@ const I18N = {
     djGo: 'हाँ, मिटा दीजिए', djDone: 'जॉब कार्ड मिट गया · पुर्जे स्टोर में वापस',
     djOwnerOnly: 'जॉब कार्ड सिर्फ़ मालिक मिटा सकते हैं', djLedger: 'मिटाए गए जॉब कार्ड से वापस',
     // ---- Outside job / gate pass ----
-    closedAndSigned: 'बंद हुआ और जाँच भी हो गई ✓',
+    closedAndSigned: 'बंद हुआ और जाँच भी हो गई',
     ojTitle: 'बाहर का काम', ojSub: 'जो पर्ची सामान के साथ बाहर जाती है, और वापसी पर उसी से मिलान होता है',
     ojNew: 'नया बाहर का काम', ojNewHint: 'सामान निकलने से पहले भरिए। छापकर एक कॉपी वेंडर के साथ भेजिए।',
     ojVendor: 'वेंडर का नाम', ojVendorPh: 'काम कौन कर रहा है', ojDate: 'तारीख़',
@@ -661,14 +661,14 @@ const I18N = {
     cbDocsLater: 'कागज़ों की फोटो (लाइसेंस, आधार, पुलिस वेरिफिकेशन) बाद में उसकी कागज़ात स्क्रीन से जोड़ें।',
     cbNeedName: 'उसका नाम डालें', cbNeedPhone: '10 अंकों का फ़ोन नंबर डालें',
     cbNeedLicence: 'ड्राइवर का लाइसेंस नंबर ज़रूरी है', cbNeedAadhaar12: 'आधार 12 अंकों का होना चाहिए',
-    cbAdded: 'रजिस्टर में जुड़ गया ✓', cbNotAllowed: 'अनुमति नहीं',
+    cbAdded: 'रजिस्टर में जुड़ गया', cbNotAllowed: 'अनुमति नहीं',
     // Duplicates
     cbDupTitle: 'पहले से रजिस्टर में है', cbDupAsk: 'को फिर भी नया जोड़ें?', cbDupAddWord: '',
     cbDupWorking: 'अभी काम कर रहा है', cbDupOn: 'पर', cbDupLeftWord: 'छोड़ चुका', cbDupReason: 'कारण',
     cbDupRehire: 'दोबारा रखें', cbSamePhone: 'वही फ़ोन', cbSameAadhaar: 'वही आधार', cbSameLicence: 'वही लाइसेंस',
     cbDupPhoneOn: 'यह फ़ोन पहले से इन पर है:', cbSaveAnyway: 'फिर भी सेव करें?',
     // Profile / details
-    cbDetails: 'जानकारी', cbEdit: 'बदलें', cbEditDetails: 'जानकारी बदलें', cbSaved: 'जानकारी सेव हुई ✓',
+    cbDetails: 'जानकारी', cbEdit: 'बदलें', cbEditDetails: 'जानकारी बदलें', cbSaved: 'जानकारी सेव हुई',
     cbNeedNameNotEmpty: 'नाम खाली नहीं हो सकता', cbNoDetails: 'अभी कुछ दर्ज नहीं — बदलें दबाकर जानकारी भरें।',
     cbAadhaar: 'आधार', cbJoined: 'भर्ती', cbAge: 'उम्र', cbYrs: 'साल', cbYr: 'साल',
     cbBus: 'बस', cbAssignedBus: 'दी गई बस', cbRating: 'रेटिंग', cbChangeBus: 'बस बदलें', cbLogReport: 'रिपोर्ट लिखें',
@@ -677,7 +677,7 @@ const I18N = {
     cbExitHint: 'उसका रिकॉर्ड रजिस्टर में हमेशा रहेगा। यह सिर्फ़ उसे काम की सूची से हटाता है और उसकी बस खाली करता है।',
     cbLastDay: 'आख़िरी काम का दिन', cbReason: 'कारण', cbNote: 'नोट (दफ़्तर को क्या पता होना चाहिए)', cbOptional: 'ज़रूरी नहीं',
     cbRehireQ: 'क्या दोबारा रखेंगे?', cbRehireYes: 'हाँ — अच्छा कर्मचारी', cbRehireMaybe: 'शायद', cbRehireNo: 'नहीं — दोबारा न रखें',
-    cbRejoinBtn: 'वापस लें', cbRejoined: 'दोबारा काम पर ✓', cbNotRecorded: 'दर्ज नहीं',
+    cbRejoinBtn: 'वापस लें', cbRejoined: 'दोबारा काम पर', cbNotRecorded: 'दर्ज नहीं',
     cbNoRehireWarn: 'को “दोबारा न रखें” चिह्नित किया गया था।', cbBringBack: 'फिर भी वापस लें?', cbLeftOn: 'छोड़ा',
     lrResigned: 'खुद छोड़ा', lrBetterOffer: 'कहीं बेहतर काम मिला', lrAbsconded: 'बिना बताए चला गया',
     lrMisconduct: 'निकाला — बदसलूकी', lrAccident: 'निकाला — दुर्घटना', lrPilferage: 'निकाला — चोरी',
@@ -702,23 +702,23 @@ const I18N = {
     cbBackGeneric: 'अगर कागज़ के दो तरफ़ हैं तो पीछे की फोटो भी लगाएँ। ज़रूरी नहीं।',
     cbEnterOrScan: 'डालें या स्कैन करें', cbExpiryDate: 'खत्म होने की तारीख़', cbSaveDoc: 'कागज़ सेव करें',
     cbShowFull: 'पूरा नंबर दिखाएं', cbChangeWord: 'बदलें', cbScanNumber: 'नंबर स्कैन करें',
-    cbDocSaved: 'कागज़ सेव हुआ ✓', cbDocNeedPhoto: 'कागज़ की फोटो लें',
+    cbDocSaved: 'कागज़ सेव हुआ', cbDocNeedPhoto: 'कागज़ की फोटो लें',
     cbInsMissingMany: 'स्टाफ के ज़रूरी कागज़ नहीं हैं', cbInsDocsIncomplete: 'के कागज़ अधूरे',
     cbInsMissingDetail: 'और', cbInsMore: 'और लोग। स्टाफ बैंक खोलकर “कागज़ बाकी” छाँटें।', cbInsMissingList: 'नहीं है',
     cbIncomplete: 'अधूरा', cbOpenWord: 'खोलें',
     // ---- Archived records ----
     cbFArchived: 'पुराने रिकॉर्ड', cbArchivedBadge: 'पुराना', cbArchiveBtn: 'रिकॉर्ड पुराना करें',
     cbRestoreBtn: 'वापस लाएं', cbArchivedOn: 'पुराना किया', cbArchivedToast: 'पुराना कर दिया — खोजने पर मिलेगा',
-    cbRestoredToast: 'दोबारा काम पर ✓',
+    cbRestoredToast: 'दोबारा काम पर',
     cbArchivedNote: 'पुराना कागज़ी रिकॉर्ड, संभालकर रखा है। इसका मतलब नौकरी छोड़ना नहीं है।',
-    cbBulkArchive: 'पूरा रजिस्टर पुराना करें', cbBulkDone: 'रिकॉर्ड पुराने कर दिए ✓', cbBulkNothing: 'पुराना करने को कुछ नहीं',
+    cbBulkArchive: 'पूरा रजिस्टर पुराना करें', cbBulkDone: 'रिकॉर्ड पुराने कर दिए', cbBulkNothing: 'पुराना करने को कुछ नहीं',
     cbBulkConfirm: 'अभी काम पर मौजूद सभी ड्राइवर और कंडक्टर को पुराना कर दें?',
     cbBulkExplain: 'कुछ भी मिटेगा नहीं। सब “पुराने रिकॉर्ड” में चले जाएंगे और नाम, फ़ोन, लाइसेंस या आधार से खोजने पर मिलते रहेंगे। जब तक नए लोग नहीं जुड़ते हर बस खाली रहेगी। दफ़्तर जब किसी को दोबारा भरेगा, बैंक उसका पुराना रिकॉर्ड दिखाएगा ताकि लाइसेंस, कागज़ और हाज़िरी का इतिहास साथ चले।',
     cbBulkType: 'यह सब पर लागू होगा। पक्का करने के लिए ARCHIVE लिखें।',
     // ---- Duplicate: reuse or add new ----
     cbDupSheetHint: 'आपने जो लिखा उससे मिलता-जुलता कोई पहले से बैंक में है। उसी रिकॉर्ड को इस्तेमाल करने से उसका पुराना लाइसेंस नंबर, कागज़ और हाज़िरी का इतिहास बना रहेगा, और नई जानकारी अपडेट हो जाएगी।',
     cbDupReuse: 'यही रिकॉर्ड इस्तेमाल करें', cbDupAddNew: 'अलग व्यक्ति के रूप में जोड़ें',
-    cbDupReused: 'अपडेट होकर दोबारा काम पर ✓', cbDupStatusArchived: 'पुराना रिकॉर्ड',
+    cbDupReused: 'अपडेट होकर दोबारा काम पर', cbDupStatusArchived: 'पुराना रिकॉर्ड',
     cbDupStatusLeft: 'नौकरी छोड़ चुका', cbDupStatusActive: 'अभी काम कर रहा है',
     // ---- Duty board (driver/conductor ↔ bus) + Crew Manager ----
     gcTitle: 'गेट चेक', gcStart: 'गेट चेक शुरू करें', gcStartSub: 'बस निकलने से पहले: बस के पास सेल्फी, फिर 10 जाँच। लगभग 3 मिनट।',
@@ -770,7 +770,7 @@ const I18N = {
     dgBy: 'आँकड़े आपके रिकॉर्ड से; शब्द Claude के।', dgEarlier: 'पिछले हफ़्ते',
     coTitle: 'हफ़्ते की सलाह', coToApprove: 'मंज़ूरी बाक़ी', coNotTheirs: 'इनकी नहीं', coGates: 'गेट चेक', coReported: 'रिपोर्ट',
     coHint: 'Claude हर ड्राइवर और कंडक्टर के लिए पिछले हफ़्ते (उनके रिव्यू, घटनाएँ, GPS, गेट चेक) से तीन लाइन की सलाह लिखता है। पढ़ें, कोई भी लाइन बदलें, फिर मंज़ूर करें। सिर्फ़ मंज़ूर सलाह उनके फ़ोन पर जाती है।',
-    coWeekOf: 'हफ़्ता', coDraftNow: 'अभी लिखें', co_good: '👍 अच्छा रहा', co_fix: '🎯 सुधारें', co_tip: '💡 सुझाव', coApprove: 'मंज़ूर', coSkip: 'छोड़ें',
+    coWeekOf: 'हफ़्ता', coDraftNow: 'अभी लिखें', co_good: 'अच्छा रहा', co_fix: '🎯 सुधारें', co_tip: '💡 सुझाव', coApprove: 'मंज़ूर', coSkip: 'छोड़ें',
     coAllDone: 'इस हफ़्ते की सब सलाह तय हो गई।', coNone: 'इस हफ़्ते अभी कोई सलाह नहीं। हफ़्ते भर में थोड़ी-थोड़ी लिखी जाती है।', coDecided: 'इस हफ़्ते तय',
     coDrafted: 'सलाह लिखी', coMore: 'और बाक़ी', coApproved: 'मंज़ूर: अब उनके फ़ोन पर है', coSkipped: 'छोड़ी', coMine: 'इस हफ़्ते आपके लिए सलाह',
     raiUnsafe: 'चलाना असुरक्षित हो सकता है', rai_high: 'ज़्यादा', rai_medium: 'मध्यम', rai_low: 'कम', raiRepeat: 'दोबारा आई समस्या', raiInStock: 'स्टॉक में',
@@ -812,7 +812,7 @@ const I18N = {
     asTitle: 'ड्यूटी', asHint: 'बस बदलने के लिए नाम दबाएं, या खाली सीट भरने के लिए बस दबाएं।',
     asNoBus: 'कोई बस नहीं', asAssigned: 'दी गई', asUnassigned: 'नहीं दी',
     asBusesNoDriver: 'बिना ड्राइवर की बसें', asBusesNoConductor: 'बिना कंडक्टर की बसें',
-    asAssignWord: 'दें', asAllHaveDriver: 'हर बस पर ड्राइवर है 👍', asAllHaveConductor: 'हर बस पर कंडक्टर है 👍',
+    asAssignWord: 'दें', asAllHaveDriver: 'हर बस पर ड्राइवर है', asAllHaveConductor: 'हर बस पर कंडक्टर है',
     asAssignDriver: 'ड्राइवर दें', asAssignConductor: 'कंडक्टर दें', asNone: '— कोई नहीं —',
     asSeat: 'सीट', asDriverN: 'ड्राइवर', asSeat2Hint: 'दूसरा ड्राइवर, रात / लंबा रूट', asFirstFree: 'पहली खाली सीट', asSeatEmpty: 'खाली', asExtraDriver: 'यह भी इसी बस पर दर्ज है — सीट या दूसरी बस दें',
     asDriverAssigned: 'ड्राइवर दे दिया', asConductorAssigned: 'कंडक्टर दे दिया', asForThisBus: 'इस बस के लिए',
@@ -837,7 +837,7 @@ const I18N = {
     cmFreeDrivers: 'बिना बस के ड्राइवर', cmFreeConductors: 'बिना बस के कंडक्टर', cmCanFill: 'भर सकते हैं',
     cmInWorkshop: 'वर्कशॉप या बाहर',
     cmShortHands: '{d} बसों पर ड्राइवर और {c} पर कंडक्टर नहीं — यह बोर्ड भरने से नहीं सुधरेगा: {n} बसों के लिए {dp} ड्राइवर ही हैं। यह भर्ती का सवाल है।',
-    cmAllSet: 'हर बस पर ड्राइवर और कंडक्टर हैं ✓', cmOpenBoard: 'ड्यूटी बोर्ड खोलें',
+    cmAllSet: 'हर बस पर ड्राइवर और कंडक्टर हैं', cmOpenBoard: 'ड्यूटी बोर्ड खोलें',
   },
 };
 let LANG = localStorage.getItem('lang') || 'en';
@@ -1700,7 +1700,7 @@ async function issuePart({ partId, qty, jobId, reused = false, reusedCost = null
   else { job.partsUsed = [...(job.partsUsed || []), { partId, qty, cost, reused: !!reused }]; }
   await DB.put('jobcards', job);
   await load();
-  toast(`${reused ? '♻️ ' : ''}Issued ${qty} ${part.unit} → ${busName(job.busId)}`);
+  toast(`${reused ? '' : ''}Issued ${qty} ${part.unit} → ${busName(job.busId)}`);
 }
 
 /* Old rows a phone no longer needs.
@@ -1944,7 +1944,7 @@ async function reconcileJobParts() {
   }
   for (const job of cards) await DB.put('jobcards', job);
   const names = [...new Set(gaps.map((g) => { const p = byId(S.cache.parts, g.partId); return p ? p.name : g.partId; }))];
-  toast(`🔩 ${t('jpRestored')} ${names.slice(0, 3).join(', ')}${names.length > 3 ? ' +' + (names.length - 3) : ''}`);
+  toast(`${icon('part')} ${t('jpRestored')} ${names.slice(0, 3).join(', ')}${names.length > 3 ? ' +' + (names.length - 3) : ''}`);
   return gaps.length;
 }
 
@@ -2061,11 +2061,11 @@ function busesDueService() {
 const INCIDENT = {
   scratch:       { label: 'Scratch',      icon: '➰', pen: 3 },
   dent:          { label: 'Dent',         icon: '🔨', pen: 8 },
-  'harsh-brake': { label: 'Harsh braking', icon: '🛑', pen: 5 },
-  overspeed:     { label: 'Overspeeding', icon: '💨', pen: 6 },
-  late:          { label: 'Late trip',    icon: '⏰', pen: 2 },
+  'harsh-brake': { label: 'Harsh braking', icon: icon('bad'), pen: 5 },
+  overspeed:     { label: 'Overspeeding', icon: icon('alert'), pen: 6 },
+  late:          { label: 'Late trip',    icon: icon('clock'), pen: 2 },
   cleanliness:   { label: 'Cleanliness',  icon: '🧽', pen: 3 },
-  accident:      { label: 'Accident',     icon: '⚠️', pen: 20 },
+  accident:      { label: 'Accident',     icon: icon('warn'), pen: 20 },
   other:         { label: 'Other',        icon: '•',  pen: 4 },
 };
 const driverById = (id) => byId(S.cache.drivers || [], id);
@@ -2096,7 +2096,7 @@ const crewRoleOf = (d) => (d && d.crewRole === 'conductor' ? 'conductor' : 'driv
  *              the record so bringing him back restores it. He simply drops out
  *              of every working list until somebody reuses or restores him. */
 const crewStatusOf = (d) => { const st = d && d.status; return st === 'left' || st === 'archived' ? st : 'active'; };
-const CREW_ROLE_META = { driver: ['🧑‍✈️', 'roleDriver'], conductor: ['🎫', 'roleConductor'] };
+const CREW_ROLE_META = { driver: [icon('person'), 'roleDriver'], conductor: [icon('person'), 'roleConductor'] };
 // Resolved on every render, never cached: switching language only re-renders.
 const crewRoleLabel = (role) => t(CREW_ROLE_META[role === 'conductor' ? 'conductor' : 'driver'][1]);
 // The CSV is a data file for the office's own spreadsheets, so it stays English.
@@ -2227,10 +2227,10 @@ const openReportsForBus = (busId) => (S.cache.driverreports || []).filter((r) =>
 // Performance score: 100 minus weighted penalties (last 90 days), 0..100.
 // Auto safety/misuse events detected from live GPS (server-side), penalty each.
 const GPS_EVENT = {
-  overspeed:  { label: 'Overspeeding',   icon: '💨', pen: 4 },
-  harshbrake: { label: 'Harsh braking',  icon: '🛑', pen: 3 },
-  night:      { label: 'Night movement', icon: '🌙', pen: 5 },
-  idle:       { label: 'Long idle',      icon: '🐌', pen: 1 },
+  overspeed:  { label: 'Overspeeding',   icon: icon('alert'), pen: 4 },
+  harshbrake: { label: 'Harsh braking',  icon: icon('bad'), pen: 3 },
+  night:      { label: 'Night movement', icon: icon('moon'), pen: 5 },
+  idle:       { label: 'Long idle',      icon: icon('clock'), pen: 1 },
 };
 /* Every GPS safety event, grouped by the registration it was reported against.
  *
@@ -2280,7 +2280,7 @@ function driverScore(driverId) {
 const scoreStars = (score) => Math.round((score / 20) * 2) / 2;   // 0..5, half steps
 function starStr(stars) {
   const full = Math.floor(stars), half = stars - full >= 0.5;
-  return '★'.repeat(full) + (half ? '½' : '') + '☆'.repeat(5 - full - (half ? 1 : 0));
+  return icon('star').repeat(full) + (half ? '½' : '') + icon('star').repeat(5 - full - (half ? 1 : 0));
 }
 const scoreClass = (s) => s >= 85 ? 'b-green' : s >= 70 ? 'b-amber' : 'b-red';
 
@@ -2288,7 +2288,7 @@ const scoreClass = (s) => s >= 85 ? 'b-green' : s >= 70 ? 'b-amber' : 'b-red';
 const root = () => document.getElementById('app');
 
 function statusBadge(s) {
-  const m = { open: ['b-open', 'Open'], 'in-progress': ['b-prog', 'In progress'], done: ['b-done', 'Done'], verified: ['b-verified', 'Verified ✓'] };
+  const m = { open: ['b-open', 'Open'], 'in-progress': ['b-prog', 'In progress'], done: ['b-done', 'Done'], verified: ['b-verified', 'Verified'] };
   const [cls, txt] = m[s] || ['b-open', s];
   return `<span class="badge ${cls}">${txt}</span>`;
 }
@@ -2622,29 +2622,29 @@ function viewFleet() {
   const docAlerts = allDocAlerts();
   const docCrit = docAlerts.filter((a) => a.st.dl <= 0);
 
-  let body = `<div class="greet"><div class="greet-av">🚌</div>
+  let body = `<div class="greet"><div class="greet-av">${icon('bus')}</div>
     <div><div class="greet-hi">${t('fleet')}</div><div class="muted small">${buses.length} buses · ${esc(BIZ)}</div></div></div>`;
 
   // Triage rows first.
-  if (overdue.length) body += `<div class="trow crit" data-bus="${esc(overdue[0].b.id)}"><div class="ti">🔧</div>
+  if (overdue.length) body += `<div class="trow crit" data-bus="${esc(overdue[0].b.id)}"><div class="ti">${icon('job')}</div>
     <div class="tm"><div class="tt">Service overdue</div><div class="ts">${overdue.slice(0, 3).map((x) => esc(x.b.regNo)).join(', ')}${overdue.length > 3 ? ' +' + (overdue.length - 3) : ''}</div></div><div class="tc">${overdue.length}</div></div>`;
-  if (docAlerts.length) body += `<div class="trow ${docCrit.length ? 'crit' : 'warn'}" data-act="openAlerts"><div class="ti">📄</div>
+  if (docAlerts.length) body += `<div class="trow ${docCrit.length ? 'crit' : 'warn'}" data-act="openAlerts"><div class="ti">${icon('doc')}</div>
     <div class="tm"><div class="tt">Documents expiring</div><div class="ts">${docCrit.length ? docCrit.length + ' expired' : docAlerts.length + ' within 15 days'}</div></div><div class="tc">${docAlerts.length}</div></div>`;
-  body += `<div class="trow info" data-act="openLiveMap"><div class="ti">🗺️</div><div class="tm"><div class="tt">Live map</div><div class="ts">Track every bus, Uber-style</div></div><div class="tc">›</div></div>`;
+  body += `<div class="trow info" data-act="openLiveMap"><div class="ti">${icon('map')}</div><div class="tm"><div class="tt">Live map</div><div class="ts">Track every bus, Uber-style</div></div><div class="tc">›</div></div>`;
   if (can(S.user.role, 'logIncident')) {
     const bd90 = breakdownsFor(null, Date.now() - 90 * day).length;
-    body += `<div class="trow ${bd90 ? 'warn' : ''}" data-act="openBreakdowns"><div class="ti">🛠️</div>
+    body += `<div class="trow ${bd90 ? 'warn' : ''}" data-act="openBreakdowns"><div class="ti">${icon('bad')}</div>
       <div class="tm"><div class="tt">${t('bdTitle')}</div><div class="ts">${t('bdSub')}</div></div>
       <div class="tc">${bd90 || '›'}</div></div>`;
   }
-  body += `<div class="trow" data-act="openHistory"><div class="ti">✅</div>
+  body += `<div class="trow" data-act="openHistory"><div class="ti">${icon('ok')}</div>
     <div class="tm"><div class="tt">${t('histTitle')}</div><div class="ts">${t('histSub')}</div></div>
     <div class="tc">›</div></div>`;
 
   // Searchable bus list, as vehicle cards.
   body += `<input id="fleet-search" class="searchbox" placeholder="Search plate, company, model…" style="margin-top:12px">`;
   body += `<div id="fleet-list" class="vgrid">${buses.map(busCard).join('')}</div>`;
-  shell(t('fleet'), body);
+  shell(t('fleet'), v2(body));
   attachSearch('fleet-search', 'fleet-list');
 }
 
@@ -2757,7 +2757,7 @@ function sheetCrewNote(crewId) {
         .map(([k, m]) => `<option value="${k}">${m[0]} ${esc(t(m[1]))}</option>`).join('')}</select></label>
     <label class="field"><span class="lbl">${t('cnWhat')}</span>
       <textarea id="cn-text" placeholder="${esc(t('cnWhatPh'))}"></textarea></label>
-    <div class="banner warn">⚠️ ${esc(t('cnOnce'))}</div>
+    <div class="banner warn">${icon('warn')} ${esc(t('cnOnce'))}</div>
     <button class="btn primary" data-act="saveCrewNote" data-id="${esc(crewId)}">${t('save')}</button>`);
 }
 
@@ -2801,12 +2801,12 @@ function crewNotesCard(crewId) {
 
 function officeCrewRow(d, o) {
   const face = crewFace(d);
-  const stars = o.n ? `★${o.avg.toFixed(1)} · ${o.n} ${t('ofReviewsWord')}` : t('ofNoReviews');
+  const stars = o.n ? `${icon('star')}${o.avg.toFixed(1)} · ${o.n} ${t('ofReviewsWord')}` : t('ofNoReviews');
   return `<div class="li" data-driver="${esc(d.id)}" style="cursor:pointer">
     <div class="ava ava-round">${face ? `<img src="${esc(face)}" alt="">` : CREW_ROLE_META[crewRoleOf(d)][0]}</div>
     <div class="main"><div class="t">${esc(d.name)}</div>
       <div class="crewmeta"><span class="rolepill">${CREW_ROLE_META[crewRoleOf(d)][0]} ${esc(crewRoleLabel(crewRoleOf(d)))}</span>${
-        d.busId ? `<span class="buschip">🚌 ${esc(busName(d.busId))}</span>` : ''}</div>
+        d.busId ? `<span class="buschip">${icon('bus')} ${esc(busName(d.busId))}</span>` : ''}</div>
       <div class="s">${esc(stars)}</div></div>
     ${o.passenger == null ? `<span class="badge b-low">—</span>`
       : `<span class="badge ${scoreClass(o.overall)}">${o.overall}</span>`}</div>`;
@@ -2879,14 +2879,14 @@ function coachHomeCard() {
   if (!can(S.user.role, 'manageDrivers')) return '';
   const n = coachDrafts().length;
   if (!n && !(S.cache.coachai || []).length) return '';
-  return `<div class="card" data-nav="coaching" style="cursor:pointer"><div class="row between"><h3>📝 ${t('coTitle')}</h3>
+  return `<div class="card" data-nav="coaching" style="cursor:pointer"><div class="row between"><h3>${icon('edit')} ${t('coTitle')}</h3>
     <span class="badge ${n ? 'b-amber' : 'b-green'}">${n} ${t('coToApprove')}</span></div></div>`;
 }
 const _coFacts = (f) => [
-  f.reviews ? `⭐ ${f.reviews}${f.avgStars ? ' · ★' + f.avgStars : ''}${f.low ? ' · ' + f.low + ' ≤3★' : ''}${f.notTheirs ? ' · ' + f.notTheirs + ' ' + t('coNotTheirs') : ''}` : '',
+  f.reviews ? `${icon('star')} ${f.reviews}${f.avgStars ? ' · ★' + f.avgStars : ''}${f.low ? ' · ' + f.low + ' ≤3★' : ''}${f.notTheirs ? ' · ' + f.notTheirs + ' ' + t('coNotTheirs') : ''}` : '',
   Object.keys(f.incidents || {}).length ? '⚠️ ' + Object.entries(f.incidents).map(([k, v]) => `${(INCIDENT[k] || INCIDENT.other).label} ×${v}`).join(', ') : '',
   Object.keys(f.gps || {}).length ? '📡 ' + Object.entries(f.gps).map(([k, v]) => `${(GPS_EVENT[k] || { label: k }).label} ×${v}`).join(', ') : '',
-  f.role === 'driver' ? `🚦 ${f.gateChecks} ${t('coGates')}` : '', f.reported ? `🛠️ ${f.reported} ${t('coReported')}` : '',
+  f.role === 'driver' ? `${icon('gate', { size: 14 })} ${f.gateChecks} ${t('coGates')}` : '', f.reported ? `${icon('bad', { size: 14 })} ${f.reported} ${t('coReported')}` : '',
 ].filter(Boolean).join(' · ');
 function viewCoaching() {
   if (!_coRun && Date.now() - _coLast > 120000 && Sync.aiCoaching) setTimeout(coachRun, 0, true);
@@ -2899,14 +2899,14 @@ function viewCoaching() {
   body += drafts.length ? drafts.map((n) => `<div class="card" id="co-${esc(n.id)}"><div class="row between"><b data-driver="${esc(n.crewId)}" style="cursor:pointer">${esc(driverName(n.crewId))}</b><span class="tiny muted">${esc(crewRoleLabel(n.role))}</span></div>
       <div class="tiny muted" style="margin:4px 0 8px">${esc(_coFacts(n.facts || {}))}</div>
       ${['good', 'fix', 'tip'].map((k) => `<label class="field"><span class="lbl tiny">${t('co_' + k)}</span><input class="co-in" data-k="${k}" value="${esc(n.hi[k])}"><span class="tiny muted">${esc((n.en || {})[k] || '')}</span></label>`).join('')}
-      <div class="btnrow"><button class="btn sm primary" data-act="coachDecide" data-id="${esc(n.id)}" data-d="approve">✓ ${t('coApprove')}</button>
+      <div class="btnrow"><button class="btn sm primary" data-act="coachDecide" data-id="${esc(n.id)}" data-d="approve">${icon('ok')} ${t('coApprove')}</button>
         <button class="btn sm ghost" data-act="coachDecide" data-id="${esc(n.id)}" data-d="skip">${t('coSkip')}</button></div></div>`).join('')
     : `<div class="card"><div class="muted small">${notes.length ? t('coAllDone') : t('coNone')}</div></div>`;
   const decided = notes.filter((n) => n.status !== 'draft');
   if (decided.length) body += `<details class="card"><summary class="row between" style="cursor:pointer"><h3>${t('coDecided')}</h3><span class="badge b-low">${decided.length}</span></summary>${
-    decided.map((n) => `<div class="li"><div class="ava">${n.status === 'approved' ? '✅' : '⏭️'}</div><div class="main"><div class="t">${esc(driverName(n.crewId))}</div>
+    decided.map((n) => `<div class="li"><div class="ava">${n.status === 'approved' ? icon('ok') : '⏭️'}</div><div class="main"><div class="t">${esc(driverName(n.crewId))}</div>
       <div class="s">${esc(n.hi.fix)} · ${esc(userName(n.decidedBy))}</div></div></div>`).join('')}</details>`;
-  shell(t('coTitle'), body, null, NARROW);
+  shell(t('coTitle'), v2(body), null, NARROW);
 }
 async function coachRun(quiet) {
   if (_coRun || !Sync.aiCoaching) return;
@@ -2946,8 +2946,8 @@ function myCoachCard() {
   const n = ((v || {}).notes || [])[0];
   if (!n) return '';
   const L = LANG === 'hi' || !n.en ? n.hi : n.en;
-  return `<div class="card"><h3>📝 ${t('coMine')}</h3><div class="tiny muted">${t('coWeekOf')} ${esc(n.week)}</div>
-    <div class="small" style="margin-top:8px">👍 ${esc(L.good)}</div>
+  return `<div class="card"><h3>${icon('edit')} ${t('coMine')}</h3><div class="tiny muted">${t('coWeekOf')} ${esc(n.week)}</div>
+    <div class="small" style="margin-top:8px">${esc(L.good)}</div>
     <div class="small" style="margin-top:6px">🎯 ${esc(L.fix)}</div>
     <div class="small" style="margin-top:6px">💡 ${esc(L.tip)}</div></div>`;
 }
@@ -2955,7 +2955,7 @@ function crewRatingsCard() {
   if (!can(S.user.role, 'crewReviews') || !(S.cache.rbreviews || []).length) return '';
   const rows = activeCrew().map((d) => ({ d, o: driverOverall(d.id) })).filter((x) => x.o.n);
   const judged = rows.filter((x) => x.o.passenger != null).sort((a, b) => a.o.avg - b.o.avg);
-  let h = `<div class="card"><div class="row between"><h3>⭐ ${t('cmRatings')}</h3><span class="badge b-low">${rows.length}</span></div>
+  let h = `<div class="card"><div class="row between"><h3>${icon('star')} ${t('cmRatings')}</h3><span class="badge b-low">${rows.length}</span></div>
     <div class="tiny muted">${t('cmRatingsSub')}</div>`;
   h += judged.length ? judged.slice(0, 6).map(({ d, o }) => `<div class="li" data-driver="${esc(d.id)}" style="cursor:pointer">
       <div class="ava">${CREW_ROLE_META[crewRoleOf(d)][0]}</div>
@@ -3014,7 +3014,7 @@ function viewUsage() {
   let body = `<div class="card"><div class="row between">
       <div><div style="font-weight:800;font-size:18px">${people(1)} used it today</div>
         <div class="small muted">${people(7)} this week · ${people(30)} this month · ${staff.length} with a login</div></div>
-      <div class="ava" style="width:46px;height:46px;font-size:22px">📈</div></div>
+      <div class="ava" style="width:46px;height:46px;font-size:22px">${icon('star')}</div></div>
     <div class="tiny muted" style="margin-top:8px">Counts which screens and actions were used, per person per day. It records no names of parts, no amounts and nothing anyone typed — only that a feature was used, and how long it took.</div></div>`;
 
   if (neverUsed.length) {
@@ -3030,14 +3030,14 @@ function viewUsage() {
   body += `<div class="card"><div class="row between"><h3>Built but never opened</h3><span class="badge ${unopened.length ? 'b-amber' : 'b-green'}">${unopened.length}</span></div>
     <div class="tiny muted" style="margin-bottom:8px">In 30 days nobody opened these. Either they are not needed, or nobody knows they are there.</div>
     ${unopened.length ? `<div class="row" style="flex-wrap:wrap;gap:6px">${unopened.map((k) => `<span class="badge b-low">${esc(usageLabel(k))}</span>`).join('')}</div>`
-      : '<div class="muted small">Every screen was opened at least once 👍</div>'}</div>`;
+      : '<div class="muted small">Every screen was opened at least once</div>'}</div>`;
 
   const slowRows = Object.entries(slow).sort((a, b) => b[1].worstMs - a[1].worstMs).slice(0, 8);
   body += `<div class="card"><div class="row between"><h3>Slow actions</h3><span class="badge ${slowRows.length ? 'b-amber' : 'b-green'}">${slowRows.length}</span></div>
     <div class="tiny muted" style="margin-bottom:8px">Actions that took over a second. A slow button is what gets pressed twice.</div>
     ${slowRows.length ? slowRows.map(([k, v]) => `<div class="row between small" style="padding:3px 0">
       <span>${esc(usageLabel(k))}</span><b>${(v.worstMs / 1000).toFixed(1)}s worst · ${v.n}×</b></div>`).join('')
-      : '<div class="muted small">Nothing took longer than a second 👍</div>'}</div>`;
+      : '<div class="muted small">Nothing took longer than a second</div>'}</div>`;
 
   const byPerson = {};
   inWindow(30).forEach((r) => {
@@ -3053,7 +3053,7 @@ function viewUsage() {
       <span class="tiny muted">${p.lastAt ? timeAgo(p.lastAt) : ''}</span></div>`).join('')
       : '<div class="empty">No activity recorded yet — it starts counting from this version.</div>'}</div>`;
 
-  shell('Usage', body);
+  shell('Usage', v2(body));
 }
 
 function viewPeople() {
@@ -3061,13 +3061,13 @@ function viewPeople() {
   const inToday = (S.cache.att || []).filter((a) => a.type === 'in' && isToday(a.at)).map((a) => a.userId);
   const presentCount = new Set(inToday).size;
 
-  let body = `<div class="greet"><div class="greet-av">🧑‍✈️</div>
+  let body = `<div class="greet"><div class="greet-av">${icon('person')}</div>
     <div><div class="greet-hi">${t('people')}</div><div class="muted small">${drivers.length} drivers · ${presentCount} checked in today</div></div></div>`;
 
   // Drivers ranked worst-first (the ones who need attention).
   body += `<div class="card"><div class="row between"><h3>Drivers · needs attention first</h3><span class="tiny muted" data-act="openScoreboard" style="cursor:pointer">scoreboard ›</span></div>`;
   body += drivers.length ? drivers.slice(0, 8).map(({ d, score }) => `<div class="li" data-driver="${esc(d.id)}">
-      <div class="ava">${score < 70 ? '🔴' : score < 85 ? '🟡' : '🟢'}</div>
+      <div class="ava">${score < 70 ? '' : score < 85 ? '' : ''}</div>
       <div class="main"><div class="t">${esc(d.name)}</div><div class="s">${esc(busName(d.busId) || 'No bus')} · ${starStr(scoreStars(score))}</div></div>
       <span class="badge ${scoreClass(score)}">${score}</span></div>`).join('')
       + (drivers.length > 8 ? `<div class="tiny muted" style="margin-top:6px" data-act="openDrivers">+${drivers.length - 8} more · all drivers ›</div>` : '')
@@ -3076,14 +3076,14 @@ function viewPeople() {
 
   // Drill rows to the existing people screens.
   body += `<div class="card"><h3>Manage</h3>
-    <div class="trow" data-act="openAssignments"><div class="ti">🔗</div><div class="tm"><div class="tt">Driver ↔ bus assignments</div></div><div class="tc">›</div></div>
-    <div class="trow" data-act="openSafety"><div class="ti">🛡️</div><div class="tm"><div class="tt">Safety & GPS events</div></div><div class="tc">›</div></div>
-    <div class="trow" data-act="openScoreboard"><div class="ti">🏆</div><div class="tm"><div class="tt">Scoreboard</div></div><div class="tc">›</div></div>
-    <div class="trow" data-act="openCrewBank"><div class="ti">🗂️</div><div class="tm"><div class="tt">Crew data bank — drivers &amp; conductors</div><div class="tiny muted">Licence, Aadhaar, phone, photo · joining &amp; leaving</div></div><div class="tc">›</div></div>
-    <div class="trow" data-nav="coaching"><div class="ti">📝</div><div class="tm"><div class="tt">${t('coTitle')}</div><div class="tiny muted">${coachDrafts().length} ${t('coToApprove')}</div></div><div class="tc">›</div></div>
-    <div class="trow" data-act="openCrewPins"><div class="ti">🔑</div><div class="tm"><div class="tt">Crew logins & PINs</div></div><div class="tc">›</div></div>
-    <div class="trow" data-act="openStaff"><div class="ti">🧑‍🔧</div><div class="tm"><div class="tt">Staff</div></div><div class="tc">›</div></div></div>`;
-  shell(t('people'), body);
+    <div class="trow" data-act="openAssignments"><div class="ti">${icon('edit')}</div><div class="tm"><div class="tt">Driver ↔ bus assignments</div></div><div class="tc">›</div></div>
+    <div class="trow" data-act="openSafety"><div class="ti">${icon('gate')}</div><div class="tm"><div class="tt">Safety & GPS events</div></div><div class="tc">›</div></div>
+    <div class="trow" data-act="openScoreboard"><div class="ti">${icon('star')}</div><div class="tm"><div class="tt">Scoreboard</div></div><div class="tc">›</div></div>
+    <div class="trow" data-act="openCrewBank"><div class="ti">${icon('person')}</div><div class="tm"><div class="tt">Crew data bank — drivers &amp; conductors</div><div class="tiny muted">Licence, Aadhaar, phone, photo · joining &amp; leaving</div></div><div class="tc">›</div></div>
+    <div class="trow" data-nav="coaching"><div class="ti">${icon('edit')}</div><div class="tm"><div class="tt">${t('coTitle')}</div><div class="tiny muted">${coachDrafts().length} ${t('coToApprove')}</div></div><div class="tc">›</div></div>
+    <div class="trow" data-act="openCrewPins"><div class="ti">${icon('gate')}</div><div class="tm"><div class="tt">Crew logins & PINs</div></div><div class="tc">›</div></div>
+    <div class="trow" data-act="openStaff"><div class="ti">${icon('person')}</div><div class="tm"><div class="tt">Staff</div></div><div class="tc">›</div></div></div>`;
+  shell(t('people'), v2(body));
 }
 
 /* One shared triage row, so "what needs you" looks and behaves the same on every
@@ -3104,7 +3104,7 @@ const greetBlock = (emoji, line2) => `<div class="greet"><div class="greet-av">$
 const notCheckedInBanner = () => {
   const mine = (S.cache.att || []).filter((a) => a.userId === S.user.id);
   const inToday = mine.length && mine[mine.length - 1].type === 'in' && isToday(mine[mine.length - 1].at);
-  return inToday ? '' : `<div class="banner warn">⏰ ${t('hmNotCheckedIn')}
+  return inToday ? '' : `<div class="banner warn">${icon('clock')} ${t('hmNotCheckedIn')}
     <button class="btn sm" data-nav="me" style="margin-left:auto">${t('checkin')}</button></div>`;
 };
 
@@ -3202,7 +3202,7 @@ function personRow(person, roleLabel, opts) {
            : `<span class="prow-f">${esc((name || '?').slice(0, 1))}</span>`}
     <div class="prow-b"><div class="prow-l">${esc(roleLabel || '')}</div>
       <div class="prow-n">${esc(name)}</div></div>
-    ${phone ? `<a class="iconbtn" href="tel:${esc(phone)}" title="${esc(phone)}">📞</a>` : ''}
+    ${phone ? `<a class="iconbtn" href="tel:${esc(phone)}" title="${esc(phone)}">${icon('review')}</a>` : ''}
     ${o.openId ? `<span class="iconbtn" data-driver="${esc(o.openId)}" title="${esc(t('cbOpen') || 'Open')}">›</span>` : ''}
   </div>`;
 }
@@ -3274,11 +3274,11 @@ function awayJobs() {
 // noise, and the owner's home already has enough of it.
 function awayCard(away) {
   if (!away.length) return '';
-  return `<div class="card"><div class="row between"><h3>🌍 ${t('owAway')}</h3>
+  return `<div class="card"><div class="row between"><h3>${icon('map')} ${t('owAway')}</h3>
       <span class="badge b-amber">${away.length}</span></div>` + away.map((j) => {
     const since = j.enterAt || j.createdAt;
     const where = j.outsideCity || j.externalVendor || '—';
-    return `<div class="li" data-job="${esc(j.id)}"><div class="ava">🌍</div>
+    return `<div class="li" data-job="${esc(j.id)}"><div class="ava">${icon('map')}</div>
       <div class="main"><div class="t">${esc(busName(j.busId))} · ${esc(where)}</div>
         <div class="s">${esc(j.problem)} · ${t('mchSince')} ${timeAgo(since)}</div></div>
       ${statusBadge(j.status)}</div>`;
@@ -3672,9 +3672,9 @@ function busCard(b) {
       <div class="vc-barl"><span>${sv.last.toLocaleString('en-IN')}</span>
         <span>${sv.status === 'overdue' ? 'service overdue' : `${sv.dueIn.toLocaleString('en-IN')} km to service`}</span></div>
       <div class="vc-foot">
-        ${foot('🛣️', (b.odometer || 0).toLocaleString('en-IN'), 'km on clock')}
-        ${foot('⛽', km.avgKmpl != null ? km.avgKmpl.toFixed(1) : '—', 'km/l')}
-        ${foot('🔧', openJobs || '0', 'open jobs')}
+        ${foot(icon('map'), (b.odometer || 0).toLocaleString('en-IN'), 'km on clock')}
+        ${foot(icon('fuel'), km.avgKmpl != null ? km.avgKmpl.toFixed(1) : '—', 'km/l')}
+        ${foot(icon('job'), openJobs || '0', 'open jobs')}
       </div>
     </div></div>`;
 }
@@ -3689,7 +3689,7 @@ function busLi(b) {
     <div class="main"><div class="t">${sd[0]} ${esc(b.regNo)}</div>
       <div class="s">${esc(b.company)} · ${esc(b.model)} · ${(b.odometer||0).toLocaleString('en-IN')} km</div></div>
     ${alerts ? `<span class="badge b-red">${alerts}!</span>` : ''}
-    <button class="btn sm" data-act="trackBus" data-bus="${esc(b.id)}" style="width:auto" title="Live track">🛰️</button>
+    <button class="btn sm" data-act="trackBus" data-bus="${esc(b.id)}" style="width:auto" title="Live track">${icon('map')}</button>
   </div>`;
 }
 function viewBuses() {
@@ -3697,7 +3697,7 @@ function viewBuses() {
   body += `<input id="bus-search" class="searchbox" placeholder="Search reg, company, model…" autocomplete="off">`;
   body += `<div class="chiprow" id="bus-chips"></div>`;
   body += `<div class="card listwrap" id="bus-list"><div class="empty">Loading…</div></div>`;
-  shell(t('buses'), body, can(S.user.role, 'addBus') ? { act: 'addBus', icon: '+' } : null);
+  shell(t('buses'), v2(body), can(S.user.role, 'addBus') ? { act: 'addBus', icon: '+' } : null);
   const s = document.getElementById('bus-search'); if (s) s.oninput = renderBusList;
   renderBusList();           // paint immediately
   loadBusStatuses();         // then refresh live running/idle/parked
@@ -3760,7 +3760,7 @@ async function cleanupFleet(silent) {
   });
   for (const id of toDel) await DB.softDel('buses', id);
   if (toDel.size) { await load(); Sync.kick(); }
-  if (!silent) { toast(toDel.size ? `Removed ${toDel.size} test/duplicate bus(es) ✓` : 'Fleet already clean 👍'); rerender(); }
+  if (!silent) { toast(toDel.size ? `Removed ${toDel.size} test/duplicate bus(es) ${icon('ok')}` : 'Fleet already clean'); rerender(); }
   return toDel.size;
 }
 async function loadBusStatuses() {
@@ -3774,7 +3774,7 @@ function renderBusList() {
   const counts = { all: all.length, running: 0, idle: 0, parked: 0 };
   all.forEach((b) => { counts[busStatusOf(b)]++; });
   const chips = document.getElementById('bus-chips');
-  if (chips) chips.innerHTML = [['all', 'All'], ['running', '🟢 Running'], ['idle', '🟡 Idle'], ['parked', '⚪ Parked']]
+  if (chips) chips.innerHTML = [['all', 'All'], ['running', 'Running'], ['idle', 'Idle'], ['parked', 'Parked']]
     .map(([v, label]) => `<button class="chip ${_busFilter === v ? 'active' : ''}" data-act="busFilter" data-v="${esc(v)}">${label} ${counts[v]}</button>`).join('');
   const q = (document.getElementById('bus-search') || {}).value || '';
   const ql = q.trim().toLowerCase();
@@ -3867,7 +3867,7 @@ async function importFleet(silent) {
     have.add(_normReg(reg)); added++;
   }
   if (added) await load();
-  if (!silent) { toast(added ? `Imported ${added} bus(es) from AirFi ✓` : 'Fleet already up to date'); rerender(); }
+  if (!silent) { toast(added ? `Imported ${added} bus(es) from AirFi ${icon('ok')}` : 'Fleet already up to date'); rerender(); }
   return added;
 }
 // Runs silently in the background: de-dupe + drop demo buses, then pull any new
@@ -3928,7 +3928,7 @@ async function refreshMap() {
       _busMarkers[f.reg] = m;
     }
   });
-  const meta = $('#map-meta'); if (meta) meta.textContent = pts.length ? `${pts.length} buses live · 🟢 running · 🟡 idling · ⚪ parked · updates every 20s` : 'No live positions yet';
+  const meta = $('#map-meta'); if (meta) meta.textContent = pts.length ? `${pts.length} buses live · running · idling · parked · updates every 20s` : 'No live positions yet';
   if (pts.length && !_busMap._fitted) { try { _busMap.fitBounds(pts, { padding: [30, 30], maxZoom: 13 }); } catch (e) {} _busMap._fitted = true; }
 }
 
@@ -3954,7 +3954,7 @@ function speedGauge(spd) {
 }
 function trackPanel(b, d) {
   const moving = (d.speedKph || 0) > 2 && d.ignition;
-  const status = !d.ignition ? '⚪ Parked' : (moving ? '🟢 Running' : '🟡 Idling');
+  const status = !d.ignition ? 'Parked' : (moving ? 'Running' : 'Idling');
   return `<div class="card" style="margin:0">
     <div class="row between"><b>${esc(b.regNo)}</b><span class="badge ${!d.ignition ? 'b-low' : (moving ? 'b-green' : 'b-amber')}">${status}</span></div>
     ${speedGauge(d.speedKph)}
@@ -4026,10 +4026,10 @@ function viewBusDetail(id) {
         <div class="row between"><div><div class="muted small">Pending challans</div>
           <div class="stat" style="color:var(--bad)">${money(c.pendingFine)}</div></div>
         <div style="text-align:right"><div class="tiny muted">${c.pendingCount} pending</div>
-          ${c.courtCount ? `<div class="tiny muted">⚖️ ${c.courtCount} in court</div>` : ''}</div></div></div>`;
+          ${c.courtCount ? `<div class="tiny muted">${icon('doc')} ${c.courtCount} in court</div>` : ''}</div></div></div>`;
     } else if (lookupable(b.regNo)) {
       body += `<div class="card"><div class="row between">
-        <div class="small muted">${c ? 'No pending challans ✓' : 'Challans not checked'}</div>
+        <div class="small muted">${c ? ('No pending challans ' + icon('ok')) : 'Challans not checked'}</div>
         <button class="btn sm" data-act="checkChallan" data-bus="${esc(b.id)}">${c ? 'Re-check' : 'Check'}</button></div></div>`;
     }
   }
@@ -4046,28 +4046,28 @@ function viewBusDetail(id) {
     ${(() => { const sv = serviceInfo(b); const c = sv.status === 'overdue' ? 'b-red' : sv.status === 'soon' ? 'b-amber' : 'b-green';
       return `<div class="row between small" style="margin-bottom:10px"><span class="muted">Next service</span>
         <span class="badge ${c}">${sv.status === 'overdue' ? 'OVERDUE ' + Math.abs(sv.dueIn).toLocaleString('en-IN') + ' km' : 'in ' + sv.dueIn.toLocaleString('en-IN') + ' km'}</span></div>`; })()}
-    <div class="btnrow"><button class="btn sm" data-act="trackBus" data-bus="${esc(b.id)}">🛰️ Track live</button>
-      <button class="btn sm" data-act="gps" data-bus="${esc(b.id)}">📍 GPS &amp; service</button></div>
+    <div class="btnrow"><button class="btn sm" data-act="trackBus" data-bus="${esc(b.id)}">${icon('map')} Track live</button>
+      <button class="btn sm" data-act="gps" data-bus="${esc(b.id)}">${icon('map')} GPS &amp; service</button></div>
     ${can(S.user.role, 'logIncident') ? `<div class="btnrow" style="margin-top:8px">
-      <button class="btn sm" data-act="reportProblem" data-bus="${esc(b.id)}" data-driver="${(driverOfBus(b.id) || {}).id || ''}">🗣️ ${t('reportProblem')}</button></div>` : ''}
-    ${can(S.user.role, 'addFuel') ? `<div class="btnrow" style="margin-top:8px"><button class="btn sm" data-act="addFuel" data-bus="${esc(b.id)}">⛽ Log fuel</button>${busUsesDef(b) ? `<button class="btn sm" data-act="addDef" data-bus="${esc(b.id)}">🧪 Log AdBlue/DEF</button>` : ''}</div>` : ''}
-    ${busUsesDef(b) ? (() => { const ds = defStatus(b); return `<div class="row between small" style="margin-top:10px"><span class="muted">AdBlue / DEF</span><span data-act="openDef" style="cursor:pointer">${ds.perHundred != null ? ds.perHundred.toFixed(1) + ' L/100km · ' : ''}${money(ds.costTotal)} ›</span></div>${ds.flag ? `<div class="tiny" style="color:${ds.flag.sev === 'high' ? 'var(--red)' : 'var(--amber)'};margin-top:3px">⚠️ ${esc(ds.flag.msg)}</div>` : ''}`; })() : ''}
+      <button class="btn sm" data-act="reportProblem" data-bus="${esc(b.id)}" data-driver="${(driverOfBus(b.id) || {}).id || ''}">${icon('review')} ${t('reportProblem')}</button></div>` : ''}
+    ${can(S.user.role, 'addFuel') ? `<div class="btnrow" style="margin-top:8px"><button class="btn sm" data-act="addFuel" data-bus="${esc(b.id)}">${icon('fuel')} Log fuel</button>${busUsesDef(b) ? `<button class="btn sm" data-act="addDef" data-bus="${esc(b.id)}">${icon('fuel')} Log AdBlue/DEF</button>` : ''}</div>` : ''}
+    ${busUsesDef(b) ? (() => { const ds = defStatus(b); return `<div class="row between small" style="margin-top:10px"><span class="muted">AdBlue / DEF</span><span data-act="openDef" style="cursor:pointer">${ds.perHundred != null ? ds.perHundred.toFixed(1) + ' L/100km · ' : ''}${money(ds.costTotal)} ›</span></div>${ds.flag ? `<div class="tiny" style="color:${ds.flag.sev === 'high' ? 'var(--red)' : 'var(--amber)'};margin-top:3px">${icon('warn')} ${esc(ds.flag.msg)}</div>` : ''}`; })() : ''}
   </div>`;
 
   // Vehicle documents in Google Drive (RC, Permit, Fitness, Insurance…)
   if (b.docsFolderId || (b.docs || []).length) {
-    body += `<div class="card"><h3>📄 Vehicle documents</h3>`;
+    body += `<div class="card"><h3>${icon('doc')} Vehicle documents</h3>`;
     const withExp = (b.docs || []).filter((x) => x.expiry).sort((a, c) => a.expiry - c.expiry);
     body += withExp.map((x) => { const dl = Math.ceil((x.expiry - Date.now()) / day); const col = dl < 0 ? 'var(--red)' : dl <= 30 ? 'var(--amber)' : 'var(--green)';
       return `<div class="row between small" style="padding:3px 0"><span class="muted">${esc(x.type)}</span><b style="color:${col}">${dl < 0 ? 'expired ' + fmtDate(x.expiry) : fmtDate(x.expiry)}</b></div>`; }).join('');
     if (b.docsFolderId) body += `<div class="tiny muted" style="margin:8px 0 8px">RC, Permit, Fitness, Insurance &amp; more in the office Drive.</div>
-      <a class="btn" href="https://drive.google.com/drive/folders/${esc(b.docsFolderId)}" target="_blank" rel="noopener">📂 Open documents in Drive</a>`;
+      <a class="btn" href="https://drive.google.com/drive/folders/${esc(b.docsFolderId)}" target="_blank" rel="noopener">${icon('doc')} Open documents in Drive</a>`;
     body += `</div>`;
   }
 
   // Route & crew (from the bus/route roster import)
   if (b.routeLabel || b.driverCrew || b.conductor || b.crewPhone) {
-    body += `<div class="card"><h3>🧭 Route &amp; crew</h3>`;
+    body += `<div class="card"><h3>${icon('map')} Route &amp; crew</h3>`;
     if (b.routeLabel) body += `<div class="row between small" style="padding:3px 0"><span class="muted">Route</span><b>${esc(expandRoute(b.routeLabel))}</b></div>`;
     if (b.driverCrew) body += `<div class="row between small" style="padding:3px 0"><span class="muted">Driver(s)</span><b>${esc(_titleCase(b.driverCrew))}</b></div>`;
     if (b.conductor) body += `<div class="row between small" style="padding:3px 0"><span class="muted">Conductor</span><b>${esc(_titleCase(b.conductor))}</b></div>`;
@@ -4078,9 +4078,9 @@ function viewBusDetail(id) {
   // Fitted tyres & rotable components + their life
   const comps = componentsOfBus(b.id);
   if (comps.length || can(S.user.role, 'issuePart')) {
-    body += `<div class="card"><div class="row between"><h3>🛞 Tyres &amp; components</h3><span>${
-      can(S.user.role, 'manageComponents') ? `<button class="btn sm" data-act="fitTyres" data-bus="${esc(b.id)}">🛞</button>
-        <button class="btn sm" data-act="fitBatteries" data-bus="${esc(b.id)}">🔋</button> ` : ''
+    body += `<div class="card"><div class="row between"><h3>${icon('part')} Tyres &amp; components</h3><span>${
+      can(S.user.role, 'manageComponents') ? `<button class="btn sm" data-act="fitTyres" data-bus="${esc(b.id)}">${icon('part')}</button>
+        <button class="btn sm" data-act="fitBatteries" data-bus="${esc(b.id)}">${icon('part')}</button> ` : ''
     }${can(S.user.role, 'issuePart') ? `<button class="btn sm" data-act="openComponents">All</button>` : ''}</span></div>`;
     body += comps.length ? comps.sort((a, c) => componentLife(c).pct - componentLife(a).pct).map((c) => { const lf = componentLife(c), km = compKind(c);
       return `<div class="li" data-act="openComp" data-id="${esc(c.id)}"><div class="ava">${km[0]}</div>
@@ -4100,15 +4100,15 @@ function viewBusDetail(id) {
   body += [0, 1].map((i) => {
     const drv = seats[i], n = i + 1;
     const btn = canAssign ? `<button class="btn sm" data-act="assignDriver" data-bus="${esc(b.id)}" data-role="driver" data-slot="${n}">${drv ? 'Change' : 'Assign'}</button>` : '';
-    if (!drv) return `<div class="li"><div class="ava">🧑‍✈️</div><div class="main"><div class="t muted">${t('asDriverN')} ${n} · ${t('asSeatEmpty')}</div>${n === 2 ? `<div class="s">${t('asSeat2Hint')}</div>` : ''}</div>${btn}</div>`;
+    if (!drv) return `<div class="li"><div class="ava">${icon('person')}</div><div class="main"><div class="t muted">${t('asDriverN')} ${n} · ${t('asSeatEmpty')}</div>${n === 2 ? `<div class="s">${t('asSeat2Hint')}</div>` : ''}</div>${btn}</div>`;
     const sc = driverScore(drv.id);
-    return `<div class="li" ${canDrivers ? `data-driver="${esc(drv.id)}"` : ''}><div class="ava">🧑‍✈️</div>
+    return `<div class="li" ${canDrivers ? `data-driver="${esc(drv.id)}"` : ''}><div class="ava">${icon('person')}</div>
       <div class="main"><div class="t">${esc(drv.name)}</div><div class="s">${t('asDriverN')} ${n} · ${drv.tripsLogged || 0} trips · ${esc(drv.phone || '')}</div></div>
       ${canDrivers ? `<div style="text-align:right"><span class="badge ${scoreClass(sc)}">${sc}</span><div class="stars">${starStr(scoreStars(sc))}</div></div>` : ''}${btn}</div>`;
   }).join('');
   // A third driver on one bus is old data the two seats cannot hold. Show it,
   // never hide it, so the office can move them.
-  body += (seats.overflow || []).map((o) => `<div class="li" ${canDrivers ? `data-driver="${esc(o.id)}"` : ''}><div class="ava">⚠️</div>
+  body += (seats.overflow || []).map((o) => `<div class="li" ${canDrivers ? `data-driver="${esc(o.id)}"` : ''}><div class="ava">${icon('warn')}</div>
       <div class="main"><div class="t">${esc(o.name)}</div><div class="s">${t('asExtraDriver')}</div></div></div>`).join('');
   body += `</div>`;
 
@@ -4117,7 +4117,7 @@ function viewBusDetail(id) {
   if (openReps.length) {
     body += `<div class="card"><div class="row between"><h3>Driver-reported issues</h3><span class="badge b-amber">${openReps.length}</span></div>
       <div class="tiny muted" style="margin-bottom:6px">What the driver felt on the road — fix these first.</div>`;
-    body += openReps.map((r) => `<div class="li"><div class="ava">🟠</div>
+    body += openReps.map((r) => `<div class="li"><div class="ava"></div>
       <div class="main"><div class="t">${esc(r.problem)}</div><div class="s">${esc(r.category || '')} · ${esc(driverName(r.driverId))} · ${fmtDate(r.at)}</div>${reportAiLine(r)}</div>
       ${can(S.user.role, 'addJob') ? `<button class="btn sm" data-act="reportToJob" data-report="${esc(r.id)}">→ Job</button>` : ''}</div>`).join('');
     body += `</div>`;
@@ -4138,16 +4138,16 @@ function viewBusDetail(id) {
 
   // Service history
   body += `<div class="card"><div class="row between"><h3>${t('serviceHistory')}</h3>
-    <button class="btn sm ghost" data-act="openHistBusPage" data-bus="${esc(b.id)}">✅ ${t('histTitle')}</button></div>`;
+    <button class="btn sm ghost" data-act="openHistBusPage" data-bus="${esc(b.id)}">${icon('ok')} ${t('histTitle')}</button></div>`;
   body += jobs.length ? jobs.map(jobLi).join('') : `<div class="muted small">No jobs</div>`;
   body += `</div>`;
 
-  shell(esc(b.regNo), body);
+  shell(esc(b.regNo), v2(body));
 }
 
 /* ----- Jobs ----- */
 const JOB_SC = { open: '#ef4444', 'in-progress': '#f59e0b', done: '#2563eb', verified: '#16a571' };
-const PRIO_PILL = { high: '🔴 High', medium: '🟡 Medium', low: '🟢 Low' };
+const PRIO_PILL = { high: 'High', medium: 'Medium', low: 'Low' };
 function jobLi(j) {
   const c = jobCost(j).total;
   const sc = JOB_SC[j.status] || 'var(--faint)';
@@ -4160,23 +4160,23 @@ function jobLi(j) {
   const rep = (S.cache.driverreports || []).find((r) => r.jobId === j.id);
   return `<div class="jobcard" data-job="${esc(j.id)}" style="--sc:${sc}">
     <div class="jc-top">
-      <div class="jc-bus">🚌 ${esc(busName(j.busId))}</div>
+      <div class="jc-bus">${icon('bus')} ${esc(busName(j.busId))}</div>
       ${statusBadge(j.status)}
     </div>
     <div class="jc-problem">${esc(j.problem)}</div>
-    ${rep ? `<div class="jc-complaint">🗣️ ${esc(driverName(rep.driverId))}: “${esc((rep.problem || '').slice(0, 90))}”</div>` : ''}
+    ${rep ? `<div class="jc-complaint">${icon('review')} ${esc(driverName(rep.driverId))}: “${esc((rep.problem || '').slice(0, 90))}”</div>` : ''}
     <div class="jc-meta">
       <span class="pp">${PRIO_PILL[j.priority] || ''}</span>
-      <span>· 👷 ${esc(crewLabel(j, false))}</span>
+      <span>· ${icon('person')} ${esc(crewLabel(j, false))}</span>
       <span>· ${fmtDate(j.createdAt)}</span>
       ${isOutside(j)
-        ? `<span>· 🌍 ${esc(j.outsideCity || t('owBadge'))}</span>`
-        : (j.externalVendor ? `<span>· 🏪 ${t('owBadge')}</span>` : '')}
+        ? `<span>· ${icon('map')} ${esc(j.outsideCity || t('owBadge'))}</span>`
+        : (j.externalVendor ? `<span>· ${icon('part')} ${t('owBadge')}</span>` : '')}
     </div>
     <div class="jc-foot">
-      <span>💰 ${money(c)}</span>
-      ${dDays >= 1 ? `<span style="color:var(--red)">🕒 ${dDays.toFixed(0)}d${stillDown ? '+' : ''} down</span>` : ''}
-      ${(j.partsUsed || []).length ? `<span>🔩 ${j.partsUsed.length}</span>` : ''}
+      <span>${icon('money')} ${money(c)}</span>
+      ${dDays >= 1 ? `<span style="color:var(--red)">${icon('clock')} ${dDays.toFixed(0)}d${stillDown ? '+' : ''} down</span>` : ''}
+      ${(j.partsUsed || []).length ? `<span>${icon('part')} ${j.partsUsed.length}</span>` : ''}
     </div>
     <div class="jc-prog">${steps.map((s, i) => `<i class="${i <= idx ? 'on' : ''}"></i>`).join('')}</div>
   </div>`;
@@ -4259,19 +4259,19 @@ function viewJobs() {
       <div class="tm"><div class="tt">${t('mpTitle')}</div>
         <div class="ts">${t('mpSub')}</div></div><div class="tc">›</div></div>`;
   }
-  body += `<div class="trow" data-act="openHistory" style="margin-bottom:10px"><div class="ti">✅</div>
+  body += `<div class="trow" data-act="openHistory" style="margin-bottom:10px"><div class="ti">${icon('ok')}</div>
     <div class="tm"><div class="tt">${t('histTitle')}</div>
       <div class="ts">${t('histSub')}</div></div><div class="tc">›</div></div>`;
   if (can(S.user.role, 'outsideJob')) {
     const _oj = gpOutstanding().length;
-    body += `<div class="trow ${_oj ? 'warn' : ''}" data-act="openOutsideJobs" style="margin-bottom:10px"><div class="ti">📄</div>
+    body += `<div class="trow ${_oj ? 'warn' : ''}" data-act="openOutsideJobs" style="margin-bottom:10px"><div class="ti">${icon('doc')}</div>
       <div class="tm"><div class="tt">${t('ojTitle')}</div>
         <div class="ts">${t('ojSub')}</div></div><div class="tc">${_oj || '›'}</div></div>`;
   }
   body += jobsFilterBar();
   body += `<input id="job-search" class="searchbox" placeholder="Search bus or problem…" autocomplete="off">`;
   body += jobs.length ? `<div id="job-list" class="listwrap">${jobs.map(jobLi).join('')}</div>` : `<div class="card listwrap" id="job-list"><div class="empty">${t('noJobsMatch')}</div></div>`;
-  shell(t('jobs'), body, can(S.user.role, 'addJob') ? { act: 'addJob', icon: '+' } : null);
+  shell(t('jobs'), v2(body), can(S.user.role, 'addJob') ? { act: 'addJob', icon: '+' } : null);
   attachSearch('job-search', 'job-list');
   const jl = document.getElementById('job-list'); if (jl) staggerRows(jl);
 }
@@ -4316,25 +4316,25 @@ function viewJobDetail(id) {
       const who = m || { name: userName(a.userId) };
       return personRow(who, a.task || t('crewTitle'));
     }).join('<div class="spacer"></div>') : ''}
-    ${isOutside(j) ? `<div class="banner" style="margin-top:8px;background:var(--amber-wash,#fff6e5)">🌍 <b>${t('owAway')}</b> · ${esc(j.outsideCity || j.externalVendor || '—')}${
+    ${isOutside(j) ? `<div class="banner" style="margin-top:8px;background:var(--amber-wash,#fff6e5)">${icon('map')} <b>${t('owAway')}</b> · ${esc(j.outsideCity || j.externalVendor || '—')}${
       j.outsideLat != null && j.outsideLng != null
         ? ` <a href="${esc(mapsUrl(j.outsideLat, j.outsideLng))}" target="_blank" rel="noopener" style="margin-left:auto">${t('owOpenMap')} ↗</a>` : ''}</div>` : ''}
-    ${j.notes ? `<div class="small muted" style="margin-top:8px">📝 ${esc(j.notes)}</div>` : ''}
-    ${(j.busMoves || []).map((m) => `<div class="tiny muted" style="margin-top:6px">🚌 ${t('jbCorrected').replace('{bus}', () => esc(busName(m.from) || m.from || '—'))} · ${esc(userName(m.by))} · ${fmtDate(m.at)}${m.reason ? ' · ' + esc(m.reason) : ''}</div>`).join('')}
+    ${j.notes ? `<div class="small muted" style="margin-top:8px">${icon('edit')} ${esc(j.notes)}</div>` : ''}
+    ${(j.busMoves || []).map((m) => `<div class="tiny muted" style="margin-top:6px">${icon('bus')} ${t('jbCorrected').replace('{bus}', () => esc(busName(m.from) || m.from || '—'))} · ${esc(userName(m.by))} · ${fmtDate(m.at)}${m.reason ? ' · ' + esc(m.reason) : ''}</div>`).join('')}
   </div>`;
 
   body += serviceRecordCard(j, canEdit);
 
   // Photos — the proof-of-work fix
   body += `<div class="card">${photoStrip(j, 'beforePhotos', editable)}<div class="spacer"></div>${photoStrip(j, 'afterPhotos', editable || canAddProof)}
-    <div class="tiny muted" style="margin-top:8px">⚠️ ${t('addPhotoNote')}</div></div>`;
+    <div class="tiny muted" style="margin-top:8px">${icon('warn')} ${t('addPhotoNote')}</div></div>`;
 
   // Parts used
   body += `<div class="card"><div class="row between"><h3>${t('partsUsed')}</h3>${can(S.user.role,'issuePart') && j.status!=='verified' ? `<button class="btn sm" data-act="issueTo" data-job="${esc(j.id)}">+ ${t('issuePart')}</button>`:''}</div>`;
   body += (j.partsUsed || []).length ? (j.partsUsed.map((l) => {
     const p = byId(S.cache.parts, l.partId);
     return `<div class="row between small" style="padding:5px 0">
-      <span>${esc(p ? p.name : l.partId)} × ${esc(Number(l.qty) || 0)}${l.reused ? ` <span class="badge b-low">♻️ ${t('isReusedShort')}</span>` : ''}</span>
+      <span>${esc(p ? p.name : l.partId)} × ${esc(Number(l.qty) || 0)}${l.reused ? ` <span class="badge b-low">${t('isReusedShort')}</span>` : ''}</span>
       <b>${money(l.cost)}</b></div>`;
   }).join('')) : `<div class="muted small">No parts issued</div>`;
   // The mechanic-facing half of this card: request-a-part, the pending-request
@@ -4349,15 +4349,15 @@ function viewJobDetail(id) {
   const crs = j.coreReturns || [];
   if ((j.partsUsed || []).length || crs.length) {
     const missing = coreMissing(j);
-    body += `<div class="card"><div class="row between"><h3>🔧 Old parts returned</h3>${editable && (j.partsUsed || []).length ? `<button class="btn sm" data-act="returnCore" data-job="${esc(j.id)}">📦 Return old part</button>` : ''}</div>`;
+    body += `<div class="card"><div class="row between"><h3>${icon('job')} Old parts returned</h3>${editable && (j.partsUsed || []).length ? `<button class="btn sm" data-act="returnCore" data-job="${esc(j.id)}">${icon('part')} Return old part</button>` : ''}</div>`;
     body += crs.map((c) => { const p = byId(S.cache.parts, c.partId); const cc = CORE_COND[c.condition] || CORE_COND.worn;
       // Claude's reading when there is one; the old on-phone grade otherwise.
-      const ai = coreAiOf(c) ? coreAiLine(c) : c.ai ? `<div class="tiny" style="margin-top:4px;color:${c.ai.verdict === 'suspect' ? '#ef4444' : '#5d6675'}">📱 ${c.ai.wear}% worn · ${esc(c.ai.verdict)}${c.ai.note ? ' — ' + esc(c.ai.note) : ''}</div>` : '';
-      const gradeBtn = (!c.ai && !coreAiOf(c) && ['owner', 'supervisor'].includes(S.user.role)) ? `<div style="margin-top:6px"><button class="btn sm ghost" data-act="aiGradeCore" data-job="${esc(j.id)}" data-cr="${esc(c.id)}">📷 Grade wear</button></div>` : '';
+      const ai = coreAiOf(c) ? coreAiLine(c) : c.ai ? `<div class="tiny" style="margin-top:4px;color:${c.ai.verdict === 'suspect' ? '#ef4444' : '#5d6675'}">${c.ai.wear}% worn · ${esc(c.ai.verdict)}${c.ai.note ? ' — ' + esc(c.ai.note) : ''}</div>` : '';
+      const gradeBtn = (!c.ai && !coreAiOf(c) && ['owner', 'supervisor'].includes(S.user.role)) ? `<div style="margin-top:6px"><button class="btn sm ghost" data-act="aiGradeCore" data-job="${esc(j.id)}" data-cr="${esc(c.id)}">${icon('camera')} Grade wear</button></div>` : '';
       return `<div class="li"><img class="thumb" src="${esc(c.photo)}" data-act="viewPhoto" data-src="${esc(c.photo)}">
         <div class="main"><div class="t">${esc(p ? p.name : (c.note || 'Old part'))}</div><div class="s">${fmtDate(c.at)} · ${esc(userName(c.by))}</div>${ai}</div>
         <div style="text-align:right"><span class="badge ${cc[1]}">${cc[0]}</span>${gradeBtn}</div></div>`; }).join('');
-    if (missing.length) body += `<div class="banner warn" style="margin-top:8px">⚠️ Old part not returned for: ${missing.map((l) => { const p = byId(S.cache.parts, l.partId); return esc(p ? p.name : l.partId); }).join(', ')}. Get the worn part back before paying.</div>`;
+    if (missing.length) body += `<div class="banner warn" style="margin-top:8px">${icon('warn')} Old part not returned for: ${missing.map((l) => { const p = byId(S.cache.parts, l.partId); return esc(p ? p.name : l.partId); }).join(', ')}. Get the worn part back before paying.</div>`;
     body += `</div>`;
   }
 
@@ -4365,13 +4365,13 @@ function viewJobDetail(id) {
   // says where it is standing and for how long, so it carries both.
   if (j.externalVendor || isOutside(j)) {
     const awayD = jobDownDays(j);
-    body += `<div class="card"><h3>${isOutside(j) ? '🌍 ' + t('owAway') : 'Outside repair'}</h3>
+    body += `<div class="card"><h3>${isOutside(j) ? icon('map') + ' ' + t('owAway') : 'Outside repair'}</h3>
       <div class="row between small"><span>${esc(j.externalVendor || '—')}</span><b>${money(j.externalCost)}</b></div>
       ${isOutside(j) ? `<div class="row between small" style="margin-top:6px"><span>${t('owWhere')}</span>
         <b>${esc(j.outsideCity || '—')}</b></div>
-        <div class="row between small"><span>🕒 ${t('owAwayFor')}</span><b>${awayD.toFixed(1)}d</b></div>
+        <div class="row between small"><span>${icon('clock')} ${t('owAwayFor')}</span><b>${awayD.toFixed(1)}d</b></div>
         ${j.outsideLat != null && j.outsideLng != null
-          ? `<a class="btn sm" style="margin-top:8px" href="${esc(mapsUrl(j.outsideLat, j.outsideLng))}" target="_blank" rel="noopener">📍 ${t('owOpenMap')}</a>` : ''}` : ''}</div>`;
+          ? `<a class="btn sm" style="margin-top:8px" href="${esc(mapsUrl(j.outsideLat, j.outsideLng))}" target="_blank" rel="noopener">${icon('map')} ${t('owOpenMap')}</a>` : ''}` : ''}</div>`;
   }
 
   // Cost summary — repair cost + the lost-revenue from downtime
@@ -4381,7 +4381,7 @@ function viewJobDetail(id) {
     <div class="row between small"><span>Parts</span><b>${money(cost.parts)}</b></div>
     <div class="row between small"><span>Labour (${esc(Number(j.labourHours) || 0)} hr)</span><b>${money(cost.labour)}</b></div>
     ${cost.ext?`<div class="row between small"><span>Outside</span><b>${money(cost.ext)}</b></div>`:''}
-    <div class="row between small"><span>🕒 Downtime ${dDays.toFixed(1)}d${stillDown ? ' (ongoing)' : ''} · lost revenue</span><b style="color:#ef4444">${money(dLost)}</b></div>
+    <div class="row between small"><span>${icon('clock')} Downtime ${dDays.toFixed(1)}d${stillDown ? ' (ongoing)' : ''} · lost revenue</span><b style="color:#ef4444">${money(dLost)}</b></div>
     <div class="hr"></div>
     <div class="row between"><b>Repair cost</b><b style="color:var(--brand2)">${money(cost.total)}</b></div>
     <div class="row between"><b>Total impact</b><b style="color:#ef4444">${money(cost.total + dLost)}</b></div></div>`;
@@ -4390,7 +4390,7 @@ function viewJobDetail(id) {
   const actions = actionsForJob(j, editable);
   if (actions) body += `<div class="card">${actions}</div>`;
 
-  shell('Job Card', body, null, NARROW);
+  shell('Job Card', v2(body), null, NARROW);
 }
 
 // All action buttons shown on a job card, in one place so edit/reassign,
@@ -4406,28 +4406,28 @@ function actionsForJob(j, editable) {
   // server, which is where it actually holds.
   const mayClose = mayCloseJob();
   if (editable && mayClose && (j.status === 'open' || j.status === 'in-progress')) {
-    actions += `<button class="btn primary" data-act="markDone" data-job="${esc(j.id)}">✅ ${t('markDone')}</button>`;
+    actions += `<button class="btn primary" data-act="markDone" data-job="${esc(j.id)}">${icon('ok')} ${t('markDone')}</button>`;
   }
   if (j.status === 'done' && can(S.user.role, 'verifyJob')) {
-    actions += `<button class="btn primary" data-act="verifyJob" data-job="${esc(j.id)}">☑️ ${t('verify')}</button>
+    actions += `<button class="btn primary" data-act="verifyJob" data-job="${esc(j.id)}">${icon('ok')} ${t('verify')}</button>
       <button class="btn" data-act="rejectJob" data-job="${esc(j.id)}">↩️ Send back for rework</button>`;
   }
   if (j.status === 'verified') {
-    actions += `<div class="banner" style="background:var(--green-wash);color:var(--green)">✓ Verified by ${esc(userName(j.verifiedBy))} on ${fmtDate(j.verifiedAt)}</div>`;
+    actions += `<div class="banner" style="background:var(--green-wash);color:var(--green)">${icon('ok')} Verified by ${esc(userName(j.verifiedBy))} on ${fmtDate(j.verifiedAt)}</div>`;
     // The one correction a signed-off card still needs. A card billed to the
     // wrong bus puts its parts and labour on that bus's cost per km for good,
     // and re-opening the card to fix it unpicks the two-person sign-off — so
     // the bus moves on its own, it is the owner's to do, and the card keeps a
     // record of the move. Everything else on a verified card stays frozen.
     if (S.user.role === 'owner') {
-      actions += `<button class="btn" data-act="changeJobBus" data-job="${esc(j.id)}">🚌 ${t('jbChangeBus')}</button>`;
+      actions += `<button class="btn" data-act="changeJobBus" data-job="${esc(j.id)}">${icon('bus')} ${t('jbChangeBus')}</button>`;
     }
   }
   // Removing the card altogether. Last, and set apart from the buttons that do
   // the work, because it is the one action here that leaves nothing behind.
   if (canDeleteJob()) {
     actions += `<div class="hr"></div>
-      <button class="btn danger" data-act="deleteJob" data-job="${esc(j.id)}">🗑️ ${t('djBtn')}</button>`;
+      <button class="btn danger" data-act="deleteJob" data-job="${esc(j.id)}">${icon('delete')} ${t('djBtn')}</button>`;
   }
   return actions;
 }
@@ -4457,19 +4457,19 @@ function sheetDeleteJob(jobId) {
   const val = issued.reduce((s, l) => s + (l.cost || 0), 0);
   const reps = (S.cache.driverreports || []).filter((r) => r.jobId === jobId);
   openSheet(t('djTitle'), `
-    <div class="li" style="border:none"><div class="ava">🚌</div>
+    <div class="li" style="border:none"><div class="ava">${icon('bus')}</div>
       <div class="main"><div class="t">${esc(busName(j.busId))}</div>
         <div class="s">${esc(j.problem)} · ${fmtDate(j.createdAt)}</div></div>
       ${statusBadge(j.status)}</div>
-    <div class="banner warn">⚠️ ${esc(t('djWarn'))}</div>
+    <div class="banner warn">${icon('warn')} ${esc(t('djWarn'))}</div>
     ${issued.length ? `<div class="row between small" style="padding:4px 2px">
-      <span>🔩 ${qty} ${t('djParts')}</span><b>${money(val)}</b></div>` : ''}
+      <span>${icon('part')} ${qty} ${t('djParts')}</span><b>${money(val)}</b></div>` : ''}
     ${reps.length ? `<div class="row between small" style="padding:4px 2px">
-      <span>🗣️ ${reps.length} ${t('djReports')}</span></div>` : ''}
+      <span>${icon('review')} ${reps.length} ${t('djReports')}</span></div>` : ''}
     <div class="tiny muted" style="margin:8px 2px 12px">${esc(t('djKeep'))}</div>
-    <label class="field"><span class="lbl">📝 ${t('djReason')}</span>
+    <label class="field"><span class="lbl">${icon('edit')} ${t('djReason')}</span>
       <input id="dj-why" placeholder="${esc(t('djReasonPh'))}"></label>
-    <button class="btn danger" data-act="deleteJobGo" data-job="${esc(j.id)}">🗑️ ${t('djGo')}</button>`);
+    <button class="btn danger" data-act="deleteJobGo" data-job="${esc(j.id)}">${icon('delete')} ${t('djGo')}</button>`);
 }
 
 async function doDeleteJob(jobId) {
@@ -4526,21 +4526,21 @@ function sheetEditJob(jobId) {
       // would quietly re-bill the repair to an unrelated vehicle. Offer an
       // explicit unresolved entry instead, and leave busId alone unless the user
       // picks a real one.
-      byId(buses, j.busId) ? '' : `<option value="__keep__" selected>⚠️ Unknown bus (${esc(j.busId || 'not set')}) — pick one to fix</option>`
+      byId(buses, j.busId) ? '' : `<option value="__keep__" selected>${icon('warn')} Unknown bus (${esc(j.busId || 'not set')}) — pick one to fix</option>`
     }${buses.map((b) => `<option value="${b.id}" ${b.id === j.busId ? 'selected' : ''}>${esc(b.regNo)} — ${esc(b.company)}</option>`).join('')}</select></label>
     <label class="field"><span class="lbl">Problem reported</span><textarea id="fe-prob">${esc(j.problem || '')}</textarea></label>
-    <div class="lbl" style="margin:4px 0 6px">👷 ${t('crewTitle')}</div>
+    <div class="lbl" style="margin:4px 0 6px">${icon('person')} ${t('crewTitle')}</div>
     ${crewEditorHtml('fe-mech', jobCrew(j))}
     <label class="field" style="margin-top:10px"><span class="lbl">Priority</span><select id="fe-prio">${prioOpt('high', 'High')}${prioOpt('medium', 'Medium')}${prioOpt('low', 'Low')}</select></label>
     <label class="field"><span class="lbl">Outside vendor (optional)</span><input id="fe-vendor" value="${esc(j.externalVendor || '')}" placeholder="Leave blank if in-house"></label>
     <label class="row" style="gap:9px;margin-top:4px;cursor:pointer">
       <input type="checkbox" id="fe-outside" ${j.outside ? 'checked' : ''} style="width:18px;height:18px;flex:none">
-      <span class="small"><b>🌍 ${t('owAsk')}</b></span></label>
+      <span class="small"><b>${icon('map')} ${t('owAsk')}</b></span></label>
     <div class="tiny muted" style="margin-top:4px">${t('owHint')}</div>
     <div id="fe-outwrap" style="display:${j.outside ? '' : 'none'};margin-top:8px">
-      <label class="field"><span class="lbl">🏙️ ${t('owCity')}</span>
+      <label class="field"><span class="lbl">${icon('map')} ${t('owCity')}</span>
         <input id="fe-outcity" list="ow-cities" value="${esc(j.outsideCity || '')}" placeholder="${esc(t('owCityPh'))}"></label>
-      <label class="field" style="margin-top:8px"><span class="lbl">📍 ${t('owLoc')}</span>
+      <label class="field" style="margin-top:8px"><span class="lbl">${icon('map')} ${t('owLoc')}</span>
         <input id="fe-outloc" value="${j.outsideLat != null && j.outsideLng != null ? esc(j.outsideLat + ', ' + j.outsideLng) : ''}" placeholder="${esc(t('owLocPh'))}"></label>
       ${cityDatalist()}
     </div>
@@ -4601,11 +4601,11 @@ function sheetChangeJobBus(jobId) {
   if (S.user.role !== 'owner') return toast(t('jbOwnerOnly'));
   const buses = S.cache.buses;
   openSheet(t('jbChangeBusTitle'), `
-    <div class="banner warn">⚠️ ${esc(t('jbMoveWarn'))}</div>
-    <label class="field"><span class="lbl">🚌 ${t('jbBusWord')}</span><select id="jb-bus">${
-      byId(buses, j.busId) ? '' : `<option value="" selected>⚠️ ${esc(j.busId || '')}</option>`
+    <div class="banner warn">${icon('warn')} ${esc(t('jbMoveWarn'))}</div>
+    <label class="field"><span class="lbl">${icon('bus')} ${t('jbBusWord')}</span><select id="jb-bus">${
+      byId(buses, j.busId) ? '' : `<option value="" selected>${icon('warn')} ${esc(j.busId || '')}</option>`
     }${buses.map((b) => `<option value="${esc(b.id)}" ${b.id === j.busId ? 'selected' : ''}>${esc(b.regNo)}${b.company ? ' — ' + esc(b.company) : ''}</option>`).join('')}</select></label>
-    <label class="field"><span class="lbl">📝 ${t('jbReason')}</span><input id="jb-why" placeholder="${esc(t('jbReasonPh'))}"></label>
+    <label class="field"><span class="lbl">${icon('edit')} ${t('jbReason')}</span><input id="jb-why" placeholder="${esc(t('jbReasonPh'))}"></label>
     <button class="btn primary" data-act="saveJobBus" data-job="${esc(j.id)}">${t('save')}</button>`);
 }
 async function saveJobBus(jobId) {
@@ -4624,7 +4624,7 @@ async function saveJobBus(jobId) {
   j.busMoves = [...(j.busMoves || []), { from, to, by: S.user.id, at: Date.now(), reason: ($('#jb-why') || {}).value.trim() }];
   j.busId = to;
   await DB.put('jobcards', j);
-  await load(); closeSheet(); toast(`🚌 ${t('jbMoved')} ${busName(to)}`); rerender();
+  await load(); closeSheet(); toast(`${icon('bus')} ${t('jbMoved')} ${busName(to)}`); rerender();
 }
 
 /* ===== Anti-pilferage #1 — old-part return ("core return") ================
@@ -4657,7 +4657,7 @@ function coreAiNudge() {
   _caiLast = Date.now();
   Sync.aiCore().then((j) => { if (j && j.checked) { if (Sync.kick) Sync.kick(); load().then(rerender); } });
 }
-const CORE_COND = { worn: ['Worn out ✓', 'b-green'], partial: ['Part-worn', 'b-amber'], suspect: ['Looks new ⚠️', 'b-red'] };
+const CORE_COND = { worn: ['Worn out', 'b-green'], partial: ['Part-worn', 'b-amber'], suspect: ['Looks new ⚠️', 'b-red'] };
 const coreMissing = (j) => {
   const ret = new Set((j.coreReturns || []).map((c) => c.partId).filter(Boolean));
   return (j.partsUsed || []).filter((l) => !ret.has(l.partId));
@@ -4671,7 +4671,7 @@ function sheetReturnCore(jobId) {
   openSheet('Return old part', `
     <div class="tiny muted" style="margin-bottom:10px">Bring the OLD removed part back to store so it can't be re-sold or swapped. Photograph it as proof.</div>
     ${used.length ? `<label class="field"><span class="lbl">Old core of which part?</span><select id="cr-part">${opts}<option value="">Other / consumable</option></select></label>` : `<input type="hidden" id="cr-part" value="">`}
-    <button class="btn" data-act="captureCore">📷 Photo of old part</button>
+    <button class="btn" data-act="captureCore">${icon('camera')} Photo of old part</button>
     <div id="cr-prev" class="thumbs" style="margin:8px 0"></div>
     <label class="field"><span class="lbl">Condition of the old part</span><select id="cr-cond">
       <option value="worn">Worn out — genuinely needed replacing</option>
@@ -4692,7 +4692,7 @@ async function saveCoreReturn(jobId) {
     condition: ($('#cr-cond') || {}).value || 'worn', note: ($('#cr-note') || {}).value.trim() || '', at: Date.now(), by: S.user.id };
   j.coreReturns = [...(j.coreReturns || []), entry];
   await DB.put('jobcards', j);
-  _coreShot = null; await load(); closeSheet(); toast('Old part recorded ✓'); viewJobDetail(jobId);
+  _coreShot = null; await load(); closeSheet(); toast('Old part recorded'); viewJobDetail(jobId);
 }
 /* ===== On-device vision (no API key, no Anthropic) =======================
  * Replaces the old server /ai/vision (Anthropic) proxy with two free, fully
@@ -4828,13 +4828,13 @@ function viewWarranty() {
   rows.sort((a, b) => a.st.leftDays - b.st.leftDays);
   let body = `<div class="card"><div class="tiny muted">Parts still under supplier warranty. If one fails now, claim a FREE replacement — don't pay for it.</div></div>`;
   body += `<div class="card"><h3>Under warranty (${rows.length})</h3>`;
-  body += rows.length ? rows.map((r) => `<div class="li"><div class="ava">🛡️</div>
+  body += rows.length ? rows.map((r) => `<div class="li"><div class="ava">${icon('gate')}</div>
     <div class="main"><div class="t">${esc(r.part)} · ${esc(r.bus)}</div>
       <div class="s">${r.st.supplier ? esc(r.st.supplier) + ' · ' : ''}fitted ${fmtDate(r.st.fitAt)}</div></div>
     <span class="badge ${r.st.leftDays < 30 ? 'b-amber' : 'b-green'}">${r.st.leftDays}d left</span></div>`).join('')
     : `<div class="empty">No parts under warranty.<br><span class="tiny">Set a warranty period when adding a part type.</span></div>`;
   body += `</div>`;
-  shell('Warranty register', body);
+  shell('Warranty register', v2(body));
 }
 
 /* ===== Anti-pilferage #3 — reconciliation + shrinkage scorecard ===========
@@ -4870,7 +4870,7 @@ function viewStoreHealth() {
   const tcol = st.trust >= 80 ? 'var(--green)' : st.trust >= 50 ? '#f59e0b' : '#ef4444';
   let body = pageSub('What the shelf says against what the book says');
   body += kpiRow([
-    { icon: '🛡️', label: 'Store trust score', value: st.trust, unit: '/100',
+    { icon: icon('gate'), label: 'Store trust score', value: st.trust, unit: '/100',
       delta: st.trust >= 80 ? 'good' : st.trust >= 50 ? 'watch' : 'poor',
       dir: st.trust >= 80 ? 'good' : st.trust >= 50 ? 'flat' : 'bad' },
     { icon: '🕳️', label: 'Shrinkage', value: money(st.shrinkValue),
@@ -4880,23 +4880,23 @@ function viewStoreHealth() {
     ? `Last count ${fmtDate(st.lastAudit.at)}` + (st.count ? ` \u00b7 ${st.count} total` : '')
     : 'No stock count yet \u2014 shrinkage cannot be measured until one is done.'}</div></div>`;
   body += `<div class="card">${panelTitle('Reconciliation')}
-    ${detailRow('📥', 'Stock received', money(st.receivedValue))}
-    ${detailRow('📤', 'Issued to jobs', money(st.issuedValue))}
-    ${detailRow('📦', 'On hand now', money(st.stockValue))}
+    ${detailRow('', 'Stock received', money(st.receivedValue))}
+    ${detailRow('', 'Issued to jobs', money(st.issuedValue))}
+    ${detailRow(icon('part'), 'On hand now', money(st.stockValue))}
     <div class="hr"></div>
     <div class="row between"><b>Unexplained shrinkage</b><b style="color:#ef4444">${money(st.shrinkValue)}</b></div>
     <div class="tiny muted" style="margin-top:6px">Parts gone without an issue-to-job — the pilferage signal.</div></div>`;
-  if (can(S.user.role, 'issuePart')) body += `<div class="btnrow"><button class="btn primary" data-act="auditBlind">🎲 Blind count</button><button class="btn" data-act="auditFull">📋 Full count</button></div>`;
+  if (can(S.user.role, 'issuePart')) body += `<div class="btnrow"><button class="btn primary" data-act="auditBlind">🎲 Blind count</button><button class="btn" data-act="auditFull">${icon('doc')} Full count</button></div>`;
   const stores = (S.cache.users || []).filter((u) => u.role === 'store');
   if (stores.length) {
     body += `<div class="card"><h3>Storekeepers</h3>` + stores.map((u) => {
       const issued = (S.cache.ledger || []).filter((l) => l.type === 'out' && l.by === u.id).length;
       const did = (S.cache.audits || []).filter((a) => a.by === u.id).length;
-      return `<div class="li"><div class="ava">📦</div><div class="main"><div class="t">${esc(u.name)}</div><div class="s">${issued} issues · ${did} count(s) done</div></div></div>`;
+      return `<div class="li"><div class="ava">${icon('part')}</div><div class="main"><div class="t">${esc(u.name)}</div><div class="s">${issued} issues · ${did} count(s) done</div></div></div>`;
     }).join('') + `</div>`;
   }
   const recent = (S.cache.audits || []).slice().sort((a, b) => b.at - a.at).slice(0, 8);
-  body += `<div class="card"><h3>Recent counts</h3>` + (recent.length ? recent.map((a) => `<div class="li"><div class="ava">${a.shrinkValue > 0 ? '⚠️' : '✓'}</div>
+  body += `<div class="card"><h3>Recent counts</h3>` + (recent.length ? recent.map((a) => `<div class="li"><div class="ava">${a.shrinkValue > 0 ? icon('warn') : icon('ok')}</div>
     <div class="main"><div class="t">${a.lines.length} parts · ${a.shrinkValue > 0 ? money(a.shrinkValue) + ' short' : 'matched'}</div>
       <div class="s">${fmtDateTime(a.at)} · ${esc(userName(a.by))} · ${a.mode}</div></div></div>`).join('') : `<div class="empty">No stock counts yet</div>`) + `</div>`;
   // Every change to a part's quantity that arrived without a ledger row to
@@ -4904,19 +4904,19 @@ function viewStoreHealth() {
   // accusations — but a shelf quietly corrected to match an emptier shelf looks
   // exactly like this, and it used to leave no trace at all.
   const unexp = unexplainedStockMoves(90);
-  body += `<div class="card"><div class="row between"><h3>🔎 Unexplained stock changes</h3>
+  body += `<div class="card"><div class="row between"><h3>${icon('search')} Unexplained stock changes</h3>
       <span class="badge ${unexp.length ? 'b-amber' : 'b-green'}">${unexp.length}</span></div>
     <div class="tiny muted" style="margin-bottom:6px">Quantity changed with no ledger entry, last 90 days. A stock count does this legitimately — anything else is worth a question.</div>`;
   body += unexp.length ? unexp.slice(0, 25).map((m) => {
     const p = byId(S.cache.parts, m.partId);
     const down = (m.delta || 0) < 0;
-    return `<div class="li" data-part="${esc(m.partId)}"><div class="ava">${down ? '📉' : '📈'}</div>
+    return `<div class="li" data-part="${esc(m.partId)}"><div class="ava">${down ? icon('bad') : icon('star')}</div>
       <div class="main"><div class="t">${esc(p ? p.name : m.partId)}</div>
         <div class="s">${esc(userName(m.by))} · ${m.was} → ${m.now} · ${fmtDate(m.at)}</div></div>
       <span class="badge ${down ? 'b-red' : 'b-low'}">${down ? '' : '+'}${m.delta}</span></div>`;
-  }).join('') : `<div class="muted small">None — every stock change has a ledger entry behind it. 👍</div>`;
+  }).join('') : `<div class="muted small">None — every stock change has a ledger entry behind it.</div>`;
   body += `</div>`;
-  shell('Store health', body);
+  shell('Store health', v2(body));
 }
 function sheetAudit(mode) {
   // Only count parts actually IN STOCK — a catalogue can hold thousands of parts
@@ -4949,7 +4949,7 @@ async function saveAudit(mode) {
   if (!lines.length) return toast('Enter at least one count');
   await DB.put('audits', { id: uid('au-'), at: Date.now(), by: S.user.id, mode, lines, shrinkValue: shrink, foundValue: found });
   await load(); closeSheet();
-  toast(shrink > 0 ? `Count saved · ${money(shrink)} shrinkage found` : 'Count saved · stock matches ✓');
+  toast(shrink > 0 ? `Count saved · ${money(shrink)} shrinkage found` : 'Count saved · stock matches');
   rerender();
 }
 
@@ -4966,11 +4966,11 @@ async function loadGpsLinks() {
   const units = buses.filter((b) => /^unit\s/i.test(b.regNo) || b.source === 'klm-excel');
   let h = `<div class="card"><div class="tiny muted">AirFi reports by registration plate. Match each live device to its bus (unit) — that switches on live tracking + safety scoring for it. A device only appears here while its bus is powered on.</div></div>`;
   h += `<div class="card"><h3>Unlinked devices (${unmatched.length})</h3>`;
-  h += unmatched.length ? unmatched.map(({ f }) => `<div class="li"><div class="ava">🛰️</div>
+  h += unmatched.length ? unmatched.map(({ f }) => `<div class="li"><div class="ava">${icon('map')}</div>
       <div class="main"><div class="t">${esc(f.reg)}</div><div class="s">${Math.round(f.speedKph || 0)} km/h · odo ${(f.odometer || 0).toLocaleString('en-IN')}</div></div>
       <select class="gpslink-sel" data-reg="${esc(f.reg)}" data-odo="${esc(f.odometer || 0)}"><option value="">Assign to…</option>${units.map((u) => `<option value="${u.id}">${esc(u.regNo)}${u.company ? ' · ' + esc(u.company) : ''}</option>`).join('')}</select></div>`).join('') : `<div class="muted small">No unlinked devices reporting right now.</div>`;
   h += `</div>`;
-  h += `<div class="card"><h3>Linked &amp; tracking (${matched.length})</h3>` + (matched.length ? matched.map(({ b }) => `<div class="li"><div class="ava">✅</div><div class="main"><div class="t">${esc(b.regNo)}</div><div class="s">live GPS active</div></div></div>`).join('') : `<div class="muted small">None yet — assign a device above.</div>`) + `</div>`;
+  h += `<div class="card"><h3>Linked &amp; tracking (${matched.length})</h3>` + (matched.length ? matched.map(({ b }) => `<div class="li"><div class="ava">${icon('ok')}</div><div class="main"><div class="t">${esc(b.regNo)}</div><div class="s">live GPS active</div></div></div>`).join('') : `<div class="muted small">None yet — assign a device above.</div>`) + `</div>`;
   const box = document.getElementById('gpslink'); if (!box) return;
   box.innerHTML = h;
   box.querySelectorAll('.gpslink-sel').forEach((sel) => { sel.onchange = () => { if (sel.value) linkGps(sel.value, sel.getAttribute('data-reg'), Number(sel.getAttribute('data-odo'))); }; });
@@ -4980,7 +4980,7 @@ async function linkGps(busId, reg, odo) {
   if (!confirm(`Set "${b.regNo}" to its real plate ${reg}? This links the bus to its live GPS.`)) return;
   b.regNo = reg;
   if (odo > 0) { b.odometer = Math.max(b.odometer || 0, odo); if (!b.lastServiceOdo) b.lastServiceOdo = odo; }
-  await DB.put('buses', b); await load(); toast(`${reg} linked ✓ — now tracking live`); viewLinkGps();
+  await DB.put('buses', b); await load(); toast(`${reg} linked ${icon('ok')} — now tracking live`); viewLinkGps();
 }
 
 /* ----- Store / inventory ----- */
@@ -4990,21 +4990,21 @@ function viewStore() {
 
   const _lowN = parts.filter(isLow).length;
   let body = kpiRow([
-    { icon: '🧾', label: 'Stock value', value: money(stockValue) },
-    { icon: '📦', label: 'Part types', value: parts.length,
+    { icon: icon('money'), label: 'Stock value', value: money(stockValue) },
+    { icon: icon('part'), label: 'Part types', value: parts.length,
       delta: _lowN ? _lowN + ' low' : '', dir: 'bad' },
   ]);
 
   if (can(S.user.role, 'issuePart')) {
     body += `<div class="btnrow" style="margin-bottom:12px">
-      <button class="btn primary" data-act="addStock">📥 ${t('addStock')}</button>
-      <button class="btn" data-act="issueTo">📤 ${t('issuePart')}</button></div>`;
+      <button class="btn primary" data-act="addStock">${t('addStock')}</button>
+      <button class="btn" data-act="issueTo">${t('issuePart')}</button></div>`;
   }
 
   body += `<input id="part-search" class="searchbox" placeholder="Search part name, no. or category…" autocomplete="off">`;
   body += `<div class="card listwrap"><h3>Parts</h3><div id="part-list"></div></div>`;
 
-  shell(t('store'), body, can(S.user.role,'addPurchase') ? { act: 'addPurchase', icon: '📄' } : null);
+  shell(t('store'), body, can(S.user.role,'addPurchase') ? { act: 'addPurchase', icon: icon('doc') } : null);
   // Big catalogues (thousands of parts from an Excel import) render capped + search
   // filters from the cache, so the store stays fast.
   renderStorePartList('');
@@ -5018,8 +5018,8 @@ function renderStorePartList(ql) {
   const total = parts.length, shown = parts.slice(0, STORE_LIST_CAP);
   box.innerHTML = (shown.map((p) => {
     const lowf = isLow(p);
-    return `<div class="li" data-part="${esc(p.id)}">${avatar(partImg(p), '🔩')}
-      <div class="main"><div class="t">${esc(p.name)}</div><div class="s">${esc(p.partNo || '—')}${p.category ? ' · ' + esc(p.category) : ''}${p.reusable ? ' · ♻️ reusable' : ''} · ${money(p.unitCost)}/${p.unit}</div></div>
+    return `<div class="li" data-part="${esc(p.id)}">${avatar(partImg(p), icon('part'))}
+      <div class="main"><div class="t">${esc(p.name)}</div><div class="s">${esc(p.partNo || '—')}${p.category ? ' · ' + esc(p.category) : ''}${p.reusable ? ' · reusable' : ''} · ${money(p.unitCost)}/${p.unit}</div></div>
       <div style="text-align:right"><b>${p.qty}</b> <span class="tiny muted">${p.unit}</span>${lowf ? '<div class="badge b-amber tiny">LOW</div>' : ''}</div></div>`;
   }).join('')) + (total > STORE_LIST_CAP ? `<div class="tiny muted" style="padding:9px 2px">Showing ${STORE_LIST_CAP} of ${total.toLocaleString('en-IN')} parts — type to search the rest.</div>` : (total === 0 ? '<div class="empty">No matching parts</div>' : ''));
   staggerRows(box);
@@ -5039,14 +5039,14 @@ function viewPartDetail(id) {
       <div><div class="tiny muted">Unit cost</div><b>${money(p.unitCost)}</b></div>
       <div><div class="tiny muted">Reorder at</div><b>${p.reorderLevel}</b></div>
       <div><div class="tiny muted">Stock value</div><b>${money(p.qty*p.unitCost)}</b></div>
-    </div>${isTrackablePart(p) ? '<div class="tiny" style="margin-top:8px;color:var(--brand2)">🔧 Rotable part — track each piece as a component (life + remould/repair history).</div>' : ''}</div>`;
+    </div>${isTrackablePart(p) ? '<div class="tiny" style="margin-top:8px;color:var(--brand2)">' + icon('job') + ' Rotable part — track each piece as a component (life + remould/repair history).</div>' : ''}</div>`;
 
   // Only sensible rotables (tyres, alternators…) offer per-piece tracking; a card
   // still shows for any part that already has pieces tracked against it.
   const _comps = componentsOfPart(id);
   if (isTrackablePart(p) || _comps.length) {
     const comps = _comps;
-    body += `<div class="card"><div class="row between"><h3>🛞 Tracked pieces</h3>${can(S.user.role, 'issuePart') && isTrackablePart(p) ? `<button class="btn sm" data-act="compFromPart" data-id="${esc(p.id)}">+ Track a piece</button>` : ''}</div>`;
+    body += `<div class="card"><div class="row between"><h3>${icon('part')} Tracked pieces</h3>${can(S.user.role, 'issuePart') && isTrackablePart(p) ? `<button class="btn sm" data-act="compFromPart" data-id="${esc(p.id)}">+ Track a piece</button>` : ''}</div>`;
     body += comps.length ? comps.map((c) => { const lf = componentLife(c), km = compKind(c);
       return `<div class="li" data-act="openComp" data-id="${esc(c.id)}"><div class="ava">${km[0]}</div>
         <div class="main"><div class="t">${esc(c.label || km[1])}${c.serial ? ` <span class="tiny muted">${esc(c.serial)}</span>` : ''}</div>
@@ -5065,7 +5065,7 @@ function viewPartDetail(id) {
       <span class="tiny muted">${fmtDateTime(m.at)}</span></div>`;
   }).join('') : `<div class="muted small">No movement</div>`;
   body += `</div>`;
-  shell(esc(p.name), body, null, NARROW);
+  shell(esc(p.name), v2(body), null, NARROW);
 }
 
 /* ===== Outside job — the gate pass =======================================
@@ -5117,7 +5117,7 @@ function viewGatePasses() {
     <div class="card tile"><div class="muted small">${t('ojBack')}</div><div class="stat">${back.length}</div></div></div>`;
 
   if (out.length) {
-    body += `<div class="card"><div class="row between"><h3>🚚 ${t('ojAtVendor')}</h3><span class="badge ${late.length ? 'b-bad' : 'b-amber'}">${out.length}</span></div>`;
+    body += `<div class="card"><div class="row between"><h3>${icon('bus')} ${t('ojAtVendor')}</h3><span class="badge ${late.length ? 'b-bad' : 'b-amber'}">${out.length}</span></div>`;
     body += out.map(gpLi).join('');
     body += `</div>`;
   }
@@ -5127,7 +5127,7 @@ function viewGatePasses() {
     ? `<div id="gp-list" class="listwrap">${back.slice(0, 200).map(gpLi).join('')}</div>`
     : `<div class="card listwrap" id="gp-list"><div class="empty">${out.length ? t('ojNoneBack') : t('ojNone')}</div></div>`;
 
-  shell(t('ojTitle'), body, can(S.user.role, 'outsideJob') ? { act: 'newGatePass', icon: '+' } : null);
+  shell(t('ojTitle'), v2(body), can(S.user.role, 'outsideJob') ? { act: 'newGatePass', icon: '+' } : null);
   attachSearch('gp-search', 'gp-list');
 }
 
@@ -5138,7 +5138,7 @@ function gpLi(g) {
     ? (g.serialMismatch ? '⚠ ' + t('ojMismatch') : t('ojBack'))
     : d + 'd ' + t('ojOutFor');
   return `<div class="li" data-act="openGatePass" data-id="${esc(g.id)}" style="cursor:pointer">
-    <div class="ava">📄</div>
+    <div class="ava">${icon('doc')}</div>
     <div class="main">
       <div class="t">${esc(g.unitName || 'Unit')} — ${esc(g.vendorName || '')}</div>
       <div class="s">${esc(g.no || '')} · ${esc(g.regNo || '')}${g.unitSerial ? ' · #' + esc(g.unitSerial) : ''} · ${fmtDate(g.issuedAt)}</div>
@@ -5275,8 +5275,8 @@ function viewGatePass(id) {
   // Everything below is for the screen only and never reaches the paper.
   body += `<div class="gp-screen">`;
   body += `<div class="btnrow" style="margin:12px 0">
-    <button class="btn primary" data-act="printGatePass">🖨️ ${t('ojPrint')}</button>
-    ${!back && can(S.user.role, 'outsideJob') ? `<button class="btn" data-act="returnGatePass" data-id="${esc(g.id)}">📥 ${t('ojReceive')}</button>` : ''}
+    <button class="btn primary" data-act="printGatePass">${icon('doc')} ${t('ojPrint')}</button>
+    ${!back && can(S.user.role, 'outsideJob') ? `<button class="btn" data-act="returnGatePass" data-id="${esc(g.id)}">${t('ojReceive')}</button>` : ''}
   </div>`;
 
   if (back) {
@@ -5294,7 +5294,7 @@ function viewGatePass(id) {
     </div>`;
   } else {
     const d = gpDaysOut(g);
-    body += `<div class="card"><div class="row between"><h3>🚚 ${t('ojAtVendor')}</h3>
+    body += `<div class="card"><div class="row between"><h3>${icon('bus')} ${t('ojAtVendor')}</h3>
       <span class="badge ${d >= 14 ? 'b-bad' : d >= 7 ? 'b-amber' : 'b-low'}">${d}d</span></div>
       <div class="tiny muted">${t('ojIssuedBy')} ${esc(userName(g.issuedBy))} · ${fmtDate(g.issuedAt)}</div></div>`;
   }
@@ -5329,7 +5329,7 @@ function sheetReturnGatePass(id) {
       <input id="gr-serial" value="" placeholder="${t('ojSerialBackPh')}"></label>
     <div class="tiny muted" style="margin:-4px 0 10px">${t('ojSerialBackWhy')}</div>
     <label class="field"><span class="lbl">${t('ojBill')} (₹)</span><input id="gr-cost" type="number" inputmode="numeric" placeholder="0"></label>
-    <button class="btn" data-act="captureGpBill">📷 ${t('ojBillPhoto')}</button>
+    <button class="btn" data-act="captureGpBill">${icon('camera')} ${t('ojBillPhoto')}</button>
     <div id="gr-billprev" class="thumbs" style="margin:8px 0"></div>
     <label class="field"><span class="lbl">${t('ojRemark')}</span><input id="gr-remark" placeholder="${t('ojReturnRemarkPh')}"></label>
     <button class="btn primary" data-act="saveReturnGatePass" data-id="${esc(id)}">${t('ojMarkBack')}</button>`);
@@ -5398,12 +5398,12 @@ async function saveReturnGatePass(id) {
  * start at four in the morning. Both are measured now, and whichever is further
  * along is the one shown. */
 const COMP_KINDS = {
-  tyre:       ['🛞', 'Tyre',       'remould',     60000, 2, 0],
-  alternator: ['🔌', 'Alternator', 'rewind',      0,     5, 0],
-  starter:    ['🔩', 'Starter',    'repair',      0,     4, 0],
-  battery:    ['🔋', 'Battery',    'recondition', 0,     2, 36],
+  tyre:       [icon('part'), 'Tyre',       'remould',     60000, 2, 0],
+  alternator: [icon('part'), 'Alternator', 'rewind',      0,     5, 0],
+  starter:    [icon('part'), 'Starter',    'repair',      0,     4, 0],
+  battery:    [icon('part'), 'Battery',    'recondition', 0,     2, 36],
   injector:   ['💉', 'Injector',   'recondition', 0,     3, 0],
-  other:      ['⚙️', 'Component',  'repair',      0,     3, 0],
+  other:      [icon('edit'), 'Component',  'repair',      0,     3, 0],
 };
 const MONTH_MS = 30.44 * 24 * 3600 * 1000;
 const monthsBetween = (from, to) => Math.max(0, (to - from) / MONTH_MS);
@@ -5493,21 +5493,21 @@ function viewComponents() {
   const comps = (S.cache.components || []);
   const alerts = componentAlerts();
   let body = `<div class="card"><div class="tiny muted">Tyres, batteries, alternators &amp; other durable units tracked per piece — life in km for what wears, in months for what ages, and every send-out for remould/rewind with the vendor's bill. Tap one for its history.</div></div>`;
-  if (alerts.length) body += `<div class="card" style="border:1.5px solid var(--amber)"><div class="row between"><h3>⚠️ Needs attention</h3><span class="badge b-amber">${alerts.length}</span></div>
+  if (alerts.length) body += `<div class="card" style="border:1.5px solid var(--amber)"><div class="row between"><h3>${icon('warn')} Needs attention</h3><span class="badge b-amber">${alerts.length}</span></div>
     ${alerts.map((a) => `<div class="li" data-act="openComp" data-id="${esc(a.c.id)}" style="border:none;padding:6px 0"><div class="ava">${compKind(a.c)[0]}</div><div class="main"><div class="s">${a.msg}</div></div></div>`).join('')}</div>`;
   const kinds = ['all', ...Object.keys(COMP_KINDS).filter((k) => comps.some((c) => c.kind === k))];
   if (can(S.user.role, 'manageComponents')) body += `<div class="row" style="gap:8px;margin-bottom:12px">
-    <button class="btn primary" data-act="fitTyres" style="flex:1">🛞 ${esc(t('tyFit'))}</button>
-    <button class="btn" data-act="fitBatteries" style="flex:1">🔋 ${esc(t('btFit'))}</button></div>`;
+    <button class="btn primary" data-act="fitTyres" style="flex:1">${icon('part')} ${esc(t('tyFit'))}</button>
+    <button class="btn" data-act="fitBatteries" style="flex:1">${icon('part')} ${esc(t('btFit'))}</button></div>`;
   body += `<div class="chiprow">${kinds.map((k) => `<button class="chip ${_compFilter === k ? 'active' : ''}" data-act="compFilter" data-v="${esc(k)}">${k === 'all' ? 'All' : COMP_KINDS[k][0] + ' ' + COMP_KINDS[k][1]}</button>`).join('')}</div>`;
   const list = comps.filter((c) => _compFilter === 'all' || c.kind === _compFilter)
     .sort((a, b) => (COMP_RANK[a.state] - COMP_RANK[b.state]) || (componentLife(b).pct - componentLife(a).pct));
   body += `<input id="cmp-search" class="searchbox" placeholder="Search serial, bus or kind…" autocomplete="off">`;
   body += list.length ? `<div class="card listwrap" id="cmp-list" style="padding:6px 12px">${list.map(compLi).join('')}</div>` : `<div class="empty">No components yet — tap + to add a tyre or a part you refurbish.</div>`;
-  shell('Tyres & components', body, can(S.user.role, 'manageComponents') ? { act: 'addComponent', icon: '+' } : null);
+  shell('Tyres & components', v2(body), can(S.user.role, 'manageComponents') ? { act: 'addComponent', icon: '+' } : null);
   attachSearch('cmp-search', 'cmp-list');
 }
-const HIST_ICON = { install: '🔧', remove: '📤', 'send-out': '🚚', return: '📥', scrap: '🗑️' };
+const HIST_ICON = { install: icon('job'), remove: '', 'send-out': icon('bus'), return: '', scrap: icon('delete') };
 function viewComponentDetail(id) {
   const c = byId(S.cache.components, id); if (!c) return viewComponents();
   const km = compKind(c), st = COMP_STATE[c.state] || COMP_STATE['in-service'], lf = componentLife(c), v = compVerb(c);
@@ -5517,7 +5517,7 @@ function viewComponentDetail(id) {
   let body = `<div class="card"><div class="row between"><div class="row" style="gap:10px"><div class="ava" style="font-size:24px">${km[0]}</div>
     <div><div style="font-weight:800;font-size:17px">${esc(c.label || km[1])}</div><div class="small muted">${km[1]}${c.serial ? ' · ' + esc(c.serial) : ''}</div></div></div>
     <span class="badge ${st[1]}" style="font-size:14px">${st[0]}</span></div>
-    ${srcPart ? `<div class="tiny" style="margin-top:8px"><span data-part="${esc(srcPart.id)}" style="color:var(--brand2);cursor:pointer">📦 From catalogue: ${esc(srcPart.name)} ›</span></div>` : ''}</div>`;
+    ${srcPart ? `<div class="tiny" style="margin-top:8px"><span data-part="${esc(srcPart.id)}" style="color:var(--brand2);cursor:pointer">${icon('part')} From catalogue: ${esc(srcPart.name)} ›</span></div>` : ''}</div>`;
   // Life / placement
   body += `<div class="card"><h3>Life & placement</h3><div class="grid2">
     <div><div class="tiny muted">Fitted to</div><b>${c.busId ? esc(busName(c.busId)) : '—'}${c.position ? ' · ' + esc(c.position) : ''}</b></div>
@@ -5532,21 +5532,21 @@ function viewComponentDetail(id) {
    * nobody checked, and claimable batteries were simply replaced. */
   const wEnd = warrantyEnd(c);
   if (wEnd) body += `<div class="hr"></div><div class="row between small">
-    <span class="muted">🧾 ${inWarranty(c) ? t('btInWarranty') : t('btWarrantyOver')}</span>
+    <span class="muted">${icon('money')} ${inWarranty(c) ? t('btInWarranty') : t('btWarrantyOver')}</span>
     <b style="color:${inWarranty(c) ? 'var(--green)' : 'var(--muted,#8b91a0)'}">${fmtDate(wEnd)}</b></div>
-    ${inWarranty(c) && lf.status !== 'ok' ? `<div class="banner warn" style="margin-top:8px">🧾 ${esc(t('btClaim'))}</div>` : ''}`;
+    ${inWarranty(c) && lf.status !== 'ok' ? `<div class="banner warn" style="margin-top:8px">${icon('money')} ${esc(t('btClaim'))}</div>` : ''}`;
   body += `</div>`;
   // Actions (state-driven)
   if (canEdit && c.state !== 'scrapped') {
     let btns = '';
-    if (c.state === 'sent-out') btns += `<button class="btn primary" data-act="receiveComp" data-id="${esc(c.id)}">📥 Received back (+ bill)</button>`;
+    if (c.state === 'sent-out') btns += `<button class="btn primary" data-act="receiveComp" data-id="${esc(c.id)}">Received back (+ bill)</button>`;
     else {
       if (atMax) btns += `<div class="banner warn" style="margin-bottom:8px">Already ${v}ed ${c.refurbCount}× (max ${c.maxRefurb}). Best to scrap & replace.</div>`;
-      else btns += `<button class="btn primary" data-act="sendOutComp" data-id="${esc(c.id)}">🚚 Send out for ${v}</button>`;
-      if (c.state === 'in-service') btns += `<button class="btn" data-act="removeComp" data-id="${esc(c.id)}">📤 Remove from bus</button>`;
-      else btns += `<button class="btn" data-act="fitComp" data-id="${esc(c.id)}">🔧 Fit to a bus</button>`;
+      else btns += `<button class="btn primary" data-act="sendOutComp" data-id="${esc(c.id)}">${icon('bus')} Send out for ${v}</button>`;
+      if (c.state === 'in-service') btns += `<button class="btn" data-act="removeComp" data-id="${esc(c.id)}">Remove from bus</button>`;
+      else btns += `<button class="btn" data-act="fitComp" data-id="${esc(c.id)}">${icon('job')} Fit to a bus</button>`;
     }
-    btns += `<button class="btn ghost" data-act="scrapComp" data-id="${esc(c.id)}">🗑️ Scrap</button>`;
+    btns += `<button class="btn ghost" data-act="scrapComp" data-id="${esc(c.id)}">${icon('delete')} Scrap</button>`;
     body += `<div class="card"><div class="btncol" style="display:flex;flex-direction:column;gap:8px">${btns}</div></div>`;
   }
   // History timeline
@@ -5558,7 +5558,7 @@ function viewComponentDetail(id) {
       <div class="s">${h.vendor ? esc(h.vendor) + ' · ' : ''}${h.odo ? h.odo.toLocaleString('en-IN') + ' km · ' : ''}${fmtDate(h.at)}${h.note ? ' · ' + esc(h.note) : ''}</div></div>
     ${h.billPhoto ? `<img class="thumb" src="${esc(h.billPhoto)}" data-act="viewPhoto" data-src="${esc(h.billPhoto)}">` : ''}</div>`).join('') : `<div class="muted small">No history yet</div>`;
   body += `</div>`;
-  shell(esc(c.label || km[1]), body);
+  shell(esc(c.label || km[1]), v2(body));
 }
 // ---- Component sheets + actions ----
 // Guess the component kind from a catalogue part's name/category (for reusable parts).
@@ -5650,11 +5650,11 @@ function sheetFitPieces(kind, busId) {
   _fitKind = FIT_SPECS[kind] ? kind : 'tyre';
   const spec = fitSpec();
   const buses = S.cache.buses || [];
-  if (!buses.length) return openSheet(fitL('Fit'), `<div class="banner warn">🚌 ${esc(t('noBusesHere'))}</div>`);
+  if (!buses.length) return openSheet(fitL('Fit'), `<div class="banner warn">${icon('bus')} ${esc(t('noBusesHere'))}</div>`);
   const pre = busId && byId(buses, busId) ? busId : buses[0].id;
   _tyreRows = spec.rows;
   openSheet(fitL('Fit'), `
-    <label class="field"><span class="lbl">🚌 ${esc(t('jbBusWord'))}</span>
+    <label class="field"><span class="lbl">${icon('bus')} ${esc(t('jbBusWord'))}</span>
       <select id="ty-bus">${buses.map((b) => `<option value="${esc(b.id)}" ${b.id === pre ? 'selected' : ''}>${esc(b.regNo)}</option>`).join('')}</select></label>
     <datalist id="ty-positions">${spec.positions.map((p) => `<option value="${esc(p)}"></option>`).join('')}</datalist>
     <div id="ty-rows">${Array.from({ length: _tyreRows }, (_, i) => tyreRowHtml(i, pre)).join('')}</div>
@@ -5831,7 +5831,7 @@ async function saveComponent() {
     refurbCount: 0, cost: Number(($('#cp-cost') || {}).value) || 0,
     history: busId ? [{ type: 'install', at: now, odo: bus ? (bus.odometer || 0) : 0, busId, position: (($('#cp-pos') || {}).value || '').trim(), note: 'Added & fitted' }] : [{ type: 'install', at: now, note: 'Added to store' }],
     createdAt: now, updatedAt: now };
-  await DB.put('components', c); await load(); closeSheet(); toast('Component added ✓'); push({ name: 'components', id: c.id });
+  await DB.put('components', c); await load(); closeSheet(); toast('Component added'); push({ name: 'components', id: c.id });
 }
 function sheetFitComp(id) {
   const c = byId(S.cache.components, id); if (!c) return;
@@ -5854,7 +5854,7 @@ async function saveFitComp(id) {
   c.installedAt = now; c.installedOdo = odo;
   c.history = [...(c.history || []), { type: 'install', at: now, odo, busId, position: c.position, note: 'Fitted' }];
   c.updatedAt = now;
-  await DB.put('components', c); await load(); closeSheet(); toast('Fitted ✓'); viewComponentDetail(id);
+  await DB.put('components', c); await load(); closeSheet(); toast('Fitted'); viewComponentDetail(id);
 }
 async function removeComp(id) {
   const c = byId(S.cache.components, id); if (!c) return;
@@ -5879,7 +5879,7 @@ async function saveSendOut(id) {
   const now = Date.now();
   c.history = [...(c.history || []), { type: 'send-out', at: now, odo: bus ? (bus.odometer || 0) : 0, vendor, note: (($('#so-note') || {}).value || '').trim() }];
   c.state = 'sent-out'; c.updatedAt = now;
-  await DB.put('components', c); await load(); closeSheet(); toast(`Sent to ${vendor} ✓`); viewComponentDetail(id);
+  await DB.put('components', c); await load(); closeSheet(); toast(`Sent to ${vendor} ${icon('ok')}`); viewComponentDetail(id);
 }
 let _compBill = null;
 function sheetReceiveComp(id) {
@@ -5890,7 +5890,7 @@ function sheetReceiveComp(id) {
     <div class="tiny muted" style="margin-bottom:10px">Log the vendor's bill for this ${compVerb(c)} and refit the ${compKind(c)[1].toLowerCase()}.</div>
     <label class="field"><span class="lbl">Vendor</span><input id="rc-vendor" value="${esc(lastHist(c).vendor || '')}"></label>
     <label class="field"><span class="lbl">Bill amount (₹)</span><input id="rc-cost" type="number" inputmode="numeric" placeholder="what they charged"></label>
-    <button class="btn" data-act="captureCompBill">📷 Photo of the bill</button>
+    <button class="btn" data-act="captureCompBill">${icon('camera')} Photo of the bill</button>
     <div id="rc-billprev" class="thumbs" style="margin:8px 0"></div>
     <label class="field"><span class="lbl">Life after ${compVerb(c)} (km, 0 = n/a)</span><input id="rc-life" type="number" inputmode="numeric" value="${c.lifeKm || ''}"></label>
     ${backToBus ? `<label class="field"><span class="lbl">Refit to ${esc(backToBus.regNo)}?</span><select id="rc-refit"><option value="1">Yes — refit now</option><option value="0">No — keep as spare</option></select></label>` : ''}
@@ -5915,7 +5915,7 @@ async function saveReceive(id) {
   if (refit && bus) { c.state = 'in-service'; c.installedOdo = bus.odometer || 0; c.installedAt = now; }
   else { c.state = 'refurbished'; c.busId = null; c.position = ''; c.installedOdo = 0; }
   _compBill = null; c.updatedAt = now;
-  await DB.put('components', c); await load(); closeSheet(); toast(cost ? `Bill ${money(cost)} logged ✓` : 'Received ✓'); viewComponentDetail(id);
+  await DB.put('components', c); await load(); closeSheet(); toast(cost ? `Bill ${money(cost)} logged ✓` : 'Received'); viewComponentDetail(id);
 }
 async function scrapComp(id) {
   const c = byId(S.cache.components, id); if (!c) return;
@@ -5933,10 +5933,10 @@ function viewMe() {
   const checkedIn = last && last.type === 'in' && isToday(last.at);
 
   let body = `<div class="card">
-    <div class="row"><div class="ava" style="width:48px;height:48px;font-size:24px">👤</div>
+    <div class="row"><div class="ava" style="width:48px;height:48px;font-size:24px">${icon('me')}</div>
     <div><div style="font-weight:700">${esc(S.user.name)}</div><div class="small muted">${esc(S.user.role)}</div></div></div>
     <div class="hr"></div>
-    <button class="btn primary" data-act="${esc(checkedIn ? 'checkout' : 'checkin')}">${checkedIn ? '🔴 '+t('checkout') : '🟢 '+t('checkin')}</button>
+    <button class="btn primary" data-act="${esc(checkedIn ? 'checkout' : 'checkin')}">${checkedIn ? ''+t('checkout') : ''+t('checkin')}</button>
     <div class="tiny muted" style="margin-top:8px;text-align:center">Selfie + GPS confirms you are at the garage.</div>
   </div>`;
 
@@ -5945,7 +5945,7 @@ function viewMe() {
   const att = myAtt.slice(0, 12);
   body += `<div class="card"><h3>${t('attendance')}</h3>`;
   body += att.length ? att.map((a) => `<div class="li">
-    <div class="ava">${a.type==='in'?'🟢':'🔴'}</div>
+    <div class="ava">${a.type==='in'?'':''}</div>
     <div class="main"><div class="t">${a.type==='in'?'In':'Out'}</div>
       <div class="s">${fmtDateTime(a.at)} ${a.dist!=null?`· ${Math.round(a.dist)}m from garage`:''}</div></div>
     ${a.type==='in' && (a.at ? isLateAt(a.at) : a.late)?'<span class="badge b-amber">LATE</span>':''}
@@ -5957,16 +5957,16 @@ function viewMe() {
   // live in the Money / Fleet / People tabs.
   const si = Sync.info();
   body += `<div class="card"><h3>${t('more')}</h3>
-    ${can(S.user.role, 'addPurchase') ? `<div class="li" data-act="openImport"><div class="ava">📥</div><div class="main"><div class="t">Import from Excel</div><div class="s">Load your Parts Master &amp; Vendor Master (.xls)</div></div></div>` : ''}
-    ${['owner', 'supervisor'].includes(S.user.role) ? `<div class="li" data-act="openSetup"><div class="ava">⚙️</div><div class="main"><div class="t">Garage setup</div><div class="s">Location, geofence, shift time · start fresh</div></div></div>` : ''}
-    <div class="li" data-act="lang"><div class="ava">🌐</div><div class="main"><div class="t">${t('lang') === 'हिंदी' ? 'भाषा / Language' : 'Language / भाषा'}</div><div class="s">${LANG === 'en' ? 'English' : 'हिंदी'} · tap to switch</div></div></div>
-    <div class="li" data-act="theme"><div class="ava">${_isDark() ? '☀️' : '🌙'}</div><div class="main"><div class="t">${t('theme')}</div><div class="s">${_isDark() ? 'Dark' : 'Light'} · tap to switch</div></div></div>
-    <div class="li" data-act="changePin"><div class="ava">🔑</div><div class="main"><div class="t">${t('changePin')}</div><div class="s">Set a new 4-digit login PIN</div></div></div>
-    <div class="li"><div class="ava">🪪</div><div class="main"><div class="t">${esc(S.user.name)}</div>
+    ${can(S.user.role, 'addPurchase') ? `<div class="li" data-act="openImport"><div class="ava"></div><div class="main"><div class="t">Import from Excel</div><div class="s">Load your Parts Master &amp; Vendor Master (.xls)</div></div></div>` : ''}
+    ${['owner', 'supervisor'].includes(S.user.role) ? `<div class="li" data-act="openSetup"><div class="ava">${icon('edit')}</div><div class="main"><div class="t">Garage setup</div><div class="s">Location, geofence, shift time · start fresh</div></div></div>` : ''}
+    <div class="li" data-act="lang"><div class="ava">${icon('map')}</div><div class="main"><div class="t">${t('lang') === 'हिंदी' ? 'भाषा / Language' : 'Language / भाषा'}</div><div class="s">${LANG === 'en' ? 'English' : 'हिंदी'} · tap to switch</div></div></div>
+    <div class="li" data-act="theme"><div class="ava">${_isDark() ? icon('sun') : icon('moon')}</div><div class="main"><div class="t">${t('theme')}</div><div class="s">${_isDark() ? 'Dark' : 'Light'} · tap to switch</div></div></div>
+    <div class="li" data-act="changePin"><div class="ava">${icon('gate')}</div><div class="main"><div class="t">${t('changePin')}</div><div class="s">Set a new 4-digit login PIN</div></div></div>
+    <div class="li"><div class="ava">${icon('me')}</div><div class="main"><div class="t">${esc(S.user.name)}</div>
       <div class="s">${esc(S.user.role)} · <span class="tiny muted">${esc(S.user.id)}</span></div></div></div>
-    ${can(S.user.role, 'dashboard') ? `<div class="li" data-act="openUsage"><div class="ava">📈</div><div class="main"><div class="t">Usage &amp; adoption</div><div class="s">Who is using the app, which features, and what is slow</div></div></div>` : ''}
-    <div class="li" data-act="openSync"><div class="ava">⚙️</div><div class="main"><div class="t">${t('deviceServer')}</div><div class="s">${t('deviceServerSub')}</div></div></div>
-    <div class="li" data-act="logout"><div class="ava">🚪</div><div class="main"><div class="t">${t('logout')}</div></div></div>
+    ${can(S.user.role, 'dashboard') ? `<div class="li" data-act="openUsage"><div class="ava">${icon('star')}</div><div class="main"><div class="t">Usage &amp; adoption</div><div class="s">Who is using the app, which features, and what is slow</div></div></div>` : ''}
+    <div class="li" data-act="openSync"><div class="ava">${icon('edit')}</div><div class="main"><div class="t">${t('deviceServer')}</div><div class="s">${t('deviceServerSub')}</div></div></div>
+    <div class="li" data-act="logout"><div class="ava">${icon('back')}</div><div class="main"><div class="t">${t('logout')}</div></div></div>
   </div>`;
 
   // A driver's or conductor's own document vault
@@ -5975,8 +5975,8 @@ function viewMe() {
     if (md) { const ds = driverDocStatus(md);
       body += `<div class="card" data-act="openDriverDocs" data-driver="${esc(md.id)}" style="cursor:pointer"><div class="row between">
         <div class="row" style="gap:12px;align-items:center">${progressRing(ds.pct)}
-          <div><div style="font-weight:800">📂 My documents</div>
-            <div class="small muted">${ds.mandDone}/${ds.mandTotal} required uploaded${ds.mandDone < ds.mandTotal ? ' · ⚠️ finish these' : ' ✓'}</div></div></div>
+          <div><div style="font-weight:800">${icon('doc')} My documents</div>
+            <div class="small muted">${ds.mandDone}/${ds.mandTotal} required uploaded${ds.mandDone < ds.mandTotal ? ' · ⚠️ finish these' : ''}</div></div></div>
         <span class="tiny" style="color:var(--brand2)">open ›</span></div></div>`;
     }
   }
@@ -5984,7 +5984,7 @@ function viewMe() {
   // Phone alerts (web-push) — for owner/supervisor who receive misuse/safety alerts.
   if (['owner', 'supervisor'].includes(S.user.role)) {
     const on = pushEnabled();
-    body += `<div class="card"><div class="row between"><h3>🔔 Phone alerts</h3>
+    body += `<div class="card"><div class="row between"><h3>Phone alerts</h3>
         <span class="badge ${on ? 'b-green' : 'b-low'}">${on ? 'ON' : 'OFF'}</span></div>
       <div class="tiny muted" style="margin-bottom:10px">Get pushed to your phone for night movement &amp; other urgent alerts — even when the app is closed. WhatsApp coming once your Business account is ready.</div>
       <div class="btnrow">
@@ -6039,18 +6039,18 @@ async function doAttendance(type) {
   const selfieRef = selfie ? (await Sync.uploadPhoto(selfie) || selfie) : '';
   await DB.put('attendance', { id: uid('a-'), userId: S.user.id, type, at, lat, lng, dist, selfie: selfieRef, late, faceVerified: !!cap.faceVerified, flagged: !!tooFar || lat == null });
   await load();
-  toast(type === 'in' ? (late ? 'Checked in (late)' : `Checked in ✓${cap.faceVerified ? ' · face verified 🙂' : ''}`) : `Checked out ✓${cap.faceVerified ? ' · face verified 🙂' : ''}`);
+  toast(type === 'in' ? (late ? 'Checked in (late)' : `Checked in ${icon('ok')}${cap.faceVerified ? ' · face verified 🙂' : ''}`) : `Checked out ${icon('ok')}${cap.faceVerified ? ' · face verified 🙂' : ''}`);
   viewMe();
 }
 
 /* ------------------------------- Sheets: forms ---------------------------- */
 function sheetAddBus() {
   openSheet(t('addBus'), `
-    <label class="field"><span class="lbl">🔢 Registration No.</span><input id="f-reg" placeholder="RJ14 PA 1234"></label>
+    <label class="field"><span class="lbl">${icon('doc')} Registration No.</span><input id="f-reg" placeholder="RJ14 PA 1234"></label>
     <label class="field"><span class="lbl">🏢 Owning company</span><input id="f-co" placeholder="Pink City Travels"></label>
-    <label class="field"><span class="lbl">🚌 Model</span><input id="f-model" placeholder="Tata Starbus"></label>
+    <label class="field"><span class="lbl">${icon('bus')} Model</span><input id="f-model" placeholder="Tata Starbus"></label>
     <div class="grid2">
-      <label class="field"><span class="lbl">🛣️ Odometer (km)</span><input id="f-odo" type="number" inputmode="numeric"></label>
+      <label class="field"><span class="lbl">${icon('map')} Odometer (km)</span><input id="f-odo" type="number" inputmode="numeric"></label>
       <label class="field"><span class="lbl">Chassis No.</span><input id="f-chassis"></label>
     </div>
     <div class="grid2">
@@ -6094,10 +6094,10 @@ function sheetAddDoc(busId, docIndex) {
     <label class="field"><span class="lbl">Document / policy no.</span><input id="f-docnum" value="${esc(cur && cur.number || '')}"></label>
     <label class="field"><span class="lbl">Expiry date</span><input id="f-docexp" type="date" value="${expVal}"></label>
     <div id="f-docthumb">${_docPhoto ? `<img class="thumb" src="${_docPhoto}">` : ''}</div>
-    <button class="btn" data-act="docPhoto">📷 ${_docPhoto ? 'Replace' : 'Add'} document photo</button>
+    <button class="btn" data-act="docPhoto">${icon('camera')} ${_docPhoto ? 'Replace' : 'Add'} document photo</button>
     <div class="spacer"></div>
     <button class="btn primary" data-act="saveDoc" data-bus="${esc(busId)}">${t('save')}</button>
-    ${cur ? `<div class="spacer"></div><button class="btn" data-act="deleteDoc" data-bus="${esc(busId)}" data-doc="${esc(idx)}">🗑 Remove document</button>` : ''}`);
+    ${cur ? `<div class="spacer"></div><button class="btn" data-act="deleteDoc" data-bus="${esc(busId)}" data-doc="${esc(idx)}">${icon('delete')} Remove document</button>` : ''}`);
 }
 async function saveDoc(busId) {
   const b = byId(S.cache.buses, busId); if (!b) return;
@@ -6146,7 +6146,7 @@ function reportPicklist(busId) {
 function reportPicklistRich(busId) {
   const reps = openReportsForBus(busId);
   if (!reps.length) return `<div class="tiny muted">${t('noDriverReports')}</div>`;
-  const head = `<div class="row between" style="margin-bottom:8px"><b class="small">🧑‍✈️ ${t('driverReportsWaiting')}</b><span class="badge b-amber">${reps.length}</span></div>`;
+  const head = `<div class="row between" style="margin-bottom:8px"><b class="small">${icon('person')} ${t('driverReportsWaiting')}</b><span class="badge b-amber">${reps.length}</span></div>`;
   return head + reps.map((r) => `<label class="repcheck">
     <input type="checkbox" class="f-rep" value="${r.id}" checked>
     <span data-act="useReport" data-rprob="${esc(reportAiOf(r) ? reportAiOf(r).title + '\n' + t('raiDriverSaid') + ': "' + r.problem + '"' : r.problem)}" style="cursor:pointer"><b>${esc(driverName(r.driverId))}</b> · ${esc(r.category || '')} — ${esc(r.problem)} <span class="tiny" style="color:var(--brand2)">${t('useThisReport')}</span>${reportAiLine(r)}</span>
@@ -6333,53 +6333,53 @@ function viewNewJob(prefill = {}) {
     </div>
 
     <section class="wz-step" data-step="1">
-      <div class="card"><label class="field"><span class="lbl">🚌 Bus</span>
+      <div class="card"><label class="field"><span class="lbl">${icon('bus')} Bus</span>
         <select id="f-bus">${buses.map((b) => `<option value="${b.id}" ${b.id === sel ? 'selected' : ''}>${esc(b.regNo)}${b.company ? ' — ' + esc(b.company) : ''}</option>`).join('')}</select></label>
         <div id="f-reports" style="margin-top:8px">${reportPicklistRich(sel)}</div></div>
       <div class="card"><label class="row" style="gap:9px;cursor:pointer">
           <input type="checkbox" id="f-outside" style="width:18px;height:18px;flex:none">
-          <span class="small"><b>🌍 ${t('owAsk')}</b></span></label>
+          <span class="small"><b>${icon('map')} ${t('owAsk')}</b></span></label>
         <div class="tiny muted" style="margin-top:6px">${t('owHint')}</div>
         <div id="f-outwrap" style="display:none;margin-top:10px">
-          <label class="field"><span class="lbl">🏙️ ${t('owCity')}</span>
+          <label class="field"><span class="lbl">${icon('map')} ${t('owCity')}</span>
             <input id="f-outcity" list="ow-cities" placeholder="${esc(t('owCityPh'))}"></label>
-          <label class="field" style="margin-top:8px"><span class="lbl">📍 ${t('owLoc')}</span>
+          <label class="field" style="margin-top:8px"><span class="lbl">${icon('map')} ${t('owLoc')}</span>
             <input id="f-outloc" placeholder="${esc(t('owLocPh'))}"></label>
           ${cityDatalist()}
         </div></div>
-      <div class="card"><label class="field"><span class="lbl">🔧 Problem reported</span>
+      <div class="card"><label class="field"><span class="lbl">${icon('job')} Problem reported</span>
         <textarea id="f-prob" placeholder="e.g. Front brakes weak, pulls left">${esc(prefill.problem || '')}</textarea></label></div>
-      <div class="card"><div class="lbl" style="margin-bottom:8px">🚩 Priority</div>
-        <div style="display:flex;gap:8px">${seg('high', '🔴 High')}${seg('medium', '🟡 Medium')}${seg('low', '🟢 Low')}</div></div>
+      <div class="card"><div class="lbl" style="margin-bottom:8px">${icon('alert')} Priority</div>
+        <div style="display:flex;gap:8px">${seg('high', 'High')}${seg('medium', 'Medium')}${seg('low', 'Low')}</div></div>
     </section>
 
     <section class="wz-step" data-step="2">
-      <div class="card"><div class="lbl" style="margin-bottom:8px">👷 ${t('crewTitle')}</div>
+      <div class="card"><div class="lbl" style="margin-bottom:8px">${icon('person')} ${t('crewTitle')}</div>
         ${crewEditorHtml('f-mech', [])}
         <div class="tiny muted" style="margin-top:6px">${t('crewHint')}</div>
         <div class="tiny" id="f-crewnote" style="display:none;margin-top:6px;color:var(--brand2)">${t('owCrewNote')}</div></div>
-    <div class="card"><div class="lbl" style="margin-bottom:8px">🕒 Workshop clock</div>
-      <label class="field"><span class="lbl">📅 Date</span><input id="f-jdate" type="date" value="${msToYMD()}"></label>
+    <div class="card"><div class="lbl" style="margin-bottom:8px">${icon('clock')} Workshop clock</div>
+      <label class="field"><span class="lbl">${icon('clock')} Date</span><input id="f-jdate" type="date" value="${msToYMD()}"></label>
       <div class="grid2" style="margin-top:8px">
         <label class="field"><span class="lbl" id="f-enterlbl">⬇️ Enter time</span><input id="f-enter" type="time" value="${msToHHMM(Date.now())}"></label>
-        <label class="field"><span class="lbl">▶️ Job start time</span><input id="f-start" type="time"></label></div>
+        <label class="field"><span class="lbl">${icon('clock')} Job start time</span><input id="f-start" type="time"></label></div>
       <div class="tiny muted" style="margin-top:6px">Enter time is when the bus reached the garage. Job start is when work actually began — leave it blank if it hasn't.</div>
-      <label class="field" style="margin-top:8px"><span class="lbl">🛞 Odometer (km)</span>
+      <label class="field" style="margin-top:8px"><span class="lbl">${icon('part')} Odometer (km)</span>
         <input id="f-odo" type="number" inputmode="numeric" placeholder="e.g. 487200" value="${(byId(buses, sel) || {}).odometer || ''}"></label>
       <label class="row" style="gap:9px;margin-top:8px;cursor:pointer">
         <input type="checkbox" id="f-odobroken" ${(byId(buses, sel) || {}).odoBroken ? 'checked' : ''} style="width:18px;height:18px;flex:none">
-        <span class="small">🚫 ${t('odoBroken')}</span></label>
+        <span class="small">${icon('bad')} ${t('odoBroken')}</span></label>
       <div class="tiny muted" style="margin-top:4px">${t('odoBrokenHint')}</div></div>
     </section>
 
     <section class="wz-step" data-step="3">
-      <div class="card"><label class="field"><span class="lbl">🏪 Outside vendor / workshop (optional)</span>
+      <div class="card"><label class="field"><span class="lbl">${icon('part')} Outside vendor / workshop (optional)</span>
         <input id="f-vendor" placeholder="e.g. Noida Eicher workshop — blank if done in-house"></label>
         <div class="tiny" id="f-vendnote" style="display:none;margin-top:6px;color:var(--brand2)">${t('owVendNote')}</div>
         <div class="grid2" style="margin-top:8px">
           <label class="field"><span class="lbl">₹ Outside cost</span><input id="f-extcost" type="number" inputmode="numeric"></label>
-          <label class="field"><span class="lbl">⏱️ Labour hours</span><input id="f-hrs" type="number" inputmode="decimal"></label></div></div>
-      <div class="card"><label class="field"><span class="lbl">📝 Notes (optional)</span>
+          <label class="field"><span class="lbl">${icon('clock')} Labour hours</span><input id="f-hrs" type="number" inputmode="decimal"></label></div></div>
+      <div class="card"><label class="field"><span class="lbl">${icon('edit')} Notes (optional)</span>
         <textarea id="f-notes" placeholder="Any extra detail about the work">${esc(prefill.notes || '')}</textarea></label></div>
       <div class="card" id="f-summary"></div>
     </section>
@@ -6387,10 +6387,10 @@ function viewNewJob(prefill = {}) {
     <div class="wz-foot">
       <button class="btn" id="f-back" data-act="wizBack">‹ ${t('wizBack')}</button>
       <button class="btn primary" id="f-next" data-act="wizNext">${t('wizNext')} ›</button>
-      <button class="btn primary" id="f-create" data-act="saveJob" style="display:none">✓ ${t('wizCreate')}</button>
+      <button class="btn primary" id="f-create" data-act="saveJob" style="display:none">${icon('ok')} ${t('wizCreate')}</button>
     </div>
     <div class="spacer"></div>`;
-  shell('New job card', body, null, NARROW);
+  shell('New job card', v2(body), null, NARROW);
   const busSel = document.getElementById('f-bus');
   if (busSel) busSel.addEventListener('change', () => {
     const rp = document.getElementById('f-reports'); if (rp) rp.innerHTML = reportPicklistRich(busSel.value);
@@ -6419,7 +6419,7 @@ function viewNewJob(prefill = {}) {
     const show = (id, vis) => { const e = document.getElementById(id); if (e) e.style.display = vis ? '' : 'none'; };
     show('f-outwrap', on); show('f-crewnote', on); show('f-vendnote', on);
     const lbl = document.getElementById('f-enterlbl');
-    if (lbl) lbl.textContent = on ? '🌍 ' + t('owReached') : '⬇️ Enter time';
+    if (lbl) lbl.textContent = on ? icon('map') + ' ' + t('owReached') : icon('clock') + ' Enter time';
     const crewHid = document.getElementById('f-mech');
     if (crewHid && crewHid._crewSync) crewHid._crewSync();
   };
@@ -6501,8 +6501,8 @@ function wizSummary() {
   box.innerHTML = `<h3>${t('wizCheck')}</h3>` +
     row(t('buses'), bus ? bus.regNo : '—') +
     row(t('describeProblem'), prob || '—') +
-    row('👷', whoName) +
-    row('🛞', odoBroken ? t('odoBroken') : (odo ? odo + ' km' : '—')) +
+    row(icon('person'), whoName) +
+    row(icon('part'), odoBroken ? t('odoBroken') : (odo ? odo + ' km' : '—')) +
     `<div class="tiny muted" style="margin-top:6px">${t('wizCheckHint')}</div>`;
 }
 function wizGo(n) {
@@ -6619,7 +6619,7 @@ function mountPartPicker(scope, key, opts) {
 
   const pick = (p) => {
     hid.value = p.id;
-    chosen.innerHTML = `<div class="li" style="border:none"><div class="ava">🔩</div>
+    chosen.innerHTML = `<div class="li" style="border:none"><div class="ava">${icon('part')}</div>
       <div class="main"><div class="t">${esc(p.name)}</div>
         <div class="s">${p.qty} ${esc(p.unit)} ${t('isInStock')} · ${money(p.unitCost)}/${esc(p.unit)}</div></div>
       <button type="button" class="btn sm ghost pp-clear">${t('cancel')}</button></div>`;
@@ -6637,7 +6637,7 @@ function mountPartPicker(scope, key, opts) {
       ? parts().filter((p) => (`${p.name} ${p.code || ''} ${p.category || ''}`).toLowerCase().includes(ql))
       : (inStockOnly ? parts().filter((p) => p.qty > 0) : parts()).slice(0, 12);
     list.innerHTML = pool.slice(0, 40).map((p) => `<div class="li" data-pick="${esc(p.id)}">
-        <div class="ava">🔩</div><div class="main"><div class="t">${esc(p.name)}</div>
+        <div class="ava">${icon('part')}</div><div class="main"><div class="t">${esc(p.name)}</div>
           <div class="s">${p.qty} ${esc(p.unit)}${p.code ? ' · ' + esc(p.code) : ''}</div></div>
         ${p.qty > 0 ? '' : `<span class="badge b-amber">${t('isOutOfStock')}</span>`}</div>`).join('')
       || `<div class="muted small" style="padding:6px 2px">${t('isNoMatch')}</div>`;
@@ -6683,9 +6683,9 @@ function sheetIssue(presetJob) {
   const preset = openJobs.some((j) => j.id === presetJob) ? presetJob : '';
   // A dropdown of 2,391 parts is not a picker, it is a haystack. Type instead.
   openSheet(t('issuePart'), `
-    <label class="field"><span class="lbl">🔩 ${t('isPart')}</span>
+    <label class="field"><span class="lbl">${icon('part')} ${t('isPart')}</span>
       ${partPickerHtml({ key: 'iss', inStockOnly: true })}</label>
-    <label class="field"><span class="lbl">🧾 ${t('isToJob')}</span><select id="f-job">${
+    <label class="field"><span class="lbl">${icon('money')} ${t('isToJob')}</span><select id="f-job">${
       // No job is chosen for you. Opened from the store there is no job in mind,
       // and a dropdown that arrives showing the first open card is one distracted
       // tap away from issuing the part against somebody else's bus — stock down,
@@ -6695,7 +6695,7 @@ function sheetIssue(presetJob) {
     <label class="field"><span class="lbl"># ${t('reqPartQty')}</span><input id="f-qty" type="number" inputmode="numeric" value="1"></label>
     <label class="row" style="gap:9px;margin:2px 0 6px;cursor:pointer">
       <input type="checkbox" id="f-reused" style="width:18px;height:18px;flex:none">
-      <span class="small">♻️ ${t('isReused')}</span></label>
+      <span class="small">${t('isReused')}</span></label>
     <div id="f-reusedbox" style="display:none">
       <label class="field"><span class="lbl">₹ ${t('isReusedCost')}</span>
         <input id="f-reusedcost" type="number" inputmode="numeric" value="0"></label>
@@ -6714,7 +6714,7 @@ function sheetIssue(presetJob) {
         const j = byId(S.cache.jobs, jSel.value); const box = wrap.querySelector('#f-warr');
         const st = (j && hid.value) ? warrantyStatus(j.busId, hid.value) : null;
         box.innerHTML = (st && st.underWarranty)
-          ? `<div class="banner" style="background:#3a2412;color:#f59e0b">⚠️ This part is still under warranty${st.supplier ? ' (' + esc(st.supplier) + ')' : ''} — ${st.leftDays} days left. Claim a FREE replacement, don't buy a new one.</div>` : '';
+          ? `<div class="banner" style="background:#3a2412;color:#f59e0b">${icon('warn')} This part is still under warranty${st.supplier ? ' (' + esc(st.supplier) + ')' : ''} — ${st.leftDays} days left. Claim a FREE replacement, don't buy a new one.</div>` : '';
       };
       mountPartPickers(wrap, { onPick: warr });
       jSel.addEventListener('change', warr);
@@ -6744,7 +6744,7 @@ function sheetReceive() {
       <button class="btn primary" data-act="addPart">+ Add part type</button>`);
   }
   openSheet(t('receiveStock'), `
-    <label class="field"><span class="lbl">🔩 Part</span>
+    <label class="field"><span class="lbl">${icon('part')} Part</span>
       ${partPickerHtml({ key: 'rcv' })}</label>
     <div class="grid2">
       <label class="field"><span class="lbl">Quantity received</span><input id="f-qty" type="number" inputmode="numeric" value="1"></label>
@@ -6768,7 +6768,7 @@ function sheetAddPart() {
       <label class="field"><span class="lbl">Part no. / serial</span><input id="f-pno" placeholder="optional"></label>
       <label class="field"><span class="lbl">Category</span><input id="f-pcat" placeholder="e.g. Brakes"></label>
     </div>
-    <button class="btn sm ghost" data-act="scanSerial" data-target="f-pno" style="margin:-4px 0 8px">📷 Scan serial</button>
+    <button class="btn sm ghost" data-act="scanSerial" data-target="f-pno" style="margin:-4px 0 8px">${icon('camera')} Scan serial</button>
     <div class="grid2">
       <label class="field"><span class="lbl">Unit</span><select id="f-punit">${PART_UNITS.map((u) => `<option value="${u}">${u}</option>`).join('')}</select></label>
       <label class="field"><span class="lbl">Unit cost (₹)</span><input id="f-pcost" type="number" inputmode="numeric"></label>
@@ -6781,7 +6781,7 @@ function sheetAddPart() {
       <label class="field"><span class="lbl">Supplier (for warranty)</span><input id="f-psupp" placeholder="e.g. Bosch dealer"></label>
       <label class="field"><span class="lbl">Warranty (months)</span><input id="f-pwarr" type="number" inputmode="numeric" placeholder="0 = none"></label>
     </div>
-    <label class="field"><span class="lbl">⏳ Typical life (months) — for replacement forecasting</span><input id="f-plife" type="number" inputmode="numeric" placeholder="e.g. 18 (0 = skip)"></label>
+    <label class="field"><span class="lbl">${icon('clock')} Typical life (months) — for replacement forecasting</span><input id="f-plife" type="number" inputmode="numeric" placeholder="e.g. 18 (0 = skip)"></label>
     <button class="btn primary" data-act="saveAddPart">${t('save')}</button>`);
 }
 async function saveAddPart() {
@@ -6809,7 +6809,7 @@ async function saveAddPart() {
 function sheetAddStock() {
   const parts = S.cache.parts;
   openSheet('Add stock', `
-    <label class="field"><span class="lbl">🔩 Part</span>
+    <label class="field"><span class="lbl">${icon('part')} Part</span>
       ${partPickerHtml({ key: 'stk' })}</label>
     <label class="row" style="gap:9px;margin:2px 0 10px;cursor:pointer">
       <input type="checkbox" id="f-newtoggle" style="width:18px;height:18px;flex:none">
@@ -6828,7 +6828,7 @@ function sheetAddStock() {
       <label class="field"><span class="lbl">Quantity to add</span><input id="f-sqty" type="number" inputmode="numeric" value="1"></label>
       <label class="field"><span class="lbl">Unit cost (₹)</span><input id="f-scost" type="number" inputmode="numeric"></label>
     </div>
-    <div class="banner warn">📥 This adds stock INTO the system and logs it in the ledger. To take parts OUT, use “Issue part” (only against a job card).</div>
+    <div class="banner warn">This adds stock INTO the system and logs it in the ledger. To take parts OUT, use “Issue part” (only against a job card).</div>
     <button class="btn primary" data-act="confirmAddStock">Add to stock</button>`,
     (wrap) => {
       const np = wrap.querySelector('#f-newpart');
@@ -6890,20 +6890,20 @@ function sheetAddPurchase() {
   _billRead = null;
   const hasParts = S.cache.parts.length > 0;
   openSheet(t('purchases'), `
-    <button class="btn" data-act="scanBill" style="margin-bottom:10px">📷 Scan bill — auto-fill</button>
+    <button class="btn" data-act="scanBill" style="margin-bottom:10px">${icon('camera')} Scan bill — auto-fill</button>
     <div class="tiny muted" style="margin:-4px 0 10px">${t('billScanHint')}</div>
     <div id="f-billread"></div>
     <label class="field"><span class="lbl">Supplier</span><input id="f-sup" list="f-suplist" placeholder="Jaipur Auto Spares" autocomplete="off">
       <datalist id="f-suplist">${vendorNames().map((n) => `<option value="${esc(n)}">`).join('')}</datalist></label>
     <label class="field"><span class="lbl">Amount (₹)</span><input id="f-amt" type="number" inputmode="numeric"></label>
     ${hasParts ? `<div class="card" style="box-shadow:none;background:var(--tile);padding:12px">
-      <div class="tiny muted" style="margin-bottom:6px">📦 Parts received (optional — adds to stock &amp; updates the ledger)</div>
+      <div class="tiny muted" style="margin-bottom:6px">${icon('part')} Parts received (optional — adds to stock &amp; updates the ledger)</div>
       <div id="f-lines"></div>
       <button type="button" class="btn sm" id="f-addline" style="width:auto">+ Add part line</button></div>` : ''}
     <label class="field"><span class="lbl">${hasParts ? 'Other items / notes' : 'Items'}</span><textarea id="f-items" placeholder="Brake pads x10, oil filters x6"></textarea></label>
     <label class="field"><span class="lbl">Payment</span><select id="f-pay"><option value="pending">Pending</option><option value="paid">Paid</option></select></label>
     <div id="f-billthumb"></div>
-    <button class="btn" data-act="purchasePhoto">📷 Add bill photo</button>
+    <button class="btn" data-act="purchasePhoto">${icon('camera')} Add bill photo</button>
     <div class="spacer"></div>
     <button class="btn primary" data-act="savePurchase">${t('save')}</button>`,
     (wrap) => {
@@ -7066,7 +7066,7 @@ function billFill(bill, checks, model) {
   if (read) read.innerHTML = `<div class="card" style="box-shadow:none;background:var(--tile);padding:10px 12px">
     <div class="small"><b>🤖 ${t('billReadTitle')}</b>${bill.billNo ? ' · #' + esc(bill.billNo) : ''}${bill.date ? ' · ' + esc(bill.date) : ''}${bill.gstin ? ' · GSTIN ' + esc(bill.gstin) : ''}</div>
     <div class="tiny muted">${bill.lines.length} ${t('billLines')}${bill.subtotal != null ? ' · ' + t('billSubtotal') + ' ' + money(bill.subtotal) : ''}${bill.gst != null ? ' · GST ' + money(bill.gst) : ''}${bill.total != null ? ' · ' + t('billTotal') + ' ' + money(bill.total) : ''}${bill.handwritten ? ' · ' + t('billHandwritten') : ''}</div>
-    ${warn.length ? `<div class="tiny" style="margin-top:6px;color:var(--amber);font-weight:700">⚠️ ${warn.map(esc).join('<br>⚠️ ')}</div>` : `<div class="tiny" style="margin-top:6px;color:var(--green);font-weight:700">✓ ${t('billAllAdds')}</div>`}
+    ${warn.length ? `<div class="tiny" style="margin-top:6px;color:var(--amber);font-weight:700">⚠️ ${warn.map(esc).join('<br>⚠️ ')}</div>` : `<div class="tiny" style="margin-top:6px;color:var(--green);font-weight:700">${icon('ok')} ${t('billAllAdds')}</div>`}
     <div class="tiny muted" style="margin-top:4px">${t('billCheckSave')}</div></div>`;
   toast(`🤖 ${t('billReadToast')}${bill.total != null ? ' · ' + money(bill.total) : ''}`);
 }
@@ -7089,11 +7089,11 @@ function viewVendors() {
   body += `<input id="vnd-search" class="searchbox" placeholder="Search vendor, category or email…" autocomplete="off">`;
   body += `<div class="card listwrap" id="vnd-list"><h3>Vendors</h3>`;
   body += vendors.length ? vendors.map((v) => { const bills = vendorBills(v.id); const pending = bills.filter((b) => b.paymentStatus !== 'paid').reduce((s, b) => s + (b.amount || 0), 0);
-    return `<div class="li" data-act="openVendor" data-id="${esc(v.id)}"><div class="ava">🏪</div>
+    return `<div class="li" data-act="openVendor" data-id="${esc(v.id)}"><div class="ava">${icon('part')}</div>
       <div class="main"><div class="t">${esc(v.name)}</div><div class="s">${esc(v.category || '')}${v.email ? ' · ' + esc(v.email) : ''}</div></div>
       ${pending ? `<span class="badge b-amber">${money(pending)} due</span>` : `<span class="tiny muted">${bills.length} bill(s)</span>`}</div>`; }).join('') : `<div class="empty">No vendors yet — tap + to add one.</div>`;
   body += `</div>`;
-  shell('Vendors', body, can(S.user.role, 'addPurchase') ? { act: 'addVendor', icon: '+' } : null);
+  shell('Vendors', v2(body), can(S.user.role, 'addPurchase') ? { act: 'addVendor', icon: '+' } : null);
   attachSearch('vnd-search', 'vnd-list');
 }
 function viewVendorDetail(id) {
@@ -7116,7 +7116,7 @@ function viewVendorDetail(id) {
     <span class="badge ${p.paymentStatus === 'paid' ? 'b-green' : 'b-amber'}">${p.paymentStatus}</span>
     ${p.billPhoto ? `<img class="thumb" style="width:42px;height:42px" src="${esc(p.billPhoto)}" data-act="viewPhoto" data-src="${esc(p.billPhoto)}">` : ''}</div>`).join('') : `<div class="muted small">No bills mapped yet.</div>`;
   body += `</div>`;
-  shell(esc(v.name), body, null, NARROW);
+  shell(esc(v.name), v2(body), null, NARROW);
 }
 const VENDOR_CATS = ['Parts', 'Tyre remould', 'Electricals', 'AdBlue/DEF', 'Lubricants', 'Fuel', 'Bodywork', 'Other'];
 function sheetAddVendor(id) {
@@ -7143,7 +7143,7 @@ async function saveVendor(id) {
     name, category: ($('#v-cat') || {}).value || 'Other',
     phone: (($('#v-phone') || {}).value || '').trim(), gstin: (($('#v-gstin') || {}).value || '').trim(),
     email: (($('#v-email') || {}).value || '').trim(), notes: (($('#v-notes') || {}).value || '').trim(), updatedAt: Date.now() });
-  await DB.put('vendors', rec); await load(); closeSheet(); toast('Vendor saved ✓');
+  await DB.put('vendors', rec); await load(); closeSheet(); toast('Vendor saved');
   if (id) viewVendorDetail(id); else push({ name: 'vendors', id: rec.id });
 }
 /* ===== Import from Excel — Parts Master & Vendor Master ====================
@@ -7306,13 +7306,13 @@ let _lastImport = null;
 function viewImport() {
   let body = `<div class="card"><div class="tiny muted">Import your <b>Parts Master</b>, <b>Vendor Master</b> (.xls the billing system exports) or a <b>Bus/Route roster</b> (.xlsx). Parts/vendors match by their master Id; buses match by registration — so re-importing updates in place and won't duplicate.</div></div>`;
   const li = _lastImport;
-  const summary = li && !li.error ? `✓ ${li.kind}: ${li.added} added${li.updated ? ', ' + li.updated + ' updated' : ''}${li.drivers ? ', ' + li.drivers + ' drivers' : ''}${li.logins ? ', ' + li.logins + ' logins (' + li.conductors + ' conductors)' : ''}${li.skipped ? ', ' + li.skipped + ' already present' : ''} (of ${li.total}).` : '';
+  const summary = li && !li.error ? `${icon('ok')} ${li.kind}: ${li.added} added${li.updated ? ', ' + li.updated + ' updated' : ''}${li.drivers ? ', ' + li.drivers + ' drivers' : ''}${li.logins ? ', ' + li.logins + ' logins (' + li.conductors + ' conductors)' : ''}${li.skipped ? ', ' + li.skipped + ' already present' : ''} (of ${li.total}).` : '';
   body += `<div class="card"><h3>Import a file</h3>
     <input id="imp-file" type="file" accept=".xls,.xlsx,.xml,.txt" style="margin:6px 0 12px;width:100%">
     ${li ? `<div class="banner ${li.error ? 'warn' : 'ok'}" style="margin-top:6px">${esc(li.error || summary)}</div>` : ''}
   </div>`;
   body += `<div class="card"><div class="row between small"><span class="muted">In the system now</span><b>${(S.cache.parts || []).length} parts · ${(S.cache.vendors || []).length} vendors · ${(S.cache.buses || []).length} buses · ${activeDrivers().length} drivers · ${activeCrew().length - activeDrivers().length} conductors</b></div></div>`;
-  shell('Import from Excel', body, null, NARROW);
+  shell('Import from Excel', v2(body), null, NARROW);
   const inp = document.getElementById('imp-file');
   if (inp) inp.onchange = () => { const f = inp.files && inp.files[0]; if (f) handleImportFile(f); };
 }
@@ -7325,7 +7325,7 @@ async function handleImportFile(file) {
     _lastImport = rows ? await runImportRows(rows) : { error: 'Could not read this file — is it a real Excel export?' };
     if (stop) stop();
     await load();
-    toast(_lastImport.error ? _lastImport.error : `Imported ${_lastImport.added + (_lastImport.updated || 0)} ${_lastImport.kind} ✓`);
+    toast(_lastImport.error ? _lastImport.error : `Imported ${_lastImport.added + (_lastImport.updated || 0)} ${_lastImport.kind} ${icon('ok')}`);
   } catch (e) { if (stop) stop(); _lastImport = { error: 'Import failed: ' + e.message }; toast(_lastImport.error); }
   if (S.route && S.route.name === 'import') viewImport();
 }
@@ -7336,7 +7336,7 @@ async function togglePaid(purId) {
   p.paymentStatus = p.paymentStatus === 'paid' ? 'pending' : 'paid';
   p.paidAt = p.paymentStatus === 'paid' ? Date.now() : null;
   await DB.put('purchases', p);
-  await load(); toast(p.paymentStatus === 'paid' ? 'Marked paid ✓' : 'Marked pending'); rerender();
+  await load(); toast(p.paymentStatus === 'paid' ? 'Marked paid' : 'Marked pending'); rerender();
 }
 /* --------------------------- Garage setup & reset ------------------------- */
 let _setupLat = null, _setupLng = null;
@@ -7351,9 +7351,9 @@ function sheetGarageSetup() {
     <label class="field"><span class="lbl">Business name (shown to staff)</span><input id="f-gbiz" value="${esc(g.biz || g.name || '')}" placeholder="e.g. Mahalaxmi Travels"></label>
     <label class="field"><span class="lbl">Garage full name</span><input id="f-gname" value="${esc(g.name || '')}" placeholder="My Garage, Jaipur"></label>
     <div class="card" style="box-shadow:none;background:var(--tile);padding:12px">
-      <div class="tiny muted" style="margin-bottom:6px">📍 Attendance geofence — staff must be within this distance of the garage to check in.</div>
+      <div class="tiny muted" style="margin-bottom:6px">${icon('map')} Attendance geofence — staff must be within this distance of the garage to check in.</div>
       <div id="f-gloc" class="small">${g.locSet && g.lat != null ? `Current: ${g.lat.toFixed(5)}, ${g.lng.toFixed(5)}` : '⚠️ Not set — stand in the garage and capture it below, or attendance distance is meaningless.'}</div>
-      <button class="btn sm" data-act="captureGarageLoc" style="margin-top:8px">📍 Use my current location as the garage</button>
+      <button class="btn sm" data-act="captureGarageLoc" style="margin-top:8px">${icon('map')} Use my current location as the garage</button>
     </div>
     <div class="grid2">
       <label class="field"><span class="lbl">Geofence radius (m)</span><input id="f-gradius" type="number" inputmode="numeric" value="${g.radiusM || 200}"></label>
@@ -7361,7 +7361,7 @@ function sheetGarageSetup() {
     </div>
     <label class="field"><span class="lbl">Labour rate (₹ per hour)</span><input id="f-grate" type="number" inputmode="numeric" value="${g.labourRate || DEFAULT_LABOUR_RATE}"></label>
     <div class="card" style="box-shadow:none;background:var(--tile);padding:12px">
-      <div class="tiny muted" style="margin-bottom:6px">⏱️ Mechanic late-attendance penalty (set 0 to disable)</div>
+      <div class="tiny muted" style="margin-bottom:6px">${icon('clock')} Mechanic late-attendance penalty (set 0 to disable)</div>
       <div class="grid2">
         <label class="field" style="margin:0"><span class="lbl">₹ per late</span><input id="f-glatepen" type="number" inputmode="numeric" value="${g.latePenalty || 0}"></label>
         <label class="field" style="margin:0"><span class="lbl">Free lates/month</span><input id="f-glategrace" type="number" inputmode="numeric" value="${g.lateGraceDays || 0}"></label>
@@ -7371,15 +7371,15 @@ function sheetGarageSetup() {
     <button class="btn primary" data-act="saveGarage">${t('save')}</button>
     <div class="hr"></div>
     <div class="tiny muted" style="margin-bottom:8px">Setting up for your real garage? This clears the demo buses, parts, drivers, jobs and bills and starts empty.</div>
-    <button class="btn" data-act="startFresh" style="color:var(--red)">🗑 Start fresh (clear demo data)</button>`);
+    <button class="btn" data-act="startFresh" style="color:var(--red)">${icon('delete')} Start fresh (clear demo data)</button>`);
 }
 async function captureGarageLocation() {
   toast('Getting location…');
   try {
     const pos = await new Promise((res, rej) => navigator.geolocation.getCurrentPosition(res, rej, { enableHighAccuracy: true, timeout: 8000 }));
     _setupLat = pos.coords.latitude; _setupLng = pos.coords.longitude;
-    const el = $('#f-gloc'); if (el) el.textContent = `Captured: ${_setupLat.toFixed(5)}, ${_setupLng.toFixed(5)} ✓`;
-    toast('Location captured ✓');
+    const el = $('#f-gloc'); if (el) el.textContent = `Captured: ${_setupLat.toFixed(5)}, ${_setupLng.toFixed(5)} ${icon('ok')}`;
+    toast('Location captured');
   } catch (e) { toast('Could not get location — check GPS permission'); }
 }
 async function saveGarage() {
@@ -7396,7 +7396,7 @@ async function saveGarage() {
   if ($('#f-glatepen')) { g.latePenalty = Number($('#f-glatepen').value) || 0; g.lateGraceDays = Number($('#f-glategrace').value) || 0; g.latePenaltyCap = Number($('#f-glatecap').value) || 0; }
   await DB.put('meta', g);
   _setupLat = _setupLng = null;
-  await load(); closeSheet(); toast('Garage settings saved ✓'); rerender();
+  await load(); closeSheet(); toast('Garage settings saved'); rerender();
 }
 async function startFresh() {
   if (S.user.role !== 'owner') return toast('Only the owner can do this');
@@ -7427,7 +7427,7 @@ async function saveChangePin() {
   try {
     if (Sync.setPin) { await Sync.setPin(S.user.id, p1); }
     cachePin(S.user, p1);
-    closeSheet(); toast('PIN changed ✓');
+    closeSheet(); toast('PIN changed');
   } catch (e) {
     toast('Could not reach server — connect online to change your PIN');
   }
@@ -7464,9 +7464,9 @@ function sheetSync() {
          testing — a key in a phone's storage is readable by anything with the
          phone. The line above it reports what the server actually has. -->
     <div class="tiny" id="ai-state" style="margin:2px 0 10px;color:var(--muted)">…</div>
-    <label class="field"><span class="lbl">🔑 ${esc(t('aiDeviceKey'))}</span><input id="f-aikey" type="password" value="${esc(localStorage.getItem('aiKey') || '')}" placeholder="sk-ant-..." autocomplete="off"></label>
+    <label class="field"><span class="lbl">${icon('gate')} ${esc(t('aiDeviceKey'))}</span><input id="f-aikey" type="password" value="${esc(localStorage.getItem('aiKey') || '')}" placeholder="sk-ant-..." autocomplete="off"></label>
     <div class="tiny muted" style="margin-bottom:10px">${esc(t('aiDeviceKeyHint'))}</div>
-    ${localStorage.getItem('aiKey') ? `<button class="btn sm ghost" data-act="clearAiKey" style="margin-bottom:10px">🗑️ ${esc(t('aiClearKey'))}</button>` : ''}
+    ${localStorage.getItem('aiKey') ? `<button class="btn sm ghost" data-act="clearAiKey" style="margin-bottom:10px">${icon('delete')} ${esc(t('aiClearKey'))}</button>` : ''}
     <button class="btn primary" data-act="saveSyncUrl">${t('saveWord')}</button>` : `<div class="tiny muted">${esc(i.url)}</div>`}
     ${['owner', 'supervisor'].includes(S.user.role) ? `<div class="card" id="tidy-row" style="margin-top:10px">
       <div class="row between"><b>🖼️ ${esc(t('tidyTitle'))}</b><span class="badge b-low" id="tidy-count">…</span></div>
@@ -7569,7 +7569,7 @@ async function saveStaff() {
   // Nothing stopped the same name being added twice, and the login screen shows
   // no way to tell the accounts apart. Say so before making another one.
   const same = (S.cache.users || []).filter((u) => _nameKey(u.name) === _nameKey(name));
-  if (same.length && !confirm(`⚠️ Already on the team\n\n${same.map((u) => `• ${u.name} — ${u.role} (${u.id})`).join('\n')}\n\nThis will create a SEPARATE second login with its own PIN, not update the one above.\n\nAdd ${name} anyway?`)) return;
+  if (same.length && !confirm(`${icon('warn')} Already on the team\n\n${same.map((u) => `• ${u.name} — ${u.role} (${u.id})`).join('\n')}\n\nThis will create a SEPARATE second login with its own PIN, not update the one above.\n\nAdd ${name} anyway?`)) return;
   if (btn) { btn.disabled = true; btn.textContent = 'Creating…'; }
   // Only the owner may create supervisors/owners — never trust the form alone.
   if (role !== 'mechanic' && role !== 'store' && role !== 'driver' && S.user.role !== 'owner') {
@@ -7603,7 +7603,7 @@ const _nameKey = (n) => String(n || '').trim().toLowerCase().replace(/\s+/g, ' '
  * Returns true if the caller should go ahead. */
 function confirmNotDuplicate(kind, label, existing) {
   if (!existing.length) return true;
-  return confirm(`⚠️ Already in ${kind}\n\n${existing.map((x) => '• ' + x).join('\n')}\n\n`
+  return confirm(`${icon('warn')} Already in ${kind}\n\n${existing.map((x) => '• ' + x).join('\n')}\n\n`
     + `Adding ${label} again creates a SECOND, separate record — it does not update the one above.\n\nAdd it anyway?`);
 }
 
@@ -7685,7 +7685,7 @@ async function removeStaff(id) {
   if (!u) return;
   if (!canRemoveStaff(u)) return toast('Not allowed');
   const openJobs = (S.cache.jobs || []).filter((j) => isOnJob(j, u.id) && (j.status === 'open' || j.status === 'in-progress'));
-  if (openJobs.length && !confirm(`⚠️ ${u.name} still has ${openJobs.length} job card${openJobs.length > 1 ? 's' : ''} assigned.\n\nRemoving the account leaves them assigned to a name that no longer exists — reassign them first.\n\nRemove anyway?`)) return;
+  if (openJobs.length && !confirm(`${icon('warn')} ${u.name} still has ${openJobs.length} job card${openJobs.length > 1 ? 's' : ''} assigned.\n\nRemoving the account leaves them assigned to a name that no longer exists — reassign them first.\n\nRemove anyway?`)) return;
   if (!confirm(`Remove ${u.name} (${u.role})?\n\nAccount: ${u.id}\n\nThe login is deleted on the server and the name goes from every device. It cannot be undone — you would have to create a new account. If this is the one they actually use, check with them first.`)) return;
   try {
     // Delete the credential on the server first. Tombstoning the roster row alone
@@ -7744,17 +7744,17 @@ function viewAlerts() {
           <div class="stat" style="color:${tot.fine ? 'var(--bad)' : 'var(--ok)'}">${tot.checked ? money(tot.fine) : '—'}</div></div>
         <div style="text-align:right"><div class="tiny muted">${tot.checked ? `${tot.pending} pending · ${tot.buses} bus(es)` : 'not checked yet'}</div>
           ${tot.court ? `<div class="tiny muted">${tot.court} sent to court</div>` : ''}</div></div>
-      <button class="btn ${tot.fine ? 'primary' : ''}" data-act="openChallans" style="margin-top:10px">🚦 Open challans</button></div>`;
+      <button class="btn ${tot.fine ? 'primary' : ''}" data-act="openChallans" style="margin-top:10px">${icon('gate', { size: 16 })} Open challans</button></div>`;
   }
 
   body += `<input id="alr-search" class="searchbox" placeholder="Search plate, company or document…" autocomplete="off">`;
   body += `<div class="card listwrap" id="alr-list"><h3>${t('docAlerts')}</h3>`;
   body += alerts.length ? alerts.map((a) => `<div class="li" data-bus="${esc(a.bus.id)}">
-    <div class="ava">📄</div>
+    <div class="ava">${icon('doc')}</div>
     <div class="main"><div class="t">${esc(a.bus.regNo)} · ${esc(a.doc.type)}</div><div class="s">${esc(a.bus.company)} · expires ${fmtDate(a.doc.expiry)}</div></div>
-    <span class="badge ${a.st.cls}">${a.st.txt}</span></div>`).join('') : `<div class="empty">All documents valid 👍</div>`;
+    <span class="badge ${a.st.cls}">${a.st.txt}</span></div>`).join('') : `<div class="empty">All documents valid</div>`;
   body += `</div>`;
-  shell(t('docAlerts'), body);
+  shell(t('docAlerts'), v2(body));
   attachSearch('alr-search', 'alr-list');
 }
 
@@ -7833,13 +7833,13 @@ function viewChallans() {
       <div style="text-align:right"><div class="tiny muted">${tot.pending} pending · ${tot.buses} bus(es)</div>
         <div class="tiny muted">${tot.court} sent to court</div></div></div>`;
   if (unchecked) {
-    body += `<button class="btn primary" data-act="syncChallans" style="margin-top:10px">🔄 Check ${unchecked} unchecked bus(es)</button>
+    body += `<button class="btn primary" data-act="syncChallans" style="margin-top:10px">${icon('edit')} Check ${unchecked} unchecked bus(es)</button>
       <div class="tiny muted" style="margin-top:6px">Each bus costs 1 API credit. Buses with no challans cost nothing.</div>`;
   } else if (tot.checked) {
-    body += `<button class="btn" data-act="syncChallans" data-force="1" style="margin-top:10px">🔄 Re-check whole fleet</button>`;
+    body += `<button class="btn" data-act="syncChallans" data-force="1" style="margin-top:10px">${icon('edit')} Re-check whole fleet</button>`;
   }
   if (unusable) {
-    body += `<div class="tiny muted" style="margin-top:6px">⚠️ ${unusable} bus(es) have an incomplete registration and can't be checked.</div>`;
+    body += `<div class="tiny muted" style="margin-top:6px">${icon('warn')} ${unusable} bus(es) have an incomplete registration and can't be checked.</div>`;
   }
   body += `</div>`;
 
@@ -7856,12 +7856,12 @@ function viewChallans() {
       : c.pendingCount ? `${c.pendingCount} pending · ${c.courtCount || 0} in court · checked ${fmtDate(c.fetchedAt)}`
         : `no pending challans · checked ${fmtDate(c.fetchedAt)}`;
     return `<div class="li" ${c && c.pendingCount ? `data-challanbus="${esc(b.id)}"` : ''}>
-      <div class="ava">${bad ? '🚨' : '🚌'}</div>
+      <div class="ava">${bad ? icon('alert') : icon('bus')}</div>
       <div class="main"><div class="t">${esc(b.regNo)}</div><div class="s">${esc(sub)}</div></div>
       ${right}</div>`;
   }).join('');
   body += `</div>`;
-  shell('Challans', body);
+  shell('Challans', v2(body));
   attachSearch('chl-search', 'chl-list');
 }
 
@@ -7879,17 +7879,17 @@ function viewBusChallans(busId) {
       <div><div class="muted small">${esc(b.regNo)} — pending</div>
         <div class="stat" style="color:var(--bad)">${money(c.pendingFine)}</div></div>
       <div style="text-align:right"><div class="tiny muted">${c.pendingCount} pending · ${c.disposedCount} settled</div></div></div>
-    <button class="btn sm" data-act="checkChallan" data-bus="${esc(b.id)}" style="margin-top:10px">🔄 Refresh (1 credit)</button></div>`;
+    <button class="btn sm" data-act="checkChallan" data-bus="${esc(b.id)}" style="margin-top:10px">${icon('edit')} Refresh (1 credit)</button></div>`;
   body += `<div class="card"><h3>Challans (${rows.length})</h3>`;
   body += rows.length ? rows.map((r) => `<div class="li">
-      <div class="ava">${r.status === 'Pending' ? '🔴' : '✅'}</div>
-      <div class="main"><div class="t">${money(r.fine)} · ${esc(r.state || '')} ${r.sentToCourt ? '· ⚖️ court' : ''}</div>
+      <div class="ava">${r.status === 'Pending' ? '' : icon('ok')}</div>
+      <div class="main"><div class="t">${money(r.fine)} · ${esc(r.state || '')} ${r.sentToCourt ? '· court' : ''}</div>
         <div class="s">${esc((r.offence || 'Offence not stated').slice(0, 90))}</div>
         <div class="tiny muted">${esc(r.challanNo || '')} · ${esc(String(r.date || '').slice(0, 10))}</div></div>
       <span class="badge ${r.status === 'Pending' ? 'bad' : 'ok'}">${esc(r.status)}</span></div>`).join('')
-    : `<div class="empty">No challans on record 👍</div>`;
+    : `<div class="empty">No challans on record</div>`;
   body += `</div>`;
-  shell(esc(b.regNo) + ' challans', body);
+  shell(esc(b.regNo) + ' challans', v2(body));
 }
 
 async function checkChallan(busId, quiet) {
@@ -7906,7 +7906,7 @@ async function checkChallan(busId, quiet) {
   await DB.putRaw('challans', r);
   await load();
   if (!quiet) {
-    toast(r.pendingCount ? `${b.regNo}: ${r.pendingCount} pending · ${money(r.pendingFine)}` : `${b.regNo}: no pending challans ✓`);
+    toast(r.pendingCount ? `${b.regNo}: ${r.pendingCount} pending · ${money(r.pendingFine)}` : `${b.regNo}: no pending challans ${icon('ok')}`);
     rerender();
   }
   return true;
@@ -8040,12 +8040,12 @@ function partLifeForecast(b) {
 function maintForecast(b) {
   const items = [];
   const sf = serviceForecast(b);
-  if (sf.status !== 'ok' || (sf.daysLeft != null && sf.daysLeft <= 30)) items.push({ icon: '🛠️', label: 'Engine service',
+  if (sf.status !== 'ok' || (sf.daysLeft != null && sf.daysLeft <= 30)) items.push({ icon: icon('bad'), label: 'Engine service',
     detail: sf.dueIn <= 0 ? `overdue by ${-sf.dueIn} km` : `in ${sf.dueIn} km${sf.daysLeft != null ? ` · ~${sf.daysLeft}d` : ''}`,
     daysLeft: sf.daysLeft != null ? sf.daysLeft : 999, status: sf.status });
-  partLifeForecast(b).forEach((p) => { if (p.status !== 'ok' || p.daysLeft <= 30) items.push({ icon: '🔩', label: p.label,
+  partLifeForecast(b).forEach((p) => { if (p.status !== 'ok' || p.daysLeft <= 30) items.push({ icon: icon('part'), label: p.label,
     detail: p.daysLeft <= 0 ? `overdue ${-p.daysLeft}d` : `~${p.daysLeft}d left`, daysLeft: p.daysLeft, status: p.status }); });
-  (b.docs || []).forEach((d) => { const dl = daysLeft(d.expiry); if (dl <= 30) items.push({ icon: '📄', label: d.type,
+  (b.docs || []).forEach((d) => { const dl = daysLeft(d.expiry); if (dl <= 30) items.push({ icon: icon('doc'), label: d.type,
     detail: dl < 0 ? `expired ${-dl}d` : `expires in ${dl}d`, daysLeft: dl, status: dl < 0 ? 'overdue' : dl <= 14 ? 'soon' : 'ok' }); });
   return items.sort((a, c) => a.daysLeft - c.daysLeft);
 }
@@ -8081,21 +8081,21 @@ function viewForecast() {
         <div class="tiny muted">${overdue} overdue</div></div></div>
     <div class="tiny muted" style="margin-top:6px">Lost revenue = days down × daily earning (₹${dailyRev({}).toLocaleString('en-IN')}/bus default).${can(S.user.role, 'addBus') ? ' <a data-act="setFleetRev" style="color:var(--brand2);cursor:pointer">set ₹/day</a>' : ''}</div></div>`;
 
-  body += `<div class="card"><h3>🔧 Coming up &amp; overdue</h3>`;
+  body += `<div class="card"><h3>${icon('job')} Coming up &amp; overdue</h3>`;
   body += items.length ? items.slice(0, 60).map((i) => `<div class="li" data-act="busReport" data-bus="${esc(i.bus.id)}" style="cursor:pointer">
       <div class="ava">${i.icon}</div><div class="main"><div class="t">${esc(i.bus.regNo)} · ${esc(i.label)}</div>
       <div class="s">${i.detail}</div></div><span class="badge ${FC_COL[i.status] || 'b-low'}">${i.status === 'overdue' ? 'OVERDUE' : i.status === 'soon' ? 'SOON' : 'plan'}</span></div>`).join('')
-    : `<div class="empty">Nothing due in the next 30 days 👍</div>`;
+    : `<div class="empty">Nothing due in the next 30 days</div>`;
   body += `</div>`;
 
   // Worst downtime offenders (where the money's leaking)
   const worst = [...buses].map((b) => ({ b, lost: busLostRev(b), days: busDownDays(b) })).filter((x) => x.days > 0).sort((a, c) => c.lost - a.lost).slice(0, 6);
   if (worst.length) {
-    body += `<div class="card"><h3>💸 Most downtime cost</h3>` + worst.map((x) => `<div class="li" data-act="busReport" data-bus="${esc(x.b.id)}" style="cursor:pointer">${avatar(busImg(x.b), '🚌')}
+    body += `<div class="card"><h3>${icon('money')} Most downtime cost</h3>` + worst.map((x) => `<div class="li" data-act="busReport" data-bus="${esc(x.b.id)}" style="cursor:pointer">${avatar(busImg(x.b), icon('bus'))}
       <div class="main"><div class="t">${esc(x.b.regNo)}</div><div class="s">${x.days.toFixed(1)} days down · ₹${dailyRev(x.b).toLocaleString('en-IN')}/day</div></div>
       <b style="color:#ef4444">${money(x.lost)}</b></div>`).join('') + `</div>`;
   }
-  shell('Maintenance & uptime', body);
+  shell('Maintenance & uptime', v2(body));
 }
 async function setFleetRev() {
   const cur = Number((S.cache.garage || {}).dailyRevenue) || 8000;
@@ -8103,7 +8103,7 @@ async function setFleetRev() {
   if (v == null) return;
   const n = Math.max(0, Math.round(Number(v) || 0));
   const g = Object.assign({}, S.cache.garage || { key: 'garage' }, { dailyRevenue: n });
-  await DB.put('meta', g); await load(); toast('Daily revenue set ✓'); viewForecast();
+  await DB.put('meta', g); await load(); toast('Daily revenue set'); viewForecast();
 }
 function viewReports() {
   const since = reportSinceMs();
@@ -8142,15 +8142,15 @@ function viewBusReport(busId) {
   let body = periodBar();
   body += pageSub([b.company, b.model].filter(Boolean).join(' \u00b7 '));
   body += kpiRow([
-    { icon: '🛣️', label: 'On the clock', value: (b.odometer || 0).toLocaleString('en-IN'), unit: 'km' },
-    { icon: '🔧', label: 'Next service in', value: sv0.dueIn > 0 ? sv0.dueIn.toLocaleString('en-IN') : 'overdue',
+    { icon: icon('map'), label: 'On the clock', value: (b.odometer || 0).toLocaleString('en-IN'), unit: 'km' },
+    { icon: icon('job'), label: 'Next service in', value: sv0.dueIn > 0 ? sv0.dueIn.toLocaleString('en-IN') : 'overdue',
       unit: sv0.dueIn > 0 ? 'km' : '', delta: sv0.status === 'overdue' ? 'due' : '', dir: 'bad' },
   ]);
   body += `<div class="card">${panelTitle('Maintenance cost' + periodLabel(),
       `<button class="btn sm" data-act="shareBusReport" data-bus="${esc(b.id)}">Share</button>`)}
-    ${detailRow('🔩', 'Parts', money(c.parts))}
-    ${detailRow('👷', 'Labour', money(c.labour))}
-    ${detailRow('🏪', 'Outside vendor', money(c.ext))}
+    ${detailRow(icon('part'), 'Parts', money(c.parts))}
+    ${detailRow(icon('person'), 'Labour', money(c.labour))}
+    ${detailRow(icon('part'), 'Outside vendor', money(c.ext))}
     <div class="hr"></div>
     <div class="row between"><b>Total</b><b style="color:var(--brand2)">${money(c.total)}</b></div>
     ${cpk ? `<div class="tiny muted" style="margin-top:6px">≈ ₹${cpk.toFixed(2)}/km maintenance (lifetime)</div>` : ''}</div>`;
@@ -8168,11 +8168,11 @@ function viewBusReport(busId) {
   body += `<div class="card"><div class="row between"><h3>Fuel &amp; mileage</h3>${fm.drop ? '<span class="badge b-red">mileage ↓</span>' : ''}</div>`;
   if (fm.fills) {
     body += miniGrid([
-      { icon: '⛽', label: 'Mileage', value: fm.avgKmpl != null ? fm.avgKmpl.toFixed(1) : '—', unit: 'km/l',
+      { icon: icon('fuel'), label: 'Mileage', value: fm.avgKmpl != null ? fm.avgKmpl.toFixed(1) : '—', unit: 'km/l',
         foot: fm.drop ? 'down on its usual' : '' },
       { icon: '₹', label: 'Fuel cost per km', value: fm.fuelPerKm != null ? '₹' + fm.fuelPerKm.toFixed(1) : '—' },
-      { icon: '🧾', label: 'Total fuel', value: money(fm.totalCost) },
-      { icon: '🔢', label: 'Fills logged', value: fm.fills },
+      { icon: icon('money'), label: 'Total fuel', value: money(fm.totalCost) },
+      { icon: icon('doc'), label: 'Fills logged', value: fm.fills },
     ]);
     if (cpk != null && fm.fuelPerKm != null) {
       body += `<div class="hr"></div><div class="row between"><b>True running cost</b>
@@ -8183,7 +8183,7 @@ function viewBusReport(busId) {
      * digit, and it is invisible inside a lifetime average. */
     const segs = fillSegments(b.id).slice(-8).reverse();
     if (segs.length) {
-      body += `<div class="hr"></div><div class="lbl" style="margin-bottom:4px">⛽ ${t('fuTankByTank')}</div>`;
+      body += `<div class="hr"></div><div class="lbl" style="margin-bottom:4px">${icon('fuel')} ${t('fuTankByTank')}</div>`;
       body += segs.map((s) => {
         const low = s.kmpl != null && fm.avgKmpl != null && s.kmpl < fm.avgKmpl * 0.8;
         return `<div class="row between small" style="padding:3px 0">
@@ -8201,12 +8201,12 @@ function viewBusReport(busId) {
   } else {
     body += `<div class="muted small">No fuel logged yet.</div>`;
   }
-  body += `${can(S.user.role, 'addFuel') ? `<div class="spacer"></div><button class="btn sm" data-act="addFuel" data-bus="${esc(b.id)}">⛽ Log fuel</button>` : ''}</div>`;
+  body += `${can(S.user.role, 'addFuel') ? `<div class="spacer"></div><button class="btn sm" data-act="addFuel" data-bus="${esc(b.id)}">${icon('fuel')} Log fuel</button>` : ''}</div>`;
   body += `<div class="card">${panelTitle('Jobs & downtime')}` + miniGrid([
     { icon: icon('job'), label: 'Job cards', value: r.n },
-    { icon: '🌍', label: 'Done outside', value: r.extJobs },
-    { icon: '🕒', label: 'Total bay time', value: Math.round(r.downDays), unit: 'days' },
-    { icon: '📋', label: 'Still open', value: r.byStatus.open + r.byStatus['in-progress'] },
+    { icon: icon('map'), label: 'Done outside', value: r.extJobs },
+    { icon: icon('clock'), label: 'Total bay time', value: Math.round(r.downDays), unit: 'days' },
+    { icon: icon('doc'), label: 'Still open', value: r.byStatus.open + r.byStatus['in-progress'] },
   ]) + `</div>`;
   if (r.topParts.length) {
     body += `<div class="card"><h3>Parts consumed</h3>` + r.topParts.slice(0, 6).map((p) => {
@@ -8233,7 +8233,7 @@ function viewBusReport(busId) {
       return `<div class="row between small" style="padding:4px 0"><span>${esc(s.name)}</span><span>${p.onTime == null ? '—' : p.onTime + '%'}${p.avgLate ? ' · avg +' + p.avgLate + 'm' : ''}</span></div>`;
     }).join('') + `</div>`;
   }
-  shell(esc(b.regNo) + ' — report', body);
+  shell(esc(b.regNo) + ' — report', v2(body));
 }
 function busReportText(busId) {
   const b = byId(S.cache.buses, busId); if (!b) return '';
@@ -8314,8 +8314,8 @@ function viewScoreboard() {
   const _weak = mechs.filter((x) => x.s < 60).length;
   let body = pageSub(t('mpBlurb'));
   body += kpiRow([
-    { icon: '👷', label: 'Mechanics', value: mechs.length },
-    { icon: '📊', label: 'Average score', value: _avgScore, unit: '/100',
+    { icon: icon('person'), label: 'Mechanics', value: mechs.length },
+    { icon: icon('doc'), label: 'Average score', value: _avgScore, unit: '/100',
       delta: _weak ? _weak + ' under 60' : '', dir: _weak ? 'bad' : 'good' },
   ]);
   body += `<input id="sb-search" class="searchbox" placeholder="Search a name…" autocomplete="off">`;
@@ -8330,7 +8330,7 @@ function viewScoreboard() {
         <div style="font-weight:800;font-size:14px;color:${bad ? 'var(--red)' : 'var(--text)'}">${v}</div>
         <div class="tiny muted">${lbl}</div></div>`;
     return `<div class="li" data-act="scorecard" data-user="${esc(u.id)}" style="cursor:pointer">
-      <div class="ava">${i === 0 ? '🏆' : '🔧'}</div>
+      <div class="ava">${i === 0 ? icon('star') : icon('job')}</div>
       <div class="main"><div class="t">${i + 1}. ${esc(u.name)}${u.id === S.user.id ? ' (you)' : ''}</div>
         <div class="s">${m.jobs} ${t('mpJobs')} · ${m.att.lates} ${t('mpLate')}</div></div>
       <div class="row" style="gap:10px;flex:none">
@@ -8341,7 +8341,7 @@ function viewScoreboard() {
       </div></div>`;
   }).join('') : `<div class="empty">No mechanics yet</div>`;
   body += `</div>`;
-  shell('Mechanic leaderboard', body);
+  shell('Mechanic leaderboard', v2(body));
   attachSearch('sb-search', 'sb-list');
 }
 function viewScorecard(userId) {
@@ -8358,15 +8358,15 @@ function viewScorecard(userId) {
       <div><div class="tiny muted">Late penalty</div><b style="color:var(--red)">${money(pen.amount)}</b></div></div>
     ${pen.rate ? `<div class="tiny muted" style="margin-top:8px">${pen.grace} free late/month, then ${money(pen.rate)} each${pen.cap ? ` (monthly cap ${money(pen.cap)})` : ''} · ${pen.chargeable} chargeable now.</div>`
       : `<div class="tiny muted" style="margin-top:8px">No late penalty set${['owner', 'supervisor'].includes(S.user.role) ? ' — set it in Me → Garage setup.' : '.'}</div>`}
-    ${att.unverified ? `<div class="tiny" style="margin-top:6px;color:var(--amber,#b45309)">⚠️ ${att.unverified} check-in${att.unverified > 1 ? 's' : ''} reached the server much later than the time shown (phone offline, or its clock was changed) — worth checking.</div>` : ''}</div>`;
+    ${att.unverified ? `<div class="tiny" style="margin-top:6px;color:var(--amber,#b45309)">${icon('warn')} ${att.unverified} check-in${att.unverified > 1 ? 's' : ''} reached the server much later than the time shown (phone offline, or its clock was changed) — worth checking.</div>` : ''}</div>`;
   body += `<div class="card"><h3>Work quality — why ${m.score}/100</h3>
     ${penLine('Rework sent back', m.reworks, m.pen.rework)}
     ${penLine('Missing proof photos', m.proofGaps, m.pen.proof)}
     ${penLine(`Slow turnaround (avg ${m.avgBay}d)`, null, m.pen.turnaround)}
     ${penLine('Late attendance', att.lates, m.pen.punctuality)}
     <div class="hr"></div><div class="row between small"><span class="muted">Jobs (90d) · verified first-time</span><b>${m.jobs} · ${m.verified}</b></div>
-    <div class="tiny muted" style="margin-top:8px">${m.score >= 85 ? '👏 Great work — keep before+after photos on every job and check in on time.' : 'Raise your score: get jobs verified first time (no rework), always add before + after photos, and check in before the shift cutoff.'}</div></div>`;
-  shell(esc(u.name), body);
+    <div class="tiny muted" style="margin-top:8px">${m.score >= 85 ? 'Great work — keep before+after photos on every job and check in on time.' : 'Raise your score: get jobs verified first time (no rework), always add before + after photos, and check in before the shift cutoff.'}</div></div>`;
+  shell(esc(u.name), v2(body));
 }
 
 /* ===== Anti-pilferage #4 — Pilferage Radar (people-level anomaly engine) ===
@@ -8438,15 +8438,15 @@ function viewPilferage() {
   const rows = pilferageRadar();
   const lastAudit = (S.cache.audits || []).slice().sort((a, b) => b.at - a.at)[0];
   let body = `<div class="card"><div class="tiny muted">Who to watch, last 180 days. Each mechanic's risk score rolls up the pilferage signals from their own jobs — missing/suspect old parts, warranty charges, no-proof billing, premature re-replacements — plus a check for parts spend far above the team. Tap a flag to see the job.</div></div>`;
-  if (lastAudit && lastAudit.shrinkValue > 0) body += `<div class="card insight" data-nav="storehealth" style="cursor:pointer"><div class="row" style="gap:11px;align-items:flex-start"><div class="ins-ic">📦</div>
+  if (lastAudit && lastAudit.shrinkValue > 0) body += `<div class="card insight" data-nav="storehealth" style="cursor:pointer"><div class="row" style="gap:11px;align-items:flex-start"><div class="ins-ic">${icon('part')}</div>
     <div style="flex:1"><div class="row between"><b style="font-size:14px">Store shrinkage — ${money(lastAudit.shrinkValue)}</b><span class="badge b-red">store</span></div>
     <div class="small muted" style="margin-top:3px">Last stock count found ${money(lastAudit.shrinkValue)} of parts gone without a job. Tap for store health.</div></div></div></div>`;
   if (!rows.length) {
-    body += `<div class="card" style="text-align:center;padding:26px"><div style="font-size:34px">✅</div><div style="font-weight:700;margin-top:6px">No pilferage signals</div><div class="tiny muted" style="margin-top:4px">No mechanic is showing fraud patterns in the last 180 days. Keep core returns + after-photos on every job.</div></div>`;
+    body += `<div class="card" style="text-align:center;padding:26px"><div style="font-size:34px">${icon('ok')}</div><div style="font-weight:700;margin-top:6px">No pilferage signals</div><div class="tiny muted" style="margin-top:4px">No mechanic is showing fraud patterns in the last 180 days. Keep core returns + after-photos on every job.</div></div>`;
     return shell('Pilferage radar', body);
   }
   body += rows.map((r, i) => `<div class="card">
-    <div class="row between" style="align-items:flex-start"><div class="row" style="gap:11px;align-items:center"><div class="ins-ic">${i === 0 ? '🚨' : '🕵️'}</div>
+    <div class="row between" style="align-items:flex-start"><div class="row" style="gap:11px;align-items:center"><div class="ins-ic">${i === 0 ? icon('alert') : icon('alert')}</div>
       <div><b style="font-size:15px">${esc(r.u.name)}</b><div class="tiny muted">${r.jobCount} job(s) · ${r.flags.length} signal type(s)</div></div></div>
       <span class="badge ${riskClass(r.risk)}" style="font-size:14px">${r.risk}</span></div>
     <div class="hr" style="margin:8px 0"></div>
@@ -8559,8 +8559,8 @@ const kmText = (n) => Math.round(n).toLocaleString('en-IN') + ' km';
 function fuelOdoPanel(busId, odoNow, litres, odoBroken) {
   const last = lastFillWithOdo(busId);
   const wrap = (inner) => `<div class="card" style="margin:0 0 10px;padding:10px 12px">${inner}</div>`;
-  if (odoBroken) return wrap(`<div class="tiny muted">🚫 ${esc(t('fuOdoOff'))}</div>`);
-  if (!last) return wrap(`<div class="tiny muted">⛽ ${esc(t('fuFirstFill'))}</div>`);
+  if (odoBroken) return wrap(`<div class="tiny muted">${icon('bad')} ${esc(t('fuOdoOff'))}</div>`);
+  if (!last) return wrap(`<div class="tiny muted">${icon('fuel')} ${esc(t('fuFirstFill'))}</div>`);
   const usual = busMileage(busId).avgKmpl;
   const km = odoNow > 0 ? odoNow - (last.odometer || 0) : null;
   const back = km != null && km < 0;
@@ -8569,13 +8569,13 @@ function fuelOdoPanel(busId, odoNow, litres, odoBroken) {
   const row = (l, r, cls) => `<div class="row between small" style="padding:3px 0">
     <span class="muted">${l}</span><b ${cls ? `style="color:${cls}"` : ''}>${r}</b></div>`;
   return wrap(
-    row(`🕒 ${esc(t('fuLastFill'))} · ${fmtDate(last.at)}${last.pump ? ' · ' + esc(last.pump) : ''}`,
+    row(`${icon('clock')} ${esc(t('fuLastFill'))} · ${fmtDate(last.at)}${last.pump ? ' · ' + esc(last.pump) : ''}`,
         `${kmText(last.odometer)}${last.litres ? ` · ${Number(last.litres)} L` : ''}`) +
-    row(`🛣️ ${esc(t('fuSince'))}`,
+    row(`${icon('map')} ${esc(t('fuSince'))}`,
         km == null ? `<span class="tiny muted">${esc(t('fuTypeOdo'))}</span>`
                    : (back ? esc(t('fuBackwards')) : kmText(km)),
         back ? 'var(--red)' : '') +
-    row(`⛽ ${esc(t('fuThisTank'))}`,
+    row(`${icon('fuel')} ${esc(t('fuThisTank'))}`,
         kmpl != null ? `${kmpl.toFixed(1)} km/l`
           : (back ? '—' : `<span class="tiny muted">${esc(km != null && km > 0 ? t('fuTypeLitres') : t('fuTypeOdo'))}</span>`),
         low ? 'var(--red)' : '') +
@@ -8627,7 +8627,7 @@ async function captureFuelLocation() {
     _fuelLat = pos.coords.latitude; _fuelLng = pos.coords.longitude;
     const el = $('#f-floc');
     if (el) el.value = `${_fuelLat.toFixed(5)}, ${_fuelLng.toFixed(5)}`;
-    toast(t('fuLocGot') + ' ✓');
+    toast(t('fuLocGot') + '');
   } catch (e) { toast(t('fuLocFail')); }
 }
 
@@ -8639,20 +8639,20 @@ function sheetAddFuel(busId) {
     ${b ? `<input type="hidden" id="f-fbus" value="${b.id}"><div class="small muted" style="margin-bottom:10px">Bus: <b>${esc(b.regNo)}</b></div>`
       : `<label class="field"><span class="lbl">Bus</span><select id="f-fbus">${buses.map((x) => `<option value="${x.id}">${esc(x.regNo)}</option>`).join('')}</select></label>`}
     <div class="grid2">
-      <label class="field"><span class="lbl">⛽ Litres</span><input id="f-flitres" type="number" inputmode="decimal" placeholder="e.g. 60"></label>
+      <label class="field"><span class="lbl">${icon('fuel')} Litres</span><input id="f-flitres" type="number" inputmode="decimal" placeholder="e.g. 60"></label>
       <label class="field"><span class="lbl">₹ Amount</span><input id="f-fcost" type="number" inputmode="numeric"></label>
     </div>
-    <label class="field"><span class="lbl">🛣️ Odometer now (km)</span><input id="f-fodo" type="number" inputmode="numeric" value="${b ? (b.odometer || '') : ''}" placeholder="current reading"></label>
+    <label class="field"><span class="lbl">${icon('map')} Odometer now (km)</span><input id="f-fodo" type="number" inputmode="numeric" value="${b ? (b.odometer || '') : ''}" placeholder="current reading"></label>
     <div id="f-fodopanel"></div>
     <label class="row" style="gap:9px;margin:6px 0 2px;cursor:pointer">
       <input type="checkbox" id="f-fodobroken" ${b && b.odoBroken ? 'checked' : ''} style="width:18px;height:18px;flex:none">
-      <span class="small">🚫 ${t('odoBroken')}</span></label>
-    <label class="field"><span class="lbl">⛽ ${t('fuPump')}</span>
+      <span class="small">${icon('bad')} ${t('odoBroken')}</span></label>
+    <label class="field"><span class="lbl">${icon('fuel')} ${t('fuPump')}</span>
       <input id="f-fpump" list="fuel-pumps" autocomplete="off" placeholder="${esc(t('fuPumpPh'))}">
       <datalist id="fuel-pumps">${knownPumps().map((n) => `<option value="${esc(n)}"></option>`).join('')}</datalist></label>
-    <label class="field"><span class="lbl">📍 ${t('fuWhere')}</span>
+    <label class="field"><span class="lbl">${icon('map')} ${t('fuWhere')}</span>
       <input id="f-floc" autocomplete="off" placeholder="${esc(t('fuWherePh'))}"></label>
-    <button class="btn sm ghost" data-act="fuelHere" style="margin:-4px 0 10px">📍 ${t('fuHere')}</button>
+    <button class="btn sm ghost" data-act="fuelHere" style="margin:-4px 0 10px">${icon('map')} ${t('fuHere')}</button>
     <label class="repcheck"><input type="checkbox" id="f-ffull" checked> <span>Filled to full (needed for accurate km/l)</span></label>
     <button class="btn primary" data-act="saveFuel">${t('save')}</button>`,
     (wrap) => {
@@ -8741,7 +8741,7 @@ async function saveFuel() {
     if (ch) await DB.put('buses', b);
   }
   _fuelLat = null; _fuelLng = null; _fuelOdoOk = false;
-  await load(); closeSheet(); toast('Fuel logged ✓'); rerender();
+  await load(); closeSheet(); toast('Fuel logged'); rerender();
 }
 
 /* What a litre costs at each pump. The reason the field exists: diesel is
@@ -8766,21 +8766,21 @@ function viewFuel() {
   const rows = [...S.cache.buses].map((b) => ({ b, m: busMileage(b.id) })).sort((a, b) => b.m.totalCost - a.m.totalCost);
   const fleetCost = rows.reduce((s, x) => s + x.m.totalCost, 0);
   let body = '';
-  if (can(S.user.role, 'addFuel')) body += `<button class="btn primary" data-act="addFuel" style="margin-bottom:12px">⛽ Log fuel</button>`;
+  if (can(S.user.role, 'addFuel')) body += `<button class="btn primary" data-act="addFuel" style="margin-bottom:12px">${icon('fuel')} Log fuel</button>`;
   const _fleetKmpl = rows.filter((x) => x.m.avgKmpl != null);
   const _avg = _fleetKmpl.length
     ? (_fleetKmpl.reduce((s2, x) => s2 + x.m.avgKmpl, 0) / _fleetKmpl.length) : null;
   const _dropping = rows.filter((x) => x.m.drop).length;
   body += kpiRow([
-    { icon: '🧾', label: 'Fuel spend (logged)', value: money(fleetCost) },
-    { icon: '⛽', label: 'Fleet average', value: _avg != null ? _avg.toFixed(1) : '—', unit: 'km/l',
+    { icon: icon('money'), label: 'Fuel spend (logged)', value: money(fleetCost) },
+    { icon: icon('fuel'), label: 'Fleet average', value: _avg != null ? _avg.toFixed(1) : '—', unit: 'km/l',
       delta: _dropping ? _dropping + ' down' : '', dir: 'bad' },
   ]);
   const pumps = pumpPrices();
   if (pumps.length) {
-    body += `<div class="card"><div class="row between"><h3>⛽ ${esc(t('fuByPump'))}</h3><span class="badge b-low">${pumps.length}</span></div>`;
+    body += `<div class="card"><div class="row between"><h3>${icon('fuel')} ${esc(t('fuByPump'))}</h3><span class="badge b-low">${pumps.length}</span></div>`;
     body += pumps.map((p) => `<div class="li">
-      <div class="ava">${p.lat != null ? '📍' : '⛽'}</div>
+      <div class="ava">${p.lat != null ? icon('map') : icon('fuel')}</div>
       <div class="main"><div class="t">${esc(p.pump || t('fuNoPump'))}</div>
         <div class="s">${p.fills} ${esc(t('fuFills'))} · ${money(p.cost)}${p.lat != null ? ` · <a href="${esc(mapsUrl(p.lat, p.lng))}" target="_blank" rel="noopener">${esc(t('fuOpenMap'))}</a>` : ''}</div></div>
       ${p.perL != null ? `<b>₹${p.perL.toFixed(2)}<span class="tiny muted">/L</span></b>` : ''}</div>`).join('');
@@ -8792,7 +8792,7 @@ function viewFuel() {
       <div class="s">${m.avgKmpl != null ? m.avgKmpl.toFixed(1) + ' km/l' : 'no data'} · ${money(m.totalCost)} · ${m.fills} fill(s)</div></div>
     ${m.fuelPerKm != null ? `<b>₹${m.fuelPerKm.toFixed(1)}/km</b>` : ''}</div>`).join('') : `<div class="empty">No buses</div>`;
   body += `</div>`;
-  shell('Fuel & mileage', body);
+  shell('Fuel & mileage', v2(body));
 }
 
 /* ===== AdBlue / DEF (diesel exhaust fluid) — SCR consumable for BS6/Volvo ====
@@ -8832,9 +8832,9 @@ function sheetAddDef(busId) {
     ${b ? `<input type="hidden" id="d-bus" value="${b.id}"><div class="small muted" style="margin-bottom:10px">Bus: <b>${esc(b.regNo)}</b></div>`
       : `<label class="field"><span class="lbl">Bus</span><select id="d-bus">${list.map((x) => `<option value="${x.id}">${esc(x.regNo)}</option>`).join('')}</select></label>`}
     <div class="grid2">
-      <label class="field"><span class="lbl">🧪 Litres</span><input id="d-litres" type="number" inputmode="decimal" placeholder="e.g. 10"></label>
+      <label class="field"><span class="lbl">${icon('fuel')} Litres</span><input id="d-litres" type="number" inputmode="decimal" placeholder="e.g. 10"></label>
       <label class="field"><span class="lbl">₹ Amount</span><input id="d-cost" type="number" inputmode="numeric"></label></div>
-    <label class="field"><span class="lbl">🛣️ Odometer now (km)</span><input id="d-odo" type="number" inputmode="numeric" value="${b ? (b.odometer || '') : ''}" placeholder="current reading"></label>
+    <label class="field"><span class="lbl">${icon('map')} Odometer now (km)</span><input id="d-odo" type="number" inputmode="numeric" value="${b ? (b.odometer || '') : ''}" placeholder="current reading"></label>
     <button class="btn primary" data-act="saveDef">${t('save')}</button>`);
 }
 async function saveDef() {
@@ -8846,7 +8846,7 @@ async function saveDef() {
   await DB.put('def', { id: uid('def-'), busId, litres, cost, odometer: odo, at: Date.now(), by: S.user.id });
   const b = byId(S.cache.buses, busId);
   if (b) { let ch = false; if (!b.usesDef) { b.usesDef = true; ch = true; } if (odo > (b.odometer || 0)) { b.odometer = odo; ch = true; } if (ch) await DB.put('buses', b); }
-  await load(); closeSheet(); toast('AdBlue/DEF logged ✓'); rerender();
+  await load(); closeSheet(); toast('AdBlue/DEF logged'); rerender();
 }
 function viewDef() {
   const buses = [...(S.cache.buses || [])];
@@ -8854,25 +8854,25 @@ function viewDef() {
   const rows = (defBuses.length ? defBuses : buses).map((b) => ({ b, s: defStatus(b) })).sort((a, b) => b.s.costTotal - a.s.costTotal);
   const fleetCost = rows.reduce((s, x) => s + x.s.costTotal, 0);
   let body = '';
-  if (can(S.user.role, 'addFuel')) body += `<button class="btn primary" data-act="addDef" style="margin-bottom:12px">🧪 Log AdBlue / DEF</button>`;
+  if (can(S.user.role, 'addFuel')) body += `<button class="btn primary" data-act="addDef" style="margin-bottom:12px">${icon('fuel')} Log AdBlue / DEF</button>`;
   const _defFlag = rows.filter((x) => x.s.flag).length;
   const _defL = rows.filter((x) => x.s.perHundred != null);
   const _defAvg = _defL.length ? _defL.reduce((s2, x) => s2 + x.s.perHundred, 0) / _defL.length : null;
   body = pageSub('For BS6 and Volvo SCR engines \u2014 not farm urea') + body;
   body += kpiRow([
-    { icon: '🧪', label: 'DEF spend (logged)', value: money(fleetCost) },
-    { icon: '📉', label: 'Fleet average', value: _defAvg != null ? _defAvg.toFixed(1) : '—', unit: 'L/100km',
+    { icon: icon('fuel'), label: 'DEF spend (logged)', value: money(fleetCost) },
+    { icon: icon('bad'), label: 'Fleet average', value: _defAvg != null ? _defAvg.toFixed(1) : '—', unit: 'L/100km',
       delta: _defFlag ? _defFlag + ' flagged' : '', dir: 'bad' },
   ]);
   if (!defBuses.length) body += `<div class="banner warn">No bus is marked as using DEF yet. Logging a top-up marks that bus automatically.</div>`;
   body += `<div class="card"><h3>DEF by bus</h3>`;
   body += rows.length ? rows.map(({ b, s }) => `<div class="li" data-act="addDef" data-bus="${esc(b.id)}" style="cursor:pointer">${avatar(busImg(b), icon('bus'))}
-    <div class="main"><div class="t">${esc(b.regNo)}${s.flag ? ` <span class="badge ${s.flag.sev === 'high' ? 'b-red' : 'b-amber'}">DEF ⚠️</span>` : ''}</div>
+    <div class="main"><div class="t">${esc(b.regNo)}${s.flag ? ` <span class="badge ${s.flag.sev === 'high' ? 'b-red' : 'b-amber'}">DEF ${icon('warn')}</span>` : ''}</div>
       <div class="s">${s.perHundred != null ? s.perHundred.toFixed(1) + ' L/100km' : 'no data'} · ${money(s.costTotal)} · ${s.fills} top-up(s)</div>
       ${s.flag ? `<div class="tiny" style="color:${s.flag.sev === 'high' ? 'var(--red)' : 'var(--amber)'}">${esc(s.flag.msg)}</div>` : ''}</div>
     <span class="tiny" style="color:var(--brand2)">+ log ›</span></div>`).join('') : `<div class="empty">No buses</div>`;
   body += `</div>`;
-  shell('AdBlue / DEF', body);
+  shell('AdBlue / DEF', v2(body));
 }
 
 /* ========================= Safety & misuse (from live GPS) ================= */
@@ -8893,14 +8893,14 @@ function evDetail(e) {
  * trip) or a job card (the work done). A breakdown is the event those exist to
  * prevent, and the number the owner should be watching go down. */
 const BREAKDOWN_SYSTEMS = [
-  { v: 'engine', icon: '⚙️', k: 'catEngine' },
-  { v: 'brakes', icon: '🛑', k: 'catBrakes' },
-  { v: 'tyre', icon: '🛞', k: 'catTyres' },
-  { v: 'gearbox', icon: '🔩', k: 'catGearbox' },
+  { v: 'engine', icon: icon('edit'), k: 'catEngine' },
+  { v: 'brakes', icon: icon('bad'), k: 'catBrakes' },
+  { v: 'tyre', icon: icon('part'), k: 'catTyres' },
+  { v: 'gearbox', icon: icon('part'), k: 'catGearbox' },
   { v: 'electrical', icon: '⚡', k: 'catElectrical' },
   { v: 'suspension', icon: '🪛', k: 'catSuspension' },
   { v: 'ac', icon: '❄️', k: 'catAC' },
-  { v: 'fuel', icon: '⛽', k: 'fuel' },
+  { v: 'fuel', icon: icon('fuel'), k: 'fuel' },
   { v: 'other', icon: '❓', k: 'catOther' },
 ];
 const bdSystem = (v) => BREAKDOWN_SYSTEMS.find((x) => x.v === v) || BREAKDOWN_SYSTEMS[BREAKDOWN_SYSTEMS.length - 1];
@@ -9101,16 +9101,16 @@ function viewHistory(busId) {
     const d90 = jobs.filter((j) => jobDoneAt(j) >= Date.now() - 90 * day);
     const spend90 = d90.reduce((s2, j) => s2 + jobCost(j).total, 0);
     body += kpiRow([
-      { icon: '✅', label: t('histTitle') + ' · 90d', value: d90.length },
-      { icon: '💰', label: 'Spend · 90d', value: money(spend90) },
-      { icon: '📚', label: 'All time', value: jobs.length },
-      { icon: '🧾', label: 'All-time spend', value: money(spend) },
+      { icon: icon('ok'), label: t('histTitle') + ' · 90d', value: d90.length },
+      { icon: icon('money'), label: 'Spend · 90d', value: money(spend90) },
+      { icon: icon('doc'), label: 'All time', value: jobs.length },
+      { icon: icon('money'), label: 'All-time spend', value: money(spend) },
     ]);
   }
 
   if (track.length) {
     body += `<div class="card" style="border:1.5px solid var(--amber)">
-      <div class="row between"><h3>⚠️ ${t('histWatch')}</h3><span class="badge b-amber">${track.length}</span></div>
+      <div class="row between"><h3>${icon('warn')} ${t('histWatch')}</h3><span class="badge b-amber">${track.length}</span></div>
       <div class="tiny muted" style="margin-bottom:6px">${t('histWatchSub')}</div>
       ${track.slice(0, 12).map(trackRow).join('')}</div>`;
   }
@@ -9127,7 +9127,7 @@ function viewHistory(busId) {
     : `<div class="card listwrap" id="hist-list"><div class="empty">${t('histNoWork')}</div></div>`;
   if (jobs.length > 300) body += `<div class="tiny muted" style="text-align:center;margin-top:8px">Showing the 300 most recent of ${jobs.length}.</div>`;
 
-  shell(t('histTitle'), body);
+  shell(t('histTitle'), v2(body));
   attachSearch('hist-search', 'hist-list');
   const hl = document.getElementById('hist-list'); if (hl) staggerRows(hl);
 }
@@ -9143,10 +9143,10 @@ function viewBreakdowns() {
 
   let body = pageSub(t('bdBlurb'));
   body += kpiRow([
-    { icon: '🛠️', label: t('bdLast180'), value: all.length },
-    { icon: '🕒', label: t('bdOffRoad'), value: Math.round(offRoad), unit: t('bdHrs') },
-    { icon: '🚌', label: 'Buses affected', value: Object.keys(byBus).length },
-    { icon: '🔺', label: 'Worst system', value: worstSys.length ? bdSystem(worstSys[0][0]).label : '—' },
+    { icon: icon('bad'), label: t('bdLast180'), value: all.length },
+    { icon: icon('clock'), label: t('bdOffRoad'), value: Math.round(offRoad), unit: t('bdHrs') },
+    { icon: icon('bus'), label: 'Buses affected', value: Object.keys(byBus).length },
+    { icon: icon('bad'), label: 'Worst system', value: worstSys.length ? bdSystem(worstSys[0][0]).label : '—' },
   ]);
 
   if (worstSys.length) {
@@ -9182,11 +9182,11 @@ function viewBreakdowns() {
     const bus = byId(S.cache.buses, b.busId), m = bdSystem(b.system);
     return `<div class="li" data-act="openBreakdown" data-id="${esc(b.id)}"><div class="ava">${m.icon}</div>
       <div class="main"><div class="t">${esc(bus ? bus.regNo : '—')} · ${t(m.k)}</div>
-        <div class="s">${fmtDate(b.at)}${b.place ? ' · ' + esc(b.place) : ''}${b.downtimeHours ? ' · ' + b.downtimeHours + t('bdHrs') : ''}${b.towed ? ' · 🚛' : ''}</div></div>
+        <div class="s">${fmtDate(b.at)}${b.place ? ' · ' + esc(b.place) : ''}${b.downtimeHours ? ' · ' + b.downtimeHours + t('bdHrs') : ''}${b.towed ? ' · towed' : ''}</div></div>
       ${b.jobId ? `<span class="badge b-green">${t('bdLinked')}</span>` : `<span class="badge b-amber">${t('bdNoJob')}</span>`}</div>`;
   }).join('') : `<div class="empty">${t('bdNone')}</div>`;
   body += `</div>`;
-  shell(t('bdTitle'), body, can(S.user.role, 'logIncident') ? { act: 'addBreakdown', icon: '+' } : null);
+  shell(t('bdTitle'), v2(body), can(S.user.role, 'logIncident') ? { act: 'addBreakdown', icon: '+' } : null);
   attachSearch('bd-search', 'bd-list');
 }
 
@@ -9195,25 +9195,25 @@ function sheetBreakdown(id) {
   const buses = [...(S.cache.buses || [])].sort((x, y) => (x.regNo || '').localeCompare(y.regNo || ''));
   if (!buses.length) return openSheet(t('bdTitle'), `<div class="banner warn">Add a bus first.</div>`);
   openSheet(b ? t('bdEdit') : t('bdNew'), `
-    <label class="field"><span class="lbl">🚌 ${t('buses')}</span>
+    <label class="field"><span class="lbl">${icon('bus')} ${t('buses')}</span>
       <select id="bd-bus">${buses.map((x) => `<option value="${x.id}" ${b && b.busId === x.id ? 'selected' : ''}>${esc(x.regNo)}</option>`).join('')}</select></label>
-    <label class="field"><span class="lbl">🔧 ${t('bdWhatFailed')}</span>
+    <label class="field"><span class="lbl">${icon('job')} ${t('bdWhatFailed')}</span>
       <select id="bd-sys">${BREAKDOWN_SYSTEMS.map((m) => `<option value="${m.v}" ${b && b.system === m.v ? 'selected' : ''}>${m.icon} ${t(m.k)}</option>`).join('')}</select></label>
-    <label class="field"><span class="lbl">📝 ${t('bdWhatHappened')}</span>
+    <label class="field"><span class="lbl">${icon('edit')} ${t('bdWhatHappened')}</span>
       <textarea id="bd-desc" placeholder="${t('bdDescHint')}">${b ? esc(b.description || '') : ''}</textarea></label>
     <div class="grid2">
-      <label class="field"><span class="lbl">📅 ${t('today')}</span><input id="bd-date" type="date" value="${b ? msToYMD(b.at) : msToYMD()}"></label>
-      <label class="field"><span class="lbl">🕒 ${t('bdTime')}</span><input id="bd-time" type="time" value="${b ? msToHHMM(b.at) : msToHHMM(Date.now())}"></label>
+      <label class="field"><span class="lbl">${icon('clock')} ${t('today')}</span><input id="bd-date" type="date" value="${b ? msToYMD(b.at) : msToYMD()}"></label>
+      <label class="field"><span class="lbl">${icon('clock')} ${t('bdTime')}</span><input id="bd-time" type="time" value="${b ? msToHHMM(b.at) : msToHHMM(Date.now())}"></label>
     </div>
-    <label class="field"><span class="lbl">📍 ${t('bdWhere')}</span>
+    <label class="field"><span class="lbl">${icon('map')} ${t('bdWhere')}</span>
       <input id="bd-place" value="${b ? esc(b.place || '') : ''}" placeholder="${t('bdWhereHint')}"></label>
     <div class="grid2">
-      <label class="field"><span class="lbl">🛞 ${t('bdOdo')}</span><input id="bd-odo" type="number" inputmode="numeric" value="${b ? (b.odometer || '') : ''}"></label>
-      <label class="field"><span class="lbl">⏱️ ${t('bdDowntime')}</span><input id="bd-down" type="number" inputmode="decimal" value="${b ? (b.downtimeHours || '') : ''}"></label>
+      <label class="field"><span class="lbl">${icon('part')} ${t('bdOdo')}</span><input id="bd-odo" type="number" inputmode="numeric" value="${b ? (b.odometer || '') : ''}"></label>
+      <label class="field"><span class="lbl">${icon('clock')} ${t('bdDowntime')}</span><input id="bd-down" type="number" inputmode="decimal" value="${b ? (b.downtimeHours || '') : ''}"></label>
     </div>
     <label class="row" style="gap:9px;margin:4px 0 10px;cursor:pointer">
       <input type="checkbox" id="bd-towed" ${b && b.towed ? 'checked' : ''} style="width:18px;height:18px;flex:none">
-      <span class="small">🚛 ${t('bdTowed')}</span></label>
+      <span class="small">${icon('bus')} ${t('bdTowed')}</span></label>
     <div class="tiny muted" style="margin-bottom:10px">${t('bdWhyHint')}</div>
     <button class="btn primary" data-act="saveBreakdown" data-id="${esc(b ? b.id : '')}">${t('save')}</button>
     ${b && !b.jobId ? `<button class="btn" data-act="breakdownToJob" data-id="${esc(b.id)}" style="margin-top:8px">→ ${t('bdMakeJob')}</button>` : ''}`);
@@ -9263,9 +9263,9 @@ function viewSafety() {
   body += `<div class="card"><h3>Recent events</h3>`;
   body += evs.length ? evs.slice(0, 50).map((e) => { const c = GPS_EVENT[e.type] || { icon: '•', label: e.type };
     return `<div class="li"><div class="ava">${c.icon}</div><div class="main"><div class="t">${esc(e.reg)} · ${c.label}</div>
-      <div class="s">${evDetail(e)} · ${fmtDateTime(e.at)}</div></div></div>`; }).join('') : `<div class="empty">No safety events — clean driving 👍</div>`;
+      <div class="s">${evDetail(e)} · ${fmtDateTime(e.at)}</div></div></div>`; }).join('') : `<div class="empty">No safety events — clean driving</div>`;
   body += `</div>`;
-  shell('Safety & misuse', body);
+  shell('Safety & misuse', v2(body));
 }
 
 /* ----------------------------- Job actions -------------------------------- */
@@ -9326,7 +9326,7 @@ async function addJobPhotoSafe(jobId, field) {
 // Inline before/after photo-gate progress shown on the job card. For outside
 // repairs a single bill/receipt photo satisfies the gate.
 function photoGateChecklist(job) {
-  const tick = (ok) => ok ? '✅' : '⬜';
+  const tick = (ok) => ok ? icon('ok') : '';
   if (job.externalVendor) {
     const hasBill = (job.beforePhotos || []).length || (job.afterPhotos || []).length;
     return `<div class="small" style="margin-top:8px">${tick(hasBill)} ${t('photoGateBill')}</div>`;
@@ -9359,7 +9359,7 @@ function serviceRecordCard(j, canEdit) {
     ${dur != null ? `<div class="row between tiny muted" style="padding:0 0 5px 18px;border-left:2px solid var(--line);margin-left:6px">
       <span>${esc(durLabel)}</span><span>${fmtDur(dur)}</span></div>` : ''}`;
 
-  let h = `<div class="card"><div class="row between"><h3>🕒 Service record</h3>
+  let h = `<div class="card"><div class="row between"><h3>${icon('clock')} Service record</h3>
     ${canEdit ? `<button class="btn sm" data-act="editService" data-job="${esc(j.id)}">✏️ Edit</button>` : ''}</div>`;
 
   if (!j.enterAt && !j.startAt && !j.completeAt && !j.outAt) {
@@ -9371,17 +9371,17 @@ function serviceRecordCard(j, canEdit) {
     h += row('⏹️', 'Job completion', j.completeAt, T.waitAfter, 'waiting to leave');
     h += row('⬆️', 'Out time', j.outAt, null, '');
     h += `<div class="hr"></div>`;
-    h += `<div class="row between small"><span>🚌 Bus off the road</span><b>${fmtDur(T.offRoad)}</b></div>`;
-    h += `<div class="row between small"><span>🔧 Actually worked on</span><b>${fmtDur(T.working)}</b></div>`;
+    h += `<div class="row between small"><span>${icon('bus')} Bus off the road</span><b>${fmtDur(T.offRoad)}</b></div>`;
+    h += `<div class="row between small"><span>${icon('job')} Actually worked on</span><b>${fmtDur(T.working)}</b></div>`;
     if (idle != null && idle > 0) {
       // The one number a supervisor can act on: hours the bus sat in the yard
       // with nobody on it. Amber past an hour, because that is a shift decision
       // rather than a rounding error.
-      h += `<div class="row between small"><span>⏳ Idle in the workshop</span>
+      h += `<div class="row between small"><span>${icon('clock')} Idle in the workshop</span>
         <b style="color:${idle >= 3600000 ? 'var(--amber)' : 'var(--mute,#5d6675)'}">${fmtDur(idle)}</b></div>`;
     }
   }
-  if (j.odometer) h += `<div class="row between small" style="margin-top:6px"><span>🛞 Odometer</span><b>${Number(j.odometer).toLocaleString('en-IN')} km</b></div>`;
+  if (j.odometer) h += `<div class="row between small" style="margin-top:6px"><span>${icon('part')} Odometer</span><b>${Number(j.odometer).toLocaleString('en-IN')} km</b></div>`;
   if (j.remark) h += `<div class="small muted" style="margin-top:8px">🗒️ ${esc(j.remark)}</div>`;
   h += `</div>`;
   return h;
@@ -9395,14 +9395,14 @@ function sheetEditService(jobId) {
   if (!['owner', 'supervisor'].includes(S.user.role)) return toast('Not allowed');
   const ymd = j.jobDate || msToYMD(j.enterAt || j.createdAt);
   openSheet('Service record', `
-    <label class="field"><span class="lbl">📅 Date</span><input id="sv-date" type="date" value="${esc(ymd)}"></label>
+    <label class="field"><span class="lbl">${icon('clock')} Date</span><input id="sv-date" type="date" value="${esc(ymd)}"></label>
     <div class="grid2" style="margin-top:8px">
       <label class="field"><span class="lbl">⬇️ Enter time</span><input id="sv-enter" type="time" value="${msToHHMM(j.enterAt)}"></label>
-      <label class="field"><span class="lbl">▶️ Job start</span><input id="sv-start" type="time" value="${msToHHMM(j.startAt)}"></label>
+      <label class="field"><span class="lbl">${icon('clock')} Job start</span><input id="sv-start" type="time" value="${msToHHMM(j.startAt)}"></label>
       <label class="field"><span class="lbl">⏹️ Completion</span><input id="sv-complete" type="time" value="${msToHHMM(j.completeAt)}"></label>
       <label class="field"><span class="lbl">⬆️ Out time</span><input id="sv-out" type="time" value="${msToHHMM(j.outAt)}"></label>
     </div>
-    <label class="field" style="margin-top:8px"><span class="lbl">🛞 Odometer (km)</span>
+    <label class="field" style="margin-top:8px"><span class="lbl">${icon('part')} Odometer (km)</span>
       <input id="sv-odo" type="number" inputmode="numeric" value="${j.odometer || ''}"></label>
     <label class="field"><span class="lbl">🗒️ Remark</span>
       <input id="sv-remark" value="${esc(j.remark || '')}" placeholder="e.g. Rep. at Noida Eicher workshop"></label>
@@ -9430,7 +9430,7 @@ async function saveService(jobId) {
   if (startAt && j.status === 'open') j.status = 'in-progress';
   await DB.put('jobcards', j);
   await noteOdometer(j.busId, odo);
-  await load(); closeSheet(); toast('Service record saved ✓'); viewJobDetail(jobId);
+  await load(); closeSheet(); toast('Service record saved'); viewJobDetail(jobId);
 }
 
 function partsCardExtras(job) {
@@ -9514,13 +9514,13 @@ function sheetCloseJob(jobId) {
   if (!j) return;
   if (!mayCloseJob()) return toast(t('cbNotAllowed'));
   if (!photoGateReady(j)) {
-    return openSheet(t('closeJobBtn'), `<div class="banner warn">⚠️ ${t('addPhotoNote')}</div>`);
+    return openSheet(t('closeJobBtn'), `<div class="banner warn">${icon('warn')} ${t('addPhotoNote')}</div>`);
   }
   const hrs = j.labourHours || 2;
   const now = msToHHMM(Date.now());
   openSheet(t('closeJobBtn'), `
-    <div class="lbl">🕒 Workshop clock</div>
-    <label class="field" style="margin-top:6px"><span class="lbl">📅 Date</span>
+    <div class="lbl">${icon('clock')} Workshop clock</div>
+    <label class="field" style="margin-top:6px"><span class="lbl">${icon('clock')} Date</span>
       <input id="f-cjdate" type="date" value="${esc(j.jobDate || msToYMD(j.enterAt || j.createdAt))}"></label>
     <div class="grid2" style="margin-top:8px">
       <label class="field"><span class="lbl">⏹️ Job completion time</span>
@@ -9529,7 +9529,7 @@ function sheetCloseJob(jobId) {
         <input id="f-out" type="time" value="${msToHHMM(j.outAt)}"></label>
     </div>
     <div class="tiny muted" style="margin-top:6px">Completion is when work finished. Out time is when the bus actually left — leave it blank if it is still standing here.</div>
-    <label class="field" style="margin-top:10px"><span class="lbl">🛞 Odometer (km)</span>
+    <label class="field" style="margin-top:10px"><span class="lbl">${icon('part')} Odometer (km)</span>
       <input id="f-codo" type="number" inputmode="numeric" value="${j.odometer || ''}" placeholder="reading at service"></label>
     <label class="field"><span class="lbl">🗒️ Remark</span>
       <input id="f-remark" value="${esc(j.remark || '')}" placeholder="e.g. Rep. at Noida Eicher workshop"></label>
@@ -9541,7 +9541,7 @@ function sheetCloseJob(jobId) {
       <button class="btn" data-act="hrsStep" data-dir="1" style="font-size:24px;min-width:56px">＋</button>
     </div>
     <div class="tiny muted" style="text-align:center">${t('closeJobHint')}</div>
-    <button class="btn primary" data-act="confirmCloseJob" data-job="${esc(jobId)}" style="margin-top:12px">✅ ${t('markDone')}</button>`);
+    <button class="btn primary" data-act="confirmCloseJob" data-job="${esc(jobId)}" style="margin-top:12px">${icon('ok')} ${t('markDone')}</button>`);
 }
 function hrsStep(dir) {
   const el = $('#f-hrs'); if (!el) return;
@@ -9621,7 +9621,7 @@ async function verifyJob(jobId) {
   await DB.put('jobcards', j);
   // Resolve any driver reports this job addressed — closes the loop for the driver.
   await resolveReportsFor(jobId);
-  await load(); toast('Verified ✓'); viewJobDetail(jobId);
+  await load(); toast('Verified'); viewJobDetail(jobId);
 }
 // Send a "done" job back to the mechanic for rework instead of verifying.
 async function rejectJob(jobId) {
@@ -9646,7 +9646,7 @@ async function showGps(busId) {
   const el = document.getElementById('gps-body');
   if (!el) return;
   if (!tel) {
-    el.innerHTML = `<div class="banner bad">⚠️ Tracker unreachable. Start <b>sync_server.py</b> (it hosts the GPS demo), or set your provider URL in Me → Sync.</div>`;
+    el.innerHTML = `<div class="banner bad">${icon('warn')} Tracker unreachable. Start <b>sync_server.py</b> (it hosts the GPS demo), or set your provider URL in Me → Sync.</div>`;
     return;
   }
   // Live odometer feeds preventive maintenance — update the bus record.
@@ -9661,25 +9661,25 @@ async function showGps(busId) {
   const isLive = tel.source === 'provider';
   el.innerHTML = `
     ${isLive
-      ? `<div class="banner" style="background:#e7f7ef;color:#16a571">🛰️ Live from ${esc(GpsProvider.name)}</div>`
-      : `<div class="banner warn">⚠️ Demo GPS — simulated, not the real bus. Live position shows once ${esc(GpsProvider.name)} is pushing telemetry for this bus.</div>`}
+      ? `<div class="banner" style="background:#e7f7ef;color:#16a571">${icon('map')} Live from ${esc(GpsProvider.name)}</div>`
+      : `<div class="banner warn">${icon('warn')} Demo GPS — simulated, not the real bus. Live position shows once ${esc(GpsProvider.name)} is pushing telemetry for this bus.</div>`}
     <div class="card">
       <div class="row between"><h3>${esc(b.regNo)}</h3>
-        <span class="badge ${tel.ignition ? 'b-green' : 'b-low'}">${tel.ignition ? '🟢 Running' : '⚪ Parked'}</span></div>
+        <span class="badge ${tel.ignition ? 'b-green' : 'b-low'}">${tel.ignition ? 'Running' : 'Parked'}</span></div>
       <div class="grid3" style="margin-top:8px">
         <div><div class="tiny muted">Speed</div><b>${Math.round(tel.speedKph)} km/h</b></div>
         <div><div class="tiny muted">Odometer</div><b>${tel.odometer.toLocaleString('en-IN')}</b></div>
         <div><div class="tiny muted">Last ping</div><b>${new Date(tel.lastPing).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</b></div>
       </div>
       <div class="hr"></div>
-      <a class="btn" href="https://www.google.com/maps?q=${tel.lat},${tel.lng}" target="_blank" rel="noopener">📍 Open location on map</a>
+      <a class="btn" href="https://www.google.com/maps?q=${tel.lat},${tel.lng}" target="_blank" rel="noopener">${icon('map')} Open location on map</a>
       <div class="tiny muted" style="margin-top:8px">Lat ${tel.lat}, Lng ${tel.lng} · provider: ${esc(GpsProvider.name)}</div>
     </div>
     <div class="card"><div class="row between"><h3>Preventive service</h3><span class="badge ${svCls}">${sv.status.toUpperCase()}</span></div>
       <div class="small">${svTxt}</div>
       <div class="tiny muted" style="margin-top:4px">Auto-tracked from the live odometer (every ${sv.interval.toLocaleString('en-IN')} km).</div>
       ${can(S.user.role, 'logService') ? `<div class="hr"></div>
-      <button class="btn primary" data-act="logService" data-bus="${esc(b.id)}">✅ Mark service done</button>` : ''}
+      <button class="btn primary" data-act="logService" data-bus="${esc(b.id)}">${icon('ok')} Mark service done</button>` : ''}
     </div>
     <button class="btn ghost" data-act="gps" data-bus="${esc(b.id)}">↻ Refresh</button>`;
 }
@@ -9693,7 +9693,7 @@ function logService(busId) {
     </div>
     <label class="field"><span class="lbl">Parts / external cost (₹, optional)</span><input id="f-svcost" type="number" inputmode="numeric"></label>
     <label class="field"><span class="lbl">Notes</span><input id="f-svnote" placeholder="e.g. oil + filter changed"></label>
-    <button class="btn primary" data-act="confirmLogService" data-bus="${esc(busId)}">✅ Log service</button>`);
+    <button class="btn primary" data-act="confirmLogService" data-bus="${esc(busId)}">${icon('ok')} Log service</button>`);
 }
 async function confirmLogService(busId) {
   if (!can(S.user.role, 'logService')) return toast(t('cbNotAllowed'));
@@ -9712,14 +9712,14 @@ async function confirmLogService(busId) {
     notes: ($('#f-svnote').value.trim() || 'Preventive service logged'), createdAt: Date.now(), closedAt: Date.now(),
     verifiedBy: S.user.id, verifiedAt: Date.now(),
   });
-  await load(); closeSheet(); toast('Service logged ✓'); rerender();
+  await load(); closeSheet(); toast('Service logged'); rerender();
 }
 
 /* ------------------------------- Drivers ---------------------------------- */
 function driverLi(d) {
   const o = driverOverall(d.id), score = o.overall, bus = byId(S.cache.buses, d.busId);
   const rv = crewRatingTag(d.id);
-  return `<div class="li" data-driver="${esc(d.id)}"><div class="ava">🧑‍✈️</div>
+  return `<div class="li" data-driver="${esc(d.id)}"><div class="ava">${icon('person')}</div>
     <div class="main"><div class="t">${esc(d.name)}</div>
       <div class="s">${bus ? esc(bus.regNo) : 'unassigned'} · ${d.tripsLogged || 0} trips${rv}</div></div>
     <div style="text-align:right"><span class="badge ${scoreClass(score)}">${score}</span>
@@ -9729,11 +9729,11 @@ function viewDrivers() {
   const list = [...activeDrivers()].sort((a, b) => driverOverall(a.id).overall - driverOverall(b.id).overall); // worst first
   let body = '';
   if (can(S.user.role, 'assignDriver')) {
-    body += `<button class="btn" data-act="openAssignments" style="margin-bottom:12px">🔁 Driver ↔ Bus assignments</button>`;
+    body += `<button class="btn" data-act="openAssignments" style="margin-bottom:12px">${icon('edit')} Driver ↔ Bus assignments</button>`;
   }
   body += `<input id="drv-search" class="searchbox" placeholder="${esc(t('drvSearch'))}" autocomplete="off">`;
   body += `<div class="card listwrap" id="drv-list">${list.length ? list.map(driverLi).join('') : '<div class="empty">No drivers yet</div>'}</div>`;
-  shell('Drivers', body, can(S.user.role, 'addBus') ? { act: 'addDriver', icon: '+' } : null);
+  shell('Drivers', v2(body), can(S.user.role, 'addBus') ? { act: 'addDriver', icon: '+' } : null);
   attachSearch('drv-search', 'drv-list');
 }
 
@@ -9837,18 +9837,18 @@ function viewAssignments() {
     <button class="chip ${byBus ? 'active' : ''}" data-act="asRole" data-v="bus">🚌 ${esc(t('asByBus'))}</button></div>`;
   body += `<div class="card"><div class="tiny muted">${byBus ? t('asBusSeats') : t('asHint')}</div></div>`;
   if (typeof Duty !== 'undefined') body += dutyLookupCard();
-  { const rbn = rbnPendingCount(); if (rbn) body += `<div class="card" data-act="openRbNames" style="cursor:pointer"><div class="row between"><b>🪪 ${t('rbnBanner')}</b><span class="badge b-amber">${rbn} ›</span></div></div>`; }
+  { const rbn = rbnPendingCount(); if (rbn) body += `<div class="card" data-act="openRbNames" style="cursor:pointer"><div class="row between"><b>${icon('me')} ${t('rbnBanner')}</b><span class="badge b-amber">${rbn} ›</span></div></div>`; }
   // One box over both lists below: ~90 buses and ~170 crew is a long scroll to
   // answer "who is on 1023?". Matches the bus number however it is written, the
   // person's name, and the company.
   body += `<input id="as-search" class="searchbox" placeholder="${esc(t('asSearch'))}" autocomplete="off">`;
   if (byBus) {
     const fleet = [...buses].sort((a, b) => String(a.regNo).localeCompare(String(b.regNo), undefined, { numeric: true }));
-    body += `<div class="card" id="as-bybus"><div class="row between"><h3>🚌 ${esc(t('buses'))}</h3><span class="badge b-low">${fleet.length}</span></div>`;
+    body += `<div class="card" id="as-bybus"><div class="row between"><h3>${icon('bus')} ${esc(t('buses'))}</h3><span class="badge b-low">${fleet.length}</span></div>`;
     body += fleet.length ? `<div class="vgrid">${fleet.map(dutyBusCard).join('')}</div>`
-      : `<div class="empty">🚌 ${esc(t('noBusesHere'))}<div class="tiny muted" style="margin-top:6px">${esc(t('noBusesFix'))}</div></div>`;
+      : `<div class="empty">${icon('bus')} ${esc(t('noBusesHere'))}<div class="tiny muted" style="margin-top:6px">${esc(t('noBusesFix'))}</div></div>`;
     body += `</div>`;
-    shell(t('asTitle'), body);
+    shell(t('asTitle'), v2(body));
     attachSearch('as-search', ['as-bybus']);
     return;
   }
@@ -9862,12 +9862,12 @@ function viewAssignments() {
   body += `</div>`;
   const empty = buses.filter((b) => !seatOf(b.id));
   body += `<div class="card" id="as-buses"><div class="row between"><h3>${t(role === 'conductor' ? 'asBusesNoConductor' : 'asBusesNoDriver')}</h3><span class="badge ${empty.length ? 'b-amber' : 'b-green'}">${empty.length}</span></div>`;
-  if (!buses.length) body += `<div class="empty">🚌 ${esc(t('noBusesHere'))}<div class="tiny muted" style="margin-top:6px">${esc(t('noBusesFix'))}</div></div>`;
-  else body += empty.length ? empty.map((b) => `<div class="li" data-act="assignDriver" data-bus="${esc(b.id)}" data-role="${esc(role)}" style="cursor:pointer"><div class="ava">🚌</div>
+  if (!buses.length) body += `<div class="empty">${icon('bus')} ${esc(t('noBusesHere'))}<div class="tiny muted" style="margin-top:6px">${esc(t('noBusesFix'))}</div></div>`;
+  else body += empty.length ? empty.map((b) => `<div class="li" data-act="assignDriver" data-bus="${esc(b.id)}" data-role="${esc(role)}" style="cursor:pointer"><div class="ava">${icon('bus')}</div>
     <div class="main"><div class="t">${esc(b.regNo)}</div><div class="s">${esc(b.company || '')} · ${esc(b.model || '')}</div></div>
     <span class="badge b-amber">${t('asAssignWord')} →</span></div>`).join('') : `<div class="muted small">${t(role === 'conductor' ? 'asAllHaveConductor' : 'asAllHaveDriver')}</div>`;
   body += `</div>`;
-  shell(t('asTitle'), body);
+  shell(t('asTitle'), v2(body));
   attachSearch('as-search', ['as-crew', 'as-buses']);
 }
 
@@ -9890,7 +9890,7 @@ function viewDriverDetail(id) {
       <div style="flex:1"><div style="font-weight:800;font-size:17px">${esc(d.name)}</div>
         <div class="small muted">${esc(crewRoleLabel(crole))}${d.phone ? ' · ' + esc(d.phone) : ''}${crewLicenceNo(d) ? ' · ' + esc(crewLicenceNo(d)) : ''}</div></div>
       <span class="badge ${scoreClass(score)}">${score}/100</span></div>
-    ${hasLeft ? `<div class="hr"></div><div class="tiny" style="color:#ef4444;font-weight:700">📦 ${t('cbLeftOn')}${d.leftAt ? ' ' + fmtDate(d.leftAt) : ''}${crewLeftReason(d) ? ' — ' + esc(crewLeftReason(d)) : ''}${d.rehire ? ` · ${t('cbDupRehire')}: ${esc(t(REHIRE_KEY[d.rehire] || 'cbRehireMaybe'))}` : ''}</div>` : ''}
+    ${hasLeft ? `<div class="hr"></div><div class="tiny" style="color:#ef4444;font-weight:700">${icon('part')} ${t('cbLeftOn')}${d.leftAt ? ' ' + fmtDate(d.leftAt) : ''}${crewLeftReason(d) ? ' — ' + esc(crewLeftReason(d)) : ''}${d.rehire ? ` · ${t('cbDupRehire')}: ${esc(t(REHIRE_KEY[d.rehire] || 'cbRehireMaybe'))}` : ''}</div>` : ''}
     ${isArchived ? `<div class="hr"></div><div class="tiny" style="font-weight:700">🗄️ ${t('cbArchivedOn')}${d.archivedAt ? ' ' + fmtDate(d.archivedAt) : ''}</div>
       <div class="tiny muted" style="margin-top:3px">${t('cbArchivedNote')}</div>` : ''}
     <div class="hr"></div>
@@ -9926,7 +9926,7 @@ function viewDriverDetail(id) {
     ${details || `<div class="muted small">${t('cbNoDetails')}</div>`}
     ${canManage && !inactive ? `<div class="spacer"></div><div class="btnrow">
       <button class="btn sm ghost" data-act="crewArchive" data-driver="${esc(d.id)}">🗄️ ${t('cbArchiveBtn')}</button>
-      <button class="btn sm ghost" data-act="crewExit" data-driver="${esc(d.id)}">📦 ${t('cbMarkLeftBtn')}</button></div>` : ''}</div>`;
+      <button class="btn sm ghost" data-act="crewExit" data-driver="${esc(d.id)}">${icon('part')} ${t('cbMarkLeftBtn')}</button></div>` : ''}</div>`;
 
   // Document vault summary (tap to manage)
   const ds = driverDocStatus(d);
@@ -9934,8 +9934,8 @@ function viewDriverDetail(id) {
   body += rvCrewCard(d.id);
   body += `<div class="card" data-act="openDriverDocs" data-driver="${esc(d.id)}" style="cursor:pointer"><div class="row between">
     <div class="row" style="gap:12px;align-items:center">${progressRing(ds.pct)}
-      <div><div style="font-weight:800">📂 ${t('documents')}</div>
-        <div class="small muted">${ds.mandDone}/${ds.mandTotal} ${t('cbMandatoryWord')}${ds.mandDone < ds.mandTotal ? ' · ⚠️ ' + t('cbIncomplete') : ' ✓'}</div></div></div>
+      <div><div style="font-weight:800">${icon('doc')} ${t('documents')}</div>
+        <div class="small muted">${ds.mandDone}/${ds.mandTotal} ${t('cbMandatoryWord')}${ds.mandDone < ds.mandTotal ? ' · ⚠️ ' + t('cbIncomplete') : ''}</div></div></div>
     <span class="tiny" style="color:var(--brand2)">${t('cbOpenWord')} ›</span></div></div>`;
 
   body += `<div class="card"><div class="row between"><h3>Performance</h3>
@@ -9946,7 +9946,7 @@ function viewDriverDetail(id) {
     return `<div class="li"><div class="ava">${c.icon}</div><div class="main">
       <div class="t">${c.label}${i.cost ? ` · ${money(i.cost)}` : ''}</div>
       <div class="s">${esc(i.note || '')} · ${fmtDate(i.at)}</div></div><span class="badge b-red">-${c.pen}</span></div>`; }).join('')
-    : `<div class="muted small">Clean record 👍</div>`;
+    : `<div class="muted small">Clean record</div>`;
   body += `</div>`;
 
   // Safety events auto-detected from the assigned bus's live GPS (last 90 days)
@@ -9959,12 +9959,12 @@ function viewDriverDetail(id) {
       body += `<div class="row" style="flex-wrap:wrap;gap:6px;margin-bottom:8px">${Object.keys(byT).map((t) => { const c = GPS_EVENT[t] || { icon: '•', label: t }; return `<span class="badge b-low">${c.icon} ${c.label} ×${byT[t]}</span>`; }).join('')}</div>`;
       body += evs.slice(0, 6).map((e) => { const c = GPS_EVENT[e.type] || { icon: '•', label: e.type };
         return `<div class="li"><div class="ava">${c.icon}</div><div class="main"><div class="t">${c.label}</div><div class="s">${evDetail(e)} · ${fmtDate(e.at)}</div></div></div>`; }).join('');
-    } else { body += `<div class="muted small">No GPS safety flags 👍</div>`; }
+    } else { body += `<div class="muted small">No GPS safety flags</div>`; }
     body += `</div>`;
   }
   body += `<div class="card"><h3>Trip reports</h3>`;
   body += reps.length ? reps.map((r) => `<div class="li" ${r.jobId ? `data-job="${esc(r.jobId)}"` : ''}>
-      <div class="ava">${r.status === 'open' ? '🟠' : '✅'}</div>
+      <div class="ava">${r.status === 'open' ? '' : icon('ok')}</div>
       <div class="main"><div class="t">${esc(r.problem)}</div><div class="s">${esc(r.category || '')} · ${fmtDate(r.at)}</div>${r.status === 'open' ? reportAiLine(r) : ''}</div>
       ${r.status !== 'open' ? '<span class="badge b-green">fixed</span>'
         : r.jobId ? '<span class="badge b-amber">linked</span>'
@@ -9974,7 +9974,7 @@ function viewDriverDetail(id) {
   // The conversation log lives with the person it is about, where somebody
   // reading their record will actually see it.
   body += crewNotesCard(id);
-  shell(esc(d.name), body);
+  shell(esc(d.name), v2(body));
 }
 
 // One plain-language self-coaching sentence for the driver's biggest deduction.
@@ -10096,7 +10096,7 @@ function gateAiLine(c, k) {
     const col = v.verdict === 'ok' ? 'var(--green)' : v.verdict === 'doubt' ? 'var(--amber)' : 'var(--red)';
     out.push(`<span style="color:${col};font-weight:700">🤖 ${t('gai_' + v.verdict)}</span>${v.verdict === 'ok' ? '' : ': ' + esc((LANG === 'hi' ? v.hi : v.reason) || v.reason || '')}`);
   }
-  if (d) out.push(`<span style="color:var(--red);font-weight:700">📸 ${d.sameAs ? t('gaiSameAs') + ' ' + esc(gateItemLabel(d.sameAs)) : t('gaiReused')}</span>`);
+  if (d) out.push(`<span style="color:var(--red);font-weight:700">${icon('camera')} ${d.sameAs ? t('gaiSameAs') + ' ' + esc(gateItemLabel(d.sameAs)) : t('gaiReused')}</span>`);
   if (!v && a.error && Gate.GATE_ITEMS.find((s) => s.k === k && s.photo)) out.push(`<span class="muted">🤖 ${t('gaiUnreadable')}</span>`);
   return out.length ? `<div class="tiny" style="margin-top:2px">${out.join(' · ')}</div>` : '';
 }
@@ -10114,7 +10114,7 @@ function gateFlags(c) {
   if (c.onDutyBoard === false) f.push(t('gcNotOnBoardShort'));
   const n = gateAiDoubts(c);
   if (n) f.push(`🤖 ${n} ${t(n === 1 ? 'gaiDoubt1' : 'gaiDoubts')}`);
-  return f.length ? `<div class="tiny" style="color:var(--amber);font-weight:700">⚠️ ${f.map(esc).join(' · ')}</div>` : '';
+  return f.length ? `<div class="tiny" style="color:var(--amber);font-weight:700">${icon('warn')} ${f.map(esc).join(' · ')}</div>` : '';
 }
 
 // Driver home: today's check for my bus, or the button to start one.
@@ -10122,7 +10122,7 @@ function gateHomeCard(d) {
   if (!d || !d.busId) return '';
   const cur = Gate.currentCheck(gateChecks(), d.busId, Date.now());
   if (!cur) {
-    return `<div class="card gc-start"><h3>🚦 ${t('gcTitle')}</h3><div class="tiny muted">${t('gcStartSub')}</div>
+    return `<div class="card gc-start"><h3>${icon('gate', { size: 18 })} ${t('gcTitle')}</h3><div class="tiny muted">${t('gcStartSub')}</div>
       <div class="spacer"></div><button class="btn primary" data-act="gateStart">${t('gcStart')}</button></div>`;
   }
   const o = Gate.outcome(cur.items);
@@ -10132,7 +10132,7 @@ function gateHomeCard(d) {
   const again = Gate.DONE.includes(cur.status)
     ? `<button class="btn sm ghost" data-act="gateStart" style="margin-top:6px">${t('gcNewDep')}</button>` : '';
   return `<div class="card"><div class="li" data-act="openGate" data-id="${esc(cur.id)}" style="cursor:pointer">
-      <div class="ava">🚦</div><div class="main"><div class="t">${t('gcTitle')}</div><div class="s">${sub}</div></div>${gateBadge(cur)}</div>${again}</div>`;
+      <div class="ava">${icon('gate')}</div><div class="main"><div class="t">${t('gcTitle')}</div><div class="s">${sub}</div></div>${gateBadge(cur)}</div>${again}</div>`;
 }
 
 async function gateStart() {
@@ -10170,7 +10170,7 @@ function viewGate(id) {
       ${c.selfie ? `<img class="thumb" src="${esc(c.selfie)}" alt="" data-act="viewPhoto" data-src="${esc(c.selfie)}" style="width:52px;height:52px;border-radius:14px;object-fit:cover">` : '<div class="ava">🧑‍✈️</div>'}
       <div style="flex:1;min-width:0"><div><span class="plate">${esc(c.regNo)}</span></div>
         <div class="small muted">${esc(c.driverName)} · ${t('gcStartedAt')} ${hhmm(c.startedAt)}</div>${gateFlags(c)}</div>${gateBadge(c)}</div></div>`;
-  if (c.status === 'awaiting') body += `<div class="banner bad">⛔ ${t('gcAwaitingSub')}</div>`;
+  if (c.status === 'awaiting') body += `<div class="banner bad">${icon('gate')} ${t('gcAwaitingSub')}</div>`;
   // A decision belongs to the status it produced: after a re-check goes back to
   // the office, the earlier hold is history, not the current answer.
   if ((c.status === 'held' || c.status === 'approved') && c.decision && c.decision.reason) {
@@ -10192,7 +10192,7 @@ function viewGate(id) {
     const thumb = it.photo ? `<img class="gc-thumb" src="${esc(it.photo)}" alt="" data-act="viewPhoto" data-src="${esc(it.photo)}">` : '';
     const right = editable
       ? `<div class="gc-seg"><button class="${state === 'ok' ? 'on-ok' : ''}" data-act="gateOk" data-id="${esc(c.id)}" data-k="${spec.k}">${spec.photo ? '📷 ' : ''}${t('gcPass')}</button><button class="${state === 'bad' ? 'on-bad' : ''}" data-act="gateBad" data-id="${esc(c.id)}" data-k="${spec.k}">${t('gcFail')}</button></div>`
-      : `<span class="badge ${state === 'ok' ? 'b-green' : state === 'bad' ? 'b-red' : 'b-low'}">${state === 'ok' ? '✓' : state === 'bad' ? '✗' : '—'}</span>`;
+      : `<span class="badge ${state === 'ok' ? 'b-green' : state === 'bad' ? 'b-red' : 'b-low'}">${state === 'ok' ? icon('ok') : state === 'bad' ? '✗' : '—'}</span>`;
     return `<div class="gc-row ${state}"><div class="gc-main"><div class="t">${esc(gateItemLabel(spec.k))}${spec.photo && !it.photo && state !== 'bad' ? ` <span class="tiny muted">· ${t('gcPhotoNeeded')}</span>` : ''}</div>
         ${it.ok === false && it.note ? `<div class="s gc-note">${esc(it.note)}</div>` : ''}
         ${before.has(spec.k) && it.ok !== false ? `<div class="tiny" style="color:var(--amber)">${t('gcFailedEarlier')}</div>` : ''}
@@ -10211,7 +10211,7 @@ function viewGate(id) {
   }
   if (mine && c.status === 'held') body += `<button class="btn primary" data-act="gateRecheck" data-id="${esc(c.id)}">${t('gcRecheck')}</button>`;
   if (c.status === 'awaiting' && can(S.user.role, 'gateDecide')) {
-    body += `<div class="btnrow"><button class="btn accent" data-act="gateDecide" data-id="${esc(c.id)}" data-v="go">✓ ${t('gcGo')}</button>
+    body += `<div class="btnrow"><button class="btn accent" data-act="gateDecide" data-id="${esc(c.id)}" data-v="go">${icon('ok')} ${t('gcGo')}</button>
       <button class="btn danger" data-act="gateDecide" data-id="${esc(c.id)}" data-v="hold">✋ ${t('gcHold')}</button></div>`;
   }
   shell(`${t('gcTitle')} · ${c.regNo}`, body, null, NARROW);
@@ -10274,7 +10274,7 @@ function gateBad(id, k) {
   openSheet(`${gateItemLabel(k)} — ${t('gcFail')}`, `<label class="field"><span class="lbl">${t('gcWhatWrong')}</span>
       <textarea id="gc-note" rows="3" placeholder="${esc(t('gcWhatWrongPh'))}">${esc(cur.ok === false ? cur.note || '' : '')}</textarea></label>
     <div id="gc-badph">${_gateBadPhoto ? `<img class="gc-thumb" src="${esc(_gateBadPhoto)}" alt="">` : ''}</div>
-    <button class="btn" data-act="gateBadPhoto">📷 ${t('gcAddPhoto')}</button><div class="spacer"></div>
+    <button class="btn" data-act="gateBadPhoto">${icon('camera')} ${t('gcAddPhoto')}</button><div class="spacer"></div>
     <button class="btn primary" data-act="gateBadSave" data-id="${esc(id)}" data-k="${esc(k)}">${t('save')}</button>`);
 }
 async function gateBadPhoto() {
@@ -10297,7 +10297,7 @@ async function gateRelease(id) {
   c.status = next;
   if (next === 'released') c.releasedAt = Date.now();   // the server stamps its own time over this
   await _gateSave(c);
-  toast(next === 'released' ? `✅ ${t('gcReleased')}` : `⛔ ${t('gcSentToOffice')}`);
+  toast(next === 'released' ? `${icon('ok')} ${t('gcReleased')}` : `${icon('gate')} ${t('gcSentToOffice')}`);
 }
 async function gateRecheck(id) {
   const c = gateChecks().find((x) => x.id === id);
@@ -10310,7 +10310,7 @@ async function gateRecheck(id) {
 function gateDecide(id, v) {
   if (!can(S.user.role, 'gateDecide')) return;
   const go = v === 'go';
-  openSheet(go ? `✓ ${t('gcGo')}` : `✋ ${t('gcHold')}`, `<label class="field"><span class="lbl">${t('gcReason')}</span>
+  openSheet(go ? `${icon('ok')} ${t('gcGo')}` : `✋ ${t('gcHold')}`, `<label class="field"><span class="lbl">${t('gcReason')}</span>
       <textarea id="gc-reason" rows="3" placeholder="${esc(t(go ? 'gcReasonGoPh' : 'gcReasonHoldPh'))}"></textarea></label>
     <button class="btn ${go ? 'accent' : 'danger'}" data-act="gateDecideSave" data-id="${esc(id)}" data-v="${go ? 'go' : 'hold'}">${t(go ? 'gcGo' : 'gcHold')}</button>`);
 }
@@ -10333,10 +10333,10 @@ function viewGateChecks() {
     const sub = c.status === 'awaiting' || c.status === 'held'
       ? o.failed.map((k) => `${gateItemLabel(k)}: ${(c.items[k] || {}).note || ''}`).join(' · ')
       : `${esc(c.driverName)} · ${hhmm(c.releasedAt || c.startedAt)}`;
-    return `<div class="li" data-act="openGate" data-id="${esc(c.id)}" style="cursor:pointer"><div class="ava">🚦</div>
+    return `<div class="li" data-act="openGate" data-id="${esc(c.id)}" style="cursor:pointer"><div class="ava">${icon('gate')}</div>
       <div class="main"><div class="t">${esc(c.regNo)}${c.status === 'awaiting' ? ' · ' + esc(c.driverName) : ''}</div><div class="s">${esc(sub)}</div>${gateFlags(c)}</div>${gateBadge(c)}</div>`;
   };
-  let body = `<div class="card"><div class="row between"><h3>⛔ ${t('gcWaiting')}</h3><span class="badge ${waiting.length ? 'b-red' : 'b-green'}">${waiting.length}</span></div>`;
+  let body = `<div class="card"><div class="row between"><h3>${icon('gate')} ${t('gcWaiting')}</h3><span class="badge ${waiting.length ? 'b-red' : 'b-green'}">${waiting.length}</span></div>`;
   body += waiting.length ? waiting.map(row).join('') : `<div class="muted small">${t('gcNoneWaiting')}</div>`;
   body += `</div>`;
   const rest = recent.filter((c) => c.status !== 'awaiting').sort((a, b) => b.startedAt - a.startedAt);
@@ -10345,8 +10345,8 @@ function viewGateChecks() {
   body += `</div>`;
   const none = g.none;
   body += `<details class="card"><summary class="row between" style="cursor:pointer"><h3>${t('gcNoCheck')}</h3><span class="badge b-amber">${none.length}</span></summary>
-    ${none.map((b) => `<div class="li" data-bus="${esc(b.id)}" style="cursor:pointer"><div class="ava">🚌</div><div class="main"><div class="t">${esc(b.regNo)}</div><div class="s">${esc((driverOfBus(b.id) || {}).name || '')}</div></div></div>`).join('')}</details>`;
-  shell(t('gcOffice'), body, null, NARROW);
+    ${none.map((b) => `<div class="li" data-bus="${esc(b.id)}" style="cursor:pointer"><div class="ava">${icon('bus')}</div><div class="main"><div class="t">${esc(b.regNo)}</div><div class="s">${esc((driverOfBus(b.id) || {}).name || '')}</div></div></div>`).join('')}</details>`;
+  shell(t('gcOffice'), v2(body), null, NARROW);
 }
 const gateWaitingCount = () => gateChecks().filter((c) => c.status === 'awaiting' && Date.now() - (c.startedAt || 0) < Gate.WINDOW_MS).length;
 
@@ -10367,7 +10367,7 @@ function gateHomeSummaryCard() {
   const g = gateToday();
   const chip = (n, key, cls) => `<span class="schip ${cls}"><i></i>${n} ${t(key)}</span>`;
   return `<div class="card" data-act="openGateChecks" style="cursor:pointer">
-    <div class="row between"><h3>🚦 ${t('gcHomeTitle')}</h3><span class="tc muted">›</span></div>
+    <div class="row between"><h3>${icon('warn')} ${t('gcHomeTitle')}</h3><span class="tc muted">›</span></div>
     <div class="row" style="gap:6px;flex-wrap:wrap;margin-top:8px">
       ${chip(g.released, 'gcReleased', 'ok')}
       ${g.waiting ? chip(g.waiting, 'gcAwaiting', 'crit') : ''}
@@ -10444,7 +10444,7 @@ async function itsLookupRun() {
     const r = _itsRun; _itsRun = null;
     Sync.kick();
     _traceMemo = { key: null, ctx: null, map: new Map() };
-    toast(r && r.error ? `⚠️ ${r.error}` : `${t('itsDone')}: ${r.found}/${r.done} ${t('itsFound')}, ${r.matched} ${t('itsDriver')}`);
+    toast(r && r.error ? `${icon('warn')} ${r.error}` : `${t('itsDone')}: ${r.found}/${r.done} ${t('itsFound')}, ${r.matched} ${t('itsDriver')}`);
     setTimeout(async () => { await load(); rerender(); }, 2500);
   }
 }
@@ -10464,7 +10464,7 @@ async function itsDiag() {
     <div class="tiny"><b>${t('itsDiagFilled')}</b> ${list(a.filled)}</div>
     <div class="tiny"><b>${t('itsDiagButtons')}</b> ${list(a.buttons)}</div></div>`).join('');
   openSheet(t('itsDiagTitle'), res.error ? `<div class="banner bad">${esc(res.error)}</div>${steps}` : `
-    <div class="small"><b>${t('itsDiagFound')}:</b> ${res.found ? '✓' : '✗'}</div>${steps}
+    <div class="small"><b>${t('itsDiagFound')}:</b> ${res.found ? icon('ok') : '✗'}</div>${steps}
     <div class="tiny muted" style="margin-top:10px">${t('itsDiagNote')}</div>`);
 }
 // Always on the reviews screen for owner/supervisor: what ITS has done, the next lookup, the
@@ -10497,11 +10497,11 @@ async function aiReviewsRun(quiet) {
 }
 function itsCard() {
   if (!can(S.user.role, 'dashboard')) return '';
-  if (_itsRun) return `<div class="card"><div class="row between"><b>🔎 ${t('itsRunning')}</b><span class="muted small">${_itsRun.done}/${_itsRun.total}</span></div><div class="tiny muted">${_itsRun.found} ${t('itsFound')} · ${_itsRun.matched} ${t('itsDriver')}</div></div>`;
+  if (_itsRun) return `<div class="card"><div class="row between"><b>${icon('search')} ${t('itsRunning')}</b><span class="muted small">${_itsRun.done}/${_itsRun.total}</span></div><div class="tiny muted">${_itsRun.found} ${t('itsFound')} · ${_itsRun.matched} ${t('itsDriver')}</div></div>`;
   const looked = S.cache.itslookup || [];
   const n = itsPending().length;
   const found = looked.filter((r) => r.found).length, matched = looked.filter((r) => r.crewId).length;
-  return `<div class="card"><div class="row between"><b>🔎 ${t('itsTitle')}</b>
+  return `<div class="card"><div class="row between"><b>${icon('search')} ${t('itsTitle')}</b>
       ${n ? `<button class="btn sm" data-act="itsLookupRun">${t('itsBtn')} (${n})</button>` : ''}</div>
     <div class="tiny muted">${looked.length} ${t('itsLooked')} · ${found} ${t('itsFound')} · ${matched} ${t('itsDriver')}</div>
     <div class="row" style="gap:6px;flex-wrap:wrap;margin-top:8px">
@@ -10515,13 +10515,13 @@ function itsCard() {
  * night → who was on it), and ITS's own reason wins where ITS was asked, since
  * it is the most specific. */
 const WND = [  // key, icon, i18n label, i18n fix
-  ['ok', '✅', 'wndOk', 'wndOkFix'],
+  ['ok', icon('ok'), 'wndOk', 'wndOkFix'],
   ['its-no-number', '📵', 'wndNoNumber', 'wndNoNumberFix'],
   ['its-not-in-bank', '📇', 'wndNotInBank', 'wndNotInBankFix'],
   ['its-shared', '👥', 'wndShared', 'wndSharedFix'],
-  ['bus-no-crew', '🚌', 'wndBusNoCrew', 'wndBusNoCrewFix'],
-  ['no-source', '🌙', 'wndNoSource', 'wndNoSourceFix'],
-  ['route-unmapped', '🧭', 'wndUnmapped', 'wndUnmappedFix'],
+  ['bus-no-crew', icon('bus'), 'wndBusNoCrew', 'wndBusNoCrewFix'],
+  ['no-source', icon('moon'), 'wndNoSource', 'wndNoSourceFix'],
+  ['route-unmapped', icon('map'), 'wndUnmapped', 'wndUnmappedFix'],
   ['its-not-found', '❔', 'wndNotFound', 'wndNotFoundFix'],
 ];
 function whyNoDriver(item) {
@@ -10571,7 +10571,7 @@ function viewWhyNoDriver() {
     if (open) {
       body += `<div class="hr"></div>` + list.slice(0, 25).map((x) => {
         const isReview = String(x.id).startsWith('rv-');
-        return `<div class="li" data-act="${isReview ? 'openReview' : 'openComplaint'}" data-id="${esc(x.id)}" style="cursor:pointer">${isReview ? rvStarsAva(x.stars) : '<div class="ava">🟠</div>'}
+        return `<div class="li" data-act="${isReview ? 'openReview' : 'openComplaint'}" data-id="${esc(x.id)}" style="cursor:pointer">${isReview ? rvStarsAva(x.stars) : '<div class="ava"></div>'}
           <div class="main"><div class="t">${esc(x.source)} → ${esc(x.dest)}</div><div class="s">${fmtDateTime(rvBoard(x))} · PNR ${esc(x.pnr)}</div>${rvTraceLine(traceOf(x))}</div></div>`;
       }).join('') + (list.length > 25 ? `<div class="tiny muted">+${list.length - 25}</div>` : '');
     } else {
@@ -10579,7 +10579,7 @@ function viewWhyNoDriver() {
     }
     body += `</div>`;
   }
-  shell(t('wndTitle'), body, null, NARROW);
+  shell(t('wndTitle'), v2(body), null, NARROW);
 }
 
 function traceCtx() {
@@ -10616,12 +10616,12 @@ const rvClassOf = (r) => { const a = r.id && rvAiOf(r); return a && a.safety ? '
 const RV_CLASS = { safety: ['b-red', 'rvSafetyK'], genuine: ['b-amber', 'rvGenuine'], faq: ['b-low', 'rvFaq'], praise: ['b-green', 'rvPraise'] };
 const rvClassBadge = (k) => { const m = RV_CLASS[k] || RV_CLASS.genuine; return `<span class="badge ${m[0]}">${t(m[1])}</span>`; };
 const rvBoard = (r) => Trace.parseLocal(r.boardAt || r.doj) || 0;
-const rvStarsAva = (n) => `<div class="ava rv-st s${n || 0}">${n ? n + '★' : '—'}</div>`;
+const rvStarsAva = (n) => `<div class="ava rv-st s${n || 0}">${n ? n + icon('star') : '—'}</div>`;
 function rvTraceLine(tr) {
-  if (!tr.bus && tr.crew.length) return `<div class="tiny">🧑‍✈️ ${tr.crew.map((c) => esc(c.name || '?')).join(', ')} · ${t('rvViaIts')}</div>`;
+  if (!tr.bus && tr.crew.length) return `<div class="tiny">${icon('person')} ${tr.crew.map((c) => esc(c.name || '?')).join(', ')} · ${t('rvViaIts')}</div>`;
   if (!tr.bus) return `<div class="tiny muted">${t(tr.why === 'service-unknown' ? 'rvWhyService' : 'rvWhyNoSource')}</div>`;
   const crew = tr.crew.length ? tr.crew.map((c) => esc(c.name || '?')).join(', ') : t('rvCrewNotRecorded');
-  return `<div class="tiny">🚌 <b>${esc(tr.bus.regNo || '')}</b> · ${crew}</div>`;
+  return `<div class="tiny">${icon('bus')} <b>${esc(tr.bus.regNo || '')}</b> · ${crew}</div>`;
 }
 
 // Reviews within [from, to) of boarding time; optional bus / crew filter.
@@ -10656,11 +10656,11 @@ function viewDigest(week) {
   body += `<div class="card"><div class="tiny muted">${t('coWeekOf')} ${esc(d.week)}</div>
     <div style="font-weight:800;font-size:17px;margin-top:4px">${esc(d.headline)}</div>${d.hi ? `<div class="small muted" style="margin-top:2px">${esc(d.hi)}</div>` : ''}</div>`;
   body += (d.sections || []).map((sec) => `<div class="card"><h3>${esc(sec.title)}</h3>${sec.lines.map((l) => `<div class="small" style="padding:3px 0">• ${esc(l)}</div>`).join('')}</div>`).join('');
-  if ((d.actions || []).length) body += `<div class="card"><h3>✅ ${t('dgActions')}</h3>${d.actions.map((a, i) => `<div class="small" style="padding:3px 0">${i + 1}. ${esc(a)}</div>`).join('')}</div>`;
+  if ((d.actions || []).length) body += `<div class="card"><h3>${icon('ok')} ${t('dgActions')}</h3>${d.actions.map((a, i) => `<div class="small" style="padding:3px 0">${i + 1}. ${esc(a)}</div>`).join('')}</div>`;
   body += `<div class="tiny muted" style="margin:0 4px 10px">${t('dgBy')}</div>`;
   if (all.length > 1) body += `<details class="card"><summary class="row between" style="cursor:pointer"><h3>${t('dgEarlier')}</h3><span class="badge b-low">${all.length - 1}</span></summary>${
     all.filter((x) => x !== d).map((x) => `<div class="li" data-act="digestWeek" data-w="${esc(x.week)}" style="cursor:pointer"><div class="ava">📰</div><div class="main"><div class="t">${esc(x.week)}</div><div class="s">${esc(x.headline)}</div></div></div>`).join('')}</details>`;
-  shell(t('dgTitle'), body, null, NARROW);
+  shell(t('dgTitle'), v2(body), null, NARROW);
 }
 let _dgWeek = null;
 async function digestNow() {
@@ -10677,13 +10677,13 @@ function reviewsHomeCard() {
   const since = Date.now() - 7 * day;
   const week = (S.cache.rbreviews || []).filter((r) => rvBoard(r) >= since);
   if (!(S.cache.rbreviews || []).length) {
-    return `<div class="card" data-act="openReviews" style="cursor:pointer"><div class="row between"><h3>⭐ ${t('rvHomeTitle')}</h3><span class="tc muted">›</span></div>
+    return `<div class="card" data-act="openReviews" style="cursor:pointer"><div class="row between"><h3>${icon('star')} ${t('rvHomeTitle')}</h3><span class="tc muted">›</span></div>
       <div class="tiny muted" style="margin-top:6px">${t('rvNone')}</div></div>`;
   }
   const st = rvStats(week);
   const conflicts = week.filter((r) => traceOf(r).confidence === 'conflict').length;
   const traced = week.filter((r) => traceOf(r).bus).length;
-  return `<div class="card" data-act="openReviews" style="cursor:pointer"><div class="row between"><h3>⭐ ${t('rvHomeTitle')}</h3><span class="tc muted">›</span></div>
+  return `<div class="card" data-act="openReviews" style="cursor:pointer"><div class="row between"><h3>${icon('star')} ${t('rvHomeTitle')}</h3><span class="tc muted">›</span></div>
     <div class="row" style="gap:6px;flex-wrap:wrap;margin-top:8px">
       <span class="schip ${st.avg != null && st.avg < 3.5 ? 'crit' : 'ok'}"><i></i>★${st.avg == null ? '—' : st.avg.toFixed(1)} · ${st.n}</span>
       <span class="schip ${st.one > 0.15 ? 'crit' : 'mute'}"><i></i>1★ ${st.one == null ? '—' : Math.round(st.one * 100) + '%'}</span>
@@ -10698,17 +10698,17 @@ function viewReviews() {
   const tabs = `<div class="chiprow">${[['reviews', 'rvTabReviews'], ['complaints', 'rvTabComplaints']].map(([k, key]) =>
     `<button class="chip ${_rvTab === k ? 'active' : ''}" data-act="rvTab" data-v="${k}">${t(key)}</button>`).join('')}</div>`;
   let body = tabs;
-  const scope = _rvBus ? `🚌 ${esc(busName(_rvBus))}` : _rvCrew ? `🧑‍✈️ ${esc((driverById(_rvCrew) || {}).name || '')}` : '';
+  const scope = _rvBus ? `${icon('bus')} ${esc(busName(_rvBus))}` : _rvCrew ? `${icon('person')} ${esc((driverById(_rvCrew) || {}).name || '')}` : '';
   if (scope) body += `<div class="banner" style="display:flex;justify-content:space-between">${scope}<button class="btn sm ghost" data-act="rvClearScope">✕</button></div>`;
   const rbn = rbnPendingCount();
-  if (rbn) body += `<div class="card" data-act="openRbNames" style="cursor:pointer"><div class="row between"><b>🪪 ${t('rbnBanner')}</b><span class="badge b-amber">${rbn} ›</span></div></div>`;
+  if (rbn) body += `<div class="card" data-act="openRbNames" style="cursor:pointer"><div class="row between"><b>${icon('me')} ${t('rbnBanner')}</b><span class="badge b-amber">${rbn} ›</span></div></div>`;
   if (_rvTab === 'reviews') body += aiReviewsCard() + itsCard();
   if (_rvTab === 'complaints') return viewComplaintsTab(body);
   if (!all.length) return shell(t('rvTitle'), body + `<div class="card"><div class="empty">${t('rvNone')}</div></div>`, null, NARROW);
 
   const since = Date.now() - 7 * day, st = rvStats(all.filter((r) => rvBoard(r) >= since));
   body += `<div class="card"><div class="row between"><h3>${t('rvLast7')}</h3><span class="muted small">${st.n}</span></div>
-    <div class="row" style="gap:18px;margin-top:6px"><div><div class="stat">★${st.avg == null ? '—' : st.avg.toFixed(2)}</div><div class="tiny muted">${t('rvAvg')}</div></div>
+    <div class="row" style="gap:18px;margin-top:6px"><div><div class="stat">${icon('star')}${st.avg == null ? '—' : st.avg.toFixed(2)}</div><div class="tiny muted">${t('rvAvg')}</div></div>
     <div><div class="stat">${st.one == null ? '—' : Math.round(st.one * 100) + '%'}</div><div class="tiny muted">1★</div></div></div></div>`;
   const pass = (r) => {
     const tr = traceOf(r);
@@ -10731,7 +10731,7 @@ function viewReviews() {
         ${rvTraceLine(tr)}
         <div class="row" style="gap:6px;flex-wrap:wrap;margin-top:5px">${rvChip(tr)}${r.stars && r.stars <= 3 ? rvClassBadge(rvClassOf(r)) : ''}</div></div></div>`;
   }).join('') : `<div class="muted small">${t('rvNoneHere')}</div>`) + `</div>`;
-  shell(t('rvTitle'), body, null, NARROW);
+  shell(t('rvTitle'), v2(body), null, NARROW);
 }
 
 function viewComplaintsTab(body) {
@@ -10740,11 +10740,11 @@ function viewComplaintsTab(body) {
     const tr = traceOf(c);
     if (_rvBus && !(tr.bus && tr.bus.busId === _rvBus)) return '';
     const open = !/closed|resolved/i.test(c.status || '');
-    return `<div class="li" data-act="openComplaint" data-id="${esc(c.id)}" style="cursor:pointer;align-items:flex-start"><div class="ava">${open ? '🟠' : '✅'}</div>
+    return `<div class="li" data-act="openComplaint" data-id="${esc(c.id)}" style="cursor:pointer;align-items:flex-start"><div class="ava">${open ? '' : icon('ok')}</div>
       <div class="main"><div class="t">${esc(c.issue || '—')}</div><div class="s">${esc(c.source)} → ${esc(c.dest)} · ${fmtDateTime(rvBoard(c))} · ${esc(c.status || '')}</div>${rvTraceLine(tr)}
         <div class="row" style="gap:6px;flex-wrap:wrap;margin-top:5px">${rvChip(tr)}${rvClassBadge(rvClassOf({ stars: 1, issue: c.issue, comment: (c.notes || []).map((n) => n.text).join(' ') }))}</div></div></div>`;
   }).join('') : `<div class="muted small">${t('rvNoComplaints')}</div>`) + `</div>`;
-  shell(t('rvTitle'), body, null, NARROW);
+  shell(t('rvTitle'), v2(body), null, NARROW);
 }
 
 function rvSourcesBlock(tr) {
@@ -10796,8 +10796,8 @@ function rvBusCard(busId) {
   if (!can(S.user.role, 'dashboard') || !(S.cache.rbreviews || []).length) return '';
   const list = rvForBus(busId, Date.now() - 30 * day), st = rvStats(list);
   const low = list.filter((r) => r.stars && r.stars <= 3).length;
-  return `<div class="card" data-act="rvScopeBus" data-bus-id="${esc(busId)}" style="cursor:pointer"><div class="row between"><h3>⭐ ${t('rvBusCard')}</h3><span class="tc muted">›</span></div>
-    <div class="small" style="margin-top:4px">${st.n ? `★${st.avg.toFixed(1)} · ${st.n} · ${low} ≤3★` : t('rvNoneHere')}</div></div>`;
+  return `<div class="card" data-act="rvScopeBus" data-bus-id="${esc(busId)}" style="cursor:pointer"><div class="row between"><h3>${icon('star')} ${t('rvBusCard')}</h3><span class="tc muted">›</span></div>
+    <div class="small" style="margin-top:4px">${st.n ? `${icon('star')}${st.avg.toFixed(1)} · ${st.n} · ${low} ≤3${icon('star')}` : t('rvNoneHere')}</div></div>`;
 }
 const RV_MIN_SAMPLE = 10;
 // Every review traced to each crew member, built once per cache: crewId -> [{ r, vias }].
@@ -10831,7 +10831,7 @@ function rvCountsFor(faults, role) {
   const mine = role === 'conductor' ? ['conductor', 'crew'] : ['driver', 'crew'];
   return faults.some((f) => mine.includes(f));
 }
-const RV_FAULT = { driver: ['🧑‍✈️', 'fltDriver'], conductor: ['🎫', 'fltConductor'], crew: ['👥', 'fltCrew'], bus: ['🚌', 'fltBus'],
+const RV_FAULT = { driver: [icon('person'), 'fltDriver'], conductor: [icon('person'), 'fltConductor'], crew: ['👥', 'fltCrew'], bus: [icon('bus'), 'fltBus'],
   office: ['🏢', 'fltOffice'], redbus: ['📱', 'fltRedbus'], passenger: ['🧍', 'fltPassenger'] };
 const rvFaultChips = (faults) => (faults || []).map((f) => `<span class="badge b-low">${(RV_FAULT[f] || ['•'])[0]} ${t((RV_FAULT[f] || [0, f])[1])}</span>`).join('');
 const rvTopicLabel = (k) => t('top_' + k);
@@ -10845,7 +10845,7 @@ function rvTopTopics(list, faultsOf, n) {
   });
   return Object.entries(m).sort((a, b) => b[1] - a[1]).slice(0, n);
 }
-const RV_VIA = { gate: ['🚦', 'rvSrcGate'], duty: ['📋', 'rbViaDuty'], redpro: ['🏷️', 'rbViaRedpro'], its: ['📞', 'rvViaIts'] };
+const RV_VIA = { gate: [icon('warn'), 'rvSrcGate'], duty: [icon('doc'), 'rbViaDuty'], redpro: [icon('doc'), 'rbViaRedpro'], its: [icon('review'), 'rvViaIts'] };
 /* Total performance = conduct (incidents + GPS, the existing score) blended half and half with
  * what passengers said (redBus stars, 1★ = 0 and 5★ = 100), both over the last 90 days. The
  * passenger half only counts from RV_MIN_SAMPLE rated trips: a few reviews judge nobody. */
@@ -10910,10 +10910,10 @@ function myReviewsCard(role) {
   setTimeout(myRvRefresh, 0);
   const list = v.reviews || [], counted = list.filter((r) => rvCountsFor(r.faults, r.role || role)), st = rvStats(counted);
   const low = counted.filter((r) => r.stars && r.stars <= 3), good = counted.filter((r) => r.stars >= 4).length;
-  let h = `<div class="card"><h3>⭐ ${t('myRvTitle')}</h3><div class="tiny muted">${t('myRvSub')}</div>`;
+  let h = `<div class="card"><h3>${icon('star')} ${t('myRvTitle')}</h3><div class="tiny muted">${t('myRvSub')}</div>`;
   if (!list.length) return h + `<div class="small muted" style="margin-top:8px">${t(!v.at ? (_myRvFailed ? 'myRvOffline' : 'myRvLoading') : role === 'conductor' ? 'myRvNoneC' : 'myRvNone')}</div></div>`;
   const kpi = (val, lbl) => `<div style="text-align:center;flex:1"><div style="font-weight:800;font-size:20px">${val}</div><div class="tiny muted">${lbl}</div></div>`;
-  h += `<div class="row" style="margin-top:10px">${kpi('★' + st.avg.toFixed(1), t('dpAvg'))}${kpi(list.length, t('dpReviews'))}${kpi(good, '4–5★')}${kpi(low.length, '≤3★')}</div>`;
+  h += `<div class="row" style="margin-top:10px">${kpi(icon('star') + st.avg.toFixed(1), t('dpAvg'))}${kpi(list.length, t('dpReviews'))}${kpi(good, '4–5★')}${kpi(low.length, '≤3★')}</div>`;
   if (st.n < RV_MIN_SAMPLE) h += `<div class="tiny muted" style="margin-top:4px">${t('myRvFew')}</div>`;
   if (list.length > counted.length) h += `<div class="tiny muted" style="margin-top:4px">🤖 ${list.length - counted.length} ${t('aiNotYours')}</div>`;
   const top = rvTopTopics(low, (r) => r, 3);
@@ -10936,7 +10936,7 @@ function openMyReview(id) {
 function crewRatingTag(id) {
   if (!can(S.user.role, 'crewReviews')) return '';
   const o = driverOverall(id);
-  return o.n ? ` · ★${o.avg.toFixed(1)} (${o.n})` : '';
+  return o.n ? ` · ${icon('star')}${o.avg.toFixed(1)} (${o.n})` : '';
 }
 let _dpRvWin = 30, _dpRvMore = false;   // driver page review window: 30, 90, or 0 = everything collected
 function rvCrewCard(crewId) {
@@ -10950,10 +10950,10 @@ function rvCrewCard(crewId) {
   const low = list.filter((r) => r.stars && r.stars <= 3);
   const safety = list.filter((r) => rvClassOf(r) === 'safety').length;
   const chip = (w, label) => `<button class="chip${_dpRvWin === w ? ' active' : ''}" style="padding:4px 10px;font-size:12px" data-act="dpRvWin" data-w="${w}">${label}</button>`;
-  let h = `<div class="card"><div class="row between"><h3>⭐ ${t('dpRvTitle')}</h3>
+  let h = `<div class="card"><div class="row between"><h3>${icon('star')} ${t('dpRvTitle')}</h3>
     <div class="row" style="gap:4px">${chip(30, t('dp30'))}${chip(90, t('dp90'))}${chip(0, t('dpAll'))}</div></div>`;
   if (!list.length) return h + `<div class="small muted" style="margin-top:6px">${t('dpRvNone')}</div></div>`;
-  const avgTxt = st.n >= RV_MIN_SAMPLE ? '★' + st.avg.toFixed(1) : st.n ? '★' + st.avg.toFixed(1) + '*' : '—';
+  const avgTxt = st.n >= RV_MIN_SAMPLE ? icon('star') + st.avg.toFixed(1) : st.n ? icon('star') + st.avg.toFixed(1) + '*' : '—';
   const kpi = (v, lbl, bad) => `<div style="text-align:center;flex:1"><div style="font-weight:800;font-size:18px;color:${bad ? 'var(--red)' : 'var(--text)'}">${v}</div><div class="tiny muted">${lbl}</div></div>`;
   h += `<div class="row" style="margin-top:10px">${kpi(avgTxt, t('dpAvg'), st.n >= RV_MIN_SAMPLE && st.avg < 3.5)}${kpi(list.length, t('dpReviews'))}${
     kpi(low.length, '≤3★', low.length > 0)}${kpi(st.one == null ? '—' : Math.round(st.one * 100) + '%', '1★', st.one > 0.15)}${kpi(safety, t('rvSafetyK'), safety > 0)}</div>`;
@@ -10979,8 +10979,8 @@ function overallCard(id) {
   if (!can(S.user.role, 'crewReviews') || !(S.cache.rbreviews || []).length) return '';
   const o = driverOverall(id);
   const half = (v, lbl, sub) => `<div style="flex:1;text-align:center"><div style="font-weight:800;font-size:20px">${v == null ? '—' : v}</div><div class="tiny muted">${lbl}</div><div class="tiny muted">${sub}</div></div>`;
-  return `<div class="card"><div class="row between"><h3>📊 ${t('dpOverall')}</h3><span class="badge ${scoreClass(o.overall)}" style="font-size:15px">${o.overall}/100</span></div>
-    <div class="row" style="margin-top:8px">${half(o.conduct, t('dpConduct'), t(crewRoleOf(driverById(id)) === 'conductor' ? 'dpConductSubC' : 'dpConductSub'))}${half(o.passenger, t('dpPassenger'), o.passenger == null ? `${o.n}/${RV_MIN_SAMPLE} ${t('dpRated')}` : `★${o.avg.toFixed(1)} · ${o.n} ${t('dpRated')}`)}</div>
+  return `<div class="card"><div class="row between"><h3>${icon('doc')} ${t('dpOverall')}</h3><span class="badge ${scoreClass(o.overall)}" style="font-size:15px">${o.overall}/100</span></div>
+    <div class="row" style="margin-top:8px">${half(o.conduct, t('dpConduct'), t(crewRoleOf(driverById(id)) === 'conductor' ? 'dpConductSubC' : 'dpConductSub'))}${half(o.passenger, t('dpPassenger'), o.passenger == null ? `${o.n}/${RV_MIN_SAMPLE} ${t('dpRated')}` : `${icon('star')}${o.avg.toFixed(1)} · ${o.n} ${t('dpRated')}`)}</div>
     <div class="tiny muted" style="margin-top:6px">${t(o.passenger == null ? 'dpOverallWait' : 'dpOverallHow')}</div></div>`;
 }
 
@@ -11063,7 +11063,7 @@ function viewRbNames() {
     const sug = (Trace.isGenericName(p.name) ? [] : rbSuggestions(p)).filter((x) => !ai || x.crewId !== ai.pick);
     const busTxt = rbBusByReg(p.regNo) ? '' : ` · <span style="color:var(--amber)">${t('rbnNotInFleet')}</span>`;
     return `<div class="rbn-row"><div class="rbn-head"><b>${esc(p.name)}</b> <span class="muted small">· ${esc(crewRoleLabel(p.role))}</span></div>
-      <div class="tiny muted">🚌 ${esc(p.regNo)}${busTxt} · ${p.days.size} ${t(p.days.size === 1 ? 'rbnDay' : 'rbnDays')}</div>
+      <div class="tiny muted">${icon('bus')} ${esc(p.regNo)}${busTxt} · ${p.days.size} ${t(p.days.size === 1 ? 'rbnDay' : 'rbnDays')}</div>
       ${ai && (ai.pick || ai.generic) ? `<div class="tiny" style="margin-top:4px">🤖 ${esc(ai.reason || '')}${ai.pick ? ` · ${ai.onBus}/${ai.nights} ${t('rbnAiNights')}` : ''}</div>` : ''}
       <div class="rbn-acts">${ai && ai.pick && driverById(ai.pick) ? `<button class="btn sm primary" data-act="rbnSet" data-pair="${esc(p.id)}" data-crew="${esc(ai.pick)}">🤖 ${esc(driverById(ai.pick).name)}<span class="tiny"> · ${t('rbnAiConf_' + ai.conf)}</span></button>` : ''}${
         ai && ai.generic ? `<button class="btn sm primary" data-act="rbnGeneric" data-pair="${esc(p.id)}">🤖 ${t('rbnNotAName')}</button>` : ''}${sug.map((x) => `<button class="btn sm" data-act="rbnSet" data-pair="${esc(p.id)}" data-crew="${esc(x.crewId)}">${esc(x.name)}<span class="tiny muted"> · ${esc(x.why)}</span></button>`).join('')}
@@ -11075,10 +11075,10 @@ function viewRbNames() {
     body += `<details class="card"><summary class="row between" style="cursor:pointer"><h3>${t('rbnConfirmed')}</h3><span class="badge b-low">${done.length}</span></summary>` +
       done.map((a) => `<div class="li" data-act="rbnPick" data-pair="${esc(a.id)}" style="cursor:pointer"><div class="ava">${a.status === 'generic' ? '∅' : CREW_ROLE_META[a.role === 'conductor' ? 'conductor' : 'driver'][0]}</div>
         <div class="main"><div class="t">${esc(a.name)} → ${a.status === 'generic' ? t('rbnNotAName') : a.status === 'unsure' ? t('rbnUnsure') : esc((driverById(a.crewId) || {}).name || '?')}</div>
-        <div class="s">🚌 ${esc(a.regNo)} · ${a.decidedBy === 'claude' ? `🤖 ${t('rbnByClaude')}${a.reason ? ': ' + esc(a.reason) : ''}` : esc(userName(a.decidedBy))} · ${fmtDate(a.decidedAt)}</div></div>
+        <div class="s">${icon('bus')} ${esc(a.regNo)} · ${a.decidedBy === 'claude' ? `🤖 ${t('rbnByClaude')}${a.reason ? ': ' + esc(a.reason) : ''}` : esc(userName(a.decidedBy))} · ${fmtDate(a.decidedAt)}</div></div>
         ${a.decidedBy === 'claude' ? `<button class="btn sm ghost" data-act="rbnPick" data-pair="${esc(a.id)}" style="width:auto">${t('rbnUndo')}</button>` : ''}</div>`).join('') + `</details>`;
   }
-  shell(t('rbnTitle'), body, null, NARROW);
+  shell(t('rbnTitle'), v2(body), null, NARROW);
 }
 function rbPairById(id) {
   const a = rbAliases().find((x) => x.id === id);
@@ -11139,14 +11139,14 @@ async function aiNamesRun(quiet) {
  * driver taps "Start trip".) */
 const DEFAULT_ALLOWANCE = 5000;
 const EXPENSE_CATS = {
-  diesel:    { label: 'Diesel',      icon: '⛽', mode: 'card' },
-  fastag:    { label: 'FASTag',      icon: '🛣️', mode: 'card' },
+  diesel:    { label: 'Diesel',      icon: icon('fuel'), mode: 'card' },
+  fastag:    { label: 'FASTag',      icon: icon('map'), mode: 'card' },
   food:      { label: 'Food',        icon: '🍱', mode: 'cash' },
-  breakdown: { label: 'Breakdown',   icon: '🔧', mode: 'cash' },
+  breakdown: { label: 'Breakdown',   icon: icon('job'), mode: 'cash' },
   police:    { label: 'Police',      icon: '👮', mode: 'cash' },
   rto:       { label: 'RTO',         icon: '🚧', mode: 'cash' },
-  toll:      { label: 'Toll (cash)', icon: '🎫', mode: 'cash' },
-  other:     { label: 'Other',       icon: '💸', mode: 'cash' },
+  toll:      { label: 'Toll (cash)', icon: icon('person'), mode: 'cash' },
+  other:     { label: 'Other',       icon: icon('money'), mode: 'cash' },
 };
 const catMeta = (c) => EXPENSE_CATS[c] || EXPENSE_CATS.other;
 const activeTripFor = (driverId) => (S.cache.trips || []).find((t) => t.driverId === driverId && t.status === 'active') || null;
@@ -11171,9 +11171,9 @@ function busAccounting(busId, sinceMs) {
 function driverTripCard() {
   const d = driverForUser(S.user.id); if (!d) return '';
   const t = activeTripFor(d.id);
-  if (!t) return `<button class="btn primary" data-act="startTrip" data-driver="${esc(d.id)}">🚌 Start trip &amp; cash</button><div class="spacer"></div>`;
+  if (!t) return `<button class="btn primary" data-act="startTrip" data-driver="${esc(d.id)}">${icon('bus')} Start trip &amp; cash</button><div class="spacer"></div>`;
   const c = tripCash(t);
-  return `<div class="card" style="border:1.5px solid var(--brand2)"><div class="row between"><h3>💰 Trip cash</h3><span class="tiny muted">${esc(t.fromTo || 'Trip')}</span></div>
+  return `<div class="card" style="border:1.5px solid var(--brand2)"><div class="row between"><h3>${icon('money')} Trip cash</h3><span class="tiny muted">${esc(t.fromTo || 'Trip')}</span></div>
     <div class="grid2" style="margin-top:6px">
       <div><div class="tiny muted">Cash allowance</div><b>${money(t.allowance)}</b></div>
       <div><div class="tiny muted">Cash spent</div><b>${money(c.cash)}</b></div>
@@ -11197,7 +11197,7 @@ async function saveStartTrip(driverId) {
   if (activeTripFor(driverId)) return toast('You already have an active trip');
   const t = { id: uid('trip-'), busId: d.busId, driverId, fromTo: (($('#tp-route') || {}).value || '').trim(),
     allowance: Number(($('#tp-allow') || {}).value) || DEFAULT_ALLOWANCE, startedAt: Date.now(), closedAt: null, status: 'active', expenses: [], by: S.user.id };
-  await DB.put('trips', t); await load(); closeSheet(); toast('Trip started ✓'); rerender();
+  await DB.put('trips', t); await load(); closeSheet(); toast('Trip started'); rerender();
 }
 let _expShot = null;
 function sheetAddTripExp(tripId) {
@@ -11206,7 +11206,7 @@ function sheetAddTripExp(tripId) {
     <label class="field"><span class="lbl">Category</span><select id="ex-cat">${Object.entries(EXPENSE_CATS).map(([k, m]) => `<option value="${k}">${m.icon} ${m.label} · ${m.mode}</option>`).join('')}</select></label>
     <label class="field"><span class="lbl">Amount (₹)</span><input id="ex-amt" type="number" inputmode="numeric"></label>
     <label class="field"><span class="lbl">Note (optional)</span><input id="ex-note" placeholder="e.g. tyre puncture near Kishangarh"></label>
-    <button class="btn" data-act="captureExpPhoto">📷 Bill photo (optional)</button><div id="ex-prev" class="thumbs" style="margin:8px 0"></div>
+    <button class="btn" data-act="captureExpPhoto">${icon('camera')} Bill photo (optional)</button><div id="ex-prev" class="thumbs" style="margin:8px 0"></div>
     <button class="btn primary" data-act="saveTripExp" data-trip="${esc(tripId)}">Add</button>`);
 }
 async function captureExpPhoto() { const s = await capturePhoto(); if (!s) return; _expShot = await Sync.uploadPhoto(s) || s; const p = $('#ex-prev'); if (p) p.innerHTML = `<img class="thumb" src="${_expShot}">`; }
@@ -11215,12 +11215,12 @@ async function saveTripExp(tripId) {
   const cat = ($('#ex-cat') || {}).value || 'other', amount = Number(($('#ex-amt') || {}).value) || 0;
   if (amount <= 0) return toast('Enter the amount');
   t.expenses = [...(t.expenses || []), { id: uid('e-'), cat, mode: catMeta(cat).mode, amount, note: (($('#ex-note') || {}).value || '').trim(), photo: _expShot || '', at: Date.now(), by: S.user.id }];
-  _expShot = null; await DB.put('trips', t); await load(); closeSheet(); toast('Expense added ✓'); rerender();
+  _expShot = null; await DB.put('trips', t); await load(); closeSheet(); toast('Expense added'); rerender();
 }
 async function closeTrip(tripId) {
   const t = byId(S.cache.trips, tripId); if (!t) return;
   if (!confirm('End this trip? It stays in accounting.')) return;
-  t.status = 'closed'; t.closedAt = Date.now(); await DB.put('trips', t); await load(); toast('Trip ended ✓'); rerender();
+  t.status = 'closed'; t.closedAt = Date.now(); await DB.put('trips', t); await load(); toast('Trip ended'); rerender();
 }
 function viewAccounting() {
   const rows = (S.cache.buses || []).map((b) => ({ b, a: busAccounting(b.id) })).filter((x) => x.a.trips || x.a.fuelCost || x.a.maint).sort((a, c) => c.a.total - a.a.total);
@@ -11228,11 +11228,11 @@ function viewAccounting() {
   let body = `<div class="card"><div class="muted small">Running cost — all buses</div><div class="stat" style="color:var(--brand2)">${money(grand)}</div>
     <div class="tiny muted">Trip cash + card (diesel/FASTag) + fuel + maintenance. Driver salary shown per bus.</div></div>`;
   body += `<div class="card"><h3>By bus</h3>`;
-  body += rows.length ? rows.map(({ b, a }) => `<div class="li" data-act="openBusAcct" data-id="${esc(b.id)}"><div class="ava">🚌</div>
+  body += rows.length ? rows.map(({ b, a }) => `<div class="li" data-act="openBusAcct" data-id="${esc(b.id)}"><div class="ava">${icon('bus')}</div>
     <div class="main"><div class="t">${esc(b.regNo)}</div><div class="s">${a.trips} trip(s) · fuel ${money(a.fuelCost)} · maint ${money(a.maint)}${a.salary ? ' · salary/mo ' + money(a.salary) : ''}</div></div>
     <b>${money(a.total)}</b></div>`).join('') : `<div class="empty">No expenses logged yet — drivers add them from their home screen.</div>`;
   body += `</div>`;
-  shell('Accounting', body);
+  shell('Accounting', v2(body));
 }
 function viewBusAccounting(busId) {
   const b = byId(S.cache.buses, busId); if (!b) return viewAccounting();
@@ -11254,13 +11254,13 @@ function viewBusAccounting(busId) {
     <div class="main"><div class="t">${esc(t.fromTo || 'Trip')} ${t.status === 'active' ? '<span class="badge b-green">active</span>' : ''}</div>
       <div class="s">${fmtDate(t.startedAt)} · ${esc(driverName(t.driverId))} · ${(t.expenses || []).length} expense(s) · cash left ${money(c.remaining)}</div></div>
     <b>${money(c.total)}</b></div>`; }).join('') : `<div class="empty">No trips yet</div>`) + `</div>`;
-  shell(esc(b.regNo) + ' — accounting', body);
+  shell(esc(b.regNo) + ' — accounting', v2(body));
 }
 async function setSalary(driverId) {
   const d = driverById(driverId); if (!d) return;
   const v = prompt(`Monthly salary for ${d.name} (₹):`, d.salaryMonthly || '');
   if (v == null) return;
-  d.salaryMonthly = Number(v) || 0; await DB.put('drivers', d); await load(); toast('Salary saved ✓'); rerender();
+  d.salaryMonthly = Number(v) || 0; await DB.put('drivers', d); await load(); toast('Salary saved'); rerender();
 }
 
 /* ===== Crew logins & PINs — give imported drivers/conductors app accounts =====
@@ -11326,7 +11326,7 @@ async function activateCrewServer() {
     try { localStorage.setItem(ROSTER_FLAG, String(Date.now())); } catch (e) { /* ignore */ }
     if (stop) stop();
     const n = keepCrewPins(r);
-    toast(n ? `${n} crew PIN${n === 1 ? '' : 's'} set — read them out from this screen ✓` : 'All crew already activated ✓');
+    toast(n ? `${n} crew PIN${n === 1 ? '' : 's'} set — read them out from this screen ✓` : 'All crew already activated');
     if (S.route && S.route.name === 'crewpins') rerender();
   } catch (e) {
     if (stop) stop();
@@ -11403,7 +11403,7 @@ function viewCrewPins() {
     <span class="badge b-low" style="font-size:14px;letter-spacing:1px">${esc(credGet(u.id) || '—')}</span>
     <button class="btn sm ghost" data-act="resetCrewPin" data-user="${esc(u.id)}" style="width:auto;margin-left:6px">New PIN</button></div>`).join('') : `<div class="empty">No driver/conductor logins yet — tap “Create missing logins”.</div>`;
   body += `</div>`;
-  shell('Crew logins & PINs', body);
+  shell('Crew logins & PINs', v2(body));
   attachSearch('cp-search', 'cp-list');
 }
 
@@ -11421,7 +11421,7 @@ function viewCrewPins() {
 const DRIVER_DOCS = [
   { key: 'license', labelKey: 'docLicense', icon: '🚗', num: true, expiry: true, back: true, backHintKey: 'cbBackLicense', mandatoryFor: ['driver'] },
   { key: 'aadhaar', labelKey: 'docAadhaar', icon: '🆔', num: true, mask: true, back: true, backHintKey: 'cbBackAadhaar', mandatoryFor: ['driver', 'conductor'] },
-  { key: 'photo', labelKey: 'docPhoto', icon: '📷', mandatoryFor: ['driver', 'conductor'] },
+  { key: 'photo', labelKey: 'docPhoto', icon: icon('camera'), mandatoryFor: ['driver', 'conductor'] },
   { key: 'pan', labelKey: 'docPan', icon: '💳', num: true, back: true, mandatoryFor: [] },
   { key: 'police', labelKey: 'docPolice', icon: '👮', expiry: true, back: true, mandatoryFor: [] },
   { key: 'medical', labelKey: 'docMedical', icon: '🩺', expiry: true, back: true, mandatoryFor: [] },
@@ -11491,9 +11491,9 @@ function viewDriverDocs(driverId) {
     <div><div style="font-weight:800;font-size:17px">${esc(d.name)}</div>
       <div class="small muted">${esc(crewRoleLabel(crole))} · ${st.mandHave}/${st.mandTotal} ${t('cbOnFileWord')} · ${st.mandDone}/${st.mandTotal} ${t('cbScannedWord')}</div>
       <div class="tiny" style="margin-top:5px;color:${st.mandHave < st.mandTotal ? '#ef4444' : st.mandDone < st.mandTotal ? 'var(--muted)' : '#16a571'};font-weight:700">${
-        st.mandHave < st.mandTotal ? '⚠️ ' + t('cbMandMissing')
-        : st.mandDone < st.mandTotal ? '📷 ' + t('cbNumberOnly')
-        : '✓ ' + t('cbMandOk')}</div></div></div>`;
+        st.mandHave < st.mandTotal ? icon('warn') + ' ' + t('cbMandMissing')
+        : st.mandDone < st.mandTotal ? icon('camera') + ' ' + t('cbNumberOnly')
+        : icon('ok') + ' ' + t('cbMandOk')}</div></div></div>`;
   body += `<div class="docgrid">`;
   body += DRIVER_DOCS.map((doc, i) => {
     const cur = docs[doc.key], has = cur && cur.photo;
@@ -11507,19 +11507,19 @@ function viewDriverDocs(driverId) {
     const stat = has ? (exp ? (expSoon ? `<span style="color:#f59e0b">${t('cbExpiresWord')} ${fmtDate(cur.expiry)}</span>` : t('cbValid')) : (num || t('cbOnFile')))
       : numOnly ? `${numMask}<br><span style="color:#f59e0b">${t('cbPhotoNeeded')}</span>` : (mand ? t('cbRequired') : t('cbAddWord'));
     return `<div class="doccard ${cls}" data-act="driverDoc" data-driver="${esc(d.id)}" data-key="${esc(doc.key)}" style="animation-delay:${Math.min(i, 8) * 0.05}s">
-      ${has ? '<div class="dtick">✅</div>' : ''}
+      ${has ? '<div class="dtick">' + icon('ok') + '</div>' : ''}
       ${has && !isPdfSrc(cur.photo)
         // The card said "on file" and showed the same grey icon as an empty one,
         // so the only way to see what had been photographed was to open all six.
         // The picture is the most useful thing the card can show.
         ? `<img class="dthumb" src="${esc(cur.photo)}" alt="" loading="lazy">`
-        : `<div class="dicon">${has ? '📄' : doc.icon}</div>`}
+        : `<div class="dicon">${has ? icon('doc') : doc.icon}</div>`}
       <div class="dname">${esc(docLabel(doc))}</div>
       <div class="dstat" style="${has ? 'color:var(--muted,#8b91a0)' : 'color:' + (mand ? '#ef4444' : '#8b91a0')}">${stat}</div>
       ${mand && !has ? `<div class="mand">${t('cbMandTag')}</div>` : ''}</div>`;
   }).join('');
   body += `</div><div class="spacer"></div>`;
-  shell(t('documents'), body);
+  shell(t('documents'), v2(body));
   const fg = document.querySelector('.ring-svg .fg');
   if (fg) requestAnimationFrame(() => requestAnimationFrame(() => { fg.style.strokeDashoffset = fg.getAttribute('data-off'); }));
 }
@@ -11537,17 +11537,17 @@ function docShotSlot(side, src, sideLabel, want) {
     // the phone (gallery picture, scan, DigiLocker PDF).
     return `<div class="shot ${want ? 'want' : ''}">
       <div class="picks">
-        <button class="pick" data-act="captureDoc" ${sd}><span class="ic">📷</span>${esc(t('cbCamera'))}</button>
-        <button class="pick" data-act="uploadDoc" ${sd}><span class="ic">📁</span>${esc(t('cbUpload'))}</button>
+        <button class="pick" data-act="captureDoc" ${sd}><span class="ic">${icon('camera')}</span>${esc(t('cbCamera'))}</button>
+        <button class="pick" data-act="uploadDoc" ${sd}><span class="ic">${icon('doc')}</span>${esc(t('cbUpload'))}</button>
       </div>
       <div class="side">${esc(sideLabel)}</div></div>`;
   }
   const face = isPdfSrc(src)
-    ? `<div class="pdf"><div class="ic">📄</div><div class="tx">${esc(t('cbPdfWord'))}</div></div>`
+    ? `<div class="pdf"><div class="ic">${icon('doc')}</div><div class="tx">${esc(t('cbPdfWord'))}</div></div>`
     : `<img src="${esc(src)}" alt="${esc(sideLabel)}">`;
   return `<div class="shot filled" data-act="viewPhoto" data-src="${esc(src)}">
     ${face}
-    <div class="tick">✓</div>
+    <div class="tick">${icon('ok')}</div>
     <div class="redos">
       <button class="redo" data-act="captureDoc" ${sd} aria-label="${esc(t('cbRetake'))}">📷</button>
       <button class="redo" data-act="uploadDoc" ${sd} aria-label="${esc(t('cbUpload'))}">📁</button>
@@ -11571,10 +11571,10 @@ function sheetDriverDoc(driverId, key) {
     <div class="tiny muted" style="margin-bottom:12px">${doc.icon} ${mand ? `${t('cbMandDocFor')} ${esc(crewRoleLabel(crole).toLowerCase())}.` : t('cbOptDoc')}</div>
     <div class="docshots ${doc.back ? '' : 'solo'}" id="doc-shots">${docShotsHtml(doc)}</div>
     ${doc.back ? `<div class="doshint">${esc(t(doc.backHintKey || 'cbBackGeneric'))}</div>` : ''}
-    ${doc.num ? `<label class="field"><span class="lbl">🔢 ${esc(docLabel(doc))} ${t('cbNumberWord')}</span><input id="doc-num" value="${esc(masked ? maskAadhaar(_docNumCur) : _docNumCur)}" ${masked ? 'readonly' : ''} placeholder="${esc(t('cbEnterOrScan'))}"></label>
+    ${doc.num ? `<label class="field"><span class="lbl">${icon('doc')} ${esc(docLabel(doc))} ${t('cbNumberWord')}</span><input id="doc-num" value="${esc(masked ? maskAadhaar(_docNumCur) : _docNumCur)}" ${masked ? 'readonly' : ''} placeholder="${esc(t('cbEnterOrScan'))}"></label>
       ${masked ? `<div class="btnrow" style="margin:-4px 0 10px"><button class="btn sm ghost" data-act="revealDocNum">👁 ${t('cbShowFull')}</button><button class="btn sm ghost" data-act="editDocNum">✏️ ${t('cbChangeWord')}</button></div>`
-        : `<button class="btn sm ghost" data-act="scanDocNum" style="margin:-4px 0 10px">📷 ${t('cbScanNumber')}</button>`}` : ''}
-    ${doc.expiry ? `<label class="field"><span class="lbl">📅 ${t('cbExpiryDate')}</span><input id="doc-exp" type="date" value="${cur.expiry ? new Date(cur.expiry).toISOString().slice(0, 10) : ''}"></label>` : ''}
+        : `<button class="btn sm ghost" data-act="scanDocNum" style="margin:-4px 0 10px">${icon('camera')} ${t('cbScanNumber')}</button>`}` : ''}
+    ${doc.expiry ? `<label class="field"><span class="lbl">${icon('clock')} ${t('cbExpiryDate')}</span><input id="doc-exp" type="date" value="${cur.expiry ? new Date(cur.expiry).toISOString().slice(0, 10) : ''}"></label>` : ''}
     <button class="btn primary" data-act="saveDriverDoc" data-driver="${esc(driverId)}" data-key="${esc(key)}">${t('cbSaveDoc')}</button>`);
 }
 function docShotsHtml(doc) {
@@ -11643,9 +11643,9 @@ async function saveDriverDoc(driverId, key) {
  *   3. A licence quietly expiring under a driver who is still on the road.
  */
 let _crewFilter = 'all';
-const CREW_FILTERS = [['all', 'cbFAll', ''], ['driver', 'cbFDrivers', '🧑‍✈️'], ['conductor', 'cbFConductors', '🎫'],
-  ['incomplete', 'cbFIncomplete', '⚠️'], ['expiring', 'cbFExpiring', '📅'],
-  ['archived', 'cbFArchived', '🗄️'], ['left', 'cbFLeft', '📦']];
+const CREW_FILTERS = [['all', 'cbFAll', ''], ['driver', 'cbFDrivers', icon('person')], ['conductor', 'cbFConductors', icon('person')],
+  ['incomplete', 'cbFIncomplete', icon('warn')], ['expiring', 'cbFExpiring', '📅'],
+  ['archived', 'cbFArchived', '🗄️'], ['left', 'cbFLeft', icon('part')]];
 
 const _digits = (s) => String(s || '').replace(/\D/g, '');
 const _phoneKey = (s) => { const d = _digits(s); return d.length >= 10 ? d.slice(-10) : ''; };
@@ -11678,7 +11678,7 @@ function crewLi(d) {
     : st.mandHave < st.mandTotal ? `<span class="badge b-red">${st.mandTotal - st.mandHave} ${t('cbDocsShort')}</span>`
     : st.mandDone < st.mandTotal ? `<span class="badge b-low">${t('cbNoScan')}</span>`
     : exp ? `<span class="badge b-amber">${exp.dl < 0 ? t('expired') : exp.dl + 'd'}</span>`
-    : `<span class="badge b-green">✓</span>`;
+    : `<span class="badge b-green">${icon('ok')}</span>`;
   // The searchable text nobody should have to see: Aadhaar's last four are
   // enough to search on, and the mask is what gets rendered.
   const hay = `${d.name} ${d.phone || ''} ${crewLicenceNo(d)} ${_digits(crewAadhaarNo(d)).slice(-4)} ${bus} ${crewRoleLabel(role)}`;
@@ -11691,7 +11691,7 @@ function crewLi(d) {
     <div class="ava ava-round">${crewFace(d) ? `<img src="${esc(crewFace(d))}" alt="">` : meta[0]}</div>
     <div class="main"><div class="t">${esc(d.name)}</div>
       <div class="crewmeta"><span class="rolepill">${meta[0]} ${esc(crewRoleLabel(role))}</span>${
-        bus ? `<span class="buschip">🚌 ${esc(bus)}</span>` : ''}</div>
+        bus ? `<span class="buschip">${icon('bus')} ${esc(bus)}</span>` : ''}</div>
       <div class="s">${esc([d.phone || t('cbNoPhone'), crewLicenceNo(d)].filter(Boolean).join(' · ') + crewRatingTag(d.id))}</div></div>
     ${badge}</div>`;
 }
@@ -11725,12 +11725,12 @@ function viewCrewBank() {
   /* The roll as four figures. The ring that was here showed one percentage
    * and needed a caption to say what it was a percentage OF; these say it. */
   let body = kpiRow([
-    { icon: '🧑‍✈️', label: t('cbDrivers'), value: drv },
+    { icon: icon('person'), label: t('cbDrivers'), value: drv },
     { icon: '🎟️', label: t('cbConductors'), value: con },
-    { icon: '📄', label: t('cbKpiDocs'), value: missing,
+    { icon: icon('doc'), label: t('cbKpiDocs'), value: missing,
       delta: missing ? 'chase' : '', dir: missing ? 'bad' : 'good' },
-    { icon: '📷', label: t('cbKpiScan'), value: unscanned, dir: 'flat' },
-    { icon: '⏳', label: t('cbKpiExp'), value: expiring,
+    { icon: icon('camera'), label: t('cbKpiScan'), value: unscanned, dir: 'flat' },
+    { icon: icon('clock'), label: t('cbKpiExp'), value: expiring,
       dir: expiring ? 'bad' : 'flat' },
   ]);
   if (gone) body += pageSub(gone + ' ' + t('cbLeft'));
@@ -11739,7 +11739,7 @@ function viewCrewBank() {
   body += `<div class="card listwrap" id="crew-list"><div class="empty">Loading…</div></div>`;
   body += `<div class="btnrow" style="margin-top:12px"><button class="btn sm ghost" data-act="exportCrew">⬇️ ${t('cbExport')}</button>${
     can(S.user.role, 'bulkArchiveCrew') && act.length ? `<button class="btn sm ghost" data-act="bulkArchive">🗄️ ${t('cbBulkArchive')}</button>` : ''}</div>`;
-  shell(t('cbTitle'), body, { act: 'addCrew', icon: '+' });
+  shell(t('cbTitle'), v2(body), { act: 'addCrew', icon: '+' });
   const s = document.getElementById('crew-search'); if (s) s.oninput = renderCrewList;
   renderCrewList();
 }
@@ -11757,8 +11757,8 @@ function sheetAddCrew(role) {
   openSheet(t('cbNewJoining'), `
     <div class="chiprow" id="crew-role-chips">${Object.keys(CREW_ROLE_META).map((r) =>
       `<button class="chip ${_crewNewRole === r ? 'active' : ''}" data-act="crewRolePick" data-v="${esc(r)}">${CREW_ROLE_META[r][0]} ${esc(crewRoleLabel(r))}</button>`).join('')}</div>
-    <div class="btnrow"><button class="btn" data-act="crewPhoto">📷 ${t('cbTakePhoto')}</button>
-      <button class="btn" data-act="crewPhotoUpload">📁 ${t('cbUploadPhoto')}</button></div>
+    <div class="btnrow"><button class="btn" data-act="crewPhoto">${icon('camera')} ${t('cbTakePhoto')}</button>
+      <button class="btn" data-act="crewPhotoUpload">${icon('doc')} ${t('cbUploadPhoto')}</button></div>
     <div id="crew-prev" class="thumbs" style="margin:10px 0"></div>
     <label class="field"><span class="lbl">${t('cbFullName')} *</span><input id="c-name" placeholder="${esc(t('cbNamePh'))}"></label>
     <div class="grid2">
@@ -11952,7 +11952,7 @@ async function crewReuse(id) {
   const p = _crewPending; const d = driverById(id);
   if (!p || !d) return closeSheet();
   if (crewStatusOf(d) === 'left' && d.rehire === 'no'
-    && !confirm(`⚠️ ${d.name} ${t('cbNoRehireWarn')}\n\n${t('cbDupReason')}: ${crewLeftReason(d) || t('cbNotRecorded')}\n\n${t('cbBringBack')}`)) return;
+    && !confirm(`${icon('warn')} ${d.name} ${t('cbNoRehireWarn')}\n\n${t('cbDupReason')}: ${crewLeftReason(d) || t('cbNotRecorded')}\n\n${t('cbBringBack')}`)) return;
   _crewPending = null;
   const _wasBus = dutyBusOf(d);
   // Blank fields must not wipe what is already on file — an empty address typed
@@ -12018,7 +12018,7 @@ async function saveCrewProfile(id) {
   if (!name) return toast(t('cbNeedNameNotEmpty'));
   const phone = v('e-phone').trim();
   const dups = crewDuplicates(phone, '', '', d.id).filter((x) => crewStatusOf(x.d) === 'active');
-  if (dups.length && !confirm(`⚠️ ${t('cbDupPhoneOn')}\n\n${dups.map(crewDupLine).join('\n')}\n\n${t('cbSaveAnyway')}`)) return;
+  if (dups.length && !confirm(`${icon('warn')} ${t('cbDupPhoneOn')}\n\n${dups.map(crewDupLine).join('\n')}\n\n${t('cbSaveAnyway')}`)) return;
   Object.assign(d, {
     name, phone, altPhone: v('e-phone2').trim(),
     joinedAt: v('e-joined') ? new Date(v('e-joined') + 'T00:00:00').getTime() : d.joinedAt,
@@ -12063,7 +12063,7 @@ async function saveCrewExit(id) {
   if (!can(S.user.role, 'manageDrivers')) return toast(t('cbNotAllowed'));
   const d = driverById(id); if (!d) return;
   const open = crewOpenWork(d);
-  if (open.length && !confirm(`⚠️ ${d.name} still has:\n\n${open.map((x) => '• ' + x).join('\n')}\n\nMarking him as left frees his bus and takes him off every list — settle this first, or it stays open with nobody watching it.\n\nMark as left anyway?`)) return;
+  if (open.length && !confirm(`${icon('warn')} ${d.name} still has:\n\n${open.map((x) => '• ' + x).join('\n')}\n\nMarking him as left frees his bus and takes him off every list — settle this first, or it stays open with nobody watching it.\n\nMark as left anyway?`)) return;
   const v = (x) => (document.getElementById(x) || {}).value || '';
   const was = dutyBusOf(d);
   d.status = 'left';
@@ -12103,7 +12103,7 @@ async function archiveCrew(id) {
   if (!can(S.user.role, 'manageDrivers')) return toast(t('cbNotAllowed'));
   const d = driverById(id); if (!d) return;
   const open = crewOpenWork(d);
-  if (open.length && !confirm(`⚠️ ${d.name} still has:\n\n${open.map((x) => '• ' + x).join('\n')}\n\nArchiving takes him off every working list — settle this first, or it stays open with nobody watching it.\n\nArchive anyway?`)) return;
+  if (open.length && !confirm(`${icon('warn')} ${d.name} still has:\n\n${open.map((x) => '• ' + x).join('\n')}\n\nArchiving takes him off every working list — settle this first, or it stays open with nobody watching it.\n\nArchive anyway?`)) return;
   const was = dutyBusOf(d);
   d.status = 'archived'; d.archivedAt = Date.now();
   await putCrew(d, was, 'archived');
@@ -12130,8 +12130,8 @@ async function bulkArchiveCrew() {
   if (!list.length) return toast(t('cbBulkNothing'));
   const drv = list.filter((d) => crewRoleOf(d) === 'driver').length;
   const withOpen = list.filter((d) => crewOpenWork(d).length);
-  if (withOpen.length && !confirm(`⚠️ ${withOpen.length} of them still have an open trip or job card:\n\n${withOpen.slice(0, 5).map((d) => '• ' + d.name + ' — ' + crewOpenWork(d).join('; ')).join('\n')}${withOpen.length > 5 ? `\n• …and ${withOpen.length - 5} more` : ''}\n\nArchiving leaves all of it open with nobody watching it.\n\nContinue?`)) return;
-  if (!confirm(`⚠️ ${t('cbBulkConfirm')}\n\n${list.length} — ${drv} ${t('cbDrivers')}, ${list.length - drv} ${t('cbConductors')}\n\n${t('cbBulkExplain')}`)) return;
+  if (withOpen.length && !confirm(`${icon('warn')} ${withOpen.length} of them still have an open trip or job card:\n\n${withOpen.slice(0, 5).map((d) => '• ' + d.name + ' — ' + crewOpenWork(d).join('; ')).join('\n')}${withOpen.length > 5 ? `\n• …and ${withOpen.length - 5} more` : ''}\n\nArchiving leaves all of it open with nobody watching it.\n\nContinue?`)) return;
+  if (!confirm(`${icon('warn')} ${t('cbBulkConfirm')}\n\n${list.length} — ${drv} ${t('cbDrivers')}, ${list.length - drv} ${t('cbConductors')}\n\n${t('cbBulkExplain')}`)) return;
   if ((window.prompt(t('cbBulkType')) || '').trim().toUpperCase() !== 'ARCHIVE') return;
   const now = Date.now();
   const was = new Map(list.map((d) => [d.id, dutyBusOf(d)]));
@@ -12146,7 +12146,7 @@ async function bulkArchiveCrew() {
 async function rejoinCrew(id) {
   if (!can(S.user.role, 'manageDrivers')) return toast(t('cbNotAllowed'));
   const d = driverById(id); if (!d) return;
-  if (d.rehire === 'no' && !confirm(`⚠️ ${d.name} ${t('cbNoRehireWarn')}\n\n${t('cbDupReason')}: ${crewLeftReason(d) || t('cbNotRecorded')}\n\n${t('cbBringBack')}`)) return;
+  if (d.rehire === 'no' && !confirm(`${icon('warn')} ${d.name} ${t('cbNoRehireWarn')}\n\n${t('cbDupReason')}: ${crewLeftReason(d) || t('cbNotRecorded')}\n\n${t('cbBringBack')}`)) return;
   const was = dutyBusOf(d);
   d.status = 'active'; d.rejoinedAt = Date.now();
   await _takeSeat(d, d.busId, d.driverSlot);
@@ -12345,7 +12345,7 @@ function sheetAssignBus(driverId) {
   // means this phone never received the bus records — the usual cause is a full
   // phone, which stops records being stored at all.
   if (!buses.length) {
-    return openSheet('Assign bus', `<div class="banner warn">🚌 ${esc(t('noBusesHere'))}</div>
+    return openSheet('Assign bus', `<div class="banner warn">${icon('bus')} ${esc(t('noBusesHere'))}</div>
       <div class="small muted">${esc(t('noBusesFix'))}</div>`);
   }
   openSheet('Assign bus', `<label class="field"><span class="lbl">Bus for ${esc(d.name)}</span>
@@ -12392,7 +12392,7 @@ function sheetIncident(driverId) {
     <label class="field"><span class="lbl">Type</span><select id="f-itype">${Object.entries(INCIDENT).map(([k, v]) => `<option value="${k}">${v.icon} ${v.label} (-${v.pen})</option>`).join('')}</select></label>
     <label class="field"><span class="lbl">Note</span><input id="f-inote" placeholder="e.g. left rear panel"></label>
     <label class="field"><span class="lbl">Repair cost (₹, optional)</span><input id="f-icost" type="number" inputmode="numeric"></label>
-    <div id="f-iphoto"></div><button class="btn" data-act="incidentPhoto">📷 Add photo</button>
+    <div id="f-iphoto"></div><button class="btn" data-act="incidentPhoto">${icon('camera')} Add photo</button>
     <div class="spacer"></div>
     <button class="btn primary" data-act="saveIncident" data-driver="${esc(driverId)}">Save</button>`);
 }
@@ -12404,14 +12404,14 @@ async function saveIncident(driverId) {
 // Stable English category values (stored on the report so analytics/linking
 // keep working) paired with an icon + i18n key for the big tappable tiles.
 const REPORT_CATS = [
-  { val: 'Brakes',     icon: '🛑', key: 'catBrakes' },
-  { val: 'Engine',     icon: '⚙️', key: 'catEngine' },
+  { val: 'Brakes',     icon: icon('bad'), key: 'catBrakes' },
+  { val: 'Engine',     icon: icon('edit'), key: 'catEngine' },
   { val: 'AC',         icon: '❄️', key: 'catAC' },
   { val: 'Suspension', icon: '🪛', key: 'catSuspension' },
-  { val: 'Electrical', icon: '🔌', key: 'catElectrical' },
-  { val: 'Tyres',      icon: '🛞', key: 'catTyres' },
-  { val: 'Gearbox',    icon: '🔧', key: 'catGearbox' },
-  { val: 'Body',       icon: '🚌', key: 'catBody' },
+  { val: 'Electrical', icon: icon('part'), key: 'catElectrical' },
+  { val: 'Tyres',      icon: icon('part'), key: 'catTyres' },
+  { val: 'Gearbox',    icon: icon('job'), key: 'catGearbox' },
+  { val: 'Body',       icon: icon('bus'), key: 'catBody' },
   { val: 'Other',      icon: '•',  key: 'catOther' },
 ];
 let _reportPhoto = '';
@@ -12427,7 +12427,7 @@ function sheetTripReport(busId, driverId) {
     <div class="cat-grid" id="f-rcat-grid">${tiles}</div>
     <label class="field"><span class="lbl">${t('reportWhat')}</span><textarea id="f-rprob" placeholder="e.g. brakes weak on slopes, noise from rear"></textarea></label>
     <div class="btnrow">
-      <button class="btn" data-act="reportPhoto">📷 ${t('drvPhotoBtn')}</button>
+      <button class="btn" data-act="reportPhoto">${icon('camera')} ${t('drvPhotoBtn')}</button>
       <button class="btn" id="f-rvoice" data-act="reportVoice">🎤 ${t('drvVoiceBtn')}</button>
     </div>
     <div id="f-rphoto" style="margin-top:8px"></div>
@@ -12496,7 +12496,7 @@ function reportAiOf(r) {
 function reportAiLine(r) {
   const a = reportAiOf(r); if (!a) return '';
   const pc = { high: 'var(--red)', medium: 'var(--amber)', low: 'var(--green)' }[a.priority];
-  return `<div class="tiny" style="margin-top:3px">${a.unsafe ? `<span class="badge b-red">⚠️ ${t('raiUnsafe')}</span> ` : ''}🤖 <b>${esc(LANG === 'hi' ? a.hi || a.title : a.title)}</b> · ${esc(a.trade)} · <span style="color:${pc};font-weight:700">${t('rai_' + a.priority)}</span>${a.repeat ? ` · <span style="color:var(--amber);font-weight:700">${t('raiRepeat')}</span>` : ''}</div>
+  return `<div class="tiny" style="margin-top:3px">${a.unsafe ? `<span class="badge b-red">${icon('warn')} ${t('raiUnsafe')}</span> ` : ''}🤖 <b>${esc(LANG === 'hi' ? a.hi || a.title : a.title)}</b> · ${esc(a.trade)} · <span style="color:${pc};font-weight:700">${t('rai_' + a.priority)}</span>${a.repeat ? ` · <span style="color:var(--amber);font-weight:700">${t('raiRepeat')}</span>` : ''}</div>
     ${a.cause ? `<div class="tiny muted">${esc(a.cause)}</div>` : ''}`;
 }
 // The job card's notes, written from the draft: cause, what to check, parts (with stock).
@@ -12622,7 +12622,7 @@ async function checkRoutes(opts = {}) {
     for (const r of risks) {
       if (_riskAlerted[r.stop.id] === todayKey()) continue;
       _riskAlerted[r.stop.id] = todayKey();
-      toast(`⚠️ ${busName(r.bus.id)} may be late to ${r.stop.name}${r.etaMin != null ? ' · ETA ' + minToHhmm(r.etaMin) : ''}`);
+      toast(`${icon('warn')} ${busName(r.bus.id)} may be late to ${r.stop.name}${r.etaMin != null ? ' · ETA ' + minToHhmm(r.etaMin) : ''}`);
     }
   }
   if ((changed || risksChanged) && S.user && !document.querySelector('.sheetwrap')) rerender();
@@ -12657,7 +12657,7 @@ function viewRoutes() {
   const risks = S.routeRisks || [];
   let body = '';
   if (risks.length) {
-    body += `<div class="card" style="border:1.5px solid var(--amber)"><div class="row between"><h3>⚠️ Pickups at risk now</h3><span class="badge b-amber">${risks.length}</span></div>`;
+    body += `<div class="card" style="border:1.5px solid var(--amber)"><div class="row between"><h3>${icon('warn')} Pickups at risk now</h3><span class="badge b-amber">${risks.length}</span></div>`;
     body += risks.map((r) => `<div class="li" data-routebus="${esc(r.bus.id)}"><div class="ava">${icon('bus')}</div>
       <div class="main"><div class="t">${esc(busName(r.bus.id))} → ${esc(r.stop.name)}</div>
       <div class="s">due ${minToHhmm(r.sched)}${r.etaMin != null ? ' · ETA ' + minToHhmm(r.etaMin) : ''}${r.reason ? ' · ' + r.reason : ''}</div></div>
@@ -12668,13 +12668,13 @@ function viewRoutes() {
   body += `<div class="card"><h3>Buses</h3>`;
   body += buses.length ? buses.map((b) => {
     const r = routeForBus(b.id); const n = r ? (r.stops || []).length : 0;
-    return `<div class="li" data-routebus="${esc(b.id)}"><div class="ava">🚌</div>
+    return `<div class="li" data-routebus="${esc(b.id)}"><div class="ava">${icon('bus')}</div>
       <div class="main"><div class="t">${esc(b.regNo)}</div>
       <div class="s">${n ? n + ' stop' + (n > 1 ? 's' : '') : 'No route yet — tap to set up'}</div></div>
       ${n ? `<span class="tiny" style="color:var(--brand2)">view ›</span>` : `<span class="badge b-amber">set up</span>`}</div>`;
   }).join('') : `<div class="empty">No buses yet</div>`;
   body += `</div>`;
-  shell('Routes & timings', body);
+  shell('Routes & timings', v2(body));
 }
 function viewRouteDetail(busId) {
   const bus = byId(S.cache.buses, busId); if (!bus) return viewRoutes();
@@ -12698,7 +12698,7 @@ function viewRouteDetail(busId) {
     }).join('');
     body += `</div>`;
   }
-  shell(esc(bus.regNo) + ' — route', body);
+  shell(esc(bus.regNo) + ' — route', v2(body));
 }
 
 let _stopLat = null, _stopLng = null;
@@ -12710,24 +12710,24 @@ function sheetAddStop(busId, stopId) {
     <input type="hidden" id="f-stopid" value="${cur ? cur.id : ''}">
     <label class="field"><span class="lbl">Stop name</span><input id="f-stopname" value="${esc(cur && cur.name || '')}" placeholder="e.g. Sindhi Camp first pickup"></label>
     <div class="card" style="box-shadow:none;background:var(--tile);padding:12px">
-      <div class="tiny muted" style="margin-bottom:6px">📍 Geofence — stand at the stop and capture it, or it keeps the existing pin.</div>
+      <div class="tiny muted" style="margin-bottom:6px">${icon('map')} Geofence — stand at the stop and capture it, or it keeps the existing pin.</div>
       <div id="f-stoploc" class="small">${cur && cur.lat != null ? `Set: ${cur.lat.toFixed(5)}, ${cur.lng.toFixed(5)}` : '⚠️ Not set'}</div>
-      <button class="btn sm" data-act="captureStopLoc" style="margin-top:8px">📍 Use my current location</button>
+      <button class="btn sm" data-act="captureStopLoc" style="margin-top:8px">${icon('map')} Use my current location</button>
     </div>
     <div class="grid2">
       <label class="field"><span class="lbl">Radius (m)</span><input id="f-stopradius" type="number" inputmode="numeric" min="10" value="${cur && cur.radiusM || 150}"></label>
       <label class="field"><span class="lbl">Go-time (HH:MM, blank = auto-learn)</span><input id="f-stoptime" value="${esc(cur && cur.schedTime || '')}" placeholder="06:45"></label>
     </div>
     <button class="btn primary" data-act="saveStop" data-routebus="${esc(busId)}">${t('save')}</button>
-    ${cur ? `<div class="spacer"></div><button class="btn" data-act="delStop" data-routebus="${esc(busId)}" data-stop="${esc(cur.id)}" style="color:var(--red)">🗑 Remove stop</button>` : ''}`);
+    ${cur ? `<div class="spacer"></div><button class="btn" data-act="delStop" data-routebus="${esc(busId)}" data-stop="${esc(cur.id)}" style="color:var(--red)">${icon('delete')} Remove stop</button>` : ''}`);
 }
 async function captureStopLocation() {
   toast('Getting location…');
   try {
     const pos = await new Promise((res, rej) => navigator.geolocation.getCurrentPosition(res, rej, { enableHighAccuracy: true, timeout: 8000 }));
     _stopLat = pos.coords.latitude; _stopLng = pos.coords.longitude;
-    const el = $('#f-stoploc'); if (el) el.textContent = `Captured: ${_stopLat.toFixed(5)}, ${_stopLng.toFixed(5)} ✓`;
-    toast('Location captured ✓');
+    const el = $('#f-stoploc'); if (el) el.textContent = `Captured: ${_stopLat.toFixed(5)}, ${_stopLng.toFixed(5)} ${icon('ok')}`;
+    toast('Location captured');
   } catch (e) { toast('Could not get location — check GPS permission'); }
 }
 async function saveStop(busId) {
@@ -12750,7 +12750,7 @@ async function saveStop(busId) {
   }
   await DB.put('routes', route);
   _stopLat = _stopLng = null;
-  await load(); closeSheet(); toast('Stop saved ✓'); viewRouteDetail(busId);
+  await load(); closeSheet(); toast('Stop saved'); viewRouteDetail(busId);
 }
 async function delStop(busId, stopId) {
   const route = routeForBus(busId); if (!route) return;
@@ -12783,13 +12783,13 @@ function _computeInsights() {
 
   // Proof-of-work gap — parts billed, no 'after' photo (classic pilferage signal)
   jobs.filter((j) => (j.status === 'verified' || j.status === 'done') && !(j.afterPhotos || []).length && jobCost(j).parts > 0)
-    .forEach((j) => out.push({ sev: 'high', icon: '📸', title: `No proof photo — ${busName(j.busId)}`,
+    .forEach((j) => out.push({ sev: 'high', icon: icon('camera'), title: `No proof photo — ${busName(j.busId)}`,
       detail: `${money(jobCost(j).parts)} of parts billed with no 'after' photo. Confirm the work was actually done.`,
       nav: { name: 'jobs', id: j.id } }));
 
   // Parts out on a job that's still open — parts left stores, work not closed
   jobs.filter((j) => j.status === 'open' && (j.partsUsed || []).length)
-    .forEach((j) => out.push({ sev: 'med', icon: '📦', title: `Parts out, job still open — ${busName(j.busId)}`,
+    .forEach((j) => out.push({ sev: 'med', icon: icon('part'), title: `Parts out, job still open — ${busName(j.busId)}`,
       detail: `${money(jobCost(j).parts)} issued but job not closed. Chase closure or check parts weren't diverted.`,
       nav: { name: 'jobs', id: j.id } }));
 
@@ -12797,27 +12797,27 @@ function _computeInsights() {
   const rated = buses.map((b) => ({ b, r: busCostPerKm(b) })).filter((x) => x.r > 0).sort((a, b) => b.r - a.r);
   if (rated.length >= 2) {
     const med = rated[Math.floor(rated.length / 2)].r, top = rated[0];
-    if (top.r > 1.8 * med) out.push({ sev: 'med', icon: '💸', title: `Money-pit: ${top.b.regNo}`,
+    if (top.r > 1.8 * med) out.push({ sev: 'med', icon: icon('money'), title: `Money-pit: ${top.b.regNo}`,
       detail: `~₹${top.r.toFixed(1)}/km — well above the fleet norm. Inspect for a recurring fault draining cash.`,
       nav: { name: 'buses', id: top.b.id } });
   }
 
   // Preventive maintenance (predictive, from live odometer)
   busesDueService().forEach(({ b, sv }) => {
-    if (sv.status === 'overdue') out.push({ sev: 'high', icon: '🛢️', title: `Service overdue — ${b.regNo}`,
+    if (sv.status === 'overdue') out.push({ sev: 'high', icon: icon('fuel'), title: `Service overdue — ${b.regNo}`,
       detail: `${Math.abs(sv.dueIn).toLocaleString('en-IN')} km past due. Skipping service turns into costly breakdowns.`, nav: { name: 'buses', id: b.id } });
-    else out.push({ sev: 'low', icon: '🛢️', title: `Service soon — ${b.regNo}`,
+    else out.push({ sev: 'low', icon: icon('fuel'), title: `Service soon — ${b.regNo}`,
       detail: `Due in ${sv.dueIn.toLocaleString('en-IN')} km. Bundle it with the next garage visit.`, nav: { name: 'buses', id: b.id } });
   });
 
   // Reorder forecast
   const low = parts.filter(isLow);
-  if (low.length) out.push({ sev: 'med', icon: '🛒', title: `Reorder ${low.length} part${low.length > 1 ? 's' : ''}`,
+  if (low.length) out.push({ sev: 'med', icon: icon('part'), title: `Reorder ${low.length} part${low.length > 1 ? 's' : ''}`,
     detail: `${low.slice(0, 3).map((p) => p.name).join(', ')}${low.length > 3 ? '…' : ''} below reorder level. Buying ahead avoids costly emergency runs.`,
     nav: { name: 'store' } });
 
   // Document expiry — legal & cost risk
-  allDocAlerts().forEach((a) => out.push({ sev: a.st.dl < 0 ? 'high' : 'med', icon: '📄',
+  allDocAlerts().forEach((a) => out.push({ sev: a.st.dl < 0 ? 'high' : 'med', icon: icon('doc'),
     title: `${a.doc.type} ${a.st.dl < 0 ? 'EXPIRED' : 'expiring'} — ${a.bus.regNo}`,
     detail: `${a.st.dl < 0 ? 'Expired' : 'Expires'} ${fmtDate(a.doc.expiry)}. Running on it risks fines & impound.`,
     nav: { name: 'buses', id: a.bus.id } }));
@@ -12826,17 +12826,17 @@ function _computeInsights() {
   // Claude's "may be unsafe to run" first, all of them; then the rest as before.
   const openReps = (S.cache.driverreports || []).filter((r) => r.status === 'open');
   openReps.filter((r) => (reportAiOf(r) || {}).unsafe).forEach((r) => { const a = reportAiOf(r);
-    out.push({ sev: 'high', icon: '⚠️', title: `May be unsafe to run — ${busName(r.busId)}`,
+    out.push({ sev: 'high', icon: icon('warn'), title: `May be unsafe to run — ${busName(r.busId)}`,
       detail: `🤖 ${a.title}. ${a.cause} Driver: "${r.problem}" (${driverName(r.driverId)}).`, nav: { name: 'buses', id: r.busId } }); });
   openReps.filter((r) => !(reportAiOf(r) || {}).unsafe).slice(0, 3)
-    .forEach((r) => { const a = reportAiOf(r); out.push({ sev: a && a.priority === 'high' ? 'high' : 'med', icon: '🗣️', title: `Driver report open — ${busName(r.busId)}`,
+    .forEach((r) => { const a = reportAiOf(r); out.push({ sev: a && a.priority === 'high' ? 'high' : 'med', icon: icon('review'), title: `Driver report open — ${busName(r.busId)}`,
       detail: a ? `🤖 ${a.title} (${a.trade}, ${a.priority}). Driver: "${r.problem}".` : `"${r.problem}" (${driverName(r.driverId)}). Catch it at the next service before it becomes a breakdown.`,
       nav: { name: 'buses', id: r.busId } }); });
 
   // Low driver ratings — damage/cost risk, coaching opportunity
   activeDrivers().map((d) => ({ d, s: driverScore(d.id) })).filter((x) => x.s < 75)
     .sort((a, b) => a.s - b.s)
-    .forEach(({ d, s }) => out.push({ sev: s < 60 ? 'high' : 'med', icon: '🧑‍✈️', title: `Driver rating low — ${d.name}`,
+    .forEach(({ d, s }) => out.push({ sev: s < 60 ? 'high' : 'med', icon: icon('person'), title: `Driver rating low — ${d.name}`,
       detail: `${s}/100 from recent incidents (${driverIncidents(d.id).length}). Coaching or reassignment can cut damage costs.`,
       nav: { name: 'drivers', id: d.id } }));
 
@@ -12844,7 +12844,7 @@ function _computeInsights() {
   jobs.filter((j) => j.status === 'open' || j.status === 'in-progress')
     .map((j) => ({ j, age: Math.round((Date.now() - j.createdAt) / 86400000) }))
     .filter((x) => x.age >= 2).sort((a, b) => b.age - a.age).slice(0, 2)
-    .forEach(({ j, age }) => out.push({ sev: 'low', icon: '⏳', title: `Job aging ${age}d — ${busName(j.busId)}`,
+    .forEach(({ j, age }) => out.push({ sev: 'low', icon: icon('clock'), title: `Job aging ${age}d — ${busName(j.busId)}`,
       detail: `Open ${age} days. Long bay time = lost running days for the bus.`, nav: { name: 'jobs', id: j.id } }));
 
   // Misuse / safety from live GPS (last 24h–7d)
@@ -12856,16 +12856,16 @@ function _computeInsights() {
     detail: `${nightBy[reg]} night-time move(s) in 24h. Confirm it's an authorised trip, not misuse.`, nav: { name: 'safety' } }));
   // Overspeed-heavy in the last 7 days
   const ovBy = {}; ev7.filter((e) => e.type === 'overspeed').forEach((e) => { ovBy[e.reg] = (ovBy[e.reg] || 0) + 1; });
-  Object.entries(ovBy).filter(([, n]) => n >= 5).forEach(([reg, n]) => out.push({ sev: 'med', icon: '💨', title: `Frequent overspeeding — ${reg}`,
+  Object.entries(ovBy).filter(([, n]) => n >= 5).forEach(([reg, n]) => out.push({ sev: 'med', icon: icon('alert'), title: `Frequent overspeeding — ${reg}`,
     detail: `${n} overspeed events this week. Coach the driver — it raises crash & fuel risk.`, nav: { name: 'safety' } }));
   // Heavy idling — fuel waste
   const idleBy = {}; ev7.filter((e) => e.type === 'idle').forEach((e) => { idleBy[e.reg] = (idleBy[e.reg] || 0) + 1; });
-  Object.entries(idleBy).filter(([, n]) => n >= 5).forEach(([reg, n]) => out.push({ sev: 'low', icon: '🐌', title: `Heavy idling — ${reg}`,
+  Object.entries(idleBy).filter(([, n]) => n >= 5).forEach(([reg, n]) => out.push({ sev: 'low', icon: icon('clock'), title: `Heavy idling — ${reg}`,
     detail: `${n} long-idle events this week, burning fuel parked. Ask drivers to switch off.`, nav: { name: 'safety' } }));
 
   // Parts fraud — old core not returned, or a returned "old" part looks new
   jobs.filter((j) => ['done', 'verified'].includes(j.status)).forEach((j) => {
-    if (coreMissing(j).length) out.push({ sev: 'med', icon: '🔧', title: `Old part not returned — ${busName(j.busId)}`,
+    if (coreMissing(j).length) out.push({ sev: 'med', icon: icon('job'), title: `Old part not returned — ${busName(j.busId)}`,
       detail: `${coreMissing(j).length} replaced part(s) with no old core returned — possible swap or warranty fraud.`, nav: { name: 'jobs', id: j.id } });
     if ((j.coreReturns || []).some((c) => c.condition === 'suspect')) out.push({ sev: 'high', icon: '🚩', title: `Suspicious old part — ${busName(j.busId)}`,
       detail: `A returned "old" part looks nearly new. Inspect before paying.`, nav: { name: 'jobs', id: j.id } });
@@ -12880,7 +12880,7 @@ function _computeInsights() {
       const at = j.closedAt || j.createdAt;
       const st = warrantyStatus(j.busId, l.partId, at, at);
       if (st && st.underWarranty) { const p = byId(S.cache.parts, l.partId);
-        out.push({ sev: 'high', icon: '🧾', title: `Charged for a warranty part — ${busName(j.busId)}`,
+        out.push({ sev: 'high', icon: icon('money'), title: `Charged for a warranty part — ${busName(j.busId)}`,
           detail: `${p ? p.name : l.partId} was under ${st.supplier || 'supplier'} warranty when replaced & billed ${money(l.cost)} — should have been free.`, nav: { name: 'jobs', id: j.id } }); }
     });
   });
@@ -12893,7 +12893,7 @@ function _computeInsights() {
     times.sort((a, b) => a - b);
     const [busId, partId] = k.split('|'); const p = byId(S.cache.parts, partId); const pn = p ? p.name : partId;
     const recent = times.filter((t) => t >= Date.now() - 365 * day);
-    if (recent.length >= 3) out.push({ sev: 'high', icon: '🔁', title: `Repeat failure — ${pn} on ${busName(busId)}`,
+    if (recent.length >= 3) out.push({ sev: 'high', icon: icon('edit'), title: `Repeat failure — ${pn} on ${busName(busId)}`,
       detail: `Replaced ${recent.length}× in 12 months. A recurring fault, or the part is being recycled/resold.`, nav: { name: 'buses', id: busId } });
     else { const gap = (times[times.length - 1] - times[times.length - 2]) / day;
       if (gap < 60) out.push({ sev: 'med', icon: '⏱️', title: `Premature replacement — ${pn} on ${busName(busId)}`,
@@ -12905,40 +12905,40 @@ function _computeInsights() {
   activeCrew().forEach((d) => {
     const st = driverDocStatus(d), crole = crewRoleOf(d);
     if (st.mandHave < st.mandTotal) docGaps.push({ d, crole, st });
-    crewExpiring(d).forEach((x) => out.push({ sev: x.dl < 0 ? 'high' : 'med', icon: '📄',
+    crewExpiring(d).forEach((x) => out.push({ sev: x.dl < 0 ? 'high' : 'med', icon: icon('doc'),
       title: `${x.label} ${x.dl < 0 ? 'expired' : 'expiring'} — ${d.name}`,
       detail: `${x.label} ${x.dl < 0 ? 'expired' : 'expires'} ${fmtDate(x.expiry)}.`, nav: { name: 'driverdocs', id: d.id } }));
   });
   if (docGaps.length > 3) {
     const names = docGaps.slice(0, 3).map((g) => g.d.name).join(', ');
-    out.push({ sev: 'med', icon: '📂', title: `${docGaps.length} ${t('cbInsMissingMany')}`,
+    out.push({ sev: 'med', icon: icon('doc'), title: `${docGaps.length} ${t('cbInsMissingMany')}`,
       detail: `${names} ${t('cbInsMissingDetail')} ${docGaps.length - 3} ${t('cbInsMore')}`,
       nav: { name: 'crewbank' } });
   } else docGaps.forEach(({ d, crole }) => {
     const gaps = DRIVER_DOCS.filter((x) => docIsMandatory(x, crole) && !(docOf(d, x.key) || {}).photo).map(docLabel);
-    out.push({ sev: 'med', icon: '📂', title: `${crewRoleLabel(crole)} ${t('cbInsDocsIncomplete')} — ${d.name}`,
+    out.push({ sev: 'med', icon: icon('doc'), title: `${crewRoleLabel(crole)} ${t('cbInsDocsIncomplete')} — ${d.name}`,
       detail: `${t('cbInsMissingList')}: ${gaps.join(', ')}.`, nav: { name: 'driverdocs', id: d.id } });
   });
 
   // Preventive maintenance forecast — get ahead of breakdowns
   buses.forEach((b) => {
     const sf = serviceForecast(b);
-    if (sf.status === 'overdue') out.push({ sev: 'high', icon: '🛠️', title: `Service overdue — ${b.regNo}`,
+    if (sf.status === 'overdue') out.push({ sev: 'high', icon: icon('bad'), title: `Service overdue — ${b.regNo}`,
       detail: `${-sf.dueIn} km past due. Service it before it becomes a breakdown.`, nav: { name: 'buses', id: b.id } });
-    else if (sf.daysLeft != null && sf.daysLeft >= 0 && sf.daysLeft <= 10) out.push({ sev: 'med', icon: '🛠️', title: `Service due soon — ${b.regNo}`,
+    else if (sf.daysLeft != null && sf.daysLeft >= 0 && sf.daysLeft <= 10) out.push({ sev: 'med', icon: icon('bad'), title: `Service due soon — ${b.regNo}`,
       detail: `~${sf.dueIn} km (${sf.daysLeft}d) to next service. Plan it now to avoid downtime.`, nav: { name: 'buses', id: b.id } });
-    partLifeForecast(b).filter((p) => p.status === 'overdue' || p.daysLeft <= 7).slice(0, 1).forEach((p) => out.push({ sev: 'med', icon: '🔩',
+    partLifeForecast(b).filter((p) => p.status === 'overdue' || p.daysLeft <= 7).slice(0, 1).forEach((p) => out.push({ sev: 'med', icon: icon('part'),
       title: `${p.label} due — ${b.regNo}`, detail: p.daysLeft <= 0 ? `Past its ~life by ${-p.daysLeft}d — inspect/replace.` : `~${p.daysLeft}d of life left.`, nav: { name: 'buses', id: b.id } }));
   });
 
   // Stock shrinkage from the latest physical count
   const lastAudit = (S.cache.audits || []).slice().sort((a, b) => b.at - a.at)[0];
-  if (lastAudit && lastAudit.shrinkValue > 0) out.push({ sev: 'high', icon: '📦', title: `Stock shrinkage — ${money(lastAudit.shrinkValue)}`,
+  if (lastAudit && lastAudit.shrinkValue > 0) out.push({ sev: 'high', icon: icon('part'), title: `Stock shrinkage — ${money(lastAudit.shrinkValue)}`,
     detail: `Last stock count found ${money(lastAudit.shrinkValue)} of parts missing without a job. Investigate the store.`, nav: { name: 'storehealth' } });
 
   // Mileage drop — engine trouble or fuel pilferage
   buses.forEach((b) => { const m = busMileage(b.id);
-    if (m.drop) out.push({ sev: 'high', icon: '⛽', title: `Mileage dropped — ${b.regNo}`,
+    if (m.drop) out.push({ sev: 'high', icon: icon('fuel'), title: `Mileage dropped — ${b.regNo}`,
       detail: `Now ${m.lastKmpl.toFixed(1)} km/l vs usual ~${m.avgKmpl.toFixed(1)}. Check for an engine issue or fuel pilferage.`,
       nav: { name: 'buses', id: b.id } }); });
 
@@ -12950,7 +12950,7 @@ function _computeInsights() {
 
   // AdBlue / DEF — abnormal consumption or a tank likely running low (SCR buses)
   buses.filter(busUsesDef).forEach((b) => { const ds = defStatus(b); if (ds.flag) out.push({
-    sev: ds.flag.sev, icon: '🧪', title: `AdBlue/DEF — ${b.regNo}`, detail: ds.flag.msg, nav: { name: 'def' } }); });
+    sev: ds.flag.sev, icon: icon('fuel'), title: `AdBlue/DEF — ${b.regNo}`, detail: ds.flag.msg, nav: { name: 'def' } }); });
 
   const rank = { high: 0, med: 1, low: 2 };
   return out.sort((a, b) => rank[a.sev] - rank[b.sev]);
@@ -12988,8 +12988,8 @@ function viewInsights() {
          device box is testing only. -->
     <div class="tiny muted" style="margin-top:6px" id="ai-foot">${esc(t('aiFooter'))}</div></div>`;
 
-  body += items.length ? items.map(insightCard).join('') : `<div class="empty">✅ No issues found — running clean.</div>`;
-  shell('AI Insights', body);
+  body += items.length ? items.map(insightCard).join('') : `<div class="empty">${icon('ok')} No issues found — running clean.</div>`;
+  shell('AI Insights', v2(body));
 }
 
 // Compact garage snapshot fed to Claude as grounding context.
@@ -13052,7 +13052,7 @@ async function askAi() {
   ans.innerHTML = r.error
     ? `<span style="color:#b9740a">${esc(r.error)}</span>`
     : esc(r.text).replace(/\*\*(.+?)\*\*/g, '$1').replace(/\n/g, '<br>')
-      + (looked.length ? `<div class="tiny muted" style="margin-top:8px">🔎 ${t('advLooked')}: ${esc([...new Set(looked)].join(' · '))}</div>` : '');
+      + (looked.length ? `<div class="tiny muted" style="margin-top:8px">${icon('search')} ${t('advLooked')}: ${esc([...new Set(looked)].join(' · '))}</div>` : '');
 }
 
 /* ------------------------------- Router -----------------------------------
@@ -13588,12 +13588,12 @@ const _dispatchClick = async (e) => {
       case 'syncRedownload': {
         const stop = showBusyOverlay('Re-downloading…');
         try { await Sync.reset(); await load(); } finally { if (stop) stop(); }
-        toast('Re-downloaded from the server ✓'); closeSheet(); rerender();
+        toast('Re-downloaded from the server'); closeSheet(); rerender();
         return;
       }
       case 'openSetup': return sheetGarageSetup();
       case 'openRoutes': return push({ name: 'routes' });
-      case 'checkRoutesNow': { toast('Checking live GPS…'); checkRoutes({ alert: true }).then((r) => toast(S.routeGpsOffline ? '⚠️ GPS offline — arrivals not captured' : (r.length ? `${r.length} at risk` : 'All on track ✓'))); return; }
+      case 'checkRoutesNow': { toast('Checking live GPS…'); checkRoutes({ alert: true }).then((r) => toast(S.routeGpsOffline ? '⚠️ GPS offline — arrivals not captured' : (r.length ? `${r.length} at risk` : 'All on track'))); return; }
       case 'addStop': return sheetAddStop(el.getAttribute('data-routebus'), null);
       case 'editStop': return sheetAddStop(el.getAttribute('data-routebus'), el.getAttribute('data-stop'));
       case 'saveStop': return saveStop(el.getAttribute('data-routebus'));
@@ -13647,7 +13647,7 @@ async function enableNotifications() {
     if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: _urlB64ToUint8(VAPID_PUBLIC) });
     const ok = await Sync.subscribePush(sub.toJSON(), S.user.role);
     localStorage.setItem('pushOn', ok ? '1' : '');
-    toast(ok ? 'Phone alerts enabled ✓' : 'Saved here; will register when the server is reachable');
+    toast(ok ? 'Phone alerts enabled' : 'Saved here; will register when the server is reachable');
   } catch (e) { toast('Could not enable notifications'); }
   rerender();
 }
@@ -13657,12 +13657,12 @@ async function disableNotifications() {
 }
 async function testNotification() {
   const r = await Sync.pushTest();
-  if (r && r.sent) toast(`Test sent to ${r.sent} device(s) ✓`);
+  if (r && r.sent) toast(`Test sent to ${r.sent} device(s) ${icon('ok')}`);
   else if (r && !r.webpush) toast('Server push still deploying — try again shortly');
   else toast('No subscribed devices yet — enable alerts first');
 }
 
-const ROLE_META = { owner: ['👑', 'Owner'], supervisor: ['🧑‍🔧', 'Supervisor'], crewmanager: ['🗂️', 'Crew Manager'], office: ['⭐', 'Office'], store: ['📦', 'Store'], mechanic: ['🔧', 'Mechanic'], driver: ['🧑‍✈️', 'Driver'], conductor: ['🎫', 'Conductor'] };
+const ROLE_META = { owner: [icon('person'), 'Owner'], supervisor: [icon('person'), 'Supervisor'], crewmanager: [icon('person'), 'Crew Manager'], office: [icon('star'), 'Office'], store: [icon('part'), 'Store'], mechanic: [icon('job'), 'Mechanic'], driver: [icon('person'), 'Driver'], conductor: [icon('person'), 'Conductor'] };
 
 // Roles that exist as PEOPLE but not as logins.
 //
@@ -13677,7 +13677,7 @@ const ROLE_META = { owner: ['👑', 'Owner'], supervisor: ['🧑‍🔧', 'Super
 // asking. Closing and verifying stay with the owner and supervisor — enforced in
 // actionsForJob and, because the client is not a boundary, in _guard_write.
 const NO_LOGIN_ROLES = new Set();
-const roleEmoji = (r) => (ROLE_META[r] || ['🔧'])[0];
+const roleEmoji = (r) => (ROLE_META[r] || [icon('job')])[0];
 // Step 1 — pick your role. (Keeps the list manageable across a big fleet.)
 // Prominent bilingual switch shown on every login step (spec C5).
 function langSwitch() {
@@ -14327,12 +14327,12 @@ async function bootRest() {
     onRefused: (n, reasons) => {
       if (!n || !S.user) return;
       const why = (reasons && reasons[0]) || '';
-      toast(`⚠️ ${t('refusedToast')} ${why}`.trim());
+      toast(`${icon('warn')} ${t('refusedToast')} ${why}`.trim());
     },
     onConflict: (n) => {
       // Another device changed the same record concurrently (last-write-wins
       // already applied) — tell the user so a silent overwrite isn't invisible.
-      if (n && S.user) toast(`⚠️ ${n} record(s) updated on another device`);
+      if (n && S.user) toast(`${icon('warn')} ${n} record(s) updated on another device`);
     },
   });
   // On-Time Pickup: start the live route monitor (geofence arrivals + at-risk ETA).
