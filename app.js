@@ -1151,6 +1151,13 @@ const _slowReadAt = {};
 
 let _cacheLoaded = false;
 async function load(force) {
+  /* How many times the cache has been rebuilt, readable as window.__loadCount.
+   *
+   * This was the invisible cost: load() ran once per arriving sync page, so a
+   * first sync rebuilt the cache and the screen about forty times and the app
+   * looked glitchy on hardware that is not remotely slow. A number nobody can
+   * see is a number nobody notices growing. */
+  try { window.__loadCount = (window.__loadCount || 0) + 1; } catch (e) {}
   // NOT `!S.cache`: it starts as an empty object literal, which is truthy, so that
   // test would make the very first load read nothing and start the app blank.
   const all = force || !_cacheLoaded;
@@ -13817,6 +13824,16 @@ const _bootMark = (name) => {
 /* Resolves when the slow half of boot() has finished. enterApp() waits on it, so
  * nobody reaches a screen that would draw empty lists as though the fleet were
  * gone. Showing the pad early is free; showing a HALF-LOADED app is not. */
+/* How long a burst of arriving records is allowed to collect before the screen
+ * is rebuilt. Long enough that a forty-page first sync is a handful of refreshes
+ * instead of forty; short enough that a single edit from another phone shows up
+ * while somebody is still looking at the screen. */
+const APPLY_COALESCE_MS = 700;      // quiet period after the last batch
+const APPLY_MAX_WAIT_MS = 2500;     // but never go longer than this while they keep coming
+let _refreshTimer = null;
+let _appliedPending = 0;
+let _refreshDueAt = 0;
+
 let bootReady = null;
 let bootDone = false;
 
@@ -13911,21 +13928,42 @@ async function bootRest() {
   // even if the server is unreachable (status shows "Offline", changes queue).
   Sync.start({
     onStatus: (s) => { SYNC_STATUS = s; announceSyncStatus(s); updateSyncChip(); if (s === 'synced') ensureDutyBaselines().catch(() => {}); },
-    onApplied: async (n) => {
-      // Remote changes arrived — refresh the cache either way, but do not
-      // re-render over somebody who is typing.
-      //
-      // This guard used to check only for an open sheet. The new job card is a
-      // full SCREEN, not a sheet, so every sync tick rebuilt it from scratch and
-      // wiped every field already filled in — which is exactly what it looked
-      // like: "the data I filled above disappeared". It is also why a phone call
-      // lost the card: the call backgrounds the app, the tick fires on return.
-      await load();
-      // A card that arrived without a part the ledger says was issued to it is
-      // repaired here, which is also where the loss used to become visible.
-      await reconcileJobParts();
-      if (S.user && !userIsEditing()) rerender();
-      else _renderPending = true;
+    /* Remote records arrived. Refresh ONCE for a burst of them, not once a page.
+     *
+     * This fired per page, and each one did a full load() -- re-reading every
+     * store the page had touched -- then reconcileJobParts(), then a complete
+     * rerender(). A first sync is about forty pages, so the app reloaded its
+     * cache and rebuilt the screen forty times, on the main thread, while
+     * somebody watched. That is the "glitchy, data appears slowly and not fully"
+     * on a MacBook and an iPhone: not slow hardware, the app rebuilding itself
+     * forty times. The screens also flickered through partial states, which is
+     * what "it loads but not fully" looked like.
+     *
+     * Coalesced on a trailing timer. A burst collapses into one refresh; a single
+     * record arriving on a quiet tick still shows up within the window. The
+     * editing guard is unchanged and still the reason this is not immediate: a
+     * rerender over a half-filled job card wipes it. */
+    onApplied: (n) => {
+      _appliedPending += (n || 0);
+      const now = Date.now();
+      if (!_refreshDueAt) _refreshDueAt = now + APPLY_MAX_WAIT_MS;
+      /* Debounced, with a ceiling. Each batch pushes the refresh back so a
+       * continuous drain does not rebuild the screen between every page -- but
+       * the ceiling means a drain that runs for a minute still shows progress
+       * every couple of seconds rather than nothing until it stops. */
+      const wait = Math.max(0, Math.min(APPLY_COALESCE_MS, _refreshDueAt - now));
+      if (_refreshTimer) clearTimeout(_refreshTimer);
+      _refreshTimer = setTimeout(async () => {
+        _refreshTimer = null;
+        _refreshDueAt = 0;
+        _appliedPending = 0;
+        await load();
+        // A card that arrived without a part the ledger says was issued to it is
+        // repaired here, which is also where the loss used to become visible.
+        await reconcileJobParts();
+        if (S.user && !userIsEditing()) rerender();
+        else _renderPending = true;
+      }, wait);
     },
     // A record the phone cannot write is the one sync failure that looks like
     // nothing at all: the screen is simply missing people other phones can see.
