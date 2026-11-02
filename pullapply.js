@@ -102,7 +102,31 @@
     return ['plain'];
   }
 
-  const api = { decidePage: decidePage, byStore: byStore, drainPlan: drainPlan, FUTURE_MS: FUTURE_MS };
+  /* Has this device got everything the server had, and if not, by how much?
+   *
+   * The server has returned tableMax on every pull since paging was added and
+   * nothing ever read it, so the app could not tell "this is the total" from
+   * "this is the total so far" -- and drew both the same way. Pure, because the
+   * two edges below are each a way of lying to somebody about their own figures.
+   */
+  function replicaState(lastRev, tableMax, skipCount) {
+    var lr = lastRev || 0, tm = tableMax || 0, sk = skipCount || 0;
+    return {
+      // Zero when caught up AND when nothing is known yet. An unknown must not be
+      // announced as a shortfall, or a brand-new or offline device wears the
+      // warning permanently and it stops meaning anything.
+      behind: tm > lr ? tm - lr : 0,
+      // tableMax 0 means no pull has ever come back: the honest answer is "we do
+      // not know", which must read as NOT complete -- otherwise a fresh device
+      // declares a complete replica while holding only the bundled seed. A record
+      // that would not store counts against it too, because the cursor is held
+      // behind it and the replica really is short.
+      complete: tm > 0 && lr >= tm && sk === 0,
+    };
+  }
+
+  const api = { decidePage: decidePage, byStore: byStore, drainPlan: drainPlan,
+                replicaState: replicaState, FUTURE_MS: FUTURE_MS };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.PullApply = api;
 })(typeof window !== 'undefined' ? window : this);

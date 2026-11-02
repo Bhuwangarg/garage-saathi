@@ -184,5 +184,30 @@ for (let m = 0; m <= 3; m++) {
 }
 check('no cursor pair runs the deferred drain needlessly', extra === 0);
 
+/* ---- replica completeness: is a figure final, or just so far? ---------- */
+
+const rs = (lr, tm, sk) => P.replicaState(lr, tm, sk);
+
+check('a device that has never pulled is NOT complete', rs(0, 0, 0).complete === false);
+check('…and reports no shortfall, because it knows of none', rs(0, 0, 0).behind === 0);
+
+check('a caught-up device is complete', rs(500, 500, 0).complete === true);
+check('…with nothing outstanding', rs(500, 500, 0).behind === 0);
+
+check('a device behind the server is not complete', rs(300, 500, 0).complete === false);
+check('…and says by how much', rs(300, 500, 0).behind === 200);
+
+// A record that would not store holds the cursor behind it, so the replica is
+// genuinely short even when the numbers line up.
+check('a record that would not store makes it incomplete', rs(500, 500, 1).complete === false);
+check('…though there is no rev shortfall to report', rs(500, 500, 1).behind === 0);
+
+// A cursor past a remembered max (the max is simply older than the cursor).
+check('a cursor beyond a stale max is complete', rs(900, 500, 0).complete === true);
+check('…and reports no negative shortfall', rs(900, 500, 0).behind === 0);
+
+check('missing arguments read as a fresh device', rs().complete === false && rs().behind === 0);
+check('a device with only a seed and no pull is not complete', rs(0, 0, 0).complete === false);
+
 console.log(fails ? `\n${fails} FAILED` : '\nall ok');
 process.exit(fails ? 1 : 0);

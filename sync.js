@@ -132,6 +132,15 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
    * must be reset together for the same reason -- see the scope rewind below. */
   const DEFERRED_STORES = ['gpsevents'];
   let lastRevDeferred = parseInt(ls.getItem('lastRevDeferred') || '0', 10);
+  /* How many revisions the SERVER has. Every pull has carried this since paging
+   * was added and nothing has ever read it, so the app could not tell the
+   * difference between "this is the total" and "this is the total SO FAR".
+   *
+   * That is the whole of "the data loads but not fully": nothing goes missing --
+   * the screens add up whatever has arrived and present it as final, with no way
+   * for anyone to know a figure is still filling in. A number that cannot say
+   * whether it is complete is worse than a number that is late. */
+  let tableMax = parseInt(ls.getItem('tableMax') || '0', 10);
   let lastSyncAt = parseInt(ls.getItem('lastSyncAt') || '0', 10);
   let outbox = new Set(JSON.parse(ls.getItem('outbox') || '[]'));
   // Who made each pending change. The outbox is device-wide, so changes one
@@ -946,6 +955,9 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
     if (!res.ok) throw new Error('pull ' + res.status);
     const j = await res.json();
     if (typeof j.serverTime === 'number') { clockOffset = j.serverTime - Date.now(); ls.setItem('clockOffset', String(clockOffset)); }
+    if (typeof j.tableMax === 'number' && j.tableMax > tableMax) {
+      tableMax = j.tableMax; ls.setItem('tableMax', String(tableMax));
+    }
     // Flags ride along on the pull rather than needing a request of their own,
     // which is the difference between being read and not being read.
     if (Array.isArray(j.flags)) { flags = j.flags; ls.setItem('featureFlags', JSON.stringify(flags)); }
@@ -1115,6 +1127,7 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
   function reset() {
     ls.removeItem('lastRev'); lastRev = 0;
     ls.removeItem('lastRevDeferred'); lastRevDeferred = 0;
+    ls.removeItem('tableMax'); tableMax = 0;
     return tick();
   }
 
@@ -1133,7 +1146,16 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
       await reset();
     } catch (e) { /* the 4s tick carries on regardless */ }
   }
-  const info = () => ({ deviceId, lastRev, lastRevDeferred, pending: outbox.size,
+  /* Has this device got everything the server had, last time it asked?
+   *
+   * tableMax of 0 means no pull has ever come back, so the honest answer is "we
+   * do not know" -- which must read as NOT complete, or a brand-new device would
+   * announce a complete replica while holding nothing but the bundled seed.
+   * A record the device could not store counts against it too: the cursor is held
+   * behind it, so the replica genuinely is short. */
+  const replicaState = () => PullApply.replicaState(lastRev, tableMax, Object.keys(pullSkips).length);
+  const info = () => ({ deviceId, lastRev, lastRevDeferred, tableMax,
+    behind: replicaState().behind, complete: replicaState().complete, pending: outbox.size,
     heldForOthers: [...outbox].filter((k) => outboxBy[k] && outboxBy[k] !== actor).length, url: baseUrl(), status, authed: !!token, lastSyncAt, lastError, lastErrorAt, notStored: Object.keys(pullSkips).length,
                         photosPending: Object.keys(photoQ).length, quarantined: Object.keys(quarantine).length });
 

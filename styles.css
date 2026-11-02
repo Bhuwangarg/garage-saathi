@@ -1328,3 +1328,11 @@ body.printing-gp .gp-screen{display:none !important}
 @media (prefers-reduced-motion: reduce) {
   .bootbar > span { animation: none; width: 100%; }
 }
+
+/* "Still loading" in the header: shown only while the server holds revisions this
+ * device has not received, so every total on screen is a total so far. It is the
+ * one sync state that changes what the numbers mean, which is why it earns a mark
+ * when an expired session and a queued edit do not. Goes by itself when caught up. */
+.syncchip.loading{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;
+  background:var(--tile);color:var(--muted);font-size:12px;font-weight:600;white-space:nowrap}
+.syncchip.loading svg{flex:none}

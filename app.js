@@ -77,6 +77,7 @@ const I18N = {
     tidyHint: 'Older photos were saved inside the records themselves, so every phone carries them. This uploads each one and leaves a link behind.',
     photoNoStore: 'The server cannot store photos right now — the picture stays on this phone. Tell whoever runs the app.',
     photoSignedOut: 'Signed out, so the photo could not be uploaded — sign in again',
+    stillLoading: 'Still loading', stillLoadingHint: 'Some figures are still filling in — totals shown are what has arrived so far.',
     back: 'Back', pinBack: 'Delete',
     bootLoading: 'Getting your garage ready…',
     bootLoadingOnce: 'Only the first time on this device.',
@@ -493,6 +494,7 @@ const I18N = {
     tidyHint: 'पुरानी फोटो रिकॉर्ड के अंदर ही सेव हुई थीं, इसलिए हर फ़ोन उन्हें ढोता है। यह हर फोटो को सर्वर पर चढ़ाकर उसकी जगह लिंक रख देता है।',
     photoNoStore: 'सर्वर अभी फोटो नहीं रख पा रहा — तस्वीर इसी फ़ोन में रहेगी। ऐप संभालने वाले को बताइए।',
     photoSignedOut: 'साइन-आउट होने से फोटो नहीं चढ़ी — दोबारा लॉगिन कीजिए',
+    stillLoading: 'लोड हो रहा है', stillLoadingHint: 'कुछ आंकड़े अभी आ रहे हैं — अभी जो दिख रहा है वह अधूरा हो सकता है।',
     back: 'वापस', pinBack: 'मिटाेँ',
     bootLoading: 'आपका गैराज तैयार हो रहा है…',
     bootLoadingOnce: 'इस डिवाइस पर सिर्फ़ पहली बार।',
@@ -892,10 +894,24 @@ async function renewSession() {
 }
 
 function syncWarnHtml() {
-  // Nothing. A dead session now renews itself, and being offline with edits
-  // queued is what the app is built to do — neither is news, and neither is
-  // something to act on, so neither earns a mark in the header.
-  return '';
+  /* A dead session renews itself, and being offline with edits queued is what
+   * this app is built to do. Neither is news and neither earns a mark.
+   *
+   * ONE state does. When the server holds revisions this device has not received,
+   * every total on screen is a total SO FAR -- the spend, the ratings, the counts
+   * are all computed from a partial replica and drawn exactly like a final figure.
+   * Nothing is lost; it just fills in, and until now there was no way to tell the
+   * two apart. That is what "the data loads but not fully" was, and it is the one
+   * sync state that changes what the numbers MEAN.
+   *
+   * `behind` is zero when caught up AND when the device has never pulled -- an
+   * unknown must not be announced as incomplete, or a brand-new or offline device
+   * would wear this permanently. */
+  let i = null;
+  try { i = Sync.info(); } catch (e) { return ''; }
+  if (!i || !i.behind) return '';
+  return `<span class="syncchip loading" data-nav="me" title="${esc(t('stillLoadingHint'))}">${
+    typeof icon === 'function' ? icon('clock', { size: 14 }) : ''}<span>${esc(t('stillLoading'))}</span></span>`;
 }
 
 /* Repaint just the mark, without rebuilding the screen.
