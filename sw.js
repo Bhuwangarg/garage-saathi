@@ -20,7 +20,7 @@
  * Data lives in IndexedDB, so the shell is all this caches. Cross-origin
  * requests (the sync server, uploads, the Anthropic API) are NOT intercepted.
  */
-const CACHE = 'garage-saathi-v148';
+const CACHE = 'garage-saathi-v149';
 const SHELL = [
   './',
   './index.html',
@@ -143,6 +143,42 @@ async function revalidate(request, oldText) {
   if (changed) notifyUpdated(new URL(request.url).pathname);
 }
 
+/* The shell goes to the NETWORK first.
+ *
+ * Everything here was cache-first with a background refresh. That is right for an
+ * app that rarely changes and wrong for one being fixed hour by hour: every
+ * deploy was invisible until the SECOND load. A fix could be live on the server,
+ * verified there, and the person who reported the bug still saw the bug -- so
+ * they are told it is fixed while their screen says otherwise, which is worse
+ * than not shipping it.
+ *
+ * Network-first with a short timeout for the HTML, the scripts and the
+ * stylesheets only: online, always the deployed version; on a slow or dead
+ * connection the cached copy answers and the yard keeps working. Everything
+ * else -- icons, images, uploads -- stays cache-first, which is what it should
+ * be, because those do not change when a bug is fixed.
+ */
+const FRESH_FIRST = /\.(?:js|css)$|\/index\.html$|\/$/;
+const SHELL_TIMEOUT_MS = 2500;
+
+async function fromNetworkFirst(request) {
+  let timer;
+  const timeout = new Promise((res) => { timer = setTimeout(() => res(null), SHELL_TIMEOUT_MS); });
+  let res = null;
+  try {
+    res = await Promise.race([fetch(request), timeout]);
+  } catch (e) { res = null; }
+  clearTimeout(timer);
+  if (res && res.ok) {
+    const copy = res.clone();
+    caches.open(CACHE).then((c) => c.put(request, copy)).catch(() => {});
+    return res;
+  }
+  // Slow, offline, or an error page: whatever is cached is better than nothing.
+  const cached = await caches.match(request);
+  return cached || res || fetch(request);
+}
+
 self.addEventListener('fetch', (e) => {
   const { request } = e;
   if (request.method !== 'GET') return;
@@ -150,6 +186,7 @@ self.addEventListener('fetch', (e) => {
   if (url.origin !== location.origin) return;   // API / uploads / Anthropic → pass through to network
 
   e.respondWith((async () => {
+    if (FRESH_FIRST.test(url.pathname)) return fromNetworkFirst(request);
     const cached = await caches.match(request);
     if (cached) {
       // Read the old bytes BEFORE handing the response over — see revalidate().
