@@ -2307,7 +2307,7 @@ function topbar(title) {
       ? `<button class="backbtn" data-act="back" aria-label="Back">‹</button>`
       : `<div class="brandlogo">GS</div>`}</div>
     <h1 class="tb-title">${esc(title)}</h1>
-    <div class="tb-right">${syncWarnHtml()}<button class="themebtn" data-act="theme" aria-label="${esc(t('theme'))}">${_isDark() ? '☀️' : '🌙'}</button><button class="lang" data-act="lang">${t('lang')}</button></div>
+    <div class="tb-right">${syncWarnHtml()}<button class="themebtn" data-act="theme" aria-label="${esc(t('theme'))}">${_isDark() ? icon('sun', { size: 18 }) : icon('moon', { size: 18 })}</button><button class="lang" data-act="lang">${t('lang')}</button></div>
   </div>`;
 }
 
@@ -2341,20 +2341,20 @@ function bottomnav() {
   // Each role gets a focused nav matching what they actually do. Owner is
   // money/fleet/people (the real work); supervisor is jobs/fleet/store (the floor).
   const NAVS = {
-    owner:      [['home', '🏠', t('today')], ['money', '💰', t('money')], ['fleet', '🚌', t('fleet')], ['people', '🧑‍✈️', t('people')], ['me', '👤', t('me')]],
-    supervisor: [['home', '🏠', t('today')], ['jobs', '🛠️', t('jobs')], ['fleet', '🚌', t('fleet')], ['store', '📦', t('store')], ['me', '👤', t('me')]],
-    store:      [['home', '📦', t('store')], ['bills', '🧾', t('bills')], ['jobs', '🛠️', t('jobs')], ['me', '👤', t('me')]],
-    mechanic:   [['home', '🛠️', t('myWork')], ['store', '📦', t('store')], ['me', '👤', t('me')]],
+    owner:      [['home', icon('home'), t('today')], ['money', icon('money'), t('money')], ['fleet', icon('bus'), t('fleet')], ['people', icon('person'), t('people')], ['me', icon('me'), t('me')]],
+    supervisor: [['home', icon('home'), t('today')], ['jobs', icon('job'), t('jobs')], ['fleet', icon('bus'), t('fleet')], ['store', icon('part'), t('store')], ['me', icon('me'), t('me')]],
+    store:      [['home', icon('part'), t('store')], ['bills', icon('doc'), t('bills')], ['jobs', icon('job'), t('jobs')], ['me', icon('me'), t('me')]],
+    mechanic:   [['home', icon('job'), t('myWork')], ['store', icon('part'), t('store')], ['me', icon('me'), t('me')]],
     // Putting people on buses is half of what this login is for, and it was two
     // taps down inside Today. It gets a tab.
-    crewmanager:[['home', '🔁', t('today')], ['assignments', '🚌', t('asTitle')], ['crewbank', '🗂️', t('cbTitle')], ['me', '👤', t('me')]],
-    office:     [['home', '⭐', t('ofTitle')], ['drivers', '🧑‍✈️', t('ofCrew')], ['reviews', '💬', t('ofReviews')], ['me', '👤', t('me')]],
-    driver:     [['home', '🚌', t('myBus')], ['me', '👤', t('me')]],
-    conductor:  [['home', '🚌', t('myDuty')], ['me', '👤', t('me')]],
+    crewmanager:[['home', icon('edit'), t('today')], ['assignments', icon('bus'), t('asTitle')], ['crewbank', icon('person'), t('cbTitle')], ['me', icon('me'), t('me')]],
+    office:     [['home', icon('star'), t('ofTitle')], ['drivers', icon('person'), t('ofCrew')], ['reviews', icon('review'), t('ofReviews')], ['me', icon('me'), t('me')]],
+    driver:     [['home', icon('bus'), t('myBus')], ['me', icon('me'), t('me')]],
+    conductor:  [['home', icon('bus'), t('myDuty')], ['me', icon('me'), t('me')]],
   };
   const items = NAVS[S.user.role] ||
-    [['home', '🏠', t('today')], ['fleet', '🚌', t('fleet')], ['jobs', '🛠️', t('jobs')],
-     ['store', '📦', t('store')], ['me', '👤', t('me')]];
+    [['home', icon('home'), t('today')], ['fleet', icon('bus'), t('fleet')], ['jobs', icon('job'), t('jobs')],
+     ['store', icon('part'), t('store')], ['me', icon('me'), t('me')]];
   return `<div class="bottomnav">${items.map(([n, ic, lbl]) =>
     `<button data-nav="${esc(n)}" class="${active === n ? 'active' : ''}"><span class="ic">${ic}</span>${esc(lbl)}</button>`).join('')}</div>`;
 }
@@ -2398,25 +2398,25 @@ function viewStoreHome() {
   const stockValue = parts.reduce((s, p) => s + (p.qty || 0) * (p.unitCost || 0), 0);
   const pending = S.cache.purchases.filter((p) => p.paymentStatus === 'pending').reduce((s, p) => s + p.amount, 0);
   const openJobs = S.cache.jobs.filter((j) => j.status === 'open' || j.status === 'in-progress');
-  let body = `<div class="greet"><div class="greet-av">📦</div>
-    <div><div class="greet-hi">Namaste, ${esc(S.user.name.split(' ')[0])} 👋</div><div class="muted small">${esc(BIZ)} · ${fmtToday()}</div></div></div>`;
+  let body = `<div class="greet"><div class="greet-av">${icon('part')}</div>
+    <div><div class="greet-hi">Namaste, ${esc(S.user.name.split(' ')[0])}</div><div class="muted small">${esc(BIZ)} · ${fmtToday()}</div></div></div>`;
   body += `<div class="grid2">
     <div class="card tile"><div class="muted small">${t('stockValue')}</div><div class="stat">${money(stockValue)}</div></div>
     <div class="card tile"><div class="muted small">${t('lowStock')}</div><div class="stat">${low.length}</div></div></div>`;
   body += `<div class="btnrow" style="margin-bottom:14px">
-    <button class="btn primary" data-act="addStock">📥 ${t('addStock')}</button>
-    <button class="btn" data-act="issueTo">📤 ${t('issuePartBtn')}</button></div>`;
-  body += `<div class="btnrow" style="margin-bottom:14px"><button class="btn" data-act="openFuel">⛽ ${t('fuel')}</button><button class="btn" data-act="openStoreHealth">📦 ${t('storeHealth')}</button></div>`;
+    <button class="btn primary" data-act="addStock">${icon('more')} ${t('addStock')}</button>
+    <button class="btn" data-act="issueTo">${icon('more')} ${t('issuePartBtn')}</button></div>`;
+  body += `<div class="btnrow" style="margin-bottom:14px"><button class="btn" data-act="openFuel">${icon('fuel')} ${t('fuel')}</button><button class="btn" data-act="openStoreHealth">${icon('part')} ${t('storeHealth')}</button></div>`;
   // Quick lookup across the whole catalogue, right on the home page.
   body += `<input id="store-home-search" class="searchbox" placeholder="${t('searchParts')}" autocomplete="off"><div id="store-home-results"></div>`;
   body += `<div id="store-home-reorder"><div class="card"><div class="row between"><h3>${t('reorderSoon')}</h3><span class="badge ${low.length ? 'b-amber' : 'b-green'}">${low.length}</span></div>`;
-  body += low.length ? low.slice(0, 12).map((p) => `<div class="li" data-part="${esc(p.id)}">${avatar(partImg(p), '🔩')}<div class="main"><div class="t">${esc(p.name)}</div><div class="s">${p.qty} ${esc(p.unit)} left · reorder at ${p.reorderLevel}</div></div><span class="badge b-amber">LOW</span></div>`).join('') + (low.length > 12 ? `<div class="tiny muted" style="margin-top:6px">+${low.length - 12} more · open Store ›</div>` : '') : `<div class="muted small">Stock healthy 👍</div>`;
+  body += low.length ? low.slice(0, 12).map((p) => `<div class="li" data-part="${esc(p.id)}">${avatar(partImg(p), icon('part'))}<div class="main"><div class="t">${esc(p.name)}</div><div class="s">${p.qty} ${esc(p.unit)} left · reorder at ${p.reorderLevel}</div></div><span class="badge b-amber">LOW</span></div>`).join('') + (low.length > 12 ? `<div class="tiny muted" style="margin-top:6px">+${low.length - 12} more · open Store ›</div>` : '') : `<div class="muted small">Stock healthy</div>`;
   body += `</div></div>`;
   body += `<div class="card" data-act="openPurchases" style="cursor:pointer"><div class="row between"><h3>${t('pendingSuppliers')}</h3><b style="color:var(--amber)">${money(pending)}</b></div><div class="tiny muted">Tap to view bills</div></div>`;
   body += `<div class="card"><h3>${t('openJobsParts')}</h3>`;
   body += openJobs.length ? openJobs.slice(0, 6).map(jobLi).join('') : `<div class="muted small">No open jobs.</div>`;
   body += `</div>`;
-  shell(t('appName'), body);
+  shell(t('appName'), v2(body));
   // Live catalogue search: type → matching parts; clear → back to the reorder list.
   const si = $('#store-home-search'), res = $('#store-home-results'), reorder = $('#store-home-reorder');
   if (si && res && reorder) {
@@ -2426,7 +2426,7 @@ function viewStoreHome() {
       reorder.style.display = 'none';
       const hits = parts.filter((p) => (`${p.name} ${p.partNo || ''}`).toLowerCase().includes(ql)).slice(0, 25);
       res.innerHTML = `<div class="card"><div class="row between"><h3>${esc(si.value)}</h3><span class="tiny muted">${hits.length} found</span></div>`
-        + (hits.length ? hits.map((p) => `<div class="li" data-part="${esc(p.id)}">${avatar(partImg(p), '🔩')}<div class="main"><div class="t">${esc(p.name)}</div><div class="s">${p.qty} ${esc(p.unit)} in stock${p.partNo ? ' · ' + esc(p.partNo) : ''}</div></div>${isLow(p) ? '<span class="badge b-amber">LOW</span>' : ''}</div>`).join('') : `<div class="muted small">No part matches “${esc(si.value)}”.</div>`)
+        + (hits.length ? hits.map((p) => `<div class="li" data-part="${esc(p.id)}">${avatar(partImg(p), icon('part'))}<div class="main"><div class="t">${esc(p.name)}</div><div class="s">${p.qty} ${esc(p.unit)} in stock${p.partNo ? ' · ' + esc(p.partNo) : ''}</div></div>${isLow(p) ? '<span class="badge b-amber">LOW</span>' : ''}</div>`).join('') : `<div class="muted small">No part matches “${esc(si.value)}”.</div>`)
         + `</div>`;
     };
   }
@@ -2441,9 +2441,9 @@ function viewMechanicHome() {
   const checkedIn = myAtt.length && myAtt[myAtt.length - 1].type === 'in' && isToday(myAtt[myAtt.length - 1].at);
   const myBusIds = [...new Set(open.map((j) => j.busId))];
   const reports = (S.cache.driverreports || []).filter((r) => r.status === 'open' && myBusIds.includes(r.busId));
-  let body = `<div class="greet"><div class="greet-av">🔧</div>
-    <div><div class="greet-hi">Namaste, ${esc(S.user.name.split(' ')[0])} 👋</div><div class="muted small">${esc(BIZ)} · ${fmtToday()}</div></div></div>`;
-  if (!checkedIn) body += `<div class="banner warn">⏰ You are not checked in today.<button class="btn sm" data-nav="me" style="margin-left:auto">${t('checkin')}</button></div>`;
+  let body = `<div class="greet"><div class="greet-av">${icon('job')}</div>
+    <div><div class="greet-hi">Namaste, ${esc(S.user.name.split(' ')[0])}</div><div class="muted small">${esc(BIZ)} · ${fmtToday()}</div></div></div>`;
+  if (!checkedIn) body += `<div class="banner warn">${icon('clock')} You are not checked in today.<button class="btn sm" data-nav="me" style="margin-left:auto">${t('checkin')}</button></div>`;
   // My scorecard — score, this-month attendance + late penalty, at a glance.
   const ms = mechanicScore(me), mp = latePenaltyFor(me), matt = mechAttendance(me, true);
   body += `<div class="card" data-act="myScorecard" style="cursor:pointer"><div class="row between">
@@ -2451,7 +2451,7 @@ function viewMechanicHome() {
       <div style="text-align:right"><div class="stars big">${starStr(scoreStars(ms.score))}</div>
         <div class="tiny muted">${matt.lates} late${mp.amount ? ' · ' + money(mp.amount) + ' penalty' : ''} this month</div></div></div>
     <div class="tiny muted" style="margin-top:6px">Tap for your attendance, penalties &amp; how the score is built.</div></div>`;
-  body += `<button class="btn" data-act="openScoreboard" style="margin-bottom:14px">🏆 Team leaderboard</button>`;
+  body += `<button class="btn" data-act="openScoreboard" style="margin-bottom:14px">${icon('star')} Team leaderboard</button>`;
   body += `<div class="grid2">
     <div class="card tile"><div class="muted small">${t('mchToday')}</div><div class="stat">${open.length}</div></div>
     <div class="card tile"><div class="muted small">Completed</div><div class="stat">${myJobs.filter((j) => j.status === 'done' || j.status === 'verified').length}</div></div></div>`;
@@ -2468,7 +2468,7 @@ function viewMechanicHome() {
     .map((j) => {
       const inAt = j.enterAt || j.createdAt;
       const started = j.startAt;
-      return `<div class="li" data-job="${esc(j.id)}"><div class="ava">${started ? '🔧' : '⏳'}</div>
+      return `<div class="li" data-job="${esc(j.id)}"><div class="ava">${started ? icon('job') : icon('clock')}</div>
         <div class="main"><div class="t">${esc(busName(j.busId))} · ${esc(j.problem)}</div>
           <div class="s">${PRIO_PILL[j.priority] || ''} · ${t('mchSince')} ${fmtDateTime(inAt)}${started ? ` · ${t('mchStarted')} ${msToHHMM(started)}` : (j.status === 'open' ? ` · ${t('mchNotStarted')}` : '')}</div></div>
         ${statusBadge(j.status)}</div>`;
@@ -2481,10 +2481,10 @@ function viewMechanicHome() {
   if (reports.length) {
     body += `<div class="card"><div class="row between"><h3>Driver said…</h3><span class="badge b-amber">${reports.length}</span></div>
       <div class="tiny muted" style="margin-bottom:6px">What drivers reported on the buses you're working — check these too.</div>`;
-    body += reports.map((r) => `<div class="li" data-bus="${esc(r.busId)}"><div class="ava">🗣️</div><div class="main"><div class="t">${esc(r.problem)}</div><div class="s">${esc(busName(r.busId))} · ${esc(r.category || '')}</div></div></div>`).join('');
+    body += reports.map((r) => `<div class="li" data-bus="${esc(r.busId)}"><div class="ava">${icon('review')}</div><div class="main"><div class="t">${esc(r.problem)}</div><div class="s">${esc(busName(r.busId))} · ${esc(r.category || '')}</div></div></div>`).join('');
     body += `</div>`;
   }
-  shell(t('appName'), body);
+  shell(t('appName'), v2(body));
 }
 
 /* ===== Revamp B3: jobs-to-be-done tab overviews ==========================
@@ -2675,14 +2675,14 @@ function viewOfficeHome() {
   const m = new Date(); m.setDate(1); m.setHours(0, 0, 0, 0);
   const monthStart = m.getTime();
 
-  let body = greetBlock('⭐') + notCheckedInBanner();
+  let body = greetBlock(icon('star')) + notCheckedInBanner();
   body += kpiRow([
-    { icon: '⭐', label: t('ofAvgStars'), value: st.avg == null ? '—' : st.avg.toFixed(1), unit: '/5',
+    { icon: icon('star'), label: t('ofAvgStars'), value: st.avg == null ? '—' : st.avg.toFixed(1), unit: '/5',
       delta: st.n ? st.n + ' ' + t('ofReviewsWord') : '', dir: 'flat' },
-    { icon: '😠', label: t('ofOneStar'), value: ones, dir: ones ? 'bad' : 'good', act: 'openReviews' },
-    { icon: '🧑‍✈️', label: t('ofRatedCrew'), value: judged.length, unit: 'of ' + crew.length },
-    { icon: '⚠️', label: t('ofNeedTalk'), value: weak.length, dir: weak.length ? 'bad' : 'good' },
-    { icon: '💬', label: t('cnLogged'),
+    { icon: icon('bad'), label: t('ofOneStar'), value: ones, dir: ones ? 'bad' : 'good', act: 'openReviews' },
+    { icon: icon('person'), label: t('ofRatedCrew'), value: judged.length, unit: 'of ' + crew.length },
+    { icon: icon('warn'), label: t('ofNeedTalk'), value: weak.length, dir: weak.length ? 'bad' : 'good' },
+    { icon: icon('review'), label: t('cnLogged'),
       value: (S.cache.crewnotes || []).filter((n) => n && !n._deleted && (n.at || 0) >= monthStart).length },
   ]);
   body += `<div class="card"><div class="tiny muted">${esc(t('ofBlurb'))}</div></div>`;
@@ -2712,7 +2712,7 @@ function viewOfficeHome() {
     body += `</div>`;
   }
 
-  shell(t('ofTitle'), body);
+  shell(t('ofTitle'), v2(body));
   attachSearch('of-search', 'of-list');
 }
 
@@ -2732,10 +2732,10 @@ function viewOfficeHome() {
  * argument is the note nobody can trust afterwards.
  */
 const NOTE_KINDS = {
-  talked:  ['💬', 'cnTalked'],
-  warned:  ['⚠️', 'cnWarned'],
-  praised: ['👏', 'cnPraised'],
-  other:   ['📝', 'cnOther'],
+  talked:  [icon('review'), 'cnTalked'],
+  warned:  [icon('warn'), 'cnWarned'],
+  praised: ['', 'cnPraised'],
+  other:   [icon('edit'), 'cnOther'],
 };
 const crewNotesFor = (crewId) => (S.cache.crewnotes || [])
   .filter((n) => n && !n._deleted && n.crewId === crewId)
@@ -2819,21 +2819,21 @@ function viewCrewManagerHome() {
   const myAtt = (S.cache.att || []).filter((a) => a.userId === S.user.id);
   const checkedIn = myAtt.length && myAtt[myAtt.length - 1].type === 'in' && isToday(myAtt[myAtt.length - 1].at);
 
-  let body = `<div class="greet"><div class="greet-av">🗂️</div>
+  let body = `<div class="greet"><div class="greet-av">${icon('person')}</div>
     <div><div class="greet-hi">${t('namaste')}, ${esc(S.user.name)}</div>
       <div class="muted small">${t('cmToday')} · ${buses.length} ${t('buses').toLowerCase()}${
         (S.cache.buses || []).length > buses.length
           ? ' · ' + ((S.cache.buses || []).length - buses.length) + ' ' + t('cmInWorkshop') : ''}</div></div></div>`;
-  if (!checkedIn) body += `<div class="banner warn">⏰ ${t('checkin')}<button class="btn sm" data-nav="me" style="margin-left:auto">${t('checkin')}</button></div>`;
+  if (!checkedIn) body += `<div class="banner warn">${icon('clock')} ${t('checkin')}<button class="btn sm" data-nav="me" style="margin-left:auto">${t('checkin')}</button></div>`;
 
   /* Free people first. "67 buses need a driver" is not a task; "19 drivers
    * have no bus" is — and the difference between the two is the number that
    * no amount of filling in can fix. */
   body += kpiRow([
-    { icon: '🧑‍✈️', label: t('cmFreeDrivers'), value: covD.free,
+    { icon: icon('person'), label: t('cmFreeDrivers'), value: covD.free,
       delta: covD.fillable ? covD.fillable + ' ' + t('cmCanFill') : '', dir: covD.free ? 'bad' : 'good',
       act: 'asOpen', data: { v: 'driver' } },
-    { icon: '🎫', label: t('cmFreeConductors'), value: covC.free,
+    { icon: icon('person'), label: t('cmFreeConductors'), value: covC.free,
       delta: covC.fillable ? covC.fillable + ' ' + t('cmCanFill') : '', dir: covC.free ? 'bad' : 'good',
       act: 'asOpen', data: { v: 'conductor' } },
   ]);
@@ -2844,27 +2844,27 @@ function viewCrewManagerHome() {
   }
   body += (noDrv.length || noCon.length)
     ? `<div class="card"><h3>${t('cmToday')}</h3>
-        <div class="trow" data-act="asOpen" data-v="driver"><div class="ti">🧑‍✈️</div><div class="tm"><div class="tt">${noDrv.length} ${t('cmNeedDriver')}</div>
+        <div class="trow" data-act="asOpen" data-v="driver"><div class="ti">${icon('person')}</div><div class="tm"><div class="tt">${noDrv.length} ${t('cmNeedDriver')}</div>
           <div class="tiny muted">${esc(noDrv.slice(0, 3).map((b) => b.regNo).join(', '))}${noDrv.length > 3 ? '…' : ''}</div></div>
           <span class="badge ${noDrv.length ? 'b-amber' : 'b-green'}">${noDrv.length}</span></div>
-        <div class="trow" data-act="asOpen" data-v="conductor"><div class="ti">🎫</div><div class="tm"><div class="tt">${noCon.length} ${t('cmNeedConductor')}</div>
+        <div class="trow" data-act="asOpen" data-v="conductor"><div class="ti">${icon('person')}</div><div class="tm"><div class="tt">${noCon.length} ${t('cmNeedConductor')}</div>
           <div class="tiny muted">${esc(noCon.slice(0, 3).map((b) => b.regNo).join(', '))}${noCon.length > 3 ? '…' : ''}</div></div>
           <span class="badge ${noCon.length ? 'b-amber' : 'b-green'}">${noCon.length}</span></div></div>`
-    : `<div class="card"><div class="row" style="gap:10px"><div class="ins-ic">✅</div><div><b>${t('cmAllSet')}</b></div></div></div>`;
+    : `<div class="card"><div class="row" style="gap:10px"><div class="ins-ic">${icon('ok')}</div><div><b>${t('cmAllSet')}</b></div></div></div>`;
 
   body += `<div class="card">
-    <div class="trow" data-act="asOpen" data-v="driver"><div class="ti">🔁</div><div class="tm"><div class="tt">${t('cmOpenBoard')}</div></div><div class="tc">›</div></div>
-    <div class="trow" data-nav="fuel"><div class="ti">⛽</div><div class="tm"><div class="tt">${t('cmFuel')}</div>
+    <div class="trow" data-act="asOpen" data-v="driver"><div class="ti">${icon('edit')}</div><div class="tm"><div class="tt">${t('cmOpenBoard')}</div></div><div class="tc">›</div></div>
+    <div class="trow" data-nav="fuel"><div class="ti">${icon('fuel')}</div><div class="tm"><div class="tt">${t('cmFuel')}</div>
       <div class="tiny muted">${t('cmFuelSub')}</div></div><div class="tc">›</div></div>
-    <div class="trow" data-nav="def"><div class="ti">🧪</div><div class="tm"><div class="tt">${t('cmDef')}</div></div><div class="tc">›</div></div>
-    <div class="trow" data-nav="components"><div class="ti">🛞</div><div class="tm"><div class="tt">${t('cmTyres')}</div></div><div class="tc">›</div></div>
-    <div class="trow" data-nav="livemap"><div class="ti">🗺️</div><div class="tm"><div class="tt">${t('cmLiveMap')}</div>
+    <div class="trow" data-nav="def"><div class="ti">${icon('fuel')}</div><div class="tm"><div class="tt">${t('cmDef')}</div></div><div class="tc">›</div></div>
+    <div class="trow" data-nav="components"><div class="ti">${icon('part')}</div><div class="tm"><div class="tt">${t('cmTyres')}</div></div><div class="tc">›</div></div>
+    <div class="trow" data-nav="livemap"><div class="ti">${icon('map')}</div><div class="tm"><div class="tt">${t('cmLiveMap')}</div>
       <div class="tiny muted">${t('cmLiveMapSub')}</div></div><div class="tc">›</div></div>
-    <div class="trow" data-act="openCrewBank"><div class="ti">🗂️</div><div class="tm"><div class="tt">${t('cbTitle')}</div>
+    <div class="trow" data-act="openCrewBank"><div class="ti">${icon('person')}</div><div class="tm"><div class="tt">${t('cbTitle')}</div>
       <div class="tiny muted">${activeCrew().length} ${t('cbOnRoll')}</div></div><div class="tc">›</div></div></div>`;
   body += crewRatingsCard();
   body += coachHomeCard();
-  shell(t('today'), body);
+  shell(t('today'), v2(body));
 }
 /* The crew manager's view of the reviews: who passengers rate lowest, among crew with enough
  * rated trips to judge (90 days), so the next assignment is made knowing it. */
@@ -3094,12 +3094,12 @@ function triageRow(cls, icon, title, sub, attr, count) {
     <div class="tc">${count == null ? '›' : count}</div></div>`;
 }
 function triageCard(rows) {
-  return `<div class="card"><h3>🔔 ${t('needsYouNow')}</h3>` + (rows.length
+  return `<div class="card"><h3>${icon('alert', { size: 18 })} ${t('needsYouNow')}</h3>` + (rows.length
     ? rows.join('')
-    : triageRow('ok', '✓', t('allClear'), t('hmNothing'), '', null)) + `</div>`;
+    : triageRow('ok', icon('ok'), t('allClear'), t('hmNothing'), '', null)) + `</div>`;
 }
 const greetBlock = (emoji, line2) => `<div class="greet"><div class="greet-av">${emoji}</div>
-  <div><div class="greet-hi">${t('namaste')}, ${esc(S.user.name.split(' ')[0])} 👋</div>
+  <div><div class="greet-hi">${t('namaste')}, ${esc(S.user.name.split(' ')[0])}</div>
     <div class="muted small">${esc(line2 || (BIZ + ' · ' + fmtToday()))}</div></div></div>`;
 const notCheckedInBanner = () => {
   const mine = (S.cache.att || []).filter((a) => a.userId === S.user.id);
@@ -3107,6 +3107,24 @@ const notCheckedInBanner = () => {
   return inToday ? '' : `<div class="banner warn">⏰ ${t('hmNotCheckedIn')}
     <button class="btn sm" data-nav="me" style="margin-left:auto">${t('checkin')}</button></div>`;
 };
+
+/* The v2 wrapper, and which density a device should get.
+ *
+ * The system has two: yard, with 48px targets for a thumb in daylight, and desk,
+ * with 32px rows for a mouse on an office monitor. The right question is the
+ * POINTER, not the job title -- an owner holding a phone needs the big targets and
+ * a driver at a desk does not, and matchMedia is the only thing that actually
+ * knows. An unknown pointer gets yard, because a mis-tap costs more than a row of
+ * wasted height.
+ *
+ * Everything in ui/ is prefixed [data-v2], so wrapping one screen moves that
+ * screen and leaves every other one exactly as it was. That is the whole
+ * migration strategy: one screen at a time, in the same document. */
+const v2Density = () => {
+  try { return (window.matchMedia && matchMedia('(pointer: coarse)').matches) ? 'yard' : 'desk'; }
+  catch (e) { return 'yard'; }
+};
+const v2 = (html) => `<div data-v2 data-density="${v2Density()}">${html}</div>`;
 
 /* ===== Fleet-dashboard components =========================================
  *
@@ -3283,12 +3301,12 @@ const cityDatalist = () => `<datalist id="ow-cities">${
 // into the full board — otherwise the board is only reachable when something is
 // waiting for sign-off.
 function inShopCard(inShop, limit, allLink) {
-  let card = `<div class="card"><div class="row between"><h3>🏭 ${t('hmInShop')}</h3>
+  let card = `<div class="card"><div class="row between"><h3>${icon('job', { size: 18 })} ${t('hmInShop')}</h3>
       <span class="badge ${inShop.length ? 'b-amber' : 'b-green'}">${inShop.length}</span></div>`;
   card += inShop.length ? inShop.slice(0, limit).map((j) => {
     const since = j.enterAt || j.createdAt;
     const idle = jobIdleMs(j);
-    return `<div class="li" data-job="${esc(j.id)}"><div class="ava">${j.startAt ? '🔧' : '⏳'}</div>
+    return `<div class="li" data-job="${esc(j.id)}"><div class="ava">${j.startAt ? icon('job') : icon('clock')}</div>
       <div class="main"><div class="t">${esc(busName(j.busId))} · ${esc(j.problem)}</div>
         <div class="s">${t('mchSince')} ${timeAgo(since)}${(!j.startAt && j.status === 'open') ? ' · ' + t('mchNotStarted') : ''}${idle ? ' · ' + t('hmIdle') + ' ' + Math.round(idle / 3600000) + t('bdHrs') : ''}</div></div>
       ${statusBadge(j.status)}</div>`;
@@ -3309,7 +3327,7 @@ function inShopCard(inShop, limit, allLink) {
 function aiInsightsCard() {
   const n = computeInsights().length;
   return `<div class="card aibanner" data-act="openInsights">
-    <div class="ai-ic">✨</div>
+    <div class="ai-ic">${icon('star', { size: 18 })}</div>
     <div style="flex:1"><div class="t" style="font-weight:800">${esc(t('aiInsights'))}</div>
       <div class="tiny" style="opacity:.85">${esc(t('aiInsightsSub'))}</div></div>
     <span class="badge ${n ? 'b-red' : 'b-green'}">${n}</span>
@@ -3336,7 +3354,7 @@ function viewOwnerHome() {
   const bd90 = breakdownsFor(null, Date.now() - 90 * day);
   const overdue = busesDueService().filter((x) => x.sv.status === 'overdue');
 
-  let body = greetBlock('👑');
+  let body = greetBlock(icon('person'));
 
   /* The four numbers the owner opens the app for, as the reference's stat row.
    * Spend first because it is the one that moves; then what the fleet is doing
@@ -3346,28 +3364,28 @@ function viewOwnerHome() {
   const _inShop = inShopJobs().length, _away = awayJobs().length;
   const _running = Math.max(0, (S.cache.buses || []).length - _inShop - _away);
   body += kpiRow([
-    { icon: '💰', label: t('hmLast30'), value: money(cost30),
+    { icon: icon('money'), label: t('hmLast30'), value: money(cost30),
       delta: trend == null ? '' : (trend <= 0 ? '▼ ' : '▲ ') + Math.abs(trend) + '%',
       dir: trend == null ? 'flat' : (trend <= 0 ? 'good' : 'bad'), act: 'openReports' },
-    { icon: '🚌', label: t('hmOnRoad'), value: _running, unit: 'of ' + (S.cache.buses || []).length },
-    { icon: '🏭', label: t('hmInShopShort'), value: _inShop, act: 'openJobsBoard' },
-    { icon: '🌍', label: t('owAway'), value: _away },
+    { icon: icon('bus'), label: t('hmOnRoad'), value: _running, unit: 'of ' + (S.cache.buses || []).length },
+    { icon: icon('job'), label: t('hmInShopShort'), value: _inShop, act: 'openJobsBoard' },
+    { icon: icon('map'), label: t('owAway'), value: _away },
   ]);
   if (owed) {
     body += `<div class="card" data-act="openPurchases" style="cursor:pointer;margin-top:-2px">
-      ${detailRow('🧾', t('youOwe'), money(owed), { act: 'openPurchases' })}</div>`;
+      ${detailRow(icon('doc'), t('youOwe'), money(owed), { act: 'openPurchases' })}</div>`;
   }
 
   const rows = [];
   const gateWait = gateWaitingCount();
-  if (gateWait) rows.push(triageRow('crit', '⛔', t('hmGateWaiting'), t('hmGateWaitingSub'), 'data-act="openGateChecks"', gateWait));
-  if (toVerify.length) rows.push(triageRow('crit', '☑️', t('hmToVerify'), t('hmToVerifySub'), 'data-nav="jobs"', toVerify.length));
-  if (unexplained.length) rows.push(triageRow('crit', '🔎', t('hmUnexplained'), t('hmUnexplainedSub'), 'data-nav="storehealth"', unexplained.length));
-  if (pf.length) rows.push(triageRow('crit', '🕵️', t('hmPilferage'), t('hmPilferageSub'), 'data-act="openPilferage"', pf.length));
-  if (ch.fine) rows.push(triageRow('crit', '🚦', t('hmChallans'), money(ch.fine), 'data-act="openChallans"', ch.pending));
-  if (expired.length) rows.push(triageRow('crit', '📄', t('hmDocsExpired'), t('hmDocsExpiredSub'), 'data-act="openAlerts"', expired.length));
-  else if (alerts.length) rows.push(triageRow('warn', '📄', t('hmDocsSoon'), t('hmDocsSoonSub'), 'data-act="openAlerts"', alerts.length));
-  if (owed) rows.push(triageRow('warn', '🧾', t('hmOwed'), t('hmOwedSub'), 'data-act="openPurchases"', money(owed)));
+  if (gateWait) rows.push(triageRow('crit', icon('gate'), t('hmGateWaiting'), t('hmGateWaitingSub'), 'data-act="openGateChecks"', gateWait));
+  if (toVerify.length) rows.push(triageRow('crit', icon('ok'), t('hmToVerify'), t('hmToVerifySub'), 'data-nav="jobs"', toVerify.length));
+  if (unexplained.length) rows.push(triageRow('crit', icon('search'), t('hmUnexplained'), t('hmUnexplainedSub'), 'data-nav="storehealth"', unexplained.length));
+  if (pf.length) rows.push(triageRow('crit', icon('alert'), t('hmPilferage'), t('hmPilferageSub'), 'data-act="openPilferage"', pf.length));
+  if (ch.fine) rows.push(triageRow('crit', icon('warn'), t('hmChallans'), money(ch.fine), 'data-act="openChallans"', ch.pending));
+  if (expired.length) rows.push(triageRow('crit', icon('doc'), t('hmDocsExpired'), t('hmDocsExpiredSub'), 'data-act="openAlerts"', expired.length));
+  else if (alerts.length) rows.push(triageRow('warn', icon('doc'), t('hmDocsSoon'), t('hmDocsSoonSub'), 'data-act="openAlerts"', alerts.length));
+  if (owed) rows.push(triageRow('warn', icon('doc'), t('hmOwed'), t('hmOwedSub'), 'data-act="openPurchases"', money(owed)));
   body += triageCard(rows);
   body += digestHomeCard();
   body += gateHomeSummaryCard();
@@ -3379,10 +3397,10 @@ function viewOwnerHome() {
   body += awayCard(awayJobs());
 
   body += `<div class="card"><h3>${t('hmFleetHealth')}</h3>
-    ${triageRow(bd90.length ? 'warn' : 'ok', '🛠️', t('bdTitle'), t('hmBreakdownsSub'), 'data-act="openBreakdowns"', bd90.length)}
-    ${triageRow(overdue.length ? 'warn' : 'ok', '🔧', t('hmServiceDue'), overdue.length ? esc(overdue.slice(0, 3).map((x) => x.b.regNo).join(', ')) : t('hmAllServiced'), 'data-nav="fleet"', overdue.length)}
-    ${triageRow('', '✅', t('histTitle'), t('histSub'), 'data-act="openHistory"', null)}
-    ${triageRow('', '📊', t('mpTitle'), t('mpSub'), 'data-act="openScoreboard"', null)}</div>`;
+    ${triageRow(bd90.length ? 'warn' : 'ok', icon('bad'), t('bdTitle'), t('hmBreakdownsSub'), 'data-act="openBreakdowns"', bd90.length)}
+    ${triageRow(overdue.length ? 'warn' : 'ok', icon('job'), t('hmServiceDue'), overdue.length ? esc(overdue.slice(0, 3).map((x) => x.b.regNo).join(', ')) : t('hmAllServiced'), 'data-nav="fleet"', overdue.length)}
+    ${triageRow('', icon('ok'), t('histTitle'), t('histSub'), 'data-act="openHistory"', null)}
+    ${triageRow('', icon('star'), t('mpTitle'), t('mpSub'), 'data-act="openScoreboard"', null)}</div>`;
 
   const series = costSeries(7);
   const max = Math.max(1, ...series.map((d) => d.value));
@@ -3390,7 +3408,7 @@ function viewOwnerHome() {
     <div class="row between"><h3>${t('hmLast7')}</h3><span class="badge b-low">${t('hmReports')} ›</span></div>
     <div class="chart">${series.map((d) => `<div class="bar"><i style="height:${Math.round(d.value / max * 100)}%"></i><span>${d.label}</span></div>`).join('')}</div></div>`;
 
-  shell(t('today'), body);
+  shell(t('today'), v2(body));
 }
 
 /* ===== The supervisor's home ===============================================
@@ -3410,20 +3428,20 @@ function viewSupervisorHome() {
   const alerts = allDocAlerts();
   const low = (S.cache.parts || []).filter(isLow);
 
-  let body = greetBlock('🧑‍🔧') + notCheckedInBanner();
+  let body = greetBlock(icon('person')) + notCheckedInBanner();
 
   body += inShopCard(inShop, 8, false);
   body += awayCard(awayJobs());
 
   const rows = [];
-  if (openReports.length) rows.push(triageRow('crit', '🗣️', t('hmComplaints'), esc(busName(openReports[0].busId)) + (openReports.length > 1 ? ' +' + (openReports.length - 1) : ''), `data-bus="${esc(openReports[0].busId)}"`, openReports.length));
+  if (openReports.length) rows.push(triageRow('crit', icon('review'), t('hmComplaints'), esc(busName(openReports[0].busId)) + (openReports.length > 1 ? ' +' + (openReports.length - 1) : ''), `data-bus="${esc(openReports[0].busId)}"`, openReports.length));
   const gateWait = gateWaitingCount();
-  if (gateWait) rows.push(triageRow('crit', '⛔', t('hmGateWaiting'), t('hmGateWaitingSub'), 'data-act="openGateChecks"', gateWait));
-  if (othersToVerify.length) rows.push(triageRow('crit', '☑️', t('hmToVerify'), t('hmToVerifySub'), 'data-nav="jobs"', othersToVerify.length));
-  if (noDriver.length) rows.push(triageRow('warn', '🧑‍✈️', t('hmNoDriver'), esc(noDriver.slice(0, 3).map((b) => b.regNo).join(', ')), 'data-act="openAssignments"', noDriver.length));
-  if (overdue.length) rows.push(triageRow('warn', '🔧', t('hmServiceDue'), esc(overdue.slice(0, 3).map((x) => x.b.regNo).join(', ')), 'data-nav="fleet"', overdue.length));
-  if (alerts.length) rows.push(triageRow(alerts.some((a) => a.st.dl <= 0) ? 'crit' : 'warn', '📄', t('hmDocsSoon'), t('hmDocsSoonSub'), 'data-act="openAlerts"', alerts.length));
-  if (low.length) rows.push(triageRow('warn', '📦', t('hmLowStock'), t('hmLowStockSub'), 'data-nav="store"', low.length));
+  if (gateWait) rows.push(triageRow('crit', icon('gate'), t('hmGateWaiting'), t('hmGateWaitingSub'), 'data-act="openGateChecks"', gateWait));
+  if (othersToVerify.length) rows.push(triageRow('crit', icon('ok'), t('hmToVerify'), t('hmToVerifySub'), 'data-nav="jobs"', othersToVerify.length));
+  if (noDriver.length) rows.push(triageRow('warn', icon('person'), t('hmNoDriver'), esc(noDriver.slice(0, 3).map((b) => b.regNo).join(', ')), 'data-act="openAssignments"', noDriver.length));
+  if (overdue.length) rows.push(triageRow('warn', icon('job'), t('hmServiceDue'), esc(overdue.slice(0, 3).map((x) => x.b.regNo).join(', ')), 'data-nav="fleet"', overdue.length));
+  if (alerts.length) rows.push(triageRow(alerts.some((a) => a.st.dl <= 0) ? 'crit' : 'warn', icon('doc'), t('hmDocsSoon'), t('hmDocsSoonSub'), 'data-act="openAlerts"', alerts.length));
+  if (low.length) rows.push(triageRow('warn', icon('part'), t('hmLowStock'), t('hmLowStockSub'), 'data-nav="store"', low.length));
   body += triageCard(rows);
   body += digestHomeCard();
   body += gateHomeSummaryCard();
@@ -3432,7 +3450,7 @@ function viewSupervisorHome() {
   // Work they have closed that is not theirs to sign off. Not a task — the
   // point is that it is off their plate, and who it is waiting on.
   if (mineToVerify.length) {
-    body += `<div class="card"><div class="row between"><h3>⏳ ${t('hmWaitingSignoff')}</h3>
+    body += `<div class="card"><div class="row between"><h3>${icon('clock')} ${t('hmWaitingSignoff')}</h3>
         <span class="badge b-low">${mineToVerify.length}</span></div>
       <div class="tiny muted">${t('hmWaitingSignoffSub')}</div></div>`;
   }
@@ -3443,7 +3461,7 @@ function viewSupervisorHome() {
     const load = mechs.map((u) => ({ u, n: inShop.filter((j) => isOnJob(j, u.id)).length }))
       .sort((a, b) => b.n - a.n);
     body += `<div class="card" data-act="openScoreboard" style="cursor:pointer">
-      <div class="row between"><h3>👷 ${t('hmLoad')}</h3><span class="tiny muted">${t('mpTitle')} ›</span></div>`;
+      <div class="row between"><h3>${icon('person')} ${t('hmLoad')}</h3><span class="tiny muted">${t('mpTitle')} ›</span></div>`;
     body += load.map(({ u, n }) => `<div class="row between small" style="padding:4px 0">
         <span>${esc(u.name)}</span><b style="color:${n > 4 ? 'var(--red)' : 'var(--text)'}">${n}</b></div>`).join('');
     body += `</div>`;
@@ -3451,7 +3469,7 @@ function viewSupervisorHome() {
 
   body += aiInsightsCard();
 
-  shell(t('today'), body);
+  shell(t('today'), v2(body));
 }
 
 function viewHome() {
@@ -3475,17 +3493,17 @@ function viewHome() {
   const role = S.user.role, isBoss = can(role, 'dashboard');
   const first = S.user.name.split(' ')[0];
   const pending = S.cache.purchases.filter((p) => p.paymentStatus === 'pending').reduce((s, p) => s + p.amount, 0);
-  const roleEmoji = role === 'owner' ? '👑' : role === 'supervisor' ? '🧑‍🔧' : role === 'store' ? '📦' : '🔧';
+  const roleEmoji = role === 'owner' ? icon('person') : role === 'supervisor' ? icon('person') : role === 'store' ? icon('part') : icon('job');
 
   // Greeting header
   body += `<div class="greet">
     <div class="greet-av">${roleEmoji}</div>
-    <div><div class="greet-hi">Namaste, ${esc(first)} 👋</div>
+    <div><div class="greet-hi">Namaste, ${esc(first)}</div>
       <div class="muted small">${esc(BIZ)} · ${fmtToday()}</div></div>
   </div>`;
 
   if (!checkedIn && role === 'mechanic') {
-    body += `<div class="banner warn">⏰ You are not checked in today.<button class="btn sm" data-nav="me" style="margin-left:auto">${t('checkin')}</button></div>`;
+    body += `<div class="banner warn">${icon('clock')} You are not checked in today.<button class="btn sm" data-nav="me" style="margin-left:auto">${t('checkin')}</button></div>`;
   }
 
   if (isBoss) {
@@ -3497,24 +3515,24 @@ function viewHome() {
     const overdue = busesDueService().filter((x) => x.sv.status === 'overdue');
     const expired = alerts.filter((a) => a.st.dl <= 0);
     const triage = [];
-    if (toVerify.length) triage.push(['crit', '☑️', 'Jobs to verify', 'sign off completed work', 'data-nav="jobs"', toVerify.length]);
-    if (openReports.length) triage.push(['crit', '🗣️', 'Driver complaints', esc(busName(openReports[0].busId)) + (openReports.length > 1 ? ' +' + (openReports.length - 1) : ''), `data-bus="${esc(openReports[0].busId)}"`, openReports.length]);
-    if (pf.length) triage.push(['crit', '🕵️', 'Pilferage flags', 'review high-risk staff', 'data-act="openPilferage"', pf.length]);
-    if (alerts.length) triage.push([expired.length ? 'crit' : 'warn', '📄', 'Documents expiring', expired.length ? expired.length + ' expired' : 'within 15 days', 'data-act="openAlerts"', alerts.length]);
-    if (overdue.length) triage.push(['warn', '🔧', 'Service overdue', esc(overdue.slice(0, 2).map((x) => x.b.regNo).join(', ')), 'data-nav="fleet"', overdue.length]);
-    body += `<div class="card"><h3>🔔 ${t('needsYouNow')}</h3>`;
+    if (toVerify.length) triage.push(['crit', icon('ok'), 'Jobs to verify', 'sign off completed work', 'data-nav="jobs"', toVerify.length]);
+    if (openReports.length) triage.push(['crit', icon('review'), 'Driver complaints', esc(busName(openReports[0].busId)) + (openReports.length > 1 ? ' +' + (openReports.length - 1) : ''), `data-bus="${esc(openReports[0].busId)}"`, openReports.length]);
+    if (pf.length) triage.push(['crit', icon('alert'), 'Pilferage flags', 'review high-risk staff', 'data-act="openPilferage"', pf.length]);
+    if (alerts.length) triage.push([expired.length ? 'crit' : 'warn', icon('doc'), 'Documents expiring', expired.length ? expired.length + ' expired' : 'within 15 days', 'data-act="openAlerts"', alerts.length]);
+    if (overdue.length) triage.push(['warn', icon('job'), 'Service overdue', esc(overdue.slice(0, 2).map((x) => x.b.regNo).join(', ')), 'data-nav="fleet"', overdue.length]);
+    body += `<div class="card"><h3>${t('needsYouNow')}</h3>`;
     body += triage.length ? triage.map(([cls, ic, tt, ts, attr, ct]) =>
       `<div class="trow ${cls}" ${attr}><div class="ti">${ic}</div><div class="tm"><div class="tt">${tt}</div><div class="ts">${ts}</div></div><div class="tc">${ct}</div></div>`).join('')
-      : `<div class="trow ok"><div class="ti">✓</div><div class="tm"><div class="tt">${t('allClear')}</div><div class="ts">nothing needs you right now</div></div></div>`;
+      : `<div class="trow ok"><div class="ti">${icon('ok')}</div><div class="tm"><div class="tt">${t('allClear')}</div><div class="ts">nothing needs you right now</div></div></div>`;
     body += `</div>`;
 
     // Driver complaints raised from the road — front-and-centre so the supervisor
     // sees them the moment a driver reports, and can open the bus to raise a job.
     if (openReports.length) {
       body += `<div class="card" style="border:1.5px solid var(--red)">
-        <div class="row between"><h3>🗣️ Driver complaints</h3><span class="badge b-red">${openReports.length} new</span></div>
+        <div class="row between"><h3>${icon('review')} Driver complaints</h3><span class="badge b-red">${openReports.length} new</span></div>
         ${openReports.slice(0, 4).map((r) => `<div class="li" data-bus="${esc(r.busId)}" style="border:none;padding:7px 0;cursor:pointer">
-          <div class="ava">🚨</div><div class="main"><div class="t">${esc(busName(r.busId))} · ${esc(r.category || 'Issue')}</div>
+          <div class="ava">${icon('alert')}</div><div class="main"><div class="t">${esc(busName(r.busId))} · ${esc(r.category || 'Issue')}</div>
           <div class="s">“${esc((r.problem || '').slice(0, 64))}” — ${esc(driverName(r.driverId))} · ${timeAgo(r.at)}</div></div>
           <span class="tiny" style="color:var(--brand2)">open ›</span></div>`).join('')}
         ${openReports.length > 4 ? `<div class="tiny muted" style="margin-top:4px">+${openReports.length - 4} more</div>` : ''}
@@ -3536,15 +3554,15 @@ function viewHome() {
 
     // Quick-stat tiles (tappable → their tabs)
     body += `<div class="grid2">
-      ${qtile('🛠️', openJobs.length, t('open') + ' jobs', 'jobs')}
-      ${qtile('🚌', S.cache.buses.length, 'Buses', 'buses')}
-      ${qtile('🔩', low.length, 'Low stock', 'store')}
-      ${qtile('🧾', money(pending), 'Owed to suppliers', 'purchases')}
+      ${qtile(icon('bad'), openJobs.length, t('open') + ' jobs', 'jobs')}
+      ${qtile(icon('bus'), S.cache.buses.length, 'Buses', 'buses')}
+      ${qtile(icon('part'), low.length, 'Low stock', 'store')}
+      ${qtile(icon('doc'), money(pending), 'Owed to suppliers', 'purchases')}
     </div>`;
 
     // Live fleet map — Uber-style tracking
     body += `<div class="card" data-act="openLiveMap" style="cursor:pointer"><div class="row between">
-      <div class="row" style="gap:10px"><div class="ai-ic">🗺️</div><div><div class="t" style="font-weight:800">Live map</div>
+      <div class="row" style="gap:10px"><div class="ai-ic">${icon('map')}</div><div><div class="t" style="font-weight:800">Live map</div>
         <div class="tiny muted">Track every bus live on the map</div></div></div>
       <span class="tiny" style="color:var(--brand2)">open ›</span></div></div>`;
 
@@ -3552,8 +3570,8 @@ function viewHome() {
     const risks = S.routeRisks || [];
     if (risks.length) {
       body += `<div class="card" data-act="openRoutes" style="cursor:pointer;border:1.5px solid var(--amber)">
-        <div class="row between"><h3>⚠️ Pickups at risk now</h3><span class="badge b-amber">${risks.length}</span></div>`;
-      body += risks.slice(0, 3).map((r) => `<div class="li" style="border:none;padding:6px 0"><div class="ava">🚍</div>
+        <div class="row between"><h3>${icon('warn')} Pickups at risk now</h3><span class="badge b-amber">${risks.length}</span></div>`;
+      body += risks.slice(0, 3).map((r) => `<div class="li" style="border:none;padding:6px 0"><div class="ava">${icon('bus')}</div>
         <div class="main"><div class="t">${esc(busName(r.bus.id))} → ${esc(r.stop.name)}</div>
         <div class="s">due ${minToHhmm(r.sched)}${r.etaMin != null ? ' · ETA ' + minToHhmm(r.etaMin) : ''}${r.reason ? ' · ' + r.reason : ''}</div></div></div>`).join('');
       body += `<div class="tiny muted" style="margin-top:6px">Tap to view routes — call the driver before the pickup is missed.</div></div>`;
@@ -3562,7 +3580,7 @@ function viewHome() {
     // AI Insights entry — pilferage radar + cost + predictive
     const insightCount = computeInsights().length;
     body += `<div class="card aibanner" data-act="openInsights">
-      <div class="ai-ic">✨</div>
+      <div class="ai-ic"></div>
       <div style="flex:1"><div class="t" style="font-weight:800">AI Insights</div>
         <div class="tiny" style="opacity:.85">Pilferage radar, cost savings & predictions</div></div>
       <span class="badge ${insightCount ? 'b-red' : 'b-green'}">${insightCount}</span>
@@ -3584,9 +3602,9 @@ function viewHome() {
 
   // Document alerts — critical in India (fitness/PUC/insurance)
   body += `<div class="card" data-act="openAlerts" style="cursor:pointer"><div class="row between"><h3>${t('docAlerts')}</h3><span class="badge ${alerts.length ? 'b-red' : 'b-green'}">${alerts.length}</span></div>`;
-  if (!alerts.length) body += `<div class="muted small">All documents valid 👍</div>`;
+  if (!alerts.length) body += `<div class="muted small">All documents valid</div>`;
   else body += alerts.slice(0, 5).map((a) =>
-    `<div class="li" data-bus="${esc(a.bus.id)}"><div class="ava">📄</div><div class="main"><div class="t">${esc(a.bus.regNo)} · ${esc(a.doc.type)}</div><div class="s">Expires ${fmtDate(a.doc.expiry)}</div></div><span class="badge ${a.st.cls}">${a.st.txt}</span></div>`).join('');
+    `<div class="li" data-bus="${esc(a.bus.id)}"><div class="ava">${icon('doc')}</div><div class="main"><div class="t">${esc(a.bus.regNo)} · ${esc(a.doc.type)}</div><div class="s">Expires ${fmtDate(a.doc.expiry)}</div></div><span class="badge ${a.st.cls}">${a.st.txt}</span></div>`).join('');
   body += `</div>`;
 
   // Open jobs
@@ -3598,19 +3616,19 @@ function viewHome() {
   // Low stock (honest filter; capped so it can never dominate the home page)
   const lowTop = low.slice(0, 8);
   body += `<div class="card" data-nav="store" style="cursor:pointer"><div class="row between"><h3>${t('lowStock')}</h3><span class="badge ${low.length ? 'b-amber' : 'b-green'}">${low.length}</span></div>`;
-  if (!low.length) body += `<div class="muted small">Stock healthy 👍</div>`;
+  if (!low.length) body += `<div class="muted small">Stock healthy</div>`;
   else {
     body += lowTop.map((p) =>
-      `<div class="li" data-part="${esc(p.id)}">${avatar(partImg(p), '🔩')}<div class="main"><div class="t">${esc(p.name)}</div><div class="s">${p.qty} ${esc(p.unit)} left · reorder at ${p.reorderLevel}</div></div><span class="badge b-amber">LOW</span></div>`).join('');
+      `<div class="li" data-part="${esc(p.id)}">${avatar(partImg(p), icon('part'))}<div class="main"><div class="t">${esc(p.name)}</div><div class="s">${p.qty} ${esc(p.unit)} left · reorder at ${p.reorderLevel}</div></div><span class="badge b-amber">LOW</span></div>`).join('');
     if (low.length > lowTop.length) body += `<div class="tiny muted" style="margin-top:6px">+${low.length - lowTop.length} more · open Store ›</div>`;
   }
   body += `</div>`;
 
-  shell(t('appName'), body);
+  shell(t('appName'), v2(body));
 }
 
 /* ----- Buses ----- */
-const BUS_STAT = { running: ['🟢', 'Running'], idle: ['🟡', 'Idle'], parked: ['⚪', 'Parked'] };
+const BUS_STAT = { running: ['', 'Running'], idle: ['', 'Idle'], parked: ['', 'Parked'] };
 let _busFilter = 'all', _busStatus = {};
 const busStatusOf = (b) => _busStatus[_normReg(b.regNo)] || 'parked';
 /* The fleet as vehicle cards rather than list rows.
@@ -9760,7 +9778,7 @@ function dutyLookupCard() {
       }).join('');
       // The gate check is the other record of who was at the bus: a selfie, taken there.
       h += gateChecks().filter((c) => c.busId === q.busId && c.date === q.date).sort((a, b) => a.startedAt - b.startedAt)
-        .map((c) => `<div class="li" data-act="openGate" data-id="${esc(c.id)}" style="cursor:pointer"><div class="ava">🚦</div>
+        .map((c) => `<div class="li" data-act="openGate" data-id="${esc(c.id)}" style="cursor:pointer"><div class="ava">${icon('gate')}</div>
           <div class="main"><div class="t">${t('asGateLine')} · ${esc(c.driverName)}</div><div class="s">${hhmm(c.startedAt)} · ${t((GATE_STATUS[c.status] || GATE_STATUS.open)[1])}</div></div></div>`).join('');
     }
   }
@@ -9978,8 +9996,8 @@ function viewDriverHome() {
   const d = driverForUser(S.user.id);
   if (!d) { shell(t('myTrips'), `<div class="card"><div class="empty">${t('noBusAssigned')}</div></div>`); return; }
   const bus = byId(S.cache.buses, d.busId), score = overallFrom(driverScore(d.id), myRv().reviews || []).overall;
-  let body = `<div class="greet"><div class="greet-av">🧑‍✈️</div>
-    <div><div class="greet-hi">${t('namaste')}, ${esc(d.name)} 👋</div><div class="muted small">${esc(BIZ)} · ${fmtToday()}</div></div></div>`;
+  let body = `<div class="greet"><div class="greet-av">${icon('person')}</div>
+    <div><div class="greet-hi">${t('namaste')}, ${esc(d.name)}</div><div class="muted small">${esc(BIZ)} · ${fmtToday()}</div></div></div>`;
   if (bus) body += `<div class="hero cover"><img src="${esc(busImg(bus))}" alt="">
     <div class="hero-cap"><div class="hero-t">${esc(bus.regNo)}</div><div class="hero-s">${t('myBus')}</div></div></div>`;
   // Explain the score so it isn't a mystery number: what pulled it down + a tip.
@@ -9996,7 +10014,7 @@ function viewDriverHome() {
   body += myReviewsCard('driver');
   body += driverTripCard();   // trip cash + expenses
   if (d.busId) {
-    body += `<button class="btn primary" data-act="reportProblem" data-bus="${esc(d.busId)}" data-driver="${esc(d.id)}">🛠️ ${t('reportProblem')}</button><div class="spacer"></div>`;
+    body += `<button class="btn primary" data-act="reportProblem" data-bus="${esc(d.busId)}" data-driver="${esc(d.id)}">${icon('bad')} ${t('reportProblem')}</button><div class="spacer"></div>`;
   } else {
     body += `<div class="banner warn">${t('noBusAssigned')}</div><div class="spacer"></div>`;
   }
@@ -10014,24 +10032,24 @@ function viewDriverHome() {
       ? `<span class="badge b-green">${t('fixed')}</span>`
       : (r.jobId ? `<span class="badge b-amber">${t('openStatus')}</span>`
         : `<button class="btn sm" data-act="cancelReport" data-report="${esc(r.id)}">${t('drvCancelBtn')}</button>`);
-    return `<div class="li"${tap}><div class="ava">${resolved ? '✅' : '🟠'}</div>
+    return `<div class="li"${tap}><div class="ava">${resolved ? icon('ok') : ''}</div>
       <div class="main"><div class="t">${esc(r.problem)}</div><div class="s">${sub}</div></div>
       ${right}</div>`;
   }).join('')
     : `<div class="muted small">${t('noReportsYet')}</div>`;
   body += `</div>`;
-  shell(t('myTrips'), body);
+  shell(t('myTrips'), v2(body));
 }
 
 // A conductor's bus is the one they're mapped to (bus.conductorUserId).
 const busForConductor = (userId) => (S.cache.buses || []).find((b) => b.conductorUserId === userId) || null;
 function viewConductorHome() {
   const bus = busForConductor(S.user.id);
-  let body = `<div class="greet"><div class="greet-av">🎫</div>
-    <div><div class="greet-hi">${t('namaste')}, ${esc(S.user.name)} 👋</div><div class="muted small">${esc(BIZ)} · ${fmtToday()}</div></div></div>`;
+  let body = `<div class="greet"><div class="greet-av">${icon('person')}</div>
+    <div><div class="greet-hi">${t('namaste')}, ${esc(S.user.name)}</div><div class="muted small">${esc(BIZ)} · ${fmtToday()}</div></div></div>`;
   if (bus) {
     body += `<div class="hero cover"><img src="${esc(busImg(bus))}" alt=""><div class="hero-cap"><div class="hero-t">${esc(bus.regNo)}</div><div class="hero-s">My bus</div></div></div>`;
-    body += `<div class="card"><h3>🧭 Route &amp; crew</h3>`;
+    body += `<div class="card"><h3>${icon('map')} Route &amp; crew</h3>`;
     if (bus.routeLabel) body += `<div class="row between small" style="padding:3px 0"><span class="muted">Route</span><b>${esc(expandRoute(bus.routeLabel))}</b></div>`;
     if (bus.driverCrew) body += `<div class="row between small" style="padding:3px 0"><span class="muted">Driver(s)</span><b>${esc(_titleCase(bus.driverCrew))}</b></div>`;
     if (bus.crewPhone) body += `<div class="row between small" style="padding:3px 0"><span class="muted">Contact</span><a href="tel:${esc((bus.crewPhone || '').replace(/\s/g, ''))}"><b>${esc(bus.crewPhone)}</b></a></div>`;
@@ -10039,7 +10057,7 @@ function viewConductorHome() {
   } else body += `<div class="card"><div class="empty">No bus assigned yet. Ask your supervisor.</div></div>`;
   body += myCoachCard();
   body += myReviewsCard('conductor');
-  shell(t('myTrips'), body);
+  shell(t('myTrips'), v2(body));
 }
 
 /* ===== Gate Check: the departure checklist (gate.js) =======================
@@ -12640,7 +12658,7 @@ function viewRoutes() {
   let body = '';
   if (risks.length) {
     body += `<div class="card" style="border:1.5px solid var(--amber)"><div class="row between"><h3>⚠️ Pickups at risk now</h3><span class="badge b-amber">${risks.length}</span></div>`;
-    body += risks.map((r) => `<div class="li" data-routebus="${esc(r.bus.id)}"><div class="ava">🚍</div>
+    body += risks.map((r) => `<div class="li" data-routebus="${esc(r.bus.id)}"><div class="ava">${icon('bus')}</div>
       <div class="main"><div class="t">${esc(busName(r.bus.id))} → ${esc(r.stop.name)}</div>
       <div class="s">due ${minToHhmm(r.sched)}${r.etaMin != null ? ' · ETA ' + minToHhmm(r.etaMin) : ''}${r.reason ? ' · ' + r.reason : ''}</div></div>
       <span class="badge b-amber">late risk</span></div>`).join('');
@@ -12955,7 +12973,7 @@ function insightCard(i) {
 function viewInsights() {
   const items = computeInsights();
   const high = items.filter((i) => i.sev === 'high').length;
-  let body = `<div class="card feature-ai"><div class="ai-ic big">✨</div>
+  let body = `<div class="card feature-ai"><div class="ai-ic big">${icon('star', { size: 28 })}</div>
     <div><div style="font-weight:800;font-size:17px">AI Insights</div>
       <div class="tiny" style="opacity:.85">${items.length} findings · ${high} need attention</div></div></div>`;
 

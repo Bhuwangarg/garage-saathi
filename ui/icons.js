@@ -20,6 +20,15 @@
     job: 'M15 4.5h3a1 1 0 0 1 1 1V21a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V5.5a1 1 0 0 1 1-1h3 M9 3h6v3H9z M8.5 11h7 M8.5 15h7',
     part: 'M10.6 4.9L10.8 2.5L13.2 2.5L13.4 4.9L16 6L17.9 4.4L19.6 6.1L18 8L19.1 10.6L21.5 10.8L21.5 13.2L19.1 13.4L18 16L19.6 17.9L17.9 19.6L16 18L13.4 19.1L13.2 21.5L10.8 21.5L10.6 19.1L8 18L6.1 19.6L4.4 17.9L6 16L4.9 13.4L2.5 13.2L2.5 10.8L4.9 10.6L6 8L4.4 6.1L6.1 4.4L8 6z M14.8 12a2.8 2.8 0 1 0-5.6 0 2.8 2.8 0 0 0 5.6 0z',
     person: 'M12 4a4 4 0 1 0 0 8 4 4 0 0 0 0-8z M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1',
+    // Added for the bottom nav, which is on every screen and was five emoji.
+    // `me` is a person INSIDE a ring so it cannot be mistaken for `person` two
+    // tabs along -- the owner's nav carries both at once.
+    home: 'M3 10.8 L12 3.2 L21 10.8 M5.4 9.6 L5.4 20.4 L18.6 20.4 L18.6 9.6 M9.8 20.4 L9.8 15.2 L14.2 15.2 L14.2 20.4',
+    me: 'M12 2.6a9.4 9.4 0 1 0 0 18.8 9.4 9.4 0 0 0 0-18.8z M12 8a2.8 2.8 0 1 0 0 5.6 2.8 2.8 0 0 0 0-5.6z M6.6 19.2a5.8 5.8 0 0 1 10.8 0',
+    // The light/dark toggle, which sits in the header of every screen. A tick and
+    // a clock were the nearest existing marks and both said the wrong thing.
+    sun: 'M12 7.6a4.4 4.4 0 1 0 0 8.8 4.4 4.4 0 0 0 0-8.8z M12 2.8v2.2 M12 19v2.2 M2.8 12h2.2 M19 12h2.2 M5.6 5.6l1.6 1.6 M16.8 16.8l1.6 1.6 M18.4 5.6l-1.6 1.6 M7.2 16.8l-1.6 1.6',
+    moon: 'M20 14.6A8.6 8.6 0 0 1 9.4 4 8.6 8.6 0 1 0 20 14.6z',
     fuel: 'M4 21V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v16 M3 21h12 M7 8h4 M14 9h2a2 2 0 0 1 2 2v5a1.5 1.5 0 0 0 3 0V8l-3-3',
     money: 'M7 4.5h10 M7 9h10 M7 4.5h2.5a4.25 4.25 0 0 1 0 8.5H7l8 7',
     review: 'M4 4h16a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H10l-5 4v-4H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z M8 9h8 M8 12.5h5',
