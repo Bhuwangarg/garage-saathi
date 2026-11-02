@@ -889,10 +889,16 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
    * and the newest — a staff member added this morning, an archived record —
    * arrive last and so never arrived at all. */
   async function pull() {
-    // The screens people open first come from the main drain, so it goes first and
-    // finishes before the telemetry starts arriving.
-    await drain(() => pullPage({ defer: DEFERRED_STORES }));
-    await drain(() => pullPage({ only: DEFERRED_STORES }));
+    /* Deferring is worth something on a FIRST sync and nothing afterwards, and the
+     * plan for that is in pullapply.js so it can be tested: shipping the version
+     * that ran both drains every tick cost a second request every four seconds on
+     * every device in the yard, to fetch nothing, and only showed up by watching
+     * production. See drainPlan() for what each name means and why. */
+    for (const step of PullApply.drainPlan(lastRev, lastRevDeferred)) {
+      if (step === 'defer') await drain(() => pullPage({ defer: DEFERRED_STORES }));
+      else if (step === 'only') await drain(() => pullPage({ only: DEFERRED_STORES }));
+      else await drain(() => pullPage());
+    }
   }
 
   async function drain(step) {
@@ -1030,8 +1036,17 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
       // Never past a record this device still owes itself.
       const next = holdRev ? Math.min(j.maxRev, holdRev - 1) : j.maxRev;
       if (next > since) {
-        if (only) { lastRevDeferred = next; ls.setItem('lastRevDeferred', String(lastRevDeferred)); }
-        else { lastRev = next; ls.setItem('lastRev', String(lastRev)); }
+        if (only) {
+          lastRevDeferred = next; ls.setItem('lastRevDeferred', String(lastRevDeferred));
+        } else {
+          lastRev = next; ls.setItem('lastRev', String(lastRev));
+          // A page with no `defer` held every store, the deferred ones included, so
+          // their cursor is satisfied to the same point. Leaving it behind here is
+          // what would keep the catch-up drain running for ever.
+          if (!defer && next > lastRevDeferred) {
+            lastRevDeferred = next; ls.setItem('lastRevDeferred', String(lastRevDeferred));
+          }
+        }
       }
     }
     const stuck = Object.keys(pullSkips).length;

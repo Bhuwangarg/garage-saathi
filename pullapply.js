@@ -76,7 +76,33 @@
     return out;
   }
 
-  const api = { decidePage: decidePage, byStore: byStore, FUTURE_MS: FUTURE_MS };
+  /* Which drains one pull should run, from where the two cursors are standing.
+   *
+   * Pure because getting it wrong is expensive in both directions, and both have
+   * already happened. Running the deferred drain every tick costs a second request
+   * every four seconds on every device, for ever, to fetch nothing -- shipped once
+   * and caught by watching production. Not running it when the deferred cursor is
+   * behind loses those records permanently, because the main cursor has already
+   * moved past them and will never ask again.
+   *
+   * Returns a list of drains in the order they must run:
+   *   'defer'  - everything EXCEPT the deferred stores, on the main cursor
+   *   'only'   - nothing BUT the deferred stores, on their own cursor
+   *   'plain'  - everything, on the main cursor, carrying both forward
+   */
+  function drainPlan(lastRev, lastRevDeferred) {
+    const main = lastRev || 0;
+    const dfr = lastRevDeferred || 0;
+    // Nothing yet: the screens people open first come before the telemetry.
+    if (!main) return ['defer', 'only'];
+    // An interrupted first sync. Finish the deferred stores on their own cursor
+    // before anything else, then carry on normally.
+    if (dfr < main) return ['only', 'plain'];
+    // Caught up: one drain, one request.
+    return ['plain'];
+  }
+
+  const api = { decidePage: decidePage, byStore: byStore, drainPlan: drainPlan, FUTURE_MS: FUTURE_MS };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.PullApply = api;
 })(typeof window !== 'undefined' ? window : this);

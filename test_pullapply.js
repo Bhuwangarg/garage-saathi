@@ -145,5 +145,44 @@ for (const rt of stamps) {
 }
 check(`agrees with the old per-record rule on all ${cases} combinations`, mismatches === 0);
 
+/* ---- the drain plan: how many requests a tick costs ------------------- */
+
+const plan = (a, b) => P.drainPlan(a, b).join('+');
+
+check('a device with nothing yet fetches the small stores first', plan(0, 0) === 'defer+only');
+check('…and that is the only time it costs two drains', P.drainPlan(0, 0).length === 2);
+
+// The regression this function exists for: once caught up it must be ONE request a
+// tick. Running both drains for ever cost every device in the yard a second request
+// every four seconds to fetch nothing.
+check('a caught-up device costs one drain', plan(500, 500) === 'plain');
+check('…and still one when both are large', plan(136050, 136050) === 'plain');
+
+// The failure in the other direction: an interrupted first sync. The main cursor is
+// already past those records, so skipping the deferred drain loses them for good.
+check('a deferred cursor left behind is finished first', plan(500, 200) === 'only+plain');
+check('…including when it never started', plan(500, 0) === 'only+plain');
+
+// Treat missing/undefined cursors as zero rather than throwing or, worse, deciding
+// a device is caught up when nothing is known.
+check('undefined cursors read as a first sync', plan(undefined, undefined) === 'defer+only');
+check('a null main cursor reads as a first sync', plan(null, 500) === 'defer+only');
+
+// A deferred cursor AHEAD of the main one should not trigger catch-up: it is not
+// behind, so there is nothing to finish.
+check('a deferred cursor ahead is not treated as behind', plan(500, 900) === 'plain');
+
+// Whatever the plan, 'only' never runs without either being a first sync or being
+// behind -- that is what keeps the steady-state cost at one request.
+let extra = 0;
+for (let m = 0; m <= 3; m++) {
+  for (let d = 0; d <= 3; d++) {
+    const steps = P.drainPlan(m, d);
+    const needed = (m === 0) || (d < m);
+    if (steps.indexOf('only') >= 0 && !needed) extra++;
+  }
+}
+check('no cursor pair runs the deferred drain needlessly', extra === 0);
+
 console.log(fails ? `\n${fails} FAILED` : '\nall ok');
 process.exit(fails ? 1 : 0);
