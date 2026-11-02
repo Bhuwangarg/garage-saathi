@@ -704,7 +704,17 @@ body.printing-gp .gp-screen{display:none !important}
      a column of the row's own grid. --- */
   .jobcard{
     display:grid;
-    grid-template-columns:118px minmax(120px,1fr) 208px 152px 88px;
+    /* Every track can shrink. They were fixed -- 118+120+208+152+88 plus gaps is
+       686px of hard minimum -- which is right on the jobs board, where the row
+       owns the full width, and wrong everywhere else the same card appears. On
+       the mechanic's home a job card sits inside a .card that is 490px in the
+       two-column desktop grid, so the row overflowed its container by about
+       200px, pushed .jc-complaint out to 1473px and gave the whole PAGE a
+       horizontal scrollbar at 1366. minmax(0,...) keeps these widths as the
+       size each column WANTS while letting it give way when the container is
+       narrower; every cell here already clips with an ellipsis, so a tight row
+       degrades into a tighter row instead of off the side of the screen. */
+    grid-template-columns:minmax(0,118px) minmax(0,1fr) minmax(0,208px) minmax(0,152px) minmax(0,88px);
     align-items:center;
     gap:2px 14px;
     margin:0;padding:9px 12px;
@@ -749,7 +759,7 @@ body.printing-gp .gp-screen{display:none !important}
   #app{max-width:1560px;grid-template-columns:246px minmax(0,1fr)}
   .content{grid-template-columns:repeat(3,minmax(0,1fr))}
   .content.narrow{grid-template-columns:minmax(0,820px)}
-  .jobcard{grid-template-columns:140px minmax(160px,1fr) 236px 176px 100px}
+  .jobcard{grid-template-columns:minmax(0,140px) minmax(0,1fr) minmax(0,236px) minmax(0,176px) minmax(0,100px)}
 }
 
 /* ==========================================================================

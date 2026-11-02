@@ -413,6 +413,23 @@ jck "a device that cannot sign itself back in wears a permanent mark" \
 jck "but a session that CAN renew itself stays quiet" \
   "(function(){var _i=Sync.info,_c=credGet,out;try{Sync.info=function(){return {status:'signedout',behind:0}};credGet=function(){return '0000'};out=syncWarnHtml()}catch(e){out='threw: '+e.message}finally{Sync.info=_i;credGet=_c}return (out==='')?'quiet':'marked anyway: '+String(out).slice(0,40)})()" "quiet"
 
+# A login that has nothing to fall back on waits longer than a cold start.
+#
+# Owner, supervisor and crew manager keep no PIN on the device, so for them the
+# request IS the login. The limit was 30s, set against a comment estimating a
+# cold container at "about ten" seconds; measured against production it is
+# 30-36. The timeout sat just under the real number, so every attempt that met
+# a cold container failed and only those -- the owner unable to sign in,
+# intermittently, with nothing wrong anywhere. Both numbers are asserted,
+# because raising the one for crew would be its own bug: a phone that CAN log
+# in offline must not stare at a dead pad for a minute first.
+ck "a login with no offline fallback waits past a real cold start" \
+  "$(grep -c 'canOffline ? 8000 : 60000' app.js)" "1"
+ck "and retries once when that wait times out" \
+  "$(grep -c 'r.offline && !canOffline' app.js)" "1"
+ck "the server starts waking at the login screen, not only at the keypad" \
+  "$(grep -c 'Sync.warmUp();' app.js)" "2"
+
 jck "mechanics still on the roster" \
   "(S.cache.users||[]).filter(function(u){return u.role==='mechanic'}).length>0" "true"
 

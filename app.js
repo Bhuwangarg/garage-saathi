@@ -13433,6 +13433,13 @@ function renderLogin() {
    * a regression here is invisible in every other check -- the app still works,
    * it just makes somebody stand there. */
   if (!window.__padAt) window.__padAt = Math.round(performance.now());
+  /* Start waking the server HERE, not at the pad.
+   *
+   * It used to fire when the keypad opened, on the reasoning that typing four
+   * digits covers a cold start. That reasoning assumed a cold start of about
+   * ten seconds; measured against production it is 30-36. Picking a role and
+   * then a name is another few seconds of head start, and they are free. */
+  try { Sync.warmUp(); } catch (e) { /* offline; the device PIN still works */ }
   _pinUser = null; _pin = '';
   const users = S.cache.users || [];
   const counts = {}; users.forEach((u) => { counts[u.role] = (counts[u.role] || 0) + 1; });
@@ -13511,9 +13518,11 @@ function renderRolePick(role) {
 }
 function renderPin(user) {
   _pinUser = user; _pin = '';
-  // Wake the backend now. Typing four digits takes two or three seconds; a cold
-  // serverless container takes about ten. Starting the two together is most of
-  // the difference between a login that feels instant and one that feels broken.
+  // Wake the backend again, in case this pad was reached without the role list
+  // (a recent-user tile goes straight here). warmUp() throttles itself to one
+  // ping every 30s, so arriving from the login screen costs nothing. A cold
+  // container is 30-36 seconds, not the ten this once assumed, which is why the
+  // waking starts at the login screen now rather than here.
   try { Sync.warmUp(); } catch (e) { /* offline; the device PIN still works */ }
   // A desktop has a keyboard. Making someone mouse-click four small buttons is
   // the phone interaction pretending to work everywhere — so accept typing too.
@@ -13785,8 +13794,26 @@ async function attemptLogin(user, pin, redraw) {
   // Say so when it is slow, rather than leaving a frozen pad for half a minute.
   const slow = setTimeout(() => { const m = $('.login .muted.small'); if (m) m.textContent = t('serverWaking'); }, 5000);
   let r;
-  try { r = await Sync.login(user.id, pin, { timeoutMs: canOffline ? 8000 : 30000 }); }
-  finally { clearTimeout(slow); }
+  try {
+    /* 60s, not 30, for a login with nothing to fall back on.
+     *
+     * Owner, supervisor and crew manager keep no PIN on the device, so for them
+     * this request IS the login -- there is no offline path behind it. The
+     * limit was 30s against a comment estimating a cold start at "about ten".
+     * Measured against production it is 30-36 seconds, so the timeout sat just
+     * under the real number: every attempt that met a cold container failed,
+     * and only those. That is the owner being unable to sign in, intermittently,
+     * with nothing wrong anywhere.
+     *
+     * A device that CAN fall back still gives up at 8s -- waiting a minute in
+     * front of a working offline login would be the opposite mistake. */
+    r = await Sync.login(user.id, pin, { timeoutMs: canOffline ? 8000 : 60000 });
+    /* One retry, and only for the roles that cannot fall back. `offline` after
+     * a wait that long is a container that was still booting; it is warm by the
+     * time we are told, so the second attempt answers in a fraction of a second
+     * and turns the failure into a login. */
+    if (r && r.offline && !canOffline) r = await Sync.login(user.id, pin, { timeoutMs: 20000 });
+  } finally { clearTimeout(slow); }
   if (r && r.user) { cachePin(r.user, pin); offlineClear(user.id); return enterApp(user); }  // verified online
   if (r && r.locked) { toast(t('tooManyTries')); _pin = ''; return redraw(); }
   // Fall back to this device's PIN when the server is unreachable OR when it
