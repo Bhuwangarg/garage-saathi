@@ -156,7 +156,7 @@ html[data-view="yard"] .g-pair, html[data-view="desk"] .g-pair { grid-template-c
   /* ---------- one builder per component: build(density) -> markup. Called once for the yard panel, once for the desk one. ---------- */
 
   function rowMarkup(extra, lead, t, sub, act) {
-    return '<div class="row"' + extra + '><span class="lead">' + lead + '</span><div class="txt"><div class="t">' + t + '</div><div class="sub">' + sub + '</div></div>'
+    return '<div class="v2row"' + extra + '><span class="lead">' + lead + '</span><div class="txt"><div class="t">' + t + '</div><div class="sub">' + sub + '</div></div>'
       + (act ? '<div class="act">' + act + '</div>' : '') + '</div>';
   }
 
@@ -194,8 +194,8 @@ html[data-view="yard"] .g-pair, html[data-view="desk"] .g-pair { grid-template-c
       return '<div class="g-list">'
         + rowMarkup('', ic('bus', 20), 'RJ14 PA 1234', 'Brake pads, front axle', '<span class="badge badge-warn">' + ic('warn', 16) + ' In progress</span>')
         + rowMarkup('', ic('job', 20), 'Oil change', 'Due in 1,200 km', '<button type="button" class="btn btn-quiet">Open</button><button type="button" class="btn">Done</button>')
-        + '<button type="button" class="row"><span class="lead">' + ic('part', 20) + '</span><div class="txt"><div class="t">Pressable row (a button)</div><div class="sub">The whole row is the target</div></div><div class="act"><span class="badge badge-ok">' + ic('ok', 16) + ' Done</span></div></button>'
-        + '<a class="row" href="#"><span class="lead">' + ic('person', 20) + '</span><div class="txt"><div class="t">Pressable row (a link)</div><div class="sub">Same look, a different element</div></div></a>'
+        + '<button type="button" class="v2row"><span class="lead">' + ic('part', 20) + '</span><div class="txt"><div class="t">Pressable row (a button)</div><div class="sub">The whole row is the target</div></div><div class="act"><span class="badge badge-ok">' + ic('ok', 16) + ' Done</span></div></button>'
+        + '<a class="v2row" href="#"><span class="lead">' + ic('person', 20) + '</span><div class="txt"><div class="t">Pressable row (a link)</div><div class="sub">Same look, a different element</div></div></a>'
         + rowMarkup(' data-sample="long"', ic('doc', 20), 'A very long job title that could never fit on one line of a phone and has to be cut off with an ellipsis instead of pushing the button away', 'The action stays where it is', '<button type="button" class="btn">Open</button>')
         + rowMarkup(' lang="hi"', ic('bus', 20), HI_T, HI_SUB, '')
         + rowMarkup('', ic('map', 20), 'Odometer', 'Last reading', figure(48210, { unit: 'km', format: FORMAT }))
@@ -362,7 +362,7 @@ html[data-view="yard"] .g-pair, html[data-view="desk"] .g-pair { grid-template-c
   function demoRow(i) {
     var kind = i % 3, badge = kind === 0 ? '<span class="badge badge-ok">' + ic('ok', 16) + ' Done</span>'
       : (kind === 1 ? '<span class="badge badge-warn">' + ic('warn', 16) + ' In progress</span>' : '<span class="badge badge-bad">' + ic('bad', 16) + ' Overdue</span>');
-    return '<div class="row"><span class="lead">' + ic('bus', 20) + '</span><div class="txt"><div class="t">RJ14 PA ' + (1000 + i) + '</div>'
+    return '<div class="v2row"><span class="lead">' + ic('bus', 20) + '</span><div class="txt"><div class="t">RJ14 PA ' + (1000 + i) + '</div>'
       + '<div class="sub">Brake pads, front axle, job ' + (i + 1) + '</div></div>'
       + '<div class="act">' + figure(48210 + i, { unit: 'km' }) + badge + '<button type="button" class="btn btn-quiet">Open</button></div></div>';
   }

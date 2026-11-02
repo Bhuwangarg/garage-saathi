@@ -665,10 +665,10 @@ function scene(o) {
   add('field', host, 'input.field', { type: 'text' }); add('textarea', host, 'textarea.field'); add('select', host, 'select.select');
   add('field-invalid', host, 'input.field', { 'aria-invalid': 'true' });
   const card = add('card', host, 'div.card'); add('card-text', card, 'p');
-  const row = add('row', host, 'div.row'); add('row-lead', row, 'span.lead');
+  const row = add('row', host, 'div.v2row'); add('row-lead', row, 'span.lead');
   const txt = add('row-txt', row, 'div.txt'); add('row-t', txt, 'div.t'); add('row-sub', txt, 'div.sub');
   const act = add('row-act', row, 'div.act'); add('row-act-btn', act, 'button.btn');
-  add('row-button', host, 'button.row'); add('row-link', host, 'a.row', { href: '#' });
+  add('row-button', host, 'button.v2row'); add('row-link', host, 'a.v2row', { href: '#' });
   const tbl = add('table', host, 'table.table');
   F.th = mk(mk(mk(tbl, 'thead'), 'tr'), 'th'); const tr = mk(mk(tbl, 'tbody'), 'tr'); add('td', tr, 'td'); add('td-fig', tr, 'td.fig');
   add('badge', host, 'span.badge'); add('badge-ok', host, 'span.badge.badge-ok'); add('badge-warn', host, 'span.badge.badge-warn'); add('badge-bad', host, 'span.badge.badge-bad');
@@ -703,7 +703,7 @@ const isControl = (el) => BUTTONISH.includes(el.tag);
 test('the fixture scene covers every class in the brief, and its icons are bare svgs with no class', () => {
   const { F } = scene();
   assert(Object.keys(F).length >= 40, 'only ' + Object.keys(F).length + ' fixtures');
-  for (const c of ['btn', 'btn-primary', 'btn-quiet', 'btn-danger', 'field', 'select', 'row', 'card', 'table', 'badge', 'badge-ok', 'badge-warn', 'badge-bad', 'tabs', 'stat'])
+  for (const c of ['btn', 'btn-primary', 'btn-quiet', 'btn-danger', 'field', 'select', 'v2row', 'card', 'table', 'badge', 'badge-ok', 'badge-warn', 'badge-bad', 'tabs', 'stat'])
     assert(Object.keys(F).some((k) => F[k].classes.includes(c)), 'no fixture uses .' + c);
   for (const n of ICON_FIXTURES) assert(F[n] && F[n].tag === 'svg' && F[n].classes.length === 0, n + ' must be a bare svg with no class, like icon() returns');
 });
@@ -802,7 +802,7 @@ test('the icon checker goes red when the svg rule is removed and when the flex c
   // the flex hosts: losing align-items: center must be caught even though the svg rule still supplies vertical-align
   hits(iconFailures(mutate(css, /(\[data-v2\] \.btn \{\n  display: inline-flex;\n)  align-items: center;/, '$1  align-items: baseline;')), '.btn with align-items: baseline was not caught');
   hits(iconFailures(mutate(css, /(\[data-v2\] \.badge \{\n  display: inline-flex;\n)  align-items: center;/, '$1  align-items: flex-start;')), '.badge with align-items: flex-start was not caught');
-  hits(iconFailures(mutate(css, /(\[data-v2\] \.row > \.lead \{\n  grid-column: 1;\n  display: flex;\n)  align-items: center;/, '$1  align-items: baseline;')), '.lead with align-items: baseline was not caught');
+  hits(iconFailures(mutate(css, /(\[data-v2\] \.v2row > \.lead \{\n  grid-column: 1;\n  display: flex;\n)  align-items: center;/, '$1  align-items: baseline;')), '.lead with align-items: baseline was not caught');
   // and the inline host: removing vertical-align leaves the baseline (already covered above); a flex host does not excuse it
   assert.deepEqual(iconFailures(css), []);
 });
@@ -974,24 +974,24 @@ function deskFitFailures(css) {
 }
 test('the desk-fit checker goes red for padding or a border that pushes a 32px row, button or cell past 32px', () => {
   const css = need();
-  hits(deskFitFailures(mutate(css, /(\[data-v2\] \.row \{[^}]*?)padding: 0 var\(--pad\);/, '$1padding: var(--s1) var(--pad);')), '.row padding var(--s1) var(--pad) was not caught');
-  hits(deskFitFailures(mutate(css, /(\[data-v2\] \.row \{[^}]*?)box-shadow: inset 0 -1px 0 var\(--line\);/, '$1border-bottom: 1px solid var(--line);')), '.row with border-bottom was not caught');
+  hits(deskFitFailures(mutate(css, /(\[data-v2\] \.v2row \{[^}]*?)padding: 0 var\(--pad\);/, '$1padding: var(--s1) var(--pad);')), '.v2row padding var(--s1) var(--pad) was not caught');
+  hits(deskFitFailures(mutate(css, /(\[data-v2\] \.v2row \{[^}]*?)box-shadow: inset 0 -1px 0 var\(--line\);/, '$1border-bottom: 1px solid var(--line);')), '.v2row with border-bottom was not caught');
   hits(deskFitFailures(mutate(css, /(\[data-v2\] \.btn \{[^}]*?)padding: var\(--s1\) var\(--pad\);/, '$1padding: var(--s3);')), '.btn padding var(--s3) was not caught');
   hits(deskFitFailures(mutate(css, /(\[data-v2\] \.table th,\n\[data-v2\] \.table td \{[^}]*?)padding: var\(--s1\) var\(--pad\);/, '$1padding: var(--s4);')), 'td padding var(--s4) was not caught');
-  hits(deskFitFailures(mutate(css, /(\[data-v2\] button\.row,\n\[data-v2\] a\.row \{\n  width: 100%;\n)  border: 0;/, '$1  border: 1px solid var(--line);')), 'button.row with a border was not caught');
+  hits(deskFitFailures(mutate(css, /(\[data-v2\] button\.v2row,\n\[data-v2\] a\.v2row \{\n  width: 100%;\n)  border: 0;/, '$1  border: 1px solid var(--line);')), 'button.v2row with a border was not caught');
   // the spellings the shorthand-only reader could not see: physical longhands, logical forms, border-width on an existing border
   const L = (rx, to) => deskFitFailures(mutate(css, rx, to));
-  hits(L(/(\[data-v2\] \.row \{[^}]*?)padding: 0 var\(--pad\);/, '$1padding: 0 var(--pad);\n  padding-top: var(--s2);'), '.row padding-top was not caught');
-  hits(L(/(\[data-v2\] \.row \{[^}]*?)padding: 0 var\(--pad\);/, '$1padding: 0 var(--pad);\n  padding-bottom: var(--s1);'), '.row padding-bottom was not caught');
+  hits(L(/(\[data-v2\] \.v2row \{[^}]*?)padding: 0 var\(--pad\);/, '$1padding: 0 var(--pad);\n  padding-top: var(--s2);'), '.v2row padding-top was not caught');
+  hits(L(/(\[data-v2\] \.v2row \{[^}]*?)padding: 0 var\(--pad\);/, '$1padding: 0 var(--pad);\n  padding-bottom: var(--s1);'), '.v2row padding-bottom was not caught');
   hits(L(/(\[data-v2\] \.btn \{[^}]*?)padding: var\(--s1\) var\(--pad\);/, '$1padding: 0 var(--pad);\n  padding-block: var(--s3);'), '.btn padding-block was not caught');
   hits(L(/(\[data-v2\] \.btn \{[^}]*?)padding: var\(--s1\) var\(--pad\);/, '$1padding: 0 var(--pad);\n  padding-block-end: var(--s4);'), '.btn padding-block-end was not caught');
-  hits(L(/(\[data-v2\] \.row \{[^}]*?)box-shadow: inset 0 -1px 0 var\(--line\);/, '$1border-block-end: 1px solid var(--line);'), '.row border-block-end was not caught');
+  hits(L(/(\[data-v2\] \.v2row \{[^}]*?)box-shadow: inset 0 -1px 0 var\(--line\);/, '$1border-block-end: 1px solid var(--line);'), '.v2row border-block-end was not caught');
   hits(L(/(\[data-v2\] \.btn \{[^}]*?)border: 1px solid var\(--line\);/, '$1border: 1px solid var(--line);\n  border-bottom-width: 12px;'), '.btn border-bottom-width was not caught');
   hits(L(/(\[data-v2\] \.btn \{[^}]*?)border: 1px solid var\(--line\);/, '$1border: 1px solid var(--line);\n  border-block-width: 10px;'), '.btn border-block-width was not caught');
   hits(L(/(\[data-v2\] \.table th,\n\[data-v2\] \.table td \{[^}]*?)(overflow-wrap: anywhere;)/, '$1$2\n  border-block-end: 8px solid var(--line);'), 'td border-block-end was not caught');
-  hits(L(/(\[data-v2\] button\.row,\n\[data-v2\] a\.row \{\n  width: 100%;\n)  border: 0;/, '$1  border: 0;\n  border-bottom-style: solid;\n  border-bottom-width: 1px;'), 'button.row border-bottom-style/width longhands were not caught');
+  hits(L(/(\[data-v2\] button\.v2row,\n\[data-v2\] a\.v2row \{\n  width: 100%;\n)  border: 0;/, '$1  border: 0;\n  border-bottom-style: solid;\n  border-bottom-width: 1px;'), 'button.v2row border-bottom-style/width longhands were not caught');
   // a width with no style draws nothing, so it must NOT be reported (the reader follows the cascade, it does not grep)
-  assert.deepEqual(L(/(\[data-v2\] \.row \{[^}]*?)padding: 0 var\(--pad\);/, '$1padding: 0 var(--pad);\n  border-bottom-width: 9px;'), [], 'a border width with no border style is not a border');
+  assert.deepEqual(L(/(\[data-v2\] \.v2row \{[^}]*?)padding: 0 var\(--pad\);/, '$1padding: 0 var(--pad);\n  border-bottom-width: 9px;'), [], 'a border width with no border style is not a border');
   // the reader itself, through the model
   const mm = (css, el) => model([sheetOf('x', 'author', css)]), root = frag().root;
   const e = mk(root, 'div.a'), M = (css) => model([sheetOf('x', 'author', css)]);
@@ -1095,7 +1095,7 @@ test('a row is a grid with a minmax(0, 1fr) text column and an unshrinking actio
 test('every class in the brief\'s Interfaces is styled, plus .t, the row text its truncation test names', () => {
   const classes = new Set();
   for (const r of rulesOf(need())) for (const s of splitTop(r.selector, ',')) for (const m of s.matchAll(/\.([\w-]+)/g)) classes.add(m[1]);
-  const want = ['btn', 'btn-primary', 'btn-quiet', 'btn-danger', 'field', 'select', 'row', 'card', 'table', 'badge', 'badge-ok', 'badge-warn', 'badge-bad', 'tabs', 'stat', 't'];
+  const want = ['btn', 'btn-primary', 'btn-quiet', 'btn-danger', 'field', 'select', 'v2row', 'card', 'table', 'badge', 'badge-ok', 'badge-warn', 'badge-bad', 'tabs', 'stat', 't'];
   const missing = want.filter((c) => !classes.has(c));
   assert.deepEqual(missing, [], 'not styled: ' + missing.join(', '));
 });

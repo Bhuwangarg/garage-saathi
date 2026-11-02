@@ -67,7 +67,7 @@
 }
 /* The row's own separator is an inset shadow; the last one would sit on the
  * container's border, so it goes. */
-[data-v2] .lg-list > .row:last-child { box-shadow: none; }
+[data-v2] .lg-list > .v2row:last-child { box-shadow: none; }
 [data-v2] .lg-ava { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; display: block; }
 [data-v2] .lg-search { margin-bottom: var(--s3); }
 [data-v2] .lg-cancel { margin-top: var(--s5); }

@@ -13770,14 +13770,14 @@ function renderLogin() {
     <h1 class="lg-biz">${esc(BIZ)}</h1>
     <p class="lg-tag">${t('appName')} · ${t('tagline')}</p>
     ${recent.length ? `<p class="lg-label">${t('recentHere')}</p>
-      <div class="lg-list">${recent.map((u) => `<button type="button" class="row" data-recent="${esc(u.id)}">
+      <div class="lg-list">${recent.map((u) => `<button type="button" class="v2row" data-recent="${esc(u.id)}">
         <span class="lead">${userPhoto(u)
           ? `<img class="lg-ava" src="${esc(userPhoto(u))}" alt="">`
           : icon('person', { size: 20 })}</span>
         <span><span class="t">${esc(u.name.split(' ')[0])}</span><span class="sub">${ROLE_META[u.role] ? esc(ROLE_META[u.role][1]) : esc(u.role)}</span></span>
       </button>`).join('')}</div>` : ''}
     <p class="lg-label">${t('whoAreYou')}</p>
-    <div class="lg-list">${roles.map((r) => `<button type="button" class="row" data-role="${esc(r)}">
+    <div class="lg-list">${roles.map((r) => `<button type="button" class="v2row" data-role="${esc(r)}">
       <span class="lead">${icon('person', { size: 20 })}</span>
       <span><span class="t">${esc(ROLE_META[r][1])}</span></span>
       <span class="act"><span class="badge">${counts[r]}</span></span>
@@ -13814,7 +13814,7 @@ function renderRolePick(role) {
     // account id is shown under it; it is the only thing that differs.
     const shared = {};
     list.forEach((u) => { const k = _nameKey(u.name); shared[k] = (shared[k] || 0) + 1; });
-    el.innerHTML = f.length ? f.map((u) => `<button type="button" class="row" data-login="${esc(u.id)}">
+    el.innerHTML = f.length ? f.map((u) => `<button type="button" class="v2row" data-login="${esc(u.id)}">
       <span class="lead">${icon('person', { size: 20 })}</span>
       <span><span class="t">${esc(u.name)}</span>${
         // Two accounts can carry the same name. Identical rows are unpickable, so

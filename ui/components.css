@@ -10,7 +10,7 @@
  *
  * SCOPE, AND WHY THERE IS NO @layer. Every selector starts with [data-v2], like tokens.css, so this file can
  * sit in one document with the live styles.css for the whole screen-by-screen migration. The live file
- * already owns .btn, .card, .row, .badge and .stat, and sets properties on bare input, select and textarea,
+ * already owns .btn, .card, .v2row, .badge and .stat, and sets properties on bare input, select and textarea,
  * all UNLAYERED. A cascade layer always loses to unlayered rules, whatever their specificity, so putting
  * these rules in @layer components would hand every conflicting property back to the live app. Instead the
  * [data-v2] prefix gives each rule one more level of specificity (0,2,0 beats the live 0,1,0), and every
@@ -21,7 +21,7 @@
  *   <button class="btn [btn-primary|btn-quiet|btn-danger]">  also <a class="btn">
  *   <input class="field"> <textarea class="field"> <select class="select">
  *   <div class="row"><span class="lead"></span><div class="txt"><div class="t"></div><div class="sub"></div></div>
- *       <div class="act"></div></div>      (button.row and a.row are the pressable forms)
+ *       <div class="act"></div></div>      (button.v2row and a.v2row are the pressable forms)
  *   <div class="card">   <table class="table"> (td.fig right-aligns a figure)   <span class="badge [badge-ok|-warn|-bad]">
  *   <div class="tabs" role="tablist"><button role="tab" aria-selected="true">   <div class="stat"><span class="k"><span class="v">
  * STATES (markup comes from ui/states.js; do not hand-write it):
@@ -57,7 +57,7 @@
  * HINDI. Devanagari needs about 1.7 line-height where Latin takes 1.4, and Windows 7 would otherwise map it
  * to Mangal. :lang(hi) (not [lang="hi"]) is used so lang="hi-IN" and a lang set on an ancestor both match.
  * Line-height is carried by --lh, set once per language, so a component that says line-height: var(--lh)
- * can never override the Hindi value with a Latin one. Truncating text (.row .t) clips to its line box, so
+ * can never override the Hindi value with a Latin one. Truncating text (.v2row .t) clips to its line box, so
  * it needs that height most.
  *
  * MOTION. Only transform and opacity, never over 300ms, ease-out. Press feedback is scale(0.97) at 120ms.
@@ -103,7 +103,19 @@
 /* ---------- icons ---------- */
 [data-v2] .btn svg,
 [data-v2] .badge svg,
-[data-v2] .row svg,
+/* Why this component is .v2row and not .row.
+ *
+ * The live app uses .row 237 times as a flex layout utility -- <div class="row
+ * between"> wrapping a heading and a badge -- and the design system had claimed
+ * the same name for a three-column list row. Inside a [data-v2] subtree the
+ * component won, so every one of those layout rows became a grid with both of
+ * its children stacked in the middle column, drawn on top of each other. It
+ * shipped on the home screen before anyone saw it.
+ *
+ * 237 against 10: the system yields the name. Same reason the keypad is .lg-pad
+ * and not .pinpad.
+ */
+[data-v2] .v2row svg,
 [data-v2] .stat svg,
 [data-v2] .tabs [role="tab"] svg,
 [data-v2] .table svg,
@@ -116,15 +128,15 @@
 /* ---------- pressables: one transition, one press ---------- */
 [data-v2] .btn,
 [data-v2] .tabs [role="tab"],
-[data-v2] button.row,
-[data-v2] a.row {
+[data-v2] button.v2row,
+[data-v2] a.v2row {
   transition: transform 120ms ease-out, opacity 120ms ease-out;
 }
 
 [data-v2] .btn:active:not(:disabled):not([aria-disabled="true"]),
 [data-v2] .tabs [role="tab"]:active:not(:disabled),
-[data-v2] button.row:active:not(:disabled),
-[data-v2] a.row:active {
+[data-v2] button.v2row:active:not(:disabled),
+[data-v2] a.v2row:active {
   transform: scale(0.97);
 }
 
@@ -217,7 +229,7 @@
 /* ---------- row: a grid, so a long name truncates instead of shrinking the action ----------
  * The hairline is an inset shadow, not a border, so it takes no height: a desk row holding a 32px button
  * is exactly 32px, not 33. */
-[data-v2] .row {
+[data-v2] .v2row {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
@@ -235,13 +247,13 @@
   text-decoration: none;
 }
 
-[data-v2] .row > * {
+[data-v2] .v2row > * {
   grid-column: 2;
   grid-row: 1;
   min-width: 0;
 }
 
-[data-v2] .row > .lead {
+[data-v2] .v2row > .lead {
   grid-column: 1;
   display: flex;
   align-items: center;
@@ -249,7 +261,7 @@
   color: var(--ink-dim);
 }
 
-[data-v2] .row > .act {
+[data-v2] .v2row > .act {
   grid-column: 3;
   display: flex;
   align-items: center;
@@ -258,7 +270,7 @@
   white-space: nowrap;
 }
 
-[data-v2] .row .t {
+[data-v2] .v2row .t {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -266,7 +278,7 @@
   font-weight: 600;
 }
 
-[data-v2] .row .sub {
+[data-v2] .v2row .sub {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -274,8 +286,8 @@
   font-size: var(--t6);
 }
 
-[data-v2] button.row,
-[data-v2] a.row {
+[data-v2] button.v2row,
+[data-v2] a.v2row {
   width: 100%;
   border: 0;
   cursor: pointer;
@@ -413,8 +425,8 @@
 
 /* Inside the edge: these sit in lists and tab strips that clip an outer ring. */
 [data-v2] .tabs [role="tab"]:focus-visible,
-[data-v2] button.row:focus-visible,
-[data-v2] a.row:focus-visible {
+[data-v2] button.v2row:focus-visible,
+[data-v2] a.v2row:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: -2px;
 }
@@ -441,8 +453,8 @@
     color: var(--ink);
   }
 
-  [data-v2] button.row:hover,
-  [data-v2] a.row:hover {
+  [data-v2] button.v2row:hover,
+  [data-v2] a.v2row:hover {
     background: var(--surface-raised);
   }
 }
@@ -869,15 +881,15 @@
 @media (prefers-reduced-motion: reduce) {
   [data-v2] .btn,
   [data-v2] .tabs [role="tab"],
-  [data-v2] button.row,
-  [data-v2] a.row {
+  [data-v2] button.v2row,
+  [data-v2] a.v2row {
     transition: opacity 120ms ease-out;
   }
 
   [data-v2] .btn:active:not(:disabled):not([aria-disabled="true"]),
   [data-v2] .tabs [role="tab"]:active:not(:disabled),
-  [data-v2] button.row:active:not(:disabled),
-  [data-v2] a.row:active {
+  [data-v2] button.v2row:active:not(:disabled),
+  [data-v2] a.v2row:active {
     transform: none;
     opacity: 0.8;
   }

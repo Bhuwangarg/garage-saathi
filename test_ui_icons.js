@@ -30,9 +30,17 @@ const ICONS = () => W().ICONS;
 const icon = (n, o) => W().icon(n, o);
 const names = () => Object.keys(ICONS());
 
-/* The 25 marks the 14 screens need (brief, Step 3). */
+/* The 25 marks the 14 screens need (brief, Step 3), plus 4 the live app needed
+ * when the login and the home actually moved onto the system.
+ *
+ * `home` and `me` are the bottom nav, which is on every screen: the owner's nav
+ * already carries `person`, and two identical silhouettes two tabs apart is worse
+ * than the emoji they replaced. `sun` and `moon` are the theme toggle, which was
+ * first mapped to `ok` and `clock` -- a tick and a clock for light and dark --
+ * and that is exactly the kind of approximation this list exists to stop. */
 const REQUIRED = ['bus', 'job', 'part', 'person', 'fuel', 'money', 'review', 'star', 'gate', 'map', 'alert', 'warn', 'ok',
-  'bad', 'clock', 'search', 'filter', 'add', 'edit', 'delete', 'back', 'more', 'camera', 'doc', 'offline'];
+  'bad', 'clock', 'search', 'filter', 'add', 'edit', 'delete', 'back', 'more', 'camera', 'doc', 'offline',
+  'home', 'me', 'sun', 'moon'];
 
 /* ---------- helpers ---------- */
 // Everything inside the outer <svg ...> ... </svg>.
@@ -75,9 +83,9 @@ test('ui/icons.js is free of the ES2015+ constructs the tripwire knows (and of C
 });
 
 /* ---------- the set ---------- */
-test('the set is exactly the 25 named marks, and stays small (<= 30)', () => {
+test('the set is exactly the named marks, and stays small (<= 34)', () => {
   assert.deepEqual(names().slice().sort(), REQUIRED.slice().sort());
-  assert(names().length <= 30, 'the set is meant to stay small');
+  assert(names().length <= 34, 'the set is meant to stay small');
 });
 test('every icon is one path on a 24-grid', () => {
   assert(names().length > 0, 'no icons: an empty set would pass vacuously');
