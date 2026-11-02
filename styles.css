@@ -1336,3 +1336,9 @@ body.printing-gp .gp-screen{display:none !important}
 .syncchip.loading{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;
   background:var(--tile);color:var(--muted);font-size:12px;font-weight:600;white-space:nowrap}
 .syncchip.loading svg{flex:none}
+/* A device the server has signed out, which cannot sign itself back in. Red,
+   because unlike "still loading" this one does not resolve on its own and the
+   screens around it look completely normal while no new data arrives. */
+.syncchip.stuck{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;
+  background:var(--red-wash);color:var(--red);cursor:pointer}
+.syncchip.stuck svg{flex:none}

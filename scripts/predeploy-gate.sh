@@ -385,6 +385,34 @@ ck "and every other static file is revalidated behind the request, not in front 
 ck "no static file is served on a bare max-age any more" \
   "$(grep -c 'public, max-age=300' sync_server.py)" "0"
 
+# A dead session gets more than one chance, and says so when it has none left.
+#
+# Two production devices were answered 401 on every pull for as long as the logs
+# went back, cursor frozen, app looking entirely normal to whoever held it. The
+# renewal call sat BELOW announceSyncStatus's dedupe guard, so a device got one
+# attempt -- and a 12-hour token expires on the first use after a long gap,
+# which is exactly when the container is coldest and a login most likely to time
+# out. One failure and nothing ever called it again.
+#
+# Asserted as an ORDER, because that is what the bug was: the call existed, it
+# was simply unreachable after the first report.
+RENEW_LINE="$(grep -n "if (s === 'signedout') renewSession();" app.js | head -1 | cut -d: -f1)"
+GUARD_LINE="$(grep -n 'if (s === _lastSyncStatus) return;' app.js | head -1 | cut -d: -f1)"
+RENEW_ORDER=missing
+if [ -n "$RENEW_LINE" ] && [ -n "$GUARD_LINE" ]; then
+  if [ "$RENEW_LINE" -lt "$GUARD_LINE" ]; then RENEW_ORDER=retried; else RENEW_ORDER="once only"; fi
+fi
+ck "the session renewal is retried on every report, not just the first" "$RENEW_ORDER" "retried"
+# And the case renewal cannot help: owner, supervisor and crew manager keep no
+# PIN, so for them signed-out is permanent. A toast shown once is the wrong
+# shape for a state that lasts all day.
+jck "a device that cannot sign itself back in wears a permanent mark" \
+  "(function(){var _i=Sync.info,_c=credGet,out;try{Sync.info=function(){return {status:'signedout',behind:0}};credGet=function(){return null};out=syncWarnHtml()}catch(e){out='threw: '+e.message}finally{Sync.info=_i;credGet=_c}var el=document.createElement('div');el.innerHTML=out||'';var c=el.querySelector('.syncchip.stuck');if(!c)return 'no mark';return c.querySelector('svg')?'marked':'no icon'})()" "marked"
+# The ordinary dead session must stay silent, or every crew phone wears a red
+# chip for the two seconds its token takes to renew itself.
+jck "but a session that CAN renew itself stays quiet" \
+  "(function(){var _i=Sync.info,_c=credGet,out;try{Sync.info=function(){return {status:'signedout',behind:0}};credGet=function(){return '0000'};out=syncWarnHtml()}catch(e){out='threw: '+e.message}finally{Sync.info=_i;credGet=_c}return (out==='')?'quiet':'marked anyway: '+String(out).slice(0,40)})()" "quiet"
+
 jck "mechanics still on the roster" \
   "(S.cache.users||[]).filter(function(u){return u.role==='mechanic'}).length>0" "true"
 

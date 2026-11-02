@@ -89,6 +89,7 @@ const I18N = {
     photoNoStore: 'The server cannot store photos right now — the picture stays on this phone. Tell whoever runs the app.',
     photoSignedOut: 'Signed out, so the photo could not be uploaded — sign in again',
     stillLoading: 'Still loading', stillLoadingHint: 'Some figures are still filling in — totals shown are what has arrived so far.',
+    signedOutStuck: 'Not syncing', signedOutStuckHint: 'Signed out by the server — this device has stopped receiving new data. Tap to sign in again.',
     coReviewsWord: 'reviews',
     back: 'Back', pinBack: 'Delete',
     bootLoading: 'Getting your garage ready…',
@@ -524,7 +525,21 @@ function syncWarnHtml() {
    * would wear this permanently. */
   let i = null;
   try { i = Sync.info(); } catch (e) { return ''; }
-  if (!i || !i.behind) return '';
+  if (!i) return '';
+  /* The exception to "a dead session renews itself": one that CANNOT.
+   *
+   * renewSession() needs the PIN this device signed in with, and owner,
+   * supervisor and crew manager deliberately do not keep one -- so for them
+   * signed-out is permanent until somebody signs in by hand. That was announced
+   * with a single toast, which is the wrong shape for a state that lasts all
+   * day: the toast goes, every screen still draws, and the data quietly stops
+   * arriving. This is the one state where the screen is lying by looking
+   * normal, so it gets a mark that stays until it is fixed. */
+  if (i.status === 'signedout' && S.user && !credGet(S.user.id)) {
+    return `<span class="syncchip stuck" data-nav="me" title="${esc(t('signedOutStuckHint'))}">${
+      typeof icon === 'function' ? icon('warn', { size: 14 }) : ''}<span>${esc(t('signedOutStuck'))}</span></span>`;
+  }
+  if (!i.behind) return '';
   return `<span class="syncchip loading" data-nav="me" title="${esc(t('stillLoadingHint'))}">${
     typeof icon === 'function' ? icon('clock', { size: 14 }) : ''}<span>${esc(t('stillLoading'))}</span></span>`;
 }
@@ -555,6 +570,22 @@ function updateSyncChip() {
 let _lastSyncStatus = 'init';
 let _storeFailSaid = false;
 function announceSyncStatus(s) {
+  /* Renewal is attempted on EVERY report of this status, not only on the
+   * transition into it.
+   *
+   * This call used to sit below the guard on the next line, so a device got
+   * exactly ONE attempt -- and the moment a 12-hour token is most likely to
+   * expire is the first use after a long gap, which is also when the container
+   * is coldest and a login is most likely to time out. One failed attempt,
+   * _renewAt pushed five minutes out, and then nothing ever called it again:
+   * the device stayed signed out for good. Two devices sat in exactly that
+   * state in production -- polling every couple of minutes, answered 401 every
+   * time, receiving nothing for as long as the logs went back, with the app
+   * looking entirely normal to whoever was holding it.
+   *
+   * renewSession() refuses to run concurrently and carries its own five-minute
+   * backoff, so calling it on every tick costs a comparison. */
+  if (s === 'signedout') renewSession();
   if (s === _lastSyncStatus) return;
   const was = _lastSyncStatus;
   _lastSyncStatus = s;
