@@ -5395,9 +5395,31 @@ class Handler(BaseHTTPRequestHandler):
         except Exception:
             return False
         # The service worker must never be cached, or a device pins an old app.js
-        # forever. Everything else is fine to cache briefly.
+        # forever.
+        #
+        # Everything else is served stale-while-revalidate, which is a different
+        # promise from "cache briefly". Under max-age=300 the edge dropped each
+        # asset every five minutes, and the next person to ask for it waited on
+        # THIS function to produce it again. Vercel reports a 1.6% cold start
+        # rate, and measured from outside, roughly one request in twenty-five
+        # takes 30-36 seconds instead of 0.24 -- so several times an hour
+        # somebody's browser was waiting on a Python cold start to hand over a
+        # 931KB app.js. That is paid by whoever happens to open the app at the
+        # wrong moment, which is exactly the "sometimes it just hangs" nobody
+        # could reproduce.
+        #
+        # With s-maxage + stale-while-revalidate the edge answers instantly from
+        # what it already has and refreshes behind the request, so a cold start
+        # costs the CDN a background fetch instead of costing a person their
+        # morning. max-age=0 keeps the BROWSER asking, so the edge stays the one
+        # place the freshness decision is made.
+        #
+        # Safe across a deploy because Vercel purges this cache on every
+        # deployment: stale here means "a few minutes behind the edge", never "a
+        # build behind". The worker is network-first on top of that.
         self._send(200, raw=body, ctype=_CTYPES.get(ext, "application/octet-stream"),
-                   cache="no-cache" if rel == "sw.js" else "public, max-age=300")
+                   cache="no-cache" if rel == "sw.js"
+                   else "public, max-age=0, s-maxage=600, stale-while-revalidate=86400")
         return True
 
     def _boot(self):

@@ -370,6 +370,21 @@ SYNC_PULLPUSH_BOUND="$(grep -c 'signal: bound.signal' sync.js)"
 ck "the pull and both push requests carry an abort signal" "$SYNC_PULLPUSH_BOUND" "3"
 ck "and a timed-out request clears its timer instead of leaking it" "$(grep -c 'finally { bound.clear(); }' sync.js)" "3"
 
+# The edge answers for static files; the function does not.
+#
+# They were served max-age=300, so every five minutes the edge dropped each one
+# and the next person to ask waited on a Python cold start to regenerate it --
+# 1.6% of invocations by Vercel's own figure, and 30-36s when it happens. The
+# worker must stay uncacheable or a device pins an old app.js for ever, so both
+# halves are asserted: one file that must never be cached, and the rest that
+# must be revalidated in the background rather than in front of somebody.
+ck "the service worker is still never cached" \
+  "$(grep -c 'cache=\"no-cache\" if rel == \"sw.js\"' sync_server.py)" "1"
+ck "and every other static file is revalidated behind the request, not in front of it" \
+  "$(grep -c 'stale-while-revalidate=86400' sync_server.py)" "1"
+ck "no static file is served on a bare max-age any more" \
+  "$(grep -c 'public, max-age=300' sync_server.py)" "0"
+
 jck "mechanics still on the roster" \
   "(S.cache.users||[]).filter(function(u){return u.role==='mechanic'}).length>0" "true"
 
