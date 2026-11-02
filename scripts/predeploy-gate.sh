@@ -287,6 +287,14 @@ MARKS_OK=missing
 case "${COLD_MARKS:-}" in *padDrawn=*) MARKS_OK=ok ;; esac
 ck "the boot records where its time went" "$MARKS_OK" "ok"
 
+# The database asks not to be evicted. An eviction looks like a new device --
+# every screen drawn and nothing in it -- so the ask is the difference between a
+# bad week and a re-sync nobody understands. Checked as "it was asked and
+# answered", not as "granted": a headless Chrome may well answer no, and that is
+# the browser's call, while silence means the call was never made.
+jck "boot asks the browser to keep the database" \
+  "['granted','denied','unsupported','error'].indexOf(window.__persisted)>=0?'asked':'never asked ('+window.__persisted+')'" "asked"
+
 # The desktop layout of a real screen, at a real desktop width.
 #
 # Nothing here checked this, and a change that broke THIRTY-SIX rules went through
@@ -1070,6 +1078,18 @@ ck "200 rows render inside the desk budget (the fastest of three runs; each drew
 gck "the gallery's own Draw 200 rows button leaves 200 rows in the bed and reports three timed runs" \
   '(function(){var b=document.querySelector("[data-act=perf]");if(!b)return "no button";b.click();var r=document.getElementById("perf-readout"),n=document.querySelectorAll("#perf-bed > .v2row").length;return n+" rows; "+(/run 1 [0-9.]+ ms.*run 2 [0-9.]+ ms.*run 3 [0-9.]+ ms/.test(r?r.textContent:"")?"three runs shown":"readout: "+(r?r.textContent:"missing"))})()' "200 rows; three runs shown"
 # ── end of the gallery block ──
+
+# 5) The build stamp. A whole day went into a fix that was already live, because
+# nobody in the conversation could tell which app.js the office was looking at.
+# The login now prints its build, which is only useful while it is the TRUTH: a
+# stamp that says v149 on a device running v148's bytes is worse than no stamp,
+# so the two places a build is named have to move together. The cache name is
+# the authority -- it is what decides which bytes a device serves -- and BUILD
+# follows it.
+SW_CACHE="$(sed -n "s/^const CACHE = 'garage-saathi-\(v[0-9]*\)';$/\1/p" sw.js)"
+APP_BUILD="$(sed -n "s/^const BUILD = '\(v[0-9]*\)';$/\1/p" app.js)"
+ck "the build stamp in app.js names the same build as the worker's cache" "${APP_BUILD:-missing}" "${SW_CACHE:-missing}"
+ck "and the login actually prints it" "$(grep -c 'class="lg-build">\${esc(BUILD)}' app.js)" "1"
 
 echo "──"
 echo "RESULT: $PASS passed, $FAIL failed"

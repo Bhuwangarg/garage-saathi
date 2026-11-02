@@ -3,6 +3,17 @@
  * Roles: owner / supervisor / store / mechanic — each sees the right things.
  */
 
+/* Which build of this file is running, shown small under the login.
+ *
+ * This exists because of a day spent arguing about a fix that was already
+ * deployed: the office was looking at a cached app.js and we had no way to tell
+ * each other which bytes were on the screen. Now the answer is readable from
+ * across the room, so "it did not change" and "you are on the old one" stop
+ * being the same sentence. It is kept in step with the worker's cache name by a
+ * gate check -- both move together on every deploy, and they are the two things
+ * that decide what a device actually runs. */
+const BUILD = 'v149';
+
 /* ----------------------------- i18n (EN/HI) ------------------------------- */
 const I18N = {
   en: {
@@ -13409,6 +13420,7 @@ function renderLogin() {
       <span><span class="t">${esc(ROLE_META[r][1])}</span></span>
       <span class="act"><span class="badge">${counts[r]}</span></span>
     </button>`).join('')}</div>
+    <p class="lg-build">${esc(BUILD)}</p>
   </div>`;
   root().onclick = (e) => {
     if (handleLoginLang(e, renderLogin)) return;
@@ -13877,8 +13889,37 @@ let bootDone = false;
   bootReady = bootRest();              // deliberately NOT awaited
 })();
 
+/* Ask the browser to stop evicting this database.
+ *
+ * Nothing in this app has ever asked. Without asking, an IndexedDB is "best
+ * effort" storage: a browser short of space is free to clear all forty object
+ * stores, and the next open then looks exactly like a brand-new device -- every
+ * screen drawn, every heading in place, no data in any of them, and a full
+ * re-sync to stand through. That is the complaint the office keeps making, and
+ * it is the one failure mode that would hit many people at once for no reason
+ * they did anything to cause.
+ *
+ * Chrome and the Android phones grant this outright for an installed app or a
+ * site used as often as this one. Safari does not implement it, so there it
+ * resolves false and the seven-day cap on a tab that was never added to the
+ * Home Screen still applies -- which is an argument for installing it, not for
+ * skipping the ask.
+ *
+ * Fire and forget, and after the pad is drawn: nobody waits on it, and a
+ * browser without the API must not throw into boot. */
+function askToKeepTheData() {
+  try {
+    if (!navigator.storage || !navigator.storage.persist) { window.__persisted = 'unsupported'; return; }
+    Promise.resolve(navigator.storage.persisted ? navigator.storage.persisted() : false)
+      .then((already) => (already ? true : navigator.storage.persist()))
+      .then((ok) => { window.__persisted = ok ? 'granted' : 'denied'; })
+      .catch(() => { window.__persisted = 'error'; });
+  } catch (e) { window.__persisted = 'error'; }
+}
+
 async function bootRest() {
   try {
+  askToKeepTheData();
   await applyBundledSeed();           // load the real fleet/parts/vendors/crew from the bundled data
   _bootMark('bundledSeed');
   await applyDriveDocs();             // link buses to their Google Drive document folders

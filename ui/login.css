@@ -48,6 +48,8 @@
 [data-v2] .lg-biz { margin: 0; font-size: var(--t2); font-weight: 650; letter-spacing: -0.2px; }
 [data-v2] .lg-who { font-size: var(--t3); }
 [data-v2] .lg-tag { margin: var(--s1) 0 0; color: var(--ink-dim); font-size: var(--t5); }
+/* Quiet enough to ignore, legible enough to read out over a phone call. */
+[data-v2] .lg-build { margin: var(--s5) 0 0; color: var(--ink-dim); font-size: var(--t6); opacity: .55; text-align: center; }
 [data-v2] .lg-label {
   margin: var(--s6) 0 var(--s2);
   color: var(--ink-dim);
