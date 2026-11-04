@@ -57,8 +57,12 @@ NESTING = re.compile(r"^\s*&[\s.:>+~\[{]")
 
 # Windows 7 never shipped the full emoji set, so an emoji in a rendered string
 # is a grey box on an office PC. Icons here are inline SVG.
+# Pictographs and dingbats only. The arrow block (U+2190-21FF) used to be in
+# here and is now out: an arrow is not an emoji, Windows 7 renders -> and the
+# rest from ordinary fonts, and including it flagged nineteen comments in the
+# data layer that had been harmless for a year.
 EMOJI_RANGES = [(0x1F000, 0x1FAFF), (0x2600, 0x27BF), (0xFE0F, 0xFE0F),
-                (0x2B00, 0x2BFF), (0x2190, 0x21FF)]
+                (0x2B00, 0x2BFF)]
 EXT = {".css", ".js", ".mjs", ".html"}
 
 
@@ -156,10 +160,16 @@ def main(argv):
                     note(desc, f, ln, line)
             if is_css and NESTING.search(line):
                 note("CSS nesting — Chrome 112", f, ln, line)
-        # Emoji are judged on the RAW text: an emoji in a comment is harmless,
-        # but one in a string is shipped, and telling those apart reliably is
-        # harder than just reporting both and letting a person look.
-        for ln, line in enumerate(raw.splitlines(), 1):
+        # Emoji are judged on the comment-stripped text, like everything else.
+        #
+        # They were judged on the RAW text at first, on the reasoning that an
+        # emoji in a comment is harmless but one in a string is shipped, and
+        # that telling those apart was harder than reporting both. The comment
+        # stripper above disproves that, and the raw scan flagged nineteen
+        # comments in db.js and sync.js the moment v2 took its copy. A checker
+        # that cannot tell a shipped string from prose about one gets switched
+        # off, and then it checks nothing.
+        for ln, line in enumerate(code.splitlines(), 1):
             if any(is_emoji(c) for c in line):
                 note("emoji in source — Windows 7 renders a box", f, ln, line)
 

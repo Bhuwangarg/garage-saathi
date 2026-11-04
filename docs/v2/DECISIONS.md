@@ -246,3 +246,39 @@ What that means, stated here so it is not discovered later as a surprise:
   being built, or after, as the before-number that says whether v2 helped.
 
 Nothing else in the plan depends on it.
+
+## 14. v2 owns its own copy of the shared layer
+
+v2 needs the data layer (`db.js`, `sync.js`, `pullapply.js`) and the design
+system (`ui/`). There were two options and only one of them survives contact
+with "v1 keeps serving the office".
+
+**Rejected: v2 references v1's files.** One design system, no divergence — and
+every edit v2 makes lands in the live app the same minute. A token tweak for a
+v2 screen would repaint v1 for a hundred people who did not ask for it, and a
+mistake in the data layer would take the business down with it. The isolation
+check exists precisely to stop v2 reaching across that line.
+
+**Chosen: v2 has its own copy under `v2/`.** `v2/db.js`, `v2/sync.js`,
+`v2/pullapply.js` and `v2/ui/`. v1 is untouched by anything v2 does, and the
+only shared surface is the server and the database — which is the surface we
+deliberately keep shared so both clients read the same records.
+
+The cost is real and worth naming: **the two will diverge.** A fix made in one
+does not reach the other, and six months of that is two codebases. Mitigations,
+in order of how much they are worth:
+
+- v2 is meant to replace v1. Divergence is a cost that ends at cutover, not a
+  permanent tax — so the answer to "we are maintaining two" is to finish.
+- Anything fixed in v2's copy that v1 also needs is back-ported deliberately, as
+  its own commit with its own gate run, never by sharing a file.
+- The copies start byte-identical, so the first `diff` after cutover shows
+  exactly what v2 changed and nothing else.
+
+One thing this copy is NOT allowed to inherit quietly. `LIVE-ISSUES.md` issue 1
+is live in `sync.js`: a push that loses the `updatedAt` comparison is dropped
+with no else branch and the client clears the batch under the comment
+"everything else landed", so a change can vanish with the screen saying it sent.
+v2 starts from the same code, so **v2 starts with the same bug**, and fixing it
+in v2's copy is a stage-3 backend slice rather than something to be noticed
+later by somebody losing a job card.

@@ -16,6 +16,22 @@
  * here can pass because it is blind. OVERLAY_JS=<path> and COMPONENTS_CSS=<path> point the whole suite at another
  * copy (to run it against a broken file from outside).
  *
+ * THE CLOCK. Almost every wait this suite used to make was waiting out a real animation: a 250ms enter, a 180ms
+ * exit, and a margin on top. Fifty-seven of them came to 174 of the suite's 181 seconds, which is why the pre-push
+ * hook skipped this file. Nothing about WHAT is tested needs the wall clock, so two things changed and no check
+ * changed the duration it asserts. First, a test page's transition durations are divided by MOTION_SCALE; overlay.js
+ * reads its own exit timer back from the computed transition duration, so its timers scale with them and the sequence
+ * is unchanged, just quicker. Second, the sleeps became H.settled(), which waits for the state the test was actually
+ * waiting for - every overlay mounted and nothing mid-transition - and is therefore both faster and STRICTER than a
+ * fixed sleep, which can end mid-transition on a loaded machine.
+ *
+ * The declared durations themselves are read unscaled, by the motion checks that ask Chrome what it resolved from the
+ * stylesheet. Eight pages still run on the real clock ({realMotion: true}, each saying why at its own checker): the
+ * end-to-end exit timing, the reduced-motion frame sampling, a toast's own ms, an Escape or a pending-timer read that
+ * has to land inside a real transition, and the duration read itself. If the scaling ever stopped standing in for the
+ * real thing, those are what notices. The one budget that was shortened - the exit check's 3000ms give-up, now 1200 -
+ * cannot change a verdict, because that check already calls anything over 450ms a failure.
+ *
  * NATIVE FOCUS RESTORE. Current Chrome puts focus back on whatever was focused before showModal() when the dialog
  * closes. That would make every focus-restore test pass even if overlay.js did nothing, so those tests run with the
  * native restore switched off (a shim that blurs after close(), the worst case on an older Chrome). Only then does
@@ -45,23 +61,49 @@ const needEnv = (env) => {
   return env;
 };
 
-/* ---------- a test runner that waits for async tests ---------- */
+/* ---------- a test runner that waits for async tests ----------
+ * Tests run OVERLAY_LANES at a time (4 by default). Each one opens its own page, so they never meet, and the suite
+ * spends far more of its time waiting than working. The exceptions are the tests that assert a WALL-CLOCK figure --
+ * how long an exit takes, how long a toast lives, a fade sampled frame by frame, an Escape that has to arrive
+ * mid-exit. Those are declared {solo: true} and run with nothing else in flight, because a duration measured on a
+ * loaded machine is not the duration they exist to check. Output stays in declaration order whatever finishes first. */
 const queue = [];
 let fails = 0, skipped = 0, selfSkipped = 0;
-function test(name, fn, o) { queue.push({ name, fn, browser: !!(o && o.browser), selfTest: /\b(goes|go) red\b/.test(name) }); }
+function test(name, fn, o) { queue.push({ name, fn, browser: !!(o && o.browser), solo: !!(o && o.solo), selfTest: /\b(goes|go) red\b/.test(name) }); }
 const NO_BROWSER = process.env.OVERLAY_NO_BROWSER === '1';
+const LANES = Math.max(1, Number(process.env.OVERLAY_LANES || 4));
 async function runQueue() {
-  for (const t of queue) {
-    if (process.env.OVERLAY_ONLY && !new RegExp(process.env.OVERLAY_ONLY).test(t.name)) continue;   // for iterating on one test; a full run never sets it
-    if ((EXTERNAL || process.env.OVERLAY_SKIP_SELFTESTS === '1') && t.selfTest) { selfSkipped++; continue; }   // OVERLAY_SKIP_SELFTESTS=1: the quick run (about 55s instead of about 150s)
-    if (t.browser && NO_BROWSER) { console.log(' SKIP ' + t.name + '  (OVERLAY_NO_BROWSER=1)'); skipped++; continue; }
+  // OVERLAY_ONLY: for iterating on one test; a full run never sets it.
+  const todo = queue.filter((t) => !process.env.OVERLAY_ONLY || new RegExp(process.env.OVERLAY_ONLY).test(t.name));
+  const lines = new Array(todo.length).fill(null);          // null = still running; false = finished with nothing to print
+  let shown = 0;
+  const show = () => { while (shown < todo.length && lines[shown] !== null) { const l = lines[shown++]; if (l !== false) console.log(l); } };
+  const one = async (t, i) => {
+    if ((EXTERNAL || process.env.OVERLAY_SKIP_SELFTESTS === '1') && t.selfTest) { selfSkipped++; lines[i] = false; return; }   // OVERLAY_SKIP_SELFTESTS=1: the quick run
+    if (t.browser && NO_BROWSER) { lines[i] = ' SKIP ' + t.name + '  (OVERLAY_NO_BROWSER=1)'; skipped++; return; }
     let timer;
+    const t0 = Date.now();
+    const took = () => (process.env.OVERLAY_TIMES ? '  [' + (Date.now() - t0) + 'ms]' : '');   // OVERLAY_TIMES=1 to see where the time goes
     try {
       await Promise.race([Promise.resolve().then(t.fn), new Promise((_, rej) => { timer = setTimeout(() => rej(new Error('test timed out after 90s')), 90000); })]);
-      console.log('  ok  ' + t.name);
-    } catch (e) { console.log(' FAIL ' + t.name + '\n        ' + String(e && e.message || e).split('\n').join('\n        ') + (process.env.OVERLAY_STACK ? '\n' + e.stack : '')); fails++; }
+      lines[i] = '  ok  ' + t.name + took();
+    } catch (e) { lines[i] = ' FAIL ' + t.name + took() + '\n        ' + String(e && e.message || e).split('\n').join('\n        ') + (process.env.OVERLAY_STACK ? '\n' + e.stack : ''); fails++; }
     clearTimeout(timer);
-  }
+  };
+  let next = 0, active = 0, soloRunning = false;
+  await new Promise((done) => {
+    const pump = () => {
+      while (next < todo.length && !soloRunning) {
+        const t = todo[next];
+        if (t.solo ? active > 0 : active >= LANES) break;    // a solo test waits for a clear machine, then holds it
+        const i = next++; active++; if (t.solo) soloRunning = true;
+        one(t, i).then(() => { active--; if (t.solo) soloRunning = false; show(); pump(); });
+      }
+      if (!active && next >= todo.length) done();
+    };
+    pump();
+  });
+  show();
 }
 const hits = (failures, why) => assert(failures.length > 0, why);
 const none = (failures) => { assert(Array.isArray(failures), 'a checker returned ' + typeof failures + ', not a list of failures'); if (failures.length) assert.fail(failures.length + ' failure(s):\n  - ' + failures.join('\n  - ')); };
@@ -107,7 +149,7 @@ async function launch() {
   proc.stderr.removeAllListeners('data'); proc.stderr.destroy();     // the URL is all we needed; an open pipe would keep node alive
   const ws = new WebSocket(url);
   await new Promise((res, rej) => { ws.onopen = res; ws.onerror = () => rej(new Error('could not open the DevTools socket')); });
-  const b = { proc, ws, dir, id: 0, pending: new Map(), listeners: new Set(), tmp: 0 };
+  const b = { proc, ws, dir, id: 0, pending: new Map(), listeners: new Set(), tmp: 0, free: [] };
   ws.onmessage = (e) => {
     const m = JSON.parse(e.data);
     if (m.id && b.pending.has(m.id)) { const { res, rej } = b.pending.get(m.id); b.pending.delete(m.id); m.error ? rej(new Error(m.error.message)) : res(m.result); }
@@ -132,11 +174,51 @@ async function closeBrowser() {
 const HELPERS = `
 window.H = {
   sleep: function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); },
-  until: function (fn, ms) {
+  // Poll until fn is true, for at most ms of wall clock. Resolves true, or false if the time ran out.
+  untilAbs: function (fn, ms) {
     return new Promise(function (res) {
       var t0 = Date.now();
       (function tick() { var v = false; try { v = fn(); } catch (e) { v = false; }
-        if (v) return res(true); if (Date.now() - t0 > (ms || 2500)) return res(false); setTimeout(tick, 10); })();
+        if (v) return res(true); if (Date.now() - t0 > ms) return res(false); setTimeout(tick, 10); })();
+    });
+  },
+  // The same, with the budget read in the page's own clock: where the transitions were divided by MOTION_SCALE
+  // (see THE CLOCK), a caller asking for 3000ms is asking for 120 times the longest thing it can be waiting for,
+  // and on a mutant that never gets there the suite pays all of it. The floor keeps every wait generous anyway.
+  // A wait that is NOT for motion - a toast's own ms, a frame arriving - belongs on an unscaled page or in untilAbs.
+  until: function (fn, ms) {
+    return H.untilAbs(fn, Math.max(1000, Math.round((ms || 2500) / (window.__motionScale || 1))));
+  },
+  // n animation frames and then a task, for letting pending work run where there is no animation to wait for.
+  frames: function (n) {
+    return new Promise(function (res) {
+      (function step(k) { if (k <= 0) return setTimeout(res, 0); requestAnimationFrame(function () { step(k - 1); }); })(n || 2);
+    });
+  },
+  // Resolves once every overlay on the page is mounted and nothing inside one is mid-transition. This is what the
+  // sleeps in this suite were really waiting for (see THE CLOCK above). An overlay that is LEAVING has had its
+  // data-mounted removed, so this also waits out its exit and its removal.
+  //
+  // It is PATIENT, and it THROWS rather than giving up quietly. A transition only advances when the page gets
+  // animation frames, and a page sharing a machine with others can go a long time without one; a wait that gave up
+  // would hand the test a panel still sitting at its entering transform, which reads as a sheet in the wrong place
+  // rather than as a wait that was too short. Waiting costs nothing when the overlays work, and where they never
+  // settle the throw is the answer the test wanted anyway.
+  inflight: function () {
+    var out = [], i;
+    var all = document.querySelectorAll('[data-v2].ov-modal, [data-v2] .ov-toast');
+    for (i = 0; i < all.length; i++) if (!all[i].hasAttribute('data-mounted')) out.push(all[i].className + ' is not mounted');
+    var moving = document.querySelectorAll('[data-v2].ov-modal .ov-panel, [data-v2].ov-modal .ov-scrim, [data-v2] .ov-toast');
+    for (i = 0; i < moving.length; i++) {
+      var a = moving[i].getAnimations();
+      if (a.length) out.push(moving[i].className + ' still transitioning ' + a.map(function (x) { return x.transitionProperty + ':' + x.playState; }).join('+'));
+    }
+    return out.join('; ') || 'nothing';
+  },
+  settled: function () {
+    return H.untilAbs(function () { return H.inflight() === 'nothing'; }, 3000).then(function (ok) {
+      if (!ok) throw new Error('an overlay never finished entering or leaving: ' + H.inflight());
+      return true;
     });
   },
   center: function (el) { var r = el.getBoundingClientRect(); return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) }; },
@@ -174,13 +256,26 @@ const TRACK_TIMERS = `
   window.clearTimeout = function (id) { delete window.__pending[id]; ct(id); };
 })();
 `;
+/* Every transition time in a stylesheet served to a test page, divided by this (see THE CLOCK above). It scales
+ * overlay.js's own timers with it, because dismiss() and leave() read the duration back from the computed style.
+ * A page opened with {realMotion: true} gets the stylesheet exactly as written. */
+const MOTION_SCALE = 10;
+const scaleTimes = (value) => value.replace(/(\d*\.?\d+)(ms|s)\b/g, (all, n, unit) => {
+  const ms = (unit === 's' ? parseFloat(n) * 1000 : parseFloat(n)) / MOTION_SCALE;
+  return (Math.round(ms * 1000) / 1000) + 'ms';
+});
+// Only inside a transition declaration: a cubic-bezier's numbers carry no unit, so they are left alone.
+const fastCss = (css) => css.replace(/(transition(?:-duration|-delay)?\s*:)([^;}]*)/g, (all, prop, value) => prop + scaleTimes(value));
+
 const DEFAULT_BODY = `<div data-v2 id="app"><button class="btn" id="opener">Open</button> <button class="btn" id="other">Other</button> <input class="field" id="field" aria-label="Field"> <a class="btn" id="link" href="#x">Link</a></div>
 <button class="btn" id="low" style="position:fixed;left:0;bottom:40px">Low</button>`;
 function pageHtml(env, o) {
   o = o || {};
+  const styled = o.realMotion ? (s) => s : fastCss;
   return '<!doctype html><html lang="en"' + (o.htmlAttrs || '') + '><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
-    + (o.live ? '<style>' + LIVE + '</style>' : '') + '<style>' + TOKENS + '</style><style>' + env.css + '</style>' + (o.head || '') + '</head><body>'
-    + (o.body || DEFAULT_BODY) + '<script>' + ICONS + '</script><script>' + HELPERS + '</script>' + (o.noNativeRestore ? '<script>' + NO_NATIVE_RESTORE + '</script>' : '') + (o.trackTimers ? '<script>' + TRACK_TIMERS + '</script>' : '') + (o.preScript ? '<script>' + o.preScript + '</script>' : '')
+    + (o.live ? '<style>' + styled(LIVE) + '</style>' : '') + '<style>' + TOKENS + '</style><style>' + styled(env.css) + '</style>' + (o.head || '') + '</head><body>'
+    + (o.body || DEFAULT_BODY) + '<script>window.__motionScale = ' + (o.realMotion ? 1 : MOTION_SCALE) + ';</script>'
+    + '<script>' + ICONS + '</script><script>' + HELPERS + '</script>' + (o.noNativeRestore ? '<script>' + NO_NATIVE_RESTORE + '</script>' : '') + (o.trackTimers ? '<script>' + TRACK_TIMERS + '</script>' : '') + (o.preScript ? '<script>' + o.preScript + '</script>' : '')
     + '<script>' + env.js + '</script></body></html>';
 }
 const KEYS = { Escape: [27, 'Escape'], Tab: [9, 'Tab'], Enter: [13, 'Enter'] };
@@ -213,27 +308,58 @@ class Page {
   async clickEl(selector) { const c = await this.eval('(function(){var e=document.querySelector(' + JSON.stringify(selector) + ');if(!e)return null;return H.center(e)})()'); if (!c) throw new Error('nothing matches ' + selector); await this.click(c.x, c.y); }
   async drag(from, to) { await this.mouse('mouseMoved', from.x, from.y); await this.mouse('mousePressed', from.x, from.y); await this.mouse('mouseMoved', to.x, to.y); await this.mouse('mouseReleased', to.x, to.y); }
   until(expr, ms) { return this.eval('H.until(function(){return ' + expr + '},' + (ms || 2500) + ')'); }
-  async close() { try { await this.b.send('Target.closeTarget', { targetId: this.tid }); } catch (e) { /* gone already */ } this.b.listeners.delete(this.listener); }
+  // Hand the target back to the pool instead of closing it: about:blank throws away the document, its realm and
+  // every timer and animation in it, which is all the isolation one test page needs from the next.
+  // The blank page is waited for BEFORE the target goes back in the pool. openPage waits for a load event, so a
+  // stray one still in flight from this navigation would otherwise satisfy the NEXT page's wait and hand a test a
+  // document that had not loaded yet.
+  async close() {
+    this.b.listeners.delete(this.listener);
+    const reusable = await (async () => {
+      try {
+        const blanked = new Promise((r) => this.waiters.push(r));
+        this.b.listeners.add(this.listener);
+        await this.send('Page.navigate', { url: 'about:blank' });
+        return await Promise.race([blanked.then(() => true), new Promise((r) => setTimeout(() => r(false), 2000))]);
+      } catch (e) { return false; }
+    })();
+    this.b.listeners.delete(this.listener);
+    if (reusable) { this.b.free.push({ targetId: this.tid, sessionId: this.sid }); return; }
+    try { await this.b.send('Target.closeTarget', { targetId: this.tid }); } catch (e) { /* gone already */ }
+  }
 }
-// open a fresh page: o = {live, body, htmlAttrs, head, width, height, reduced, dark, noNativeRestore}
+/* A pool of DevTools targets. A run opens 312 pages, and creating a tab and attaching to it costs about 32ms of the
+ * 67ms a page open takes -- 10 seconds over a run, for tabs that are thrown away immediately. The per-target setup
+ * (the three enables and focus emulation) survives a navigation, so it is done once; the emulation that differs per
+ * page (size, colour scheme, reduced motion) is set in openPage every time. */
+async function acquireTarget(b) {
+  const spare = b.free.pop();
+  if (spare) return spare;
+  const { targetId } = await b.send('Target.createTarget', { url: 'about:blank' });
+  const { sessionId } = await b.send('Target.attachToTarget', { targetId, flatten: true });
+  await Promise.all([b.send('Page.enable', {}, sessionId), b.send('Runtime.enable', {}, sessionId),
+    b.send('Log.enable', {}, sessionId), b.send('Emulation.setFocusEmulationEnabled', { enabled: true }, sessionId)]);
+  return { targetId, sessionId };
+}
+// open a fresh page: o = {live, body, htmlAttrs, head, width, height, reduced, dark, noNativeRestore, trackTimers,
+// preScript, realMotion}. realMotion serves the stylesheet unscaled; see THE CLOCK at the top.
 async function openPage(env, o) {
   needEnv(env); o = o || {};
   const b = await browser();
   const file = path.join(b.dir, 'page-' + (++b.tmp) + '.html');
   fs.writeFileSync(file, pageHtml(env, o));
-  const { targetId } = await b.send('Target.createTarget', { url: 'about:blank' });
-  const { sessionId } = await b.send('Target.attachToTarget', { targetId, flatten: true });
+  const { targetId, sessionId } = await acquireTarget(b);
   const p = new Page(b, sessionId, targetId);
   p.listener = (m) => p.onEvent(m); b.listeners.add(p.listener);
-  await p.send('Page.enable'); await p.send('Runtime.enable'); await p.send('Log.enable');
-  await p.send('Emulation.setFocusEmulationEnabled', { enabled: true });
-  await p.send('Emulation.setDeviceMetricsOverride', { width: o.width || 1024, height: o.height || 768, deviceScaleFactor: 1, mobile: false });
   const features = [];
   // Both preferences are ALWAYS pinned. Left alone, a page inherits the operating system's setting, and a probe called
   // "light" turns dark on a Mac in Dark mode (the suite then disagrees with itself from one desk to the next).
   features.push({ name: 'prefers-reduced-motion', value: o.reduced ? 'reduce' : 'no-preference' });
   features.push({ name: 'prefers-color-scheme', value: o.dark ? 'dark' : 'light' });
-  await p.send('Emulation.setEmulatedMedia', { features });
+  await Promise.all([
+    p.send('Emulation.setDeviceMetricsOverride', { width: o.width || 1024, height: o.height || 768, deviceScaleFactor: 1, mobile: false }),
+    p.send('Emulation.setEmulatedMedia', { features }),
+  ]);
   const loaded = new Promise((r) => p.waiters.push(r));
   await p.send('Page.navigate', { url: 'file://' + file });
   await loaded;
@@ -407,7 +533,7 @@ test('openSheet returns an open, modal <dialog> that is the only dialog on the p
 
 async function checkPageBehindIsInert(env) {
   return withPage(env, {}, async (p) => {
-    await p.eval(`document.getElementById('opener').focus(); V2.openSheet('T', '${SHEET_BODY}'); H.sleep(350)`);
+    await p.eval(`document.getElementById('opener').focus(); V2.openSheet('T', '${SHEET_BODY}'); H.settled()`);
     const f = [];
     const r = await p.eval(`(function(){
       var o = document.getElementById('other'), c = H.center(o), hit = document.elementFromPoint(c.x, c.y);
@@ -437,13 +563,13 @@ async function checkSheetCloseRoute(env, route) {
       V2.openSheet('T', '${SHEET_BODY}', { onClose: function () { window.__closed++; } }); return document.activeElement.id; })()`);
     const f = [];
     if (pre === 'opener') f.push('focus never left the opener on open, so restoring it proves nothing');
-    await p.eval('H.sleep(350)');
+    await p.eval('H.settled()');
     if (route === 'Escape') await p.key('Escape');
     else if (route === 'the Close button') await p.clickEl('dialog.ov-sheet .ov-close');
     else if (route === 'a click on the backdrop') await p.click(4, 4);
     else await p.eval('V2.closeSheet(); 1');
     if (!(await p.until('!H.sheet()', 3000))) f.push('the sheet is still in the document 3s after ' + route);
-    await p.eval('H.sleep(150)');       // a second onClose would come from the dialog's own close event, a task later
+    await p.eval('H.frames(2)');        // a second onClose would come from the dialog's own close event, a task later
     const post = await p.eval(`({ active: document.activeElement.id || document.activeElement.tagName, closed: window.__closed, open: document.querySelectorAll('dialog[open]').length })`);
     if (post.active !== 'opener') f.push('after ' + route + ' focus is on ' + post.active + ', not the opener');
     if (post.closed !== 1) f.push('after ' + route + ' onClose ran ' + post.closed + ' times, not once');
@@ -461,9 +587,9 @@ async function checkNestedSheet(env) {
   return withPage(env, { noNativeRestore: true }, async (p) => {
     const r = await p.eval(`(async function(){
       document.getElementById('opener').focus();
-      V2.openSheet('One', '<button type="button" id="ib">Inner</button>'); await H.sleep(350);
+      V2.openSheet('One', '<button type="button" id="ib">Inner</button>'); await H.settled();
       document.getElementById('ib').focus();
-      V2.openSheet('Two', '<p>second</p>'); await H.sleep(350);
+      V2.openSheet('Two', '<p>second</p>'); await H.settled();
       var count = document.querySelectorAll('dialog.ov-sheet').length, title = H.sheet().querySelector('.ov-title').textContent;
       V2.closeSheet(); await H.until(function () { return !H.sheet(); }, 3000);
       return { count: count, title: title, active: document.activeElement.id || document.activeElement.tagName, left: document.querySelectorAll('dialog').length };
@@ -487,7 +613,7 @@ async function checkBackdropRules(env) {
     const f = [];
     if (!settled) f.push('the sheet never finished entering');
     const inPanel = await p.eval("H.center(H.sheet().querySelector('.ov-title'))");
-    const stillOpen = async () => { await p.eval('H.sleep(500)'); return p.eval('!!H.sheet() && H.sheet().open'); };
+    const stillOpen = async () => { await p.eval('H.settled()'); return p.eval('!!H.sheet() && H.sheet().open'); };
     await p.click(inPanel.x, inPanel.y);
     if (!(await stillOpen())) f.push('a click inside the panel closed the sheet');
     await p.drag(inPanel, { x: 4, y: 4 });
@@ -502,11 +628,16 @@ test('a click inside a sheet, and a drag that starts inside and ends on the back
 }, { browser: true });
 
 async function checkRepeatedClose(env) {
-  return withPage(env, { noNativeRestore: true }, async (p) => {
-    await p.eval(`document.getElementById('opener').focus(); window.__closed = 0; V2.openSheet('T', 'x', { onClose: function () { window.__closed++; } }); H.sleep(350)`);
+  // realMotion: the Escape below has to arrive while the exit is still playing, and a round trip out to Chrome and
+  // back cannot be relied on to land inside a scaled 18ms one.
+  return withPage(env, { noNativeRestore: true, realMotion: true }, async (p) => {
+    await p.eval(`document.getElementById('opener').focus(); window.__closed = 0; V2.openSheet('T', 'x', { onClose: function () { window.__closed++; } }); H.settled()`);
     await p.eval('V2.closeSheet(); V2.closeSheet(); 1');
     await p.key('Escape');
-    await p.eval('V2.closeSheet(); H.sleep(500)');
+    // H.settled() resolves as soon as the sheet has gone, but a SECOND onClose would arrive from the dialog's own
+    // close event one task later (the same lag the close-route check notes above), so let that task have its turn
+    // before counting: otherwise a finish() that has lost its guard is read while it has run only once.
+    await p.eval('V2.closeSheet(); H.settled().then(function () { return H.frames(2); })');
     const f = [];
     const r = await p.eval('({ closed: window.__closed, sheets: document.querySelectorAll("dialog").length, active: document.activeElement.id })');
     if (r.closed !== 1) f.push('onClose ran ' + r.closed + ' times after closing a closing sheet three ways');
@@ -519,7 +650,7 @@ async function checkRepeatedClose(env) {
 }
 test('closing a sheet that is already closing (closeSheet twice, Escape mid-exit) calls onClose once and throws nothing; closeSheet() with nothing open is a no-op', async () => {
   none(await checkRepeatedClose(needEnv(REAL)));
-}, { browser: true });
+}, { browser: true, solo: true });
 
 /* =====================================================================================================
  * 4. THE CONFIRMATION DIALOG (real Chrome). A dismissed dialog must never read as consent.
@@ -545,7 +676,7 @@ async function checkConfirmRoute(env, route) {
     if (!pre.modal) f.push('the confirmation is not a modal <dialog>');
     await route.act(p);
     if (!(await p.until('window.__r !== undefined', 3000))) { f.push('the promise never settled after ' + route.name + ' (a dialog that cannot be dismissed by this route hangs the caller)'); return f; }
-    await p.eval('H.sleep(400)');
+    await p.eval('H.settled()');
     const r = await p.eval('({ v: window.__r.v, t: window.__r.t, gone: !H.confirm(), active: document.activeElement.id })');
     if (r.t !== 'boolean') f.push('after ' + route.name + ' the promise resolved with a ' + r.t + ', not a boolean');
     else if (r.v !== route.want) f.push('after ' + route.name + ' the promise resolved ' + r.v + ', expected ' + route.want + (route.want ? '' : ' (a dismissed dialog read as consent)'));
@@ -605,11 +736,11 @@ test('a confirmation is an alertdialog named by its title (or its question), des
 
 async function checkConfirmOverSheet(env) {
   return withPage(env, { noNativeRestore: true }, async (p) => {
-    await p.eval(`document.getElementById('opener').focus(); V2.openSheet('S', '<button type="button" id="ib">Inner</button>'); window.__r = undefined; H.sleep(350)`);
-    await p.eval(`document.getElementById('ib').focus(); V2.confirmDialog('Discard?').then(function (v) { window.__r = { v: v }; }); H.sleep(350)`);
+    await p.eval(`document.getElementById('opener').focus(); V2.openSheet('S', '<button type="button" id="ib">Inner</button>'); window.__r = undefined; H.settled()`);
+    await p.eval(`document.getElementById('ib').focus(); V2.confirmDialog('Discard?').then(function (v) { window.__r = { v: v }; }); H.settled()`);
     await p.key('Escape');
     await p.until('window.__r !== undefined', 2500);
-    await p.eval('H.sleep(400)');
+    await p.eval('H.settled()');
     const r = await p.eval('({ v: window.__r && window.__r.v, sheet: !!H.sheet() && H.sheet().open, confirm: !!H.confirm(), active: document.activeElement.id })');
     const f = [];
     if (r.v !== false) f.push('Escape on the confirmation resolved ' + r.v);
@@ -706,7 +837,7 @@ async function checkToastLeavesPageAlone(env) {
   return withPage(env, {}, async (p) => {
     await p.eval("document.getElementById('opener').focus(); 1");
     const r = await p.eval(`(async function(){
-      var t = V2.toast('Saved', { kind: 'ok', ms: 0 }); await H.sleep(400);
+      var t = V2.toast('Saved', { kind: 'ok', ms: 0 }); await H.settled();
       var low = document.getElementById('low'), c = H.center(low), hitLow = document.elementFromPoint(c.x, c.y);
       var o = document.getElementById('other'), oc = H.center(o);
       return { modal: t.matches(':modal'), open: t.open, active: document.activeElement.id, lowReachable: hitLow === low, otherReachable: document.elementFromPoint(oc.x, oc.y) === o,
@@ -729,10 +860,14 @@ test('a toast is a non-modal dialog that does not take focus, make the page iner
 }, { browser: true });
 
 async function checkToastTiming(env) {
-  return withPage(env, {}, async (p) => {
+  // realMotion: every figure here is a toast's ms, which is not a transition duration and does not scale with one.
+  // On a scaled page the wait budgets would scale down under it and the test would time out rather than measure.
+  return withPage(env, { realMotion: true }, async (p) => {
     const r = await p.eval(`(async function(){
       var t0 = Date.now(), a = V2.toast('quick', { kind: 'ok', ms: 150 }), present0 = a.isConnected;
       var gone = await H.until(function () { return !a.isConnected; }, 2000), took = Date.now() - t0;
+      // The three waits below are the only real ones left in the suite, and they stay: they are not waiting out a
+      // transition but asserting how long a toast LIVES, which is the thing under test. 1.9s of the suite's total.
       var b = V2.toast('default', { kind: 'ok' }); await H.sleep(700); var defaultStill = b.isConnected;
       var c = V2.toast('sticky', { kind: 'bad', ms: 0 }); await H.sleep(900); var stickyStill = c.isConnected;
       var junk = V2.toast('junk', { ms: -5 }); var junk2 = V2.toast('junk2', { ms: 'soon' });
@@ -754,13 +889,13 @@ async function checkToastTiming(env) {
 }
 test('a toast stays for its ms (150 goes in about 150ms plus its exit), a default one outlasts 700ms, ms 0 stays until Close is clicked, and a nonsense ms falls back to the default', async () => {
   none(await checkToastTiming(needEnv(REAL)));
-}, { browser: true });
+}, { browser: true, solo: true });
 
 async function checkToastStack(env) {
   return withPage(env, {}, async (p) => {
     const r = await p.eval(`(async function(){
       var i; for (i = 0; i < 7; i++) V2.toast('Toast number ' + i, { kind: 'warn', ms: 0 });
-      await H.sleep(600);
+      await H.settled();
       return { live: H.live().map(function (t) { return H.squash(t.querySelector('.ov-toast-text').textContent); }), dom: H.toasts().length };
     })()`);
     const f = [];
@@ -775,18 +910,22 @@ test('seven toasts in a burst leave at most three on screen, and the newest is o
 }, { browser: true });
 
 async function checkToastRetarget(env) {
-  return withPage(env, {}, async (p) => {
+  // realMotion: this test exists to watch an exit part-way through and reverse it, which needs the real 150ms.
+  return withPage(env, { realMotion: true }, async (p) => {
     const r = await p.eval(`(async function(){
       var t1 = V2.toast('Saved', { kind: 'ok', ms: 0 }), t2 = V2.toast('Saved', { kind: 'ok', ms: 0 });
       var same = t1 === t2, count = H.toasts().length;
-      await H.sleep(500);
+      await H.settled();
       t1.querySelector('.ov-toast-close').click();
       var mid = await H.until(function () { var o = parseFloat(getComputedStyle(t1).opacity); return o > 0.15 && o < 0.85; }, 1000);
       var before = parseFloat(getComputedStyle(t1).opacity), tfBefore = getComputedStyle(t1).transform;
       var t3 = V2.toast('Saved', { kind: 'ok', ms: 0 });
       var after = parseFloat(getComputedStyle(t1).opacity);
       var anims = t1.getAnimations().filter(function (a) { return a.transitionProperty === 'opacity'; }).length;
-      await H.sleep(600);
+      // NOT H.settled(): the reversed transition is shortened to the distance left to travel, so it ends before
+      // the removal the exit had already scheduled (its 150ms plus overlay.js's slack) would have fired. Whether
+      // that stale timer was cancelled is the whole point here, so this waits past it.
+      await H.sleep(300);
       return { same: same, count: count, mid: mid, before: before, after: after, anims: anims, sameAgain: t3 === t1, finalOpacity: parseFloat(getComputedStyle(t1).opacity), connected: t1.isConnected, total: H.toasts().length };
     })()`);
     const f = [];
@@ -804,18 +943,18 @@ async function checkToastRetarget(env) {
 }
 test('asking for the same toast twice makes one, and re-triggering it halfway through its exit reverses the running opacity transition from where it is instead of restarting or duplicating it', async () => {
   none(await checkToastRetarget(needEnv(REAL)));
-}, { browser: true });
+}, { browser: true, solo: true });
 
 async function checkToastOverModal(env) {
   return withPage(env, {}, async (p) => {
     const r = await p.eval(`(async function(){
       document.getElementById('opener').focus();
-      V2.openSheet('S', '<button type="button" id="ib">Inner</button>'); await H.sleep(350);
+      V2.openSheet('S', '<button type="button" id="ib">Inner</button>'); await H.settled();
       document.getElementById('ib').focus();
-      var t = V2.toast('Over the sheet', { kind: 'bad', ms: 0 }); await H.sleep(400);
+      var t = V2.toast('Over the sheet', { kind: 'bad', ms: 0 }); await H.settled();
       var c = H.center(t), hit = document.elementFromPoint(c.x, c.y);
       var during = { hit: !!hit && t.contains(hit), active: document.activeElement.id, modal: H.sheet().matches(':modal') };
-      V2.closeSheet(); await H.until(function () { return !H.sheet(); }, 3000); await H.sleep(200);
+      V2.closeSheet(); await H.until(function () { return !H.sheet(); }, 3000); await H.frames(2);
       var c2 = H.center(t), hit2 = document.elementFromPoint(c2.x, c2.y);
       return { during: during, after: { connected: t.isConnected, hit: !!hit2 && t.contains(hit2), inModal: !!t.closest('dialog.ov-modal') } };
     })()`);
@@ -873,7 +1012,7 @@ const READ_MOTION = `
   }
   document.getElementById('opener').focus();
   V2.openSheet('T', '<p>x</p>'); V2.confirmDialog('Q?'); V2.toast('t', { kind: 'ok', ms: 0 });
-  await H.sleep(600);
+  await H.settled();
   var sh = H.sheet(), cf = H.confirm(), ts = H.toasts()[0];
   return {
     sheetPanel: both(sh, sh.querySelector('.ov-panel')), sheetScrim: both(sh, sh.querySelector('.ov-scrim')),
@@ -908,7 +1047,8 @@ function motionFailures(m) {
   return f;
 }
 async function checkMotionComputed(env) {
-  return withPage(env, {}, async (p) => {
+  // realMotion: this is the test that reads the declared durations, so it must see the stylesheet as written.
+  return withPage(env, { realMotion: true }, async (p) => {
     const m = await p.eval(READ_MOTION);
     const f = motionFailures(m);
     if (!Object.values(m).every((x) => x.enter.length >= 1)) f.push('a part has no transition at all');
@@ -946,7 +1086,7 @@ async function checkEntersFromAbove95(env) {
       V2.openSheet('T', '<p>x</p>'); var sp = H.sheet().querySelector('.ov-panel'); out.sheet = snap(sp);
       V2.confirmDialog('Q?'); var cp = H.confirm().querySelector('.ov-panel'); out.confirm = snap(cp);
       var t = V2.toast('t', { kind: 'ok', ms: 0 }); out.toast = snap(t);
-      await H.sleep(600);
+      await H.settled();
       out.settled = { sheet: snap(sp), confirm: snap(cp), toast: snap(t) };
       return out;
     })()`);
@@ -972,7 +1112,7 @@ test('a sheet, a confirmation and a toast each start their enter at opacity belo
 async function checkTransformOrigin(env) {
   return withPage(env, {}, async (p) => {
     const r = await p.eval(`(async function(){
-      V2.openSheet('T', '<p>x</p>'); V2.confirmDialog('Q?'); await H.sleep(500);
+      V2.openSheet('T', '<p>x</p>'); V2.confirmDialog('Q?'); await H.settled();
       function o(el) { var cs = getComputedStyle(el), v = cs.transformOrigin.split(' ').map(parseFloat), r = el.getBoundingClientRect(); return { x: v[0], y: v[1], w: r.width, h: r.height }; }
       return { sheet: o(H.sheet().querySelector('.ov-panel')), confirm: o(H.confirm().querySelector('.ov-panel')) };
     })()`);
@@ -1007,7 +1147,8 @@ test('opening a sheet, a confirmation and a toast starts only CSS transitions (a
 }, { browser: true });
 
 async function checkReducedMotion(env) {
-  return withPage(env, { reduced: true }, async (p) => {
+  // realMotion: this samples frames of a real fade and would have nothing to see in a scaled one.
+  return withPage(env, { reduced: true, realMotion: true }, async (p) => {
     const r = await p.eval(`(async function(){
       var out = { frames: 0, transforms: {}, opacity: { sheet: [], confirm: [], toast: [] }, anims: {} };
       V2.openSheet('T', '<p>x</p>'); V2.confirmDialog('Q?'); var t = V2.toast('t', { kind: 'ok', ms: 0 });
@@ -1053,17 +1194,21 @@ async function checkReducedMotion(env) {
 }
 test('with prefers-reduced-motion: reduce, a sheet, a confirmation and a toast never take a transform other than none going in (600ms of frames) or going out (400ms), run no transform transition, and fade by opacity both ways', async () => {
   none(await checkReducedMotion(needEnv(REAL)));
-}, { browser: true });
+}, { browser: true, solo: true });
 
 async function checkExitIsAnimatedAndPrompt(env) {
-  return withPage(env, {}, async (p) => {
+  // realMotion: this is the end-to-end timing check. It asserts the exit takes about the 180ms the stylesheet
+  // declares, which is what keeps the scaling above honest everywhere else.
+  return withPage(env, { realMotion: true }, async (p) => {
     const f = [];
     const r = await p.eval(`(async function(){
-      V2.openSheet('T', '<p>x</p>'); await H.sleep(500);
+      V2.openSheet('T', '<p>x</p>'); await H.settled();
+      // 1200ms, not 3000: this check's verdict is "took more than 450ms", so every ms past that is spent
+      // confirming a failure already decided, and giving up at 1200 reads as exactly the same red.
       var t0 = performance.now(); V2.closeSheet(); var start = H.sheet() && getComputedStyle(H.sheet().querySelector('.ov-panel')).opacity;
-      await H.until(function () { return !H.sheet(); }, 3000); var took = performance.now() - t0;
-      V2.confirmDialog('Q?'); await H.sleep(500);
-      var t1 = performance.now(); H.confirm().querySelector('.ov-no').click(); await H.until(function () { return !H.confirm(); }, 3000); var took2 = performance.now() - t1;
+      await H.until(function () { return !H.sheet(); }, 1200); var took = performance.now() - t0;
+      V2.confirmDialog('Q?'); await H.settled();
+      var t1 = performance.now(); H.confirm().querySelector('.ov-no').click(); await H.until(function () { return !H.confirm(); }, 1200); var took2 = performance.now() - t1;
       return { took: took, started: start, took2: took2 };
     })()`);
     if (r.started === null || r.started === undefined) f.push('the sheet was gone synchronously, so there is no exit animation');
@@ -1071,7 +1216,7 @@ async function checkExitIsAnimatedAndPrompt(env) {
     if (r.took > 450) f.push('the sheet took ' + Math.round(r.took) + 'ms to leave');
     if (r.took2 < 80) f.push('the confirmation left in ' + Math.round(r.took2) + 'ms');
     if (r.took2 > 450) f.push('the confirmation took ' + Math.round(r.took2) + 'ms to leave');
-    await p.eval("document.getElementById('opener').focus(); V2.openSheet('T', 'x'); H.sleep(450)");
+    await p.eval("document.getElementById('opener').focus(); V2.openSheet('T', 'x'); H.settled()");
     await p.key('Escape');
     const stillThere = await p.eval('!!H.sheet() && H.sheet().open');
     if (!stillThere) f.push('Escape closed the sheet on the spot: it skips the exit that every other way of closing plays');
@@ -1081,12 +1226,12 @@ async function checkExitIsAnimatedAndPrompt(env) {
 }
 test('closing a sheet (closeSheet or Escape) or a confirmation plays its exit (it is still on the page after the call, for about the exit duration) and is gone well under half a second later', async () => {
   none(await checkExitIsAnimatedAndPrompt(needEnv(REAL)));
-}, { browser: true });
+}, { browser: true, solo: true });
 
 async function checkNoMotionClosesAtOnce(env) {
-  return withPage(env, { noNativeRestore: true, head: '<style>[data-v2], [data-v2] * { transition: none !important; }</style>' }, async (p) => {
+  return withPage(env, { noNativeRestore: true, realMotion: true, head: '<style>[data-v2], [data-v2] * { transition: none !important; }</style>' }, async (p) => {
     const r = await p.eval(`(async function(){
-      document.getElementById('opener').focus(); V2.openSheet('T', '<p>x</p>'); await H.sleep(100);
+      document.getElementById('opener').focus(); V2.openSheet('T', '<p>x</p>'); await H.frames(2);
       var t0 = performance.now(); V2.closeSheet(); var goneNow = !H.sheet(); var took = performance.now() - t0;
       V2.toast('t', { ms: 80 }); var tt = H.toasts()[0]; await H.until(function () { return !tt.isConnected; }, 1000);
       return { goneNow: goneNow, took: took, active: document.activeElement.id, toastGone: !tt.isConnected };
@@ -1105,27 +1250,30 @@ test('where nothing animates (transitions forced to none) closeSheet() removes t
 /* The app stays open all day on these PCs, so a sheet or a toast must not leave a timer behind once it is gone.
  * The page records every pending timer (the waits here happen in node, so the page has none of its own). */
 async function checkNoLeakedTimers(env) {
-  return withPage(env, { trackTimers: true }, async (p) => {
-    const f = [], pending = () => p.eval('Object.keys(window.__pending).length'), wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  // realMotion: an exit timer only exists while the exit is playing, and this check reads the pending list from
+  // node, over a round trip. Against a scaled 18ms exit the timer can have fired before the answer comes back,
+  // which would report "no timer pending" for an overlay that had in fact left one behind.
+  return withPage(env, { trackTimers: true, realMotion: true }, async (p) => {
+    const f = [], pending = () => p.eval('Object.keys(window.__pending).length'), settled = () => p.eval('H.settled()');
     const expect = async (label, n) => { const got = await pending(); if (got !== n) f.push(label + ': ' + got + ' timer(s) pending, expected ' + n); };
     await p.eval("V2.openSheet('A', 'x'); V2.closeSheet(); V2.openSheet('B', 'y'); 1");
     await expect('a sheet replaced while it was closing', 0);
-    await p.eval('V2.closeSheet(); 1'); await wait(500);
+    await p.eval('V2.closeSheet(); H.settled()');
     await expect('after a sheet closed', 0);
-    await p.eval("V2.confirmDialog('Q?'); H.confirm().querySelector('.ov-no').click(); 1"); await wait(500);
+    await p.eval("V2.confirmDialog('Q?'); H.confirm().querySelector('.ov-no').click(); H.settled()");
     await expect('after a confirmation was cancelled', 0);
     await p.eval("V2.toast('x', { ms: 5000 }); V2.toast('x', { ms: 5000 }); 1");
     await expect('a toast asked for twice (one timer for its ms)', 1);
-    await p.eval("H.toasts()[0].querySelector('.ov-toast-close').click(); 1"); await wait(500);
+    await p.eval("H.toasts()[0].querySelector('.ov-toast-close').click(); H.settled()");
     await expect('after a toast with 5 seconds to go was closed by hand', 0);
-    await p.eval("V2.toast('y', { ms: 150 }); 1"); await wait(700);
+    await p.eval("V2.toast('y', { ms: 150 }); 1"); await p.until('H.toasts().length === 0', 2000);
     await expect('after a toast timed out', 0);
-    await p.eval("for (var i = 0; i < 5; i++) V2.toast('t' + i, { kind: 'warn', ms: 5000 }); 1"); await wait(400);
+    await p.eval("for (var i = 0; i < 5; i++) V2.toast('t' + i, { kind: 'warn', ms: 5000 }); H.settled()");
     await expect('five toasts in a burst with a cap of three (one timer each for the three that remain)', 3);
-    await p.eval("H.live().forEach(function (t) { t.querySelector('.ov-toast-close').click(); }); 1"); await wait(500);
+    await p.eval("H.live().forEach(function (t) { t.querySelector('.ov-toast-close').click(); }); H.settled()");
     await expect('after every toast was closed', 0);
-    await p.eval("V2.openSheet('S', 'x'); window.__r = 0; V2.confirmDialog('Q?'); H.sleep(350)");
-    await p.key('Escape'); await wait(400); await p.key('Escape'); await wait(500);
+    await p.eval("V2.openSheet('S', 'x'); window.__r = 0; V2.confirmDialog('Q?'); H.settled()");
+    await p.key('Escape'); await settled(); await p.key('Escape'); await settled();
     await expect('after Escape closed a confirmation and then its sheet', 0);
     return f;
   });
@@ -1169,67 +1317,67 @@ const TALL_BODY = DEFAULT_BODY + '<div style="height:6000px"></div>';
 // headless Chrome draws overlay scrollbars that take no width; a 15px classic one is what the office PCs have
 const LOCK_PAGE = { body: TALL_BODY, head: '<style>html::-webkit-scrollbar { width: 15px; }</style>' };
 async function checkScrollLock(env) {
-  const f = [], wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  const f = [], settled = (p) => p.eval('H.settled()'), frames = (p) => p.eval('H.frames(3)');
   const state = (p) => p.eval("({ y: Math.round(window.scrollY), ov: document.documentElement.style.overflow, pr: document.documentElement.style.paddingRight, app: (function(){ var a = document.getElementById('app'); if (!a) return [0, 0]; var r = a.getBoundingClientRect(); return [Math.round(r.left), Math.round(r.width)]; })() })");
-  const wheelMoves = async (p) => { await p.eval('window.scrollTo(0, 0); 1'); await p.wheel(500, 300, 400); await wait(350); return (await state(p)).y > 0; };
+  const wheelMoves = async (p) => { await p.eval('window.scrollTo(0, 0); 1'); await p.wheel(500, 300, 400); return p.until('window.scrollY > 0', 1000); };
   // 1. the app's own inline styles come back exactly; page scrolls before, is held while open, scrolls again after
   await withPage(env, LOCK_PAGE, async (p) => {
     await p.eval("document.documentElement.style.overflow = 'auto'; document.documentElement.style.paddingRight = '2px'; 1");
     if (!(await wheelMoves(p))) f.push('control: a mouse wheel does not scroll this page even with no overlay, so the lock test would prove nothing');
-    await p.eval('window.scrollTo(0, 0); V2.openSheet("T", "<p>x</p>"); 1'); await wait(350);
+    await p.eval('window.scrollTo(0, 0); V2.openSheet("T", "<p>x</p>"); H.settled()');
     const open = await state(p);
     if (open.ov !== 'hidden') f.push('with a sheet open the document overflow is "' + open.ov + '", not hidden');
-    await p.wheel(500, 300, 400); await wait(350);
+    await p.wheel(500, 300, 400); await frames(p);
     if ((await state(p)).y !== 0) f.push('a mouse wheel over the backdrop scrolled the page behind an open sheet');
     // a confirmation over the sheet, then a toast over both
-    await p.eval('V2.confirmDialog("Q?"); 1'); await wait(350);
-    await p.eval('V2.toast("over both", { ms: 0 }); 1'); await wait(300);
-    await p.key('Escape'); await wait(450);
+    await p.eval('V2.confirmDialog("Q?"); H.settled()');
+    await p.eval('V2.toast("over both", { ms: 0 }); H.settled()');
+    await p.key('Escape'); await settled(p);
     let mid = await state(p);
     if (mid.ov !== 'hidden') f.push('closing the confirmation released the lock while the sheet beneath it is still open (overflow "' + mid.ov + '")');
-    await p.wheel(500, 300, 400); await wait(300);
+    await p.wheel(500, 300, 400); await frames(p);
     if ((await state(p)).y !== 0) f.push('the page scrolled once the confirmation over the sheet had closed');
-    await p.eval('V2.closeSheet(); 1'); await wait(500);
+    await p.eval('V2.closeSheet(); H.settled()');
     const after = await state(p);
     if (after.ov !== 'auto' || after.pr !== '2px') f.push('after the last overlay closed the document has overflow "' + after.ov + '" and padding-right "' + after.pr + '", not the "auto" and "2px" the app had set');
     if (!(await wheelMoves(p))) f.push('the page does not scroll again after the overlays closed');
   });
   // 1b. a confirmation on its own (no sheet) locks and unlocks too
   await withPage(env, LOCK_PAGE, async (p) => {
-    await p.eval('window.scrollTo(0, 0); V2.confirmDialog("Q?"); 1'); await wait(350);
+    await p.eval('window.scrollTo(0, 0); V2.confirmDialog("Q?"); H.settled()');
     if ((await state(p)).ov !== 'hidden') f.push('a confirmation on its own did not lock the page (overflow "' + (await state(p)).ov + '")');
-    await p.wheel(500, 300, 400); await wait(350);
+    await p.wheel(500, 300, 400); await frames(p);
     if ((await state(p)).y !== 0) f.push('a mouse wheel scrolled the page behind a confirmation that has no sheet under it');
-    await p.key('Escape'); await wait(500);
+    await p.key('Escape'); await settled(p);
     if ((await state(p)).ov !== '') f.push('after a lone confirmation closed, the document overflow is "' + (await state(p)).ov + '"');
     if (!(await wheelMoves(p))) f.push('the page does not scroll after a lone confirmation closed');
   });
   // 2. an app with no inline styles ends with none; a toast alone does not lock; the width does not jump
   await withPage(env, LOCK_PAGE, async (p) => {
-    await p.eval('V2.toast("alone", { ms: 0 }); 1'); await wait(300);
+    await p.eval('V2.toast("alone", { ms: 0 }); H.settled()');
     if ((await state(p)).ov !== '') f.push('a toast on its own locked the page (overflow "' + (await state(p)).ov + '")');
     const before = await state(p);
     const bar = await p.eval('window.innerWidth - document.documentElement.clientWidth');
     if (bar !== 15) f.push('the test page has a ' + bar + 'px scrollbar, not the 15px it asks for, so the no-jump check would prove nothing');
-    await p.eval('V2.openSheet("T", "x"); 1'); await wait(350);
+    await p.eval('V2.openSheet("T", "x"); H.settled()');
     const during = await state(p);
     if (during.app[0] !== before.app[0] || during.app[1] !== before.app[1]) f.push('locking moved the page content from ' + before.app + ' to ' + during.app + ' (a ' + bar + 'px scrollbar vanished and was not made up for)');
-    await p.eval('V2.closeSheet(); 1'); await wait(500);
+    await p.eval('V2.closeSheet(); H.settled()');
     const end = await state(p);
     if (end.ov !== '' || end.pr !== '') f.push('with no inline styles to begin with, the document ends with overflow "' + end.ov + '" and padding-right "' + end.pr + '"');
     if (!(await p.eval('document.documentElement.style.cssText === "" || document.documentElement.getAttribute("style") === ""'))) f.push('the document is left with a style attribute: ' + await p.eval('document.documentElement.getAttribute("style")'));
   });
   // 3. a close path that throws
   await withPage(env, LOCK_PAGE, async (p) => {
-    await p.eval('V2.openSheet("T", "x", { onClose: function () { throw new Error("boom"); } }); 1'); await wait(350);
-    await p.eval('V2.closeSheet(); 1'); await wait(500);
+    await p.eval('V2.openSheet("T", "x", { onClose: function () { throw new Error("boom"); } }); H.settled()');
+    await p.eval('V2.closeSheet(); H.settled()');
     if ((await state(p)).ov !== '') f.push('an onClose that throws left the page locked (overflow "' + (await state(p)).ov + '")');
     if (!(await wheelMoves(p))) f.push('the page cannot scroll after an onClose that threw');
   });
   // 4. the app wipes <body> under an open overlay
   await withPage(env, LOCK_PAGE, async (p) => {
-    await p.eval('V2.openSheet("T", "x"); window.__r = "pending"; V2.confirmDialog("Q?").then(function (v) { window.__r = v; }); 1'); await wait(350);
-    await p.eval('document.body.innerHTML = "<div style=\\"height:6000px\\">the app wiped the body</div>"; 1'); await wait(450);
+    await p.eval('V2.openSheet("T", "x"); window.__r = "pending"; V2.confirmDialog("Q?").then(function (v) { window.__r = v; }); H.settled()');
+    await p.eval('document.body.innerHTML = "<div style=\\"height:6000px\\">the app wiped the body</div>"; 1'); await frames(p);
     if ((await state(p)).ov !== '') f.push('the app wiping <body> under an open sheet left the page locked for good (overflow "' + (await state(p)).ov + '")');
     if ((await p.eval('window.__r')) !== false) f.push('a confirmation wiped from the page resolved ' + (await p.eval('String(window.__r)')) + ', not false');
   });
@@ -1244,8 +1392,8 @@ test('while any overlay is open the mouse wheel cannot scroll the page behind it
 async function checkEscapeWithAToast(env) {
   const f = [];
   await withPage(env, { noNativeRestore: true }, async (p) => {
-    await p.eval("document.getElementById('opener').focus(); V2.openSheet('S', '<button type=\"button\" id=\"ib\">Inner</button>'); H.sleep(350)");
-    await p.eval("V2.toast('Over the sheet', { kind: 'warn', ms: 0 }); H.sleep(300)");
+    await p.eval("document.getElementById('opener').focus(); V2.openSheet('S', '<button type=\"button\" id=\"ib\">Inner</button>'); H.settled()");
+    await p.eval("V2.toast('Over the sheet', { kind: 'warn', ms: 0 }); H.settled()");
     await p.key('Escape');
     if (!(await p.until('!H.sheet()', 2500))) f.push('Escape with a toast on screen did not close the sheet beneath it');
     const t = await p.eval("(function(){ var t = H.toasts()[0]; return t ? { open: t.open, shown: t.getClientRects().length > 0 } : null; })()");
@@ -1253,11 +1401,11 @@ async function checkEscapeWithAToast(env) {
     if ((await p.eval('document.activeElement.id')) !== 'opener') f.push('after that Escape focus is not back on the opener');
   });
   await withPage(env, { noNativeRestore: true }, async (p) => {
-    await p.eval("document.getElementById('opener').focus(); V2.openSheet('S', 'x'); window.__r = undefined; H.sleep(350)");
-    await p.eval("V2.confirmDialog('Q?').then(function (v) { window.__r = v; }); V2.toast('Over both', { ms: 0 }); H.sleep(350)");
+    await p.eval("document.getElementById('opener').focus(); V2.openSheet('S', 'x'); window.__r = undefined; H.settled()");
+    await p.eval("V2.confirmDialog('Q?').then(function (v) { window.__r = v; }); V2.toast('Over both', { ms: 0 }); H.settled()");
     await p.key('Escape');
     if (!(await p.until('window.__r === false', 2500))) f.push('Escape with a toast on screen did not dismiss the confirmation (false)');
-    await p.eval('H.sleep(400)');
+    await p.eval('H.settled()');
     if (!(await p.eval('!!H.sheet() && H.sheet().open'))) f.push('Escape with a toast on screen also closed the sheet beneath the confirmation');
   });
   return f;
@@ -1268,8 +1416,8 @@ async function checkEscapeCanBeClaimed(env) {
     await p.eval(`document.getElementById('opener').focus();
       V2.openSheet('S', '<input id="mine" aria-label="Custom control"><button type="button" id="plain">Plain</button>');
       document.getElementById('mine').addEventListener('keydown', function (e) { if (e.key === 'Escape') { e.preventDefault(); window.__claimed = (window.__claimed || 0) + 1; } });
-      document.getElementById('mine').focus(); H.sleep(350)`);
-    await p.key('Escape'); await p.eval('H.sleep(500)');
+      document.getElementById('mine').focus(); H.settled()`);
+    await p.key('Escape'); await p.eval('H.settled()');
     const r = await p.eval('({ open: !!H.sheet() && H.sheet().open, claimed: window.__claimed || 0 })');
     if (r.claimed !== 1) f.push('the control inside the sheet never saw the Escape (claimed ' + r.claimed + '), so the test is not exercising it');
     if (!r.open) f.push('Escape that a control inside the sheet had claimed (preventDefault) still closed the sheet');
@@ -1342,10 +1490,10 @@ async function checkDensity(env) {
   const body = '<div data-v2 id="app"><div data-density="desk" id="deskwrap"><button class="btn" id="opener">Desk opener</button></div><button class="btn" id="yardbtn">Yard opener</button></div>';
   const r = await withPage(env, { body }, async (p) => p.eval(`(async function(){
     var q = function (el, n) { return getComputedStyle(el).getPropertyValue(n).trim(); }, out = {};
-    document.getElementById('opener').focus(); V2.openSheet('T', '<p>x</p>'); await H.sleep(350);
+    document.getElementById('opener').focus(); V2.openSheet('T', '<p>x</p>'); await H.settled();
     out.desk = { tap: q(H.sheet(), '--tap'), closeH: H.sheet().querySelector('.ov-close').getBoundingClientRect().height };
     V2.closeSheet(); await H.until(function () { return !H.sheet(); }, 3000);
-    document.getElementById('yardbtn').focus(); V2.openSheet('T', '<p>x</p>'); await H.sleep(350);
+    document.getElementById('yardbtn').focus(); V2.openSheet('T', '<p>x</p>'); await H.settled();
     out.yard = { tap: q(H.sheet(), '--tap'), closeH: H.sheet().querySelector('.ov-close').getBoundingClientRect().height };
     return out;
   })()`));
@@ -1363,9 +1511,9 @@ async function checkSurvivesRerender(env) {
   return withPage(env, {}, async (p) => {
     const r = await p.eval(`(async function(){
       document.getElementById('opener').focus(); V2.openSheet('T', '<p>x</p>'); window.__r = undefined; V2.confirmDialog('Q?').then(function (v) { window.__r = v; });
-      await H.sleep(350);
+      await H.settled();
       document.getElementById('app').innerHTML = '<p>the app drew itself again</p>';
-      V2.toast('after the redraw', { ms: 0 }); await H.sleep(350);
+      V2.toast('after the redraw', { ms: 0 }); await H.settled();
       var c = H.center(H.toasts()[0]), hit = document.elementFromPoint(c.x, c.y);
       return { sheet: !!H.sheet() && H.sheet().open, confirm: !!H.confirm() && H.confirm().open, toastShown: !!hit && H.toasts()[0].contains(hit) };
     })()`);
@@ -1374,11 +1522,11 @@ async function checkSurvivesRerender(env) {
     if (!r.toastShown) f.push('a toast raised after the app redrew itself is not visible');
     await p.key('Escape');
     if (!(await p.until('window.__r === false', 2500))) f.push('Escape on the confirmation after a redraw did not resolve it false');
-    await p.eval("V2.closeSheet(); H.sleep(500)");
+    await p.eval("V2.closeSheet(); H.settled()");
     const w = await p.eval(`(async function(){
-      V2.toast('Again', { kind: 'ok', ms: 0 }); await H.sleep(300);
+      V2.toast('Again', { kind: 'ok', ms: 0 }); await H.settled();
       document.body.innerHTML = '<p>the app wiped the whole body</p>';
-      var t = V2.toast('Again', { kind: 'ok', ms: 0 }); await H.sleep(400);
+      var t = V2.toast('Again', { kind: 'ok', ms: 0 }); await H.settled();
       var c = H.center(t), hit = document.elementFromPoint(c.x, c.y);
       return { connected: t.isConnected, shown: !!hit && t.contains(hit) };
     })()`);
@@ -1395,20 +1543,22 @@ async function checkLayout(env, o) {
   return withPage(env, { live: o.live, width: o.width, height: o.height }, async (p) => {
     const r = await p.eval(`(async function(){
       var vw = innerWidth, vh = innerHeight, out = { vw: vw, vh: vh };
-      V2.openSheet('Tall', '<div style="height:3000px">tall</div>'); await H.sleep(500);
+      V2.openSheet('Tall', '<div style="height:3000px">tall</div>'); await H.settled();
       var panel = H.sheet().querySelector('.ov-panel'), body = H.sheet().querySelector('.ov-body'), pr = panel.getBoundingClientRect(), cr = H.sheet().querySelector('.ov-close').getBoundingClientRect(), bcs = getComputedStyle(body);
-      out.sheet = { l: pr.left, r: pr.right, t: pr.top, b: pr.bottom, h: pr.height, w: pr.width, scrolls: body.scrollHeight > body.clientHeight + 10, overflowY: bcs.overflowY, closeTop: cr.top, closeBottom: cr.bottom, closeRight: cr.right };
+      out.sheet = { l: pr.left, r: pr.right, t: pr.top, b: pr.bottom, h: pr.height, w: pr.width, scrolls: body.scrollHeight > body.clientHeight + 10, overflowY: bcs.overflowY, closeTop: cr.top, closeBottom: cr.bottom, closeRight: cr.right,
+        tf: getComputedStyle(panel).transform, anims: panel.getAnimations().length, dlg: Math.round(H.sheet().getBoundingClientRect().height), iw: innerWidth, ih: innerHeight };
       V2.closeSheet(); await H.until(function () { return !H.sheet(); }, 3000);
-      V2.confirmDialog('Remove this bus from the roster for good?'); await H.sleep(500);
+      V2.confirmDialog('Remove this bus from the roster for good?'); await H.settled();
       var cp = H.confirm().querySelector('.ov-panel'), cb = cp.getBoundingClientRect();
       out.confirm = { l: cb.left, r: cb.right, t: cb.top, b: cb.bottom, w: cb.width };
       H.confirm().querySelector('.ov-no').click(); await H.until(function () { return !H.confirm(); }, 3000);
-      var tt = V2.toast(new Array(60).join('A long message that has to wrap. '), { kind: 'warn', ms: 0 }); await H.sleep(500);
+      var tt = V2.toast(new Array(60).join('A long message that has to wrap. '), { kind: 'warn', ms: 0 }); await H.settled();
       var tb = tt.getBoundingClientRect(); out.toast = { l: tb.left, r: tb.right, t: tb.top, b: tb.bottom };
       return out;
     })()`);
     const f = [], s = r.sheet, c = r.confirm, t = r.toast;
-    if (Math.abs(s.b - r.vh) > 1.5) f.push(label + 'the sheet bottom is at ' + s.b + ', not at the viewport bottom ' + r.vh);
+    if (Math.abs(s.b - r.vh) > 1.5) f.push(label + 'the sheet bottom is at ' + s.b + ', not at the viewport bottom ' + r.vh
+      + ' (panel transform ' + s.tf + ', ' + s.anims + ' animation(s) still on it, dialog ' + s.dlg + 'px tall, window ' + s.iw + 'x' + s.ih + ')');
     if (s.h > r.vh * 0.9 + 1.5) f.push(label + 'the sheet is ' + s.h + 'px tall, over 90% of the ' + r.vh + 'px viewport');
     if (s.w > 640 + 1) f.push(label + 'the sheet is ' + s.w + 'px wide, over 40rem');
     if (Math.abs((s.l + s.r) / 2 - r.vw / 2) > 2) f.push(label + 'the sheet is not centred (' + s.l + '..' + s.r + ' in ' + r.vw + ')');
@@ -1431,10 +1581,10 @@ for (const live of [false, true]) for (const l of LAYOUTS) {
 
 async function checkFlowIsQuiet(env) {
   return withPage(env, {}, async (p) => {
-    await p.eval(`document.getElementById('opener').focus(); V2.openSheet('T', '${SHEET_BODY}'); H.sleep(350)`);
-    await p.eval("V2.confirmDialog('Q?'); V2.toast('a', { kind: 'ok' }); V2.toast('b', { kind: 'bad', ms: 100 }); H.sleep(300)");
+    await p.eval(`document.getElementById('opener').focus(); V2.openSheet('T', '${SHEET_BODY}'); H.settled()`);
+    await p.eval("V2.confirmDialog('Q?'); V2.toast('a', { kind: 'ok' }); V2.toast('b', { kind: 'bad', ms: 100 }); H.settled()");
     await p.key('Escape'); await p.key('Escape');
-    await p.eval("V2.closeSheet(); V2.toast('c', { kind: 'warn', ms: 50 }); H.sleep(700)");
+    await p.eval("V2.closeSheet(); V2.toast('c', { kind: 'warn', ms: 50 }); H.settled()");
     return p.errors.slice();
   });
 }
@@ -1454,8 +1604,9 @@ async function red(check, label, env, extra) {
   return failures;
 }
 // Mutants are independent pages, so they run side by side (6 at a time); only an expected RED can come from the extra load.
-async function redAll(check, list, extra) {
-  for (let i = 0; i < list.length; i += 6) await Promise.all(list.slice(i, i + 6).map(([label, env]) => red(check, label, env, extra)));
+async function redAll(check, list, extra, lanes) {
+  const n = lanes || Number(process.env.OVERLAY_MUTANT_LANES) || 6;
+  for (let i = 0; i < list.length; i += n) await Promise.all(list.slice(i, i + n).map(([label, env]) => red(check, label, env, extra)));
 }
 
 const SHEET_SHOW = ['show() instead of showModal()', mJs('rec.dlg.showModal();', 'rec.dlg.show();')];
@@ -1516,7 +1667,7 @@ test('the repeated-close checker goes red for onClose twice, a closeSheet() that
     NO_RESTORE,
     ['a page exception', mJs('if (rec.dlg.parentNode) rec.dlg.parentNode.removeChild(rec.dlg);', 'if (rec.dlg.parentNode) rec.dlg.parentNode.removeChild(rec.dlg); window.nope.x();')],
   ]);
-}, { browser: true });
+}, { browser: true, solo: true });
 
 const CONFIRM_MUTANTS = [
   ['Escape and the backdrop read as yes', mJs('rec.onCancel = function () { decide(false); dismiss(rec); };\n      rec.after', 'rec.onCancel = function () { decide(true); dismiss(rec); };\n      rec.after'), ['Escape', 'a click on the backdrop']],
@@ -1606,6 +1757,14 @@ test('the toast-leaves-the-page-alone checker goes red for a modal toast, a toas
   ]);
 }, { browser: true });
 
+// solo, and ONE mutant page at a time rather than six. These mutants turn on how long a toast lives, and the
+// tightest of them has 220ms of margin: a 300ms default plus a 150ms exit and 30ms of slack, against a 700ms wait.
+// Pages of nothing but timers starve each other enough to eat that - measured, with several pages in flight the
+// 700ms wait came back after 1124ms and the toast was still mid-exit - and the mutant then reads as still on
+// screen, which is a false green. Serial here, so the figures mean what they say. It costs about 8s.
+// The same arithmetic is why this is also the one test whose own waits were left alone. It is not fully immune:
+// measured against the suite as it was before this change, on a machine already at a load average of 7, each goes
+// false-green about one run in seven. Narrowing that means moving the 700ms, which is a figure this test asserts.
 test('the toast-timing checker goes red when ms is ignored, when 0 does not mean sticky, when a nonsense ms vanishes at once, when the default is too short and when Close does nothing', async () => {
   await redAll(checkToastTiming, [
     ['ms is ignored and the toast stays for ever', mJs("var ms = typeof opts.ms === 'number' && isFinite(opts.ms) && opts.ms >= 0 ? opts.ms : k.ms;", 'var ms = 0;')],
@@ -1614,8 +1773,8 @@ test('the toast-timing checker goes red when ms is ignored, when 0 does not mean
     ['a nonsense ms vanishes', { js: mutate(mutate(REAL.js, ' && opts.ms >= 0', ''), 'if (t.ms > 0)', 'if (t.ms !== 0)'), css: REAL.css }],
     ['the default is 300ms', mJs('ok:   { word: \'Done\',    icon: \'ok\',   ms: 4000 }', 'ok:   { word: \'Done\',    icon: \'ok\',   ms: 300 }')],
     ['Close does nothing', mJs("el.querySelector('.ov-toast-close').addEventListener('click', function () { leave(t); });", '')],
-  ]);
-}, { browser: true });
+  ], undefined, 1);
+}, { browser: true, solo: true });
 
 test('the toast-stack checker goes red for no cap and for a cap that drops the newest toast', async () => {
   await redAll(checkToastStack, [
@@ -1632,7 +1791,7 @@ test('the toast-retarget checker goes red when the same toast makes two, when a 
     ['the leaving toast is not brought back', mJs("window.clearTimeout(t.removeTimer);\n        t.el.setAttribute('data-mounted', '');", 'window.clearTimeout(t.removeTimer);')],
     ['the leaving toast is removed anyway', mJs("window.clearTimeout(t.removeTimer);\n        t.el.setAttribute('data-mounted', '');", "t.el.setAttribute('data-mounted', '');")],
   ]);
-}, { browser: true });
+}, { browser: true, solo: true });
 
 test('the toast-over-modal checker goes red when the lane stays in the page behind the top layer and when it is lost with the sheet', async () => {
   await redAll(checkToastOverModal, [
@@ -1707,7 +1866,7 @@ test('the reduced-motion checker goes red when the overlay block is missing, lea
     ['the toast fade is dropped', mCss('[data-v2] .ov-toast[data-mounted] {\n    transition: opacity 200ms ease-out;', '[data-v2] .ov-toast[data-mounted] {\n    transition: none;')],
     ['the reduced block only covers the sheet', mCss(/(  \[data-v2\] \.ov-toast \{\n    transform: none;\n    transition: opacity 150ms ease-out;\n  \}\n\n)/, '')],
   ]);
-}, { browser: true });
+}, { browser: true, solo: true });
 
 test('the exit checker goes red for an exit that is skipped, one that waits two seconds, an Escape that closes on the spot and a confirmation that never leaves', async () => {
   await redAll(checkExitIsAnimatedAndPrompt, [
@@ -1716,7 +1875,7 @@ test('the exit checker goes red for an exit that is skipped, one that waits two 
     ['Escape skips the exit', { js: mutate(mutate(REAL.js, 'ev.preventDefault();\n      modals[modals.length - 1].onCancel();', ''), 'ev.preventDefault(); rec.onCancel();', 'rec.onCancel();'), css: REAL.css }],
     ['the confirmation never leaves', mJs('rec.timer = window.setTimeout(function () { finish(rec); }, ms + SLACK_MS);', '')],
   ]);
-}, { browser: true });
+}, { browser: true, solo: true });
 
 test('the no-motion checker goes red when closing waits for a transition that never runs, when a toast does, and when focus is not restored', async () => {
   await redAll(checkNoMotionClosesAtOnce, [
@@ -1844,6 +2003,7 @@ test('the static checks go red for a stylesheet with scale(0) or an animation, a
   assert.notDeepEqual(loadInVm(needEnv(REAL).js + '\nwindow.toast = function () {};').added, ['V2'], 'a bare toast global was not found');
   assert.notDeepEqual(loadInVm(needEnv(REAL).js.replace('window.V2 = ', 'var unused = ')).added, ['V2'], 'a missing V2 was not found');
 });
+
 
 
 /* ---------- done ---------- */

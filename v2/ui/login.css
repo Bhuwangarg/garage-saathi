@@ -1,0 +1,154 @@
+/* The login, in the v2 design system.
+ *
+ * The first screen to move across, and the reason it went first: it is built from
+ * emoji -- a bus, a padlock, a crown and six more role marks, a backspace and a
+ * tick -- and Windows 7 never shipped the fonts for most of them, so the office
+ * has been signing in through a row of empty boxes. Those are inline SVG now.
+ *
+ * Every selector is prefixed [data-v2], like the rest of the system, so this file
+ * is inert anywhere the v2 wrapper is absent. Nothing here reuses a class the live
+ * stylesheet already owns: `.pinpad button` there sets padding, font-size, border
+ * and radius UNLAYERED, which beats any layered rule regardless of specificity, so
+ * the keypad has its own names rather than a fight it would lose.
+ *
+ * Chrome 109 is the ceiling: no nesting, no oklch(), no color-mix(), no :has().
+ */
+
+[data-v2].lg {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  padding: var(--s6) 16px var(--s8);
+  background: var(--surface);
+  color: var(--ink);
+  font-family: var(--font);
+  text-align: center;
+}
+/* 16px of gutter at 360 wide, which is the narrowest phone in the yard. */
+[data-v2].lg > * { width: 100%; max-width: 380px; }
+
+[data-v2] .lg-top { display: flex; justify-content: center; margin-bottom: var(--s5); }
+[data-v2] .lg-top-back { justify-content: space-between; align-items: center; }
+[data-v2] .lg-crumb { color: var(--ink-dim); font-size: var(--t5); }
+[data-v2] .lg-back { padding-inline: var(--s2); }
+
+/* The mark is a shape, not a picture: one icon at one size, the garage's own name
+ * immediately under it. It replaces a 44px emoji that rendered as a box. */
+[data-v2] .lg-mark {
+  display: flex; align-items: center; justify-content: center;
+  width: 56px; height: 56px; margin: 0 auto var(--s4);
+  border-radius: 50%;
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
+  color: var(--accent);
+}
+[data-v2] .lg-biz { margin: 0; font-size: var(--t2); font-weight: 650; letter-spacing: -0.2px; }
+[data-v2] .lg-who { font-size: var(--t3); }
+[data-v2] .lg-tag { margin: var(--s1) 0 0; color: var(--ink-dim); font-size: var(--t5); }
+/* Quiet enough to ignore, legible enough to read out over a phone call. */
+[data-v2] .lg-build { margin: var(--s5) 0 0; color: var(--ink-dim); font-size: var(--t6); opacity: .55; text-align: center; }
+[data-v2] .lg-label {
+  margin: var(--s6) 0 var(--s2);
+  color: var(--ink-dim);
+  font-size: var(--t6);
+  text-align: start;
+}
+
+/* A list of rows, not a grid of tiles. Rows read in one column on a 360px phone
+ * and still scan on a 1024px office screen, and they are the component the system
+ * already tests at both densities. */
+[data-v2] .lg-list {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-raised);
+  overflow: hidden;
+  text-align: start;
+}
+/* The row's own separator is an inset shadow; the last one would sit on the
+ * container's border, so it goes. */
+[data-v2] .lg-list > .v2row:last-child { box-shadow: none; }
+[data-v2] .lg-ava { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; display: block; }
+[data-v2] .lg-search { margin-bottom: var(--s3); }
+[data-v2] .lg-cancel { margin-top: var(--s5); }
+
+/* Four dots, as elements. They were the characters U+25CF and U+25CB, which is a
+ * font dependency on a screen nobody can get past. */
+[data-v2] .lg-dots {
+  display: flex; justify-content: center; align-items: center;
+  gap: var(--s3); height: 28px; margin: var(--s5) 0;
+}
+[data-v2] .lg-dot {
+  width: 10px; height: 10px; border-radius: 50%;
+  background: transparent;
+  border: 1.5px solid var(--ink-dim);
+  transition: background-color 120ms ease-out, border-color 120ms ease-out;
+}
+[data-v2] .lg-dot.on { background: var(--accent); border-color: var(--accent); }
+/* Four digits are in and the request is away. Without a sign of it the pad simply
+ * sits there for a second or three and looks like it missed the tap. */
+[data-v2] .lg-dots[data-working] { opacity: 0.55; }
+
+[data-v2] .lg-pad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--s3);
+  max-width: 300px;
+  margin: 0 auto;
+}
+/* The digits are the one place text is bigger than the system's body scale: they
+ * are the target as well as the label, and they are tapped with a thumb in
+ * daylight. The 48px floor comes from .btn at yard density. */
+[data-v2] .lg-pad .btn { font-size: var(--t3); font-weight: 600; }
+
+@media (prefers-reduced-motion: reduce) {
+  [data-v2] .lg-dot { transition: none; }
+}
+
+/* ==========================================================================
+   Desktop: state a width, because nothing else will
+   --------------------------------------------------------------------------
+   #app centres this screen with `place-items:center`, which is `align-items`
+   AND `justify-items` -- and justify-items:center sizes a grid item to its
+   CONTENT. Every width in this file is a max-width, so the card had no width
+   of its own and came out as wide as whatever its widest child happened to
+   need: 332px on the role list, and 186px on the PIN pad, where the widest
+   child is a three-column grid of digits. On a 1366px office screen that is
+   14% of the width, with 43x38px keys. Centring the card -- which is what was
+   "fixed" first -- only centred the collapse.
+
+   The live stylesheet hit this twice before and wrote it down both times; the
+   note above .userpick states it in one line, and .login carries an explicit
+   `width:min(860px,92vw)` for exactly this reason. Adding .lg to that selector
+   without giving it a width made it the third time. So the width is declared
+   here rather than inferred from content.
+
+   The breakpoint matches the rule that causes it (min-width:1024px). Below it
+   #app is display:block and the card already fills the column.
+   ====================================================================== */
+@media (min-width: 1024px) {
+  [data-v2].lg {
+    width: min(460px, 92vw);
+    min-height: auto;
+    align-self: center;
+    padding: var(--s8) var(--s7);
+    background: var(--surface-raised);
+    border: 1px solid var(--line);
+    border-radius: 20px;
+    box-shadow: 0 24px 60px -30px rgba(24, 26, 32, .30), 0 1px 3px rgba(24, 26, 32, .05);
+  }
+  /* The 380px cap is a phone gutter. Inside a card of a stated width the
+     children should use it. */
+  [data-v2].lg > * { max-width: none; }
+  /* The pad fills the card rather than sitting in a 300px well inside it: the
+     rows above it are full width, and an inset block of keys under full-width
+     rows reads as a mistake. Stated here rather than left to the source order
+     of the rule above, which is what was deciding it. */
+  [data-v2] .lg-pad { max-width: none; }
+  /* A pointer does not need the 48px yard key. It does need more than the 38px
+     the collapse produced. 52px against a 123px-wide key is a comfortable
+     mouse target and still reads as a keypad. */
+  [data-v2] .lg-pad .btn { min-height: 52px; }
+}

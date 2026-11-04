@@ -1,0 +1,1252 @@
+/* Garage Saathi — sync engine (Phase 2).
+ *
+ * Local-first: IndexedDB stays the source of truth so the app works fully
+ * offline. This engine reconciles the device with a shared server:
+ *   - PUSH: send locally-changed records (an "outbox" of store|id keys).
+ *   - PULL: fetch records the server has seen since our last cursor (`rev`)
+ *           and apply any that are newer than our local copy (last-write-wins
+ *           by `updatedAt`).
+ *
+ * The wire protocol is deliberately tiny (two endpoints) so the dev Python
+ * server can be swapped for Supabase / a hosted Node service unchanged:
+ *   POST /push  { deviceId, records:[{store,id,data,updatedAt}] } -> { ok, maxRev }
+ *   GET  /pull?since=<rev>&deviceId=..  -> { records:[{store,id,data,rev}], maxRev }
+ */
+const Sync = (function () {
+  // Only real business data syncs — local-only meta (seed flag, garage config) stays put.
+  const STORES = ['users', 'buses', 'parts', 'jobcards', 'ledger', 'attendance', 'purchases',
+                  'drivers', 'incidents', 'driverreports', 'routes', 'triplog', 'fuel', 'gpsevents', 'audits',
+                  // One aggregated row per person per day, so the owner can see which
+                  // features are actually used across the fleet, not just on one phone.
+                  'usage',
+                  // The office's conversation log. Append-only on the server.
+                  'crewnotes',
+                  // Added 2026-07-29: these four shipped without a sync mapping, so the
+                  // vendor registry, rotable components, DEF log and every trip cash
+                  // session lived on exactly one phone with no backup. Now synced;
+                  // backfillOnce() below pushes any records that predate this change.
+                  'components', 'def', 'vendors', 'trips', 'breakdowns',
+                  // The outside-job gate pass: the printed slip that leaves the
+                  // garage with a unit, and the record it is verified against on
+                  // the way back. Synced because the pass is issued on the
+                  // supervisor's phone and often closed on somebody else's.
+                  'gatepasses',
+                  // The garage's own settings: labour rate, late cutoff and its
+                  // penalty, the geofence, the business name. They decide what a
+                  // job COSTS, and they lived on one phone — every other device
+                  // fell back to the built-in ₹250/hr and showed a different
+                  // labour cost, job total and ₹/km for the same card. Only the
+                  // `garage` row travels; `seeded` is this device's own business
+                  // (see markDirty).
+                  'meta',
+                  // Server-ingest only, like gpsevents: written by the /challans
+                  // proxy, pulled by every device, never pushed. Without it here the
+                  // same mistake as the four above repeats — one phone sweeps the
+                  // fleet and nobody else ever sees the liability.
+                  'challans',
+                  // Server-written record of every change to a part's quantity.
+                  // Pulled so the owner can see unexplained ones; never pushed —
+                  // the whole point is that the people it watches cannot touch it.
+                  'stockmoves',
+                  // Who sat on which bus, and from when. Written by managers on the
+                  // duty board, append-only on the server. Synced from day one so a
+                  // review can be traced to a crew whichever phone made the change.
+                  'dutylog',
+                  // The departure checklist: filled on the driver's phone, decided
+                  // on the owner's. Synced so both see the same bus at the gate.
+                  'gatechecks',
+                  // redPro data, written only by the server from the office collector.
+                  // Pulled, never pushed (the server refuses any client write).
+                  'rbservices', 'rbreviews', 'rbcomplaints', 'rbassign',
+                  // Confirmed redBus-name -> crew matches, written by the office (not server-only).
+                  'rbalias',
+                  // ITS PNR lookups (server-written by /its/lookup; pulled, never pushed).
+                  'itslookup',
+                  // Claude's reading of whose fault each review is (server-written by /ai/reviews).
+                  'rbreviewai',
+                  // Claude's answer for each typed redBus name (server-written by /ai/names).
+                  'rbaliasai',
+                  // Claude's look at each gate check's photos (server-written by /ai/gate).
+                  'gateai',
+                  // Claude's look at each returned old part's photo (server-written by /ai/core).
+                  'coreai',
+                  // Claude's draft job card for each driver report (server-written by /ai/reports).
+                  'reportai',
+                  // Weekly coaching notes (server-written by /ai/coaching and /ai/coaching/decide).
+                  'coachai',
+                  // The Monday summary (server-written by /ai/digest; owner and supervisor phones only).
+                  'digest'];
+
+  const ls = window.localStorage;
+  // Default sync backend: a device's explicit setting always wins. Otherwise, on
+  // a local/LAN host use the local dev server (:8766); on a public host the API is
+  // served from the SAME origin as this page, so use that.
+  //
+  // It used to point at a fixed Render URL. Once the app moved to Vercel, which
+  // serves the PWA and the API together, that meant a page loaded from
+  // garage-saathi-sync.vercel.app authenticated against Render — the browser
+  // blocked it as cross-origin and login silently fell back to offline PINs.
+  // Same-origin removes the CORS surface entirely for the hosted app.
+  //
+  // PROD_SYNC now only covers the packaged iOS/Android app, which serves itself
+  // from capacitor://localhost and therefore has no useful origin of its own.
+  const PROD_SYNC = 'https://garage-saathi-sync.vercel.app';
+  const _isLocalHost = () => location.hostname === '' ||
+    /^(localhost|127\.|0\.0\.0\.0|\[?::1\]?|192\.168\.|10\.|172\.1[6-9]\.|172\.2\d\.|172\.3[01]\.)/.test(location.hostname);
+  // The packaged iOS/Android app serves itself from capacitor://localhost or
+  // http://localhost, which _isLocalHost() reads as "dev machine" — that would point
+  // every phone at port 8766 on itself. On native, always default to the real backend.
+  const _isNative = () => !!(window.Capacitor && window.Capacitor.isNativePlatform &&
+    window.Capacitor.isNativePlatform());
+  const PII_ROLES = ['owner', 'supervisor', 'crewmanager'];
+  const baseUrl = () => ls.getItem('syncUrl') ||
+    (_isNative() ? PROD_SYNC
+      : _isLocalHost() ? (location.protocol + '//' + location.hostname + ':8766')
+        : location.origin);
+
+  let deviceId = ls.getItem('deviceId');
+  if (!deviceId) { deviceId = 'dev-' + Math.random().toString(36).slice(2, 9); ls.setItem('deviceId', deviceId); }
+
+/* Records per tick, and the byte budget that really governs it.
+ *
+ * 40 was sized for a loop that sent one record per request; now that a tick is
+ * a single request, the count can be far higher and a backlog clears in a tick
+ * or two instead of dozens. Bytes are the real limit, not rows: a job card can
+ * carry before/after photos as inline data URLs, so a hundred of those would
+ * be tens of megabytes and the host rejects the body outright. Whichever cap is
+ * reached first ends the batch; the rest goes next tick, four seconds later. */
+const PUSH_PER_TICK = 250;
+const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
+  /* Every request this engine makes is bounded. None of them were.
+   *
+   * Only login() and the warm-up ping carried an AbortController; /pull and
+   * /push had no timeout of any kind, and fetch has no useful default. Measured
+   * against production, roughly one request in twenty-five answers in 30-36
+   * seconds instead of 0.24 -- it SUCCEEDS, with dbOk true, it just takes that
+   * long. With no bound, the drain stops dead for the whole stall, which is the
+   * "everything is there but the data is still loading" the office reports. And
+   * push() runs before pull() on a steady tick, so a stalled push withholds data
+   * just as effectively as a stalled pull.
+   *
+   * Aborting is safe here and that is why this is the fix: the cursor advances
+   * only on a page that came back, tick() catches and the next tick retries, so
+   * a timed-out pull costs one round trip and loses nothing.
+   *
+   * The pull bound is deliberately generous. A page is capped at 2.5MB, which on
+   * a driver's phone on a bad signal is a slow but HEALTHY transfer, and an abort
+   * cannot tell that apart from a stall -- too short a bound would turn weak
+   * signal into a retry loop and the backoff would then sync them less often,
+   * not more. 25s sits above a realistic transfer and below the stalls actually
+   * observed. Push is one record, so it gets far less. */
+  const PULL_TIMEOUT_MS = 25000;
+  const PUSH_TIMEOUT_MS = 15000;
+  function boundRequest(ms) {
+    if (typeof AbortController === 'undefined') return { signal: undefined, clear: function () {} };
+    const c = new AbortController();
+    const id = setTimeout(function () { c.abort(); }, ms);
+    return { signal: c.signal, clear: function () { clearTimeout(id); } };
+  }
+
+  let lastRev = parseInt(ls.getItem('lastRev') || '0', 10);
+  /* Stores fetched LAST, on a cursor of their own.
+   *
+   * gpsevents is an order of magnitude bigger than everything else put together,
+   * and only the owner and supervisor are sent it -- so on exactly the two logins
+   * that matter most, the whole app used to wait behind ~40,000 telemetry rows
+   * before a single job card appeared. Nothing renders them live either: the live
+   * map comes from Sync.fleet(), and these feed a 24-hour count, a 7-day count and
+   * a per-bus history, none of which is on the first screen anybody opens.
+   *
+   * The main drain therefore skips them and its cursor moves past them, which is
+   * only safe BECAUSE this second cursor goes back for them afterwards. The two
+   * must be reset together for the same reason -- see the scope rewind below. */
+  const DEFERRED_STORES = ['gpsevents'];
+  let lastRevDeferred = parseInt(ls.getItem('lastRevDeferred') || '0', 10);
+  // The first-screen pass's cursor. In memory and never written down: it is a
+  // head start, not a record of what this device has.
+  let scratchRev = 0;
+  /* How many revisions the SERVER has. Every pull has carried this since paging
+   * was added and nothing has ever read it, so the app could not tell the
+   * difference between "this is the total" and "this is the total SO FAR".
+   *
+   * That is the whole of "the data loads but not fully": nothing goes missing --
+   * the screens add up whatever has arrived and present it as final, with no way
+   * for anyone to know a figure is still filling in. A number that cannot say
+   * whether it is complete is worse than a number that is late. */
+  let tableMax = parseInt(ls.getItem('tableMax') || '0', 10);
+  let lastSyncAt = parseInt(ls.getItem('lastSyncAt') || '0', 10);
+  let outbox = new Set(JSON.parse(ls.getItem('outbox') || '[]'));
+  // Who made each pending change. The outbox is device-wide, so changes one
+  // person saved offline (or left unsent at logout) used to go out under whoever
+  // signed in next — authorised by their role and stamped with their name. Now a
+  // change is only sent under the session of the person who made it; anyone
+  // else's waits until they sign in again.
+  let outboxBy = JSON.parse(ls.getItem('outboxBy') || '{}');
+  let actor = ls.getItem('syncActor') || '';
+  // Server clock minus this phone's clock, from the last pull. Evidence stamped
+  // with a time (attendance) uses the server's clock, not a phone set back.
+  let clockOffset = parseInt(ls.getItem('clockOffset') || '0', 10) || 0;
+  // Photos captured offline (no server URL yet): map of "store|id|field" -> dataUrl.
+  // Re-uploaded when the network returns, then the record is patched to the URL.
+  let photoQ = JSON.parse(ls.getItem('photoQueue') || '{}');
+  // Poison quarantine: keys the server keeps rejecting (e.g. malformed record).
+  // Skipped on push so one bad record can't wedge the whole outbox.
+  let quarantine = JSON.parse(ls.getItem('quarantine') || '{}');
+  let token = ls.getItem('token') || '';
+  let lastError = ls.getItem('lastSyncError') || '';
+  /* When the server has told us to stop for a while (429 + Retry-After).
+   *
+   * Without this the answer to "too many requests" was another request four
+   * seconds later, for ever — the device would sit at the ceiling, getting
+   * nothing done and still costing a request every tick. Kept in storage so a
+   * reload does not forget it and start hammering again. */
+  let pauseUntil = Number(ls.getItem('syncPauseUntil') || 0) || 0;
+  /* Consecutive failed ticks, for the backoff below.
+   *
+   * The loop retried every four seconds for ever. A server having a bad minute
+   * therefore got the same load from every phone in the yard for that whole
+   * minute — the shape that turns a blip into an outage, because the retries
+   * are what keep it down. Each failure now doubles the wait, up to five
+   * minutes, with a little jitter so ninety phones do not come back in step.
+   * A single success clears it. */
+  let failStreak = 0;
+  const BACKOFF_MAX_MS = 5 * 60 * 1000;
+  function backoffMs() {
+    if (failStreak < 1) return 0;
+    const base = Math.min(4000 * Math.pow(2, failStreak - 1), BACKOFF_MAX_MS);
+    return Math.round(base * (0.8 + Math.random() * 0.4));   // ±20% jitter
+  }
+  /* Feature flags, as the server last reported them. Off unless the server
+   * says otherwise, so an unknown flag behaves exactly as the code did before
+   * flags existed. */
+  let flags = [];
+  try { flags = JSON.parse(ls.getItem('featureFlags') || '[]') || []; } catch (e) { flags = []; }
+  // Records this device could not write to IndexedDB, by store|id, with how many
+  // times it has failed. A record is retried on the next pulls and only given up
+  // on after PULL_STORE_TRIES, so one unstorable row cannot stall every later
+  // record for ever — but it is never forgotten silently either.
+  let pullSkips = {};
+  try { pullSkips = JSON.parse(ls.getItem('pullSkips') || '{}') || {}; } catch (e) { pullSkips = {}; }
+  const savePullSkips = () => { try { ls.setItem('pullSkips', JSON.stringify(pullSkips)); } catch (e) { /* ignore */ } };
+  const PULL_STORE_TRIES = 5;
+  let lastErrorAt = Number(ls.getItem('lastSyncErrorAt') || 0) || 0;
+  let status = 'init';            // init | syncing | synced | offline
+  let busy = false, kickTimer = null, pollTimer = null;
+  let cbStatus = null, cbApplied = null, cbConflict = null, cbStoreFail = null, cbRefused = null;
+
+  const saveOutbox = () => {
+    ls.setItem('outbox', JSON.stringify([...outbox]));
+    for (const k of Object.keys(outboxBy)) if (!outbox.has(k)) delete outboxBy[k];
+    ls.setItem('outboxBy', JSON.stringify(outboxBy));
+  };
+  const tokenUser = () => (token ? token.split('.')[0] : '');
+  const savePhotoQ = () => ls.setItem('photoQueue', JSON.stringify(photoQ));
+  const saveQuarantine = () => ls.setItem('quarantine', JSON.stringify(quarantine));
+  const setStatus = (s) => { status = s; if (cbStatus) cbStatus(s); };
+  const authHeaders = (extra) => Object.assign(
+    {}, extra || {}, token ? { Authorization: 'Bearer ' + token } : {});
+
+  // Authenticate against the server. Returns {user} on success, {offline:true}
+  // if the server is unreachable, or null on wrong PIN.
+  async function login(userId, pin, opts) {
+    // Bound the request: a spun-down/cold server (Render free tier) must not hang
+    // the login for a minute — time out fast and let the caller fall back to the
+    // device PIN. 12s is enough for a warm round-trip on a slow phone network.
+    const ctl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+    // 8s, not 12. The backend is warmed by warmUp() as soon as the PIN pad opens,
+    // so by the time four digits are typed the container is usually already up.
+    // A longer wait mostly means staring at a dead keypad before the offline
+    // fallback finally runs.
+    // Longer when the caller has no offline fallback (owner, supervisor and crew
+    // manager PINs are not kept on the phone): giving up at 8s on a server that
+    // is still starting told them "can't reach the server" when it was only slow.
+    const to = ctl ? setTimeout(() => ctl.abort(), (opts && opts.timeoutMs) || 8000) : null;
+    try {
+      const res = await fetch(baseUrl() + '/auth/login', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, pin }),
+        signal: ctl ? ctl.signal : undefined,
+      });
+      if (res.status === 403) {
+        // The PIN is right but it is one printed in the public source: the old
+        // shared crew PIN, or a demo PIN. The answer is final (`known`), so the
+        // device must not let it in offline either.
+        let j = {}; try { j = await res.json(); } catch (e) { /* ignore */ }
+        return { rejected: true, known: true, reason: j.error || 'refused' };
+      }
+      if (res.status === 401) {
+        // The server rejected it. `known` says whether it actually holds this
+        // account: known → the PIN is wrong and its answer is final; not known →
+        // the account exists only on the device (bulk-seeded crew), so the caller
+        // may still validate against the device PIN.
+        let j = {}; try { j = await res.json(); } catch (e) { /* older server */ }
+        return { rejected: true, known: !!j.known };
+      }
+      if (res.status === 429) {                  // locked out — too many attempts
+        let j = {}; try { j = await res.json(); } catch (e) { /* ignore */ }
+        return { locked: true, retryAfter: j.retryAfterSec || 60 };
+      }
+      if (!res.ok) throw new Error('login ' + res.status);
+      const j = await res.json();
+      // Whatever answered must vouch for the account that was asked for. A
+      // server that returns some other user (or none) is not signing us in.
+      if (!j || !j.token || !j.user || j.user.id !== userId) return { rejected: true, known: true, reason: 'mismatch' };
+      token = j.token; ls.setItem('token', token);
+      // Staff below manager receive other crew's records with their private
+      // fields removed. If a manager now signs in on a device that synced as
+      // one of them, re-read the table so those copies are replaced in full.
+      /* The cursor is taken BEFORE redaction, so a device that was not allowed a
+       * record has already advanced past it and will never ask for it again.
+       * Widening what a role may receive therefore has to rewind the cursor once,
+       * or the records it is newly entitled to stay invisible for ever.
+       *
+       * SCOPE_V is bumped whenever an entitlement widens. It went to v2 when the
+       * office login gained the review stores: without this every office device
+       * would keep drawing an empty leaderboard, because the whole review backlog
+       * sits behind a cursor it ran past months ago. A plain role marker would be
+       * wrong here -- shared yard phones switch user all day, and re-reading the
+       * table on every switch is a cost nobody asked for. */
+      const SCOPE_V = 'v2';
+      const scope = (PII_ROLES.includes(j.user.role) ? 'full' : 'redacted') + ':' + SCOPE_V;
+      const had = ls.getItem('pullScope') || '';
+      const widened = had.indexOf('redacted') === 0 && scope.indexOf('full') === 0;
+      const entitlementMoved = !!had && had.slice(had.indexOf(':') + 1) !== SCOPE_V;
+      if (widened || entitlementMoved) {
+        lastRev = 0; ls.removeItem('lastRev');
+        // Both, always. Rewinding one cursor and not the other is how a login that
+        // just gained an entitlement would re-read everything except the stores it
+        // gained -- the exact failure this rewind exists to cure.
+        lastRevDeferred = 0; ls.removeItem('lastRevDeferred');
+      }
+      ls.setItem('pullScope', scope);
+      tick();
+      return { user: j.user };
+    } catch (e) {
+      return { offline: true };                  // can't reach server → caller falls back
+    } finally {
+      if (to) clearTimeout(to);
+    }
+  }
+  function logout() { token = ''; ls.removeItem('token'); }
+  // The person using the app now. Local changes are recorded as theirs.
+  function setActor(uid) { actor = uid || ''; ls.setItem('syncActor', actor); }
+  const now = () => Date.now() + clockOffset;
+
+  /* Wake the backend before it is needed.
+   *
+   * This runs on serverless: an idle container is torn down, and the next
+   * request pays the cold start — measured at ~10s against production, with the
+   * Postgres connect on top. Calling this when the PIN pad opens buys the two to
+   * three seconds somebody spends typing four digits, which is usually the whole
+   * difference between "instant" and "is it broken?". Deliberately fire and
+   * forget: nothing waits on it and a failure changes nothing. */
+  let _warmedAt = 0;
+  function warmUp() {
+    const now = Date.now();
+    if (now - _warmedAt < 30000) return;          // already warm enough
+    _warmedAt = now;
+    try {
+      const c = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+      if (c) setTimeout(() => c.abort(), 9000);
+      fetch(baseUrl() + '/health', { signal: c ? c.signal : undefined, cache: 'no-store' })
+        .catch(() => {});
+    } catch (e) { /* offline — the login will fall back to the device PIN */ }
+  }
+
+  /* The login roster, with no token. A device that has never synced cannot pull,
+   * and cannot get a token without first picking a name off the login screen —
+   * which is built from the very roster it is missing. This breaks that circle.
+   * Returns id/name/role only; the server sends no credential of any kind. */
+  async function roster() {
+    const res = await fetch(baseUrl() + '/roster', { headers: { 'Accept': 'application/json' } });
+    if (!res.ok) throw new Error('roster ' + res.status);
+    const j = await res.json();
+    return Array.isArray(j.users) ? j.users : [];
+  }
+
+  /* Sessions last 12 hours. When one expired, pull() threw, tick() caught it and
+   * set "Offline" — so a device that had simply been signed in too long looked
+   * exactly like one in a tunnel, kept re-sending a dead token every four
+   * seconds, and silently received nothing for as long as the app stayed open.
+   * Records created elsewhere never arrived and nobody was told.
+   *
+   * Now the dead token is dropped and the state says so, so the app can ask for
+   * a sign-in instead of blaming the network. */
+  function sessionDead(where) {
+    token = ''; ls.removeItem('token');
+    const e = new Error('session expired — sign in again (' + where + ' 401)');
+    e.sessionExpired = true;
+    return e;
+  }
+
+  // Owner/supervisor: materialize server login accounts for the whole synced crew
+  // roster (drivers/conductors) so they can authenticate online, each with their
+  // own PIN, and their writes carry a real, server-verified identity.
+  // Returns { created, reset, pins: {userId: pin} } or throws (offline / not authed).
+  // `pins` holds every PIN the server just set — it keeps only their hashes.
+  async function registerRoster(crew) {
+    // The bundled seed loads crew with notify=false (never pushed), so the server
+    // has no crew records to scan — we SEND the roster the owner device holds.
+    const res = await fetch(baseUrl() + '/auth/register-roster', {
+      method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ crew: crew || [] }),
+    });
+    if (!res.ok) throw new Error('registerRoster ' + res.status);
+    return await res.json();
+  }
+
+  /* Owner: delete a login for good. Tombstoning the synced roster row takes the
+   * name off every login screen, but the credential itself lives in the server's
+   * own users table and survives that — so an account removed only client-side
+   * could still authenticate. This removes it. */
+  async function deleteStaff(id) {
+    const res = await fetch(baseUrl() + '/auth/users/delete', {
+      method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ id }),
+    });
+    let j = {}; try { j = await res.json(); } catch (e) { /* ignore */ }
+    if (!res.ok) throw new Error(j.error || ('deleteStaff ' + res.status));
+    return j;
+  }
+
+  /* Owner/supervisor: correct the name on an account.
+   *
+   * The login screen reads the synced `users` record, so renaming there is
+   * enough for a device that has synced — but a brand-new device falls back to
+   * the server roster, which is a different table. This moves both. */
+  async function renameStaff(id, name) {
+    const res = await fetch(baseUrl() + '/auth/users/rename', {
+      method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ id, name }),
+    });
+    let j = {}; try { j = await res.json(); } catch (e) { /* ignore */ }
+    if (!res.ok) throw new Error(j.error || ('renameStaff ' + res.status));
+    return j;
+  }
+
+  // Owner/supervisor: create a staff account on the server.
+  async function addStaff({ name, role, pin }) {
+    const res = await fetch(baseUrl() + '/auth/users', {
+      method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ name, role, pin }),
+    });
+    if (!res.ok) throw new Error('addStaff ' + res.status);
+    return (await res.json()).user;
+  }
+
+  // AI advisor via the server proxy (key stays server-side). Returns
+  // {text} on success, {configured:true,error} if the server's AI errored,
+  // or {configured:false} when the server has no AI key / is unreachable
+  // (caller then decides whether to use a local-key dev fallback).
+  async function ai({ question, context, biz }) {
+    try {
+      const res = await fetch(baseUrl() + '/ai', {
+        method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ question, context, biz }),
+      });
+      if (res.status === 501 || res.status === 401) return { configured: false };  // no server key / not authed → let caller fall back
+      if (res.status === 429) return { configured: true, error: 'Daily AI limit reached — try again tomorrow' };
+      if (res.status === 403) return { configured: true, error: 'The AI advisor is for the owner and supervisors' };
+      if (!res.ok) return { configured: true, error: 'AI server error ' + res.status };
+      const j = await res.json();
+      return { text: j.text || '', looked: j.looked || [] };
+    } catch (e) { return { configured: false }; }
+  }
+  // eChallan lookup for one registration. Server-side proxy — the API key never
+  // reaches the device. Each call spends a billable credit upstream, so callers
+  // must be user-initiated, never a background refresh.
+  //   { challans, pendingCount, pendingFine, creditsLeft, ... } on success
+  //   { configured:false } when the server has no key or we aren't signed in
+  //   { error }            for upstream failures, incl. credits exhausted
+  async function challans(rc) {
+    try {
+      const res = await fetch(baseUrl() + '/challans?rc_no=' + encodeURIComponent(rc), {
+        headers: authHeaders(),
+      });
+      if (res.status === 501 || res.status === 401) return { configured: false };
+      if (res.status === 403) return { error: 'Only the owner or supervisor can check challans' };
+      if (res.status === 402) return { error: 'eChallan credits exhausted — top up to check more buses' };
+      if (!res.ok) return { error: 'Challan lookup failed (' + res.status + ')' };
+      return await res.json();
+    } catch (e) { return { configured: false }; }
+  }
+  // ITS fallback: look up to 10 review PNRs in ITS (owner/supervisor). The server keeps the trip
+  // and the crew member the driver's number matches; it arrives here through the normal pull.
+  async function itsLookup(pnrs, diag) {
+    try {
+      const res = await fetch(baseUrl() + '/its/lookup', {
+        method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify(diag ? { pnrs, diag: true } : { pnrs }),
+      });
+      let j = {};
+      try { j = await res.json(); } catch (e) { /* not JSON */ }
+      if (res.status === 503 || res.status === 501) return { configured: false, error: j.error };
+      if (res.status === 401) return { error: 'Sign in again to look up in ITS' };
+      if (res.status === 403) return { error: 'Only the owner or a supervisor can look up in ITS' };
+      if (!res.ok && !j.lookedUp) return { error: j.error || ('ITS lookup failed (' + res.status + ')') };
+      return j;
+    } catch (e) { return { error: 'No connection to the server' }; }
+  }
+  // Ask the server to read new reviews for whose fault they are (owner/supervisor).
+  async function aiReviews() {
+    try {
+      const res = await fetch(baseUrl() + '/ai/reviews', { method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }), body: '{}' });
+      let j = {};
+      try { j = await res.json(); } catch (e) { /* not JSON */ }
+      return res.ok ? j : { error: j.error || ('failed (' + res.status + ')') };
+    } catch (e) { return { error: 'No connection to the server' }; }
+  }
+  // Ask the server to have Claude match typed redBus names to crew (office roles).
+  async function aiNames() {
+    try {
+      const res = await fetch(baseUrl() + '/ai/names', { method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }), body: '{}' });
+      let j = {};
+      try { j = await res.json(); } catch (e) { /* not JSON */ }
+      return res.ok ? j : { error: j.error || ('failed (' + res.status + ')') };
+    } catch (e) { return { error: 'No connection to the server' }; }
+  }
+  // Ask the server to have Claude look at new gate check photos (owner/supervisor).
+  async function aiGate() {
+    try {
+      const res = await fetch(baseUrl() + '/ai/gate', { method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }), body: '{}' });
+      let j = {};
+      try { j = await res.json(); } catch (e) { /* not JSON */ }
+      return res.ok ? j : { error: j.error || ('failed (' + res.status + ')') };
+    } catch (e) { return { error: 'No connection to the server' }; }
+  }
+  // Ask the server to have Claude look at new returned-part photos (owner/supervisor).
+  async function aiCore() {
+    try {
+      const res = await fetch(baseUrl() + '/ai/core', { method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }), body: '{}' });
+      let j = {};
+      try { j = await res.json(); } catch (e) { /* not JSON */ }
+      return res.ok ? j : { error: j.error || ('failed (' + res.status + ')') };
+    } catch (e) { return { error: 'No connection to the server' }; }
+  }
+  // Ask the server to have Claude draft job cards from new driver reports (owner/supervisor).
+  async function aiReports() {
+    try {
+      const res = await fetch(baseUrl() + '/ai/reports', { method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }), body: '{}' });
+      let j = {};
+      try { j = await res.json(); } catch (e) { /* not JSON */ }
+      return res.ok ? j : { error: j.error || ('failed (' + res.status + ')') };
+    } catch (e) { return { error: 'No connection to the server' }; }
+  }
+  // Weekly coaching notes: draft (office), decide (office), and the crew member's own approved ones.
+  async function _post(path, body) {
+    try {
+      const res = await fetch(baseUrl() + path, { method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify(body || {}) });
+      let j = {};
+      try { j = await res.json(); } catch (e) { /* not JSON */ }
+      return res.ok ? j : { error: j.error || ('failed (' + res.status + ')') };
+    } catch (e) { return { error: 'No connection to the server' }; }
+  }
+  const aiCoaching = () => _post('/ai/coaching');
+  const aiDigest = (now) => _post('/ai/digest', now ? { now: true } : {});
+  const coachDecide = (id, decision, hi) => _post('/ai/coaching/decide', { id, decision, hi });
+  async function myCoaching() {
+    try {
+      const res = await fetch(baseUrl() + '/my/coaching', { headers: authHeaders(), cache: 'no-store' });
+      return res.ok ? await res.json() : null;
+    } catch (e) { return null; }
+  }
+  // Read a supplier bill photo with Claude (store/owner/supervisor): {bill, checks} or {error}.
+  async function aiBill(photo) {
+    try {
+      const res = await fetch(baseUrl() + '/ai/bill', { method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ photo }) });
+      let j = {};
+      try { j = await res.json(); } catch (e) { /* not JSON */ }
+      return res.ok ? j : { error: j.error || ('failed (' + res.status + ')'), status: res.status };
+    } catch (e) { return { error: 'No connection to the server' }; }
+  }
+  // A driver/conductor's own redBus reviews, traced on the server (their phone is not sent the
+  // reviews themselves). null when offline or signed out: the app keeps showing the last copy.
+  async function myReviews() {
+    try {
+      const res = await fetch(baseUrl() + '/my/reviews', { headers: authHeaders(), cache: 'no-store' });
+      if (!res.ok) return null;
+      return await res.json();
+    } catch (e) { return null; }
+  }
+  // Claude vision: send a photo (data URL) + prompt → text. For part-wear grading
+  // and serial OCR. { text } on success, { configured:false } if no server key.
+  async function aiVision(image, prompt) {
+    try {
+      const res = await fetch(baseUrl() + '/ai/vision', {
+        method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ image, prompt }),
+      });
+      if (res.status === 501 || res.status === 401) return { configured: false };
+      if (!res.ok) return { configured: true, error: 'AI vision error ' + res.status };
+      return { text: (await res.json()).text || '' };
+    } catch (e) { return { configured: false }; }
+  }
+
+  // Pull the fleet AirFi has pushed telemetry for — list of {reg, odometer, lastPing, lat, lng, speedKph, ignition}.
+  async function fleet() {
+    try {
+      const res = await fetch(baseUrl() + '/gps/fleet', { headers: authHeaders() });
+      if (!res.ok) return [];
+      return (await res.json()).buses || [];
+    } catch (e) { return []; }
+  }
+  // Latest position for one registration (used as a fallback when /gps/fleet
+  // doesn't carry coordinates yet). Returns the telemetry record or null.
+  async function latest(reg) {
+    try {
+      const res = await fetch(baseUrl() + '/gps/latest?reg=' + encodeURIComponent(reg), { headers: authHeaders() });
+      if (!res.ok) return null;
+      return await res.json();
+    } catch (e) { return null; }
+  }
+
+  // One-time: hand the server crew phones and Drive folder links that used to ship
+  // in the public bundle. Server merges only fields it is missing.
+  async function backfillContacts(records) {
+    const res = await fetch(baseUrl() + '/admin/backfill-contacts', {
+      method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ records }),
+    });
+    if (!res.ok) throw new Error('backfillContacts ' + res.status);
+    return await res.json();
+  }
+
+  // Delete photos that were replaced or whose record was removed (managers).
+  async function deleteUploads(urls) {
+    const list = (urls || []).filter((u) => typeof u === 'string' && /^https?:/.test(u));
+    if (!list.length || !token) return 0;
+    try {
+      const res = await fetch(baseUrl() + '/upload/delete', {
+        method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ urls: list }),
+      });
+      return res.ok ? ((await res.json()).removed || 0) : 0;
+    } catch (e) { return 0; }
+  }
+
+  // Telemetry for one bus (live from the tracker, or the demo simulator). Needs a
+  // session: a bus's live position is not public.
+  async function gps(bus) {
+    const res = await fetch(baseUrl() + '/gps?busId=' + encodeURIComponent(bus.id) +
+      '&odo=' + (bus.odometer || 0) + '&reg=' + encodeURIComponent(bus.regNo || ''), { headers: authHeaders() });
+    if (!res.ok) throw new Error('gps ' + res.status);
+    return await res.json();
+  }
+
+  // Change a user's PIN on the server (self, or owner resetting staff).
+  async function setPin(userId, pin) {
+    const res = await fetch(baseUrl() + '/auth/setpin', {
+      method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ userId, pin }),
+    });
+    if (!res.ok) throw new Error('setPin ' + res.status);
+    return true;
+  }
+
+  // Upload a captured photo to object storage; returns a URL, or null on failure
+  // (caller keeps the inline data URL as an offline fallback).
+  // Why the last upload failed, for the caller to show. Every photo in the
+  // system was stored inline because this returned a bare null: offline, a dead
+  // session and a server that cannot store photos at all were indistinguishable,
+  // so nobody knew there was anything to fix.
+  let lastUploadError = '';
+  async function uploadPhoto(dataUrl) {
+    try {
+      const res = await fetch(baseUrl() + '/upload', {
+        method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ data: dataUrl }),
+      });
+      if (!res.ok) {
+        let j = {}; try { j = await res.json(); } catch (e) { /* ignore */ }
+        lastUploadError = res.status === 401 ? 'signedout'
+          : res.status === 503 ? 'storage'
+          : res.status === 413 ? 'toobig'
+          : (j.error || ('http ' + res.status));
+        return null;
+      }
+      lastUploadError = '';
+      return (await res.json()).url || null;
+    } catch (e) { lastUploadError = 'offline'; return null; }
+  }
+  const uploadError = () => lastUploadError;
+
+  // Called by db.js on every LOCAL write.
+  // A record's own key path. Nearly every store is keyed by `id`; `meta` is
+  // keyed by `key` and `challans` by the registration.
+  const keyField = (store) => (store === 'meta' ? 'key' : store === 'challans' ? 'rc' : 'id');
+  function markDirty(store, id) {
+    if (!STORES.includes(store)) return;
+    // The seed flag records that THIS device has loaded the bundled data. It
+    // means nothing anywhere else, and syncing it would tell a fresh phone it
+    // had already seeded.
+    if (store === 'meta' && id !== 'garage') return;
+    const key = store + '|' + id;
+    outbox.add(key);
+    if (actor) outboxBy[key] = actor;
+    saveOutbox();
+    kick();
+  }
+  function kick() { clearTimeout(kickTimer); kickTimer = setTimeout(tick, 600); }
+
+  /* Is this feature turned on? False unless the server named it, so a flag
+   * nobody has set behaves exactly as the code did before flags existed — and
+   * a phone that has never synced is not left guessing. Flip one in Vercel's
+   * FEATURE_FLAGS; every device picks it up on its next pull, no deploy. */
+  function flagOn(name) { return flags.indexOf(String(name)) >= 0; }
+  function flagList() { return flags.slice(); }
+
+  /* Read a 429 and stand down for as long as it asked. Returns the Error to
+   * throw, so the caller reads `throw await throttled(res, 'pull')`. */
+  async function throttled(res, where) {
+    let secs = 0;
+    try { secs = Number(((await res.clone().json()) || {}).retryAfterSec) || 0; } catch (e) { /* no body */ }
+    if (!secs) secs = Number(res.headers.get('Retry-After')) || 60;
+    // Never trust it blindly: a bad value must not park the yard for a day.
+    secs = Math.max(5, Math.min(secs, 900));
+    pauseUntil = Date.now() + secs * 1000;
+    ls.setItem('syncPauseUntil', String(pauseUntil));
+    const e = new Error('server asked us to slow down — retrying in ' + secs + 's');
+    e.throttled = true;
+    return e;
+  }
+
+  async function tick() {
+    if (busy) return;
+    // Standing down because the server said so. Not an error and not offline:
+    // the device is working, it is just waiting its turn.
+    if (pauseUntil && Date.now() < pauseUntil) {
+      setStatus('waiting');
+      return;
+    }
+    busy = true;
+    try {
+      // A fresh device seeds ~2,900 records from the bundled GS_SEED, and every
+      // seeded write marks the record dirty — so the outbox starts full. push()
+      // sends ONE RECORD PER REQUEST, so pushing first meant thousands of
+      // sequential requests before the device ever pulled once: it sat on stale
+      // bundled data for a quarter of an hour and looked permanently stuck.
+      // With no cursor yet, learn the server's state first.
+      if (!lastRev) { await pull(); await push(); }
+      else { await push(); await pull(); }
+      lastSyncAt = Date.now(); ls.setItem('lastSyncAt', String(lastSyncAt));
+      setStatus('synced');
+      // Clear the STORED copy too, not just this one in memory. It was only
+      // cleared in memory, and the next time the app started it read the old
+      // message back out of storage — so "session expired — sign in again" sat
+      // in Me → Sync for ever, through every successful sync and every fresh
+      // sign-in, telling someone to fix a problem that was already fixed.
+      lastError = ''; lastErrorAt = 0;
+      failStreak = 0;                        // one good tick clears the backoff
+      pauseUntil = 0; ls.removeItem('syncPauseUntil');
+      ls.removeItem('lastSyncError'); ls.removeItem('lastSyncErrorAt');
+    } catch (e) {
+      // "Offline" was shown for a refused token, a 500, a broken cursor and a
+      // flat tyre alike, so a device that had been failing for days looked the
+      // same as one in a tunnel. Keep the reason; Me → Sync shows it.
+      lastError = (e && e.message) ? String(e.message) : 'sync failed';
+      lastErrorAt = Date.now();
+      // A 429 already carries the server's own wait; anything else backs off
+      // on its own so a struggling server is not held down by its clients.
+      if (!(e && e.throttled)) {
+        failStreak += 1;
+        const wait = backoffMs();
+        if (wait > 4000) { pauseUntil = Date.now() + wait; ls.setItem('syncPauseUntil', String(pauseUntil)); }
+      }
+      ls.setItem('lastSyncError', lastError);
+      ls.setItem('lastSyncErrorAt', String(lastErrorAt));
+      setStatus(e && e.sessionExpired ? 'signedout' : 'offline');
+    } finally {
+      busy = false;
+    }
+  }
+
+  // Build the wire record for an outbox key. Reads tombstones too (so deletes
+  // sync) via the raw getter. Returns null if the row truly vanished.
+  async function recordForKey(key) {
+    const i = key.indexOf('|');
+    const store = key.slice(0, i), id = key.slice(i + 1);
+    const rec = (DB._rawGet ? await DB._rawGet(store, id) : await DB.get(store, id));
+    if (!rec) return null;
+    return { store, id, data: rec, updatedAt: rec.updatedAt || 0 };
+  }
+
+  async function push() {
+    await flushPhotos();                       // get offline photos a real URL first
+    if (!outbox.size) return;
+    // Bounded per tick, so a large outbox can never starve pull(). The rest goes
+    // out on following ticks; the poller runs every 4s.
+    const me = tokenUser();
+    const keys = [...outbox].filter((k) => !quarantine[k] && (!outboxBy[k] || outboxBy[k] === me))
+      .slice(0, PUSH_PER_TICK);
+    if (!keys.length) return;
+    setStatus('syncing');
+
+    // ONE request for the whole batch.
+    //
+    // This used to send one record per request, sequentially, to keep a single
+    // poison record from 4xx-ing the batch. It worked, and it made sync feel
+    // broken: forty pending records meant forty round trips in a row against a
+    // serverless function, so a storekeeper who counted a shelf offline watched
+    // a spinner for most of a minute once the signal came back.
+    //
+    // The isolation is kept without the round trips. The server applies each
+    // record independently and now names the ones it turned away, so a mixed
+    // batch commits what it can and reports the rest. Against a server too old
+    // to answer that way we fall back to the one-at-a-time walk below, which is
+    // the only way to learn which record it objected to.
+    const recs = [];
+    const byKey = new Map();
+    let bytes = 0;
+    for (const key of keys) {
+      const rec = await recordForKey(key);
+      if (!rec) { outbox.delete(key); saveOutbox(); continue; }   // row vanished
+      // A copy with private fields removed must never be written back: the
+      // server would store the gaps as the record.
+      if (rec.data && rec.data._redacted) { outbox.delete(key); saveOutbox(); continue; }
+      // Measure before adding. A single record over the budget still goes on
+      // its own, because dropping it would wedge the outbox forever — better
+      // one oversized request that may fail than a row that is never tried.
+      const size = JSON.stringify(rec).length;
+      if (recs.length && bytes + size > PUSH_MAX_BYTES) break;
+      recs.push(rec);
+      bytes += size;
+      byKey.set(rec.store + '|' + rec.id, key);
+    }
+    if (!recs.length) return;
+
+    let res;
+    try {
+      const bound = boundRequest(PUSH_TIMEOUT_MS);
+      try {
+        res = await fetch(baseUrl() + '/push', {
+          method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify({ deviceId, records: recs }),
+          signal: bound.signal,
+        });
+      } finally { bound.clear(); }
+    } catch (e) { throw e; }                    // offline → retry later, keep keys
+
+    if (res.status === 401) throw sessionDead('push');
+    if (res.status === 429) throw await throttled(res, 'push');
+    if (res.status >= 500) throw new Error('push ' + res.status);
+
+    let body = {};
+    try { body = await res.json(); } catch (e) { body = {}; }
+
+    if (res.ok && Array.isArray(body.refused)) {
+      // The server took what it could and named what it would not.
+      const refusals = [];
+      for (const r of body.refused) {
+        const key = byKey.get(r.store + '|' + r.id);
+        if (!key) continue;
+        quarantine[key] = { at: Date.now(), status: 403, reason: r.reason || '' };
+        refusals.push(r.reason || 'refused');
+        byKey.delete(r.store + '|' + r.id);
+      }
+      saveQuarantine();
+      // A refused write is the quietest way to lose work: the change sits in
+      // this phone's database, "Waiting to send" drops to zero, and the server
+      // never has it. The server says WHY — pass it on.
+      if (refusals.length && cbRefused) cbRefused(refusals.length, refusals);
+      for (const key of byKey.values()) outbox.delete(key);   // everything else landed
+      saveOutbox();
+      return;
+    }
+
+    if (res.ok) {
+      // An older server: no `refused` list, but a 200 means it applied what it
+      // understood. Clearing the batch is right — a record it silently skipped
+      // would otherwise be resent forever.
+      for (const key of byKey.values()) outbox.delete(key);
+      saveOutbox();
+      return;
+    }
+
+    // A 4xx for the batch as a whole. Which record caused it is unknowable from
+    // here, so walk them once to find out — the slow path, taken only when
+    // something is actually wrong.
+    for (const key of byKey.values()) {
+      const rec = await recordForKey(key);
+      if (!rec) { outbox.delete(key); saveOutbox(); continue; }
+      let one;
+      try {
+        const bound = boundRequest(PUSH_TIMEOUT_MS);
+        try {
+          one = await fetch(baseUrl() + '/push', {
+            method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
+            body: JSON.stringify({ deviceId, records: [rec] }),
+            signal: bound.signal,
+          });
+        } finally { bound.clear(); }
+      } catch (e) { throw e; }
+      if (one.ok) { outbox.delete(key); saveOutbox(); continue; }
+      if (one.status === 401) throw sessionDead('push');
+      if (one.status === 429) throw await throttled(one, 'push');
+      if (one.status >= 400 && one.status < 500 && one.status !== 429) {
+        let why = '';
+        try { why = ((await one.json()) || {}).error || ''; } catch (e) { /* no body */ }
+        quarantine[key] = { at: Date.now(), status: one.status, reason: why };
+        saveQuarantine();
+        outbox.delete(key); saveOutbox();
+        if (cbRefused) cbRefused(1, [why || ('server said ' + one.status)]);
+        continue;
+      }
+      throw new Error('push ' + one.status);    // lock/5xx → stop, retry later
+    }
+  }
+
+  // ---- Offline photo queue --------------------------------------------------
+  // Feature code calls Sync.queuePhoto(store,id,field,dataUrl) when an upload
+  // fails (offline). We store the data URL inline on the record now, remember the
+  // key, and re-upload + patch the record to a server URL once back online.
+  function queuePhoto(store, id, field, dataUrl) {
+    if (!dataUrl) return;
+    photoQ[store + '|' + id + '|' + field] = dataUrl;
+    savePhotoQ();
+    kick();
+  }
+  async function flushPhotos() {
+    const keys = Object.keys(photoQ);
+    if (!keys.length || !token) return;
+    for (const qk of keys) {
+      const parts = qk.split('|');
+      const store = parts[0], id = parts[1], field = parts.slice(2).join('|');
+      const dataUrl = photoQ[qk];
+      if (typeof dataUrl !== 'string' || !dataUrl.startsWith('data:')) { delete photoQ[qk]; savePhotoQ(); continue; }
+      const url = await uploadPhoto(dataUrl);
+      if (!url) return;                          // still offline → try again later
+      // Patch the record: swap the inline data URL for the hosted URL. Supports a
+      // plain string field or a photos[] array containing the data URL.
+      const rec = (DB._rawGet ? await DB._rawGet(store, id) : await DB.get(store, id));
+      if (rec) {
+        if (Array.isArray(rec[field])) {
+          rec[field] = rec[field].map((p) => (p === dataUrl ? url : p));
+        } else if (rec[field] === dataUrl || rec[field] == null) {
+          rec[field] = url;
+        }
+        await DB.put(store, rec);                // dirties → pushes the URL out
+      }
+      delete photoQ[qk]; savePhotoQ();
+    }
+  }
+
+  /* Drain every page, not one per call.
+   *
+   * The server pages by rev and says `more` when it stopped early, but this used
+   * to fetch a single page and return — so one pull moved the cursor 600 records
+   * and no further. The background tick eventually caught up, but anything that
+   * pulls once (opening the app, the login screen refreshing its roster) did not:
+   * a device several pages behind saw only the OLDEST records it was missing,
+   * and the newest — a staff member added this morning, an archived record —
+   * arrive last and so never arrived at all. */
+  async function pull() {
+    /* Deferring is worth something on a FIRST sync and nothing afterwards, and the
+     * plan for that is in pullapply.js so it can be tested: shipping the version
+     * that ran both drains every tick cost a second request every four seconds on
+     * every device in the yard, to fetch nothing, and only showed up by watching
+     * production. See drainPlan() for what each name means and why. */
+    for (const step of PullApply.drainPlan(lastRev, lastRevDeferred)) {
+      if (step === 'first') {
+        /* Its own cursor, thrown away afterwards: this pass exists only to put
+         * the first screen's rows on the device early. The full drain below still
+         * starts from zero and re-sends them, which is what keeps the main cursor
+         * honest -- nothing is skipped on the strength of this shortcut. */
+        await drain(() => pullPage({ only: PullApply.FIRST_STORES, scratch: true }));
+      } else if (step === 'defer') await drain(() => pullPage({ defer: DEFERRED_STORES }));
+      else if (step === 'only') await drain(() => pullPage({ only: DEFERRED_STORES }));
+      else await drain(() => pullPage());
+    }
+  }
+
+  async function drain(step) {
+    let guard = 0;
+    for (;;) {
+      const more = await step();
+      if (!more) return;
+      if (++guard > 200) return;           // a cursor that never advances must not spin forever
+    }
+  }
+
+  /* The old per-record path, kept for the two cases a batch cannot serve: a store
+   * that will not read at all, and a batch that aborted because one row in it
+   * could not be stored. Reading and deciding again here is deliberate rather than
+   * wasteful -- it is the only way to learn WHICH row failed, and a record written
+   * by another tab between the batch and this retry should win on its own merits
+   * rather than be overwritten by a decision taken before it existed. */
+  async function applyEachInTurn(rows, onStored, onFailed, onConflict) {
+    for (const r of rows) {
+      const key = r.store + '|' + r.id;
+      let local = null;
+      try {
+        local = DB._rawGet ? await DB._rawGet(r.store, r.id) : await DB.get(r.store, r.id);
+      } catch (e) { onFailed(r, e); continue; }
+      const one = {}; one[key] = local;
+      const d = PullApply.decidePage([r], one, { now: Date.now(), inOutbox: (k) => outbox.has(k) });
+      if (d.conflicts.length) { d.conflicts.forEach(onConflict); saveOutbox(); }
+      if (!d.winners.length) continue;
+      try { await DB.putRaw(r.store, r.data); onStored(r); }
+      catch (e) { onFailed(r, e); }
+    }
+  }
+
+  async function pullPage(opts) {
+    setStatus('syncing');
+    const only = (opts && opts.only) || null;
+    const defer = (opts && opts.defer) || null;
+    const scratch = !!(opts && opts.scratch);
+    const since = scratch ? scratchRev : only ? lastRevDeferred : lastRev;
+    const filter = only ? '&store=' + encodeURIComponent(only.join(','))
+      : defer ? '&defer=' + encodeURIComponent(defer.join(',')) : '';
+    // Bounded, and the bound covers reading the body too -- a stall can just as
+    // easily be mid-response as before the first byte, so clearing the timer the
+    // moment the headers land would leave the part that carries the records
+    // unguarded.
+    const bound = boundRequest(PULL_TIMEOUT_MS);
+    let j;
+    try {
+      const res = await fetch(baseUrl() + '/pull?since=' + since + '&deviceId=' + encodeURIComponent(deviceId) + filter,
+        { headers: authHeaders(), signal: bound.signal });
+      if (res.status === 401) throw sessionDead('pull');
+      if (res.status === 429) throw await throttled(res, 'pull');
+      if (!res.ok) throw new Error('pull ' + res.status);
+      j = await res.json();
+    } finally { bound.clear(); }
+    if (typeof j.serverTime === 'number') { clockOffset = j.serverTime - Date.now(); ls.setItem('clockOffset', String(clockOffset)); }
+    if (typeof j.tableMax === 'number' && j.tableMax > tableMax) {
+      tableMax = j.tableMax; ls.setItem('tableMax', String(tableMax));
+    }
+    // Flags ride along on the pull rather than needing a request of their own,
+    // which is the difference between being read and not being read.
+    if (Array.isArray(j.flags)) { flags = j.flags; ls.setItem('featureFlags', JSON.stringify(flags)); }
+    let applied = 0; let conflicts = 0; let holdRev = 0;
+
+    /* Apply the page a STORE at a time, not a record at a time.
+     *
+     * This loop used to do two awaited IndexedDB transactions per record -- a get
+     * to compare against the local copy, then a put. At 600 records to a page and
+     * 135 pages in a fleet-sized first sync that is ~162,000 serialised
+     * transactions: measured at 277ms per page against 54ms for the same work as
+     * one transaction each way, so roughly 37 seconds of IndexedDB before any data
+     * appears, on a fast machine, and minutes on the office PCs and the drivers'
+     * phones. That is most of what "the app takes forever after login" was.
+     *
+     * Which copy wins did NOT change. That rule moved to pullapply.js so it could
+     * be tested on its own, and test_pullapply.js checks it against a transcription
+     * of this loop's old condition across every combination of timestamp and
+     * redaction flag. Everything the old comments protected is still protected;
+     * each fallback below says which failure it is for.
+     */
+    const usable = [];
+    for (const r of (j.records || [])) {
+      if (!STORES.includes(r.store) || !r.data) continue;
+      // A record is stored under its own key, so that key must be the one the
+      // server authorised. A mismatch would overwrite some OTHER record; a
+      // non-object cannot be stored at all and would stall the cursor forever.
+      if (typeof r.data !== 'object' || Array.isArray(r.data)) continue;
+      if (String(r.data[keyField(r.store)]) !== String(r.id)) continue;
+      usable.push(r);
+    }
+
+    const noteStored = (r) => {
+      const key = r.store + '|' + r.id;
+      applied++;
+      if (pullSkips[key]) { delete pullSkips[key]; savePullSkips(); }
+    };
+    /* A record that will not store must not be walked past. The cursor used to
+     * advance to the page's maxRev regardless, so the server never offered that
+     * record again and the device was quietly missing something every other device
+     * had -- 22 crew added on one phone, five of them showing on another. */
+    const noteFailure = (r, e) => {
+      const key = r.store + '|' + r.id;
+      const prev = pullSkips[key] || { tries: 0 };
+      pullSkips[key] = { tries: prev.tries + 1, rev: r.rev || 0, at: Date.now(), why: String((e && e.name) || e) };
+      savePullSkips();
+      // Hold the cursor just before it so the next pull brings it back.
+      if (pullSkips[key].tries < PULL_STORE_TRIES && r.rev && (!holdRev || r.rev < holdRev)) holdRev = r.rev;
+      console.warn('pull: could not store', key, e);
+    };
+    const noteConflict = (key) => { conflicts++; outbox.delete(key); };
+
+    const grouped = PullApply.byStore(usable);
+    for (const store of Object.keys(grouped)) {
+      const rows = grouped[store];
+      let locals = null;
+      try {
+        const got = await DB.bulkRawGet(store, rows.map((r) => r.id));
+        locals = {};
+        for (const r of rows) locals[r.store + '|' + r.id] = got[r.id] || null;
+      } catch (e) {
+        // The store would not even read. Fall back to one record at a time, which
+        // reads, decides and writes each on its own and records its own failure,
+        // so one unreadable store cannot cost the rest of the page.
+        locals = null;
+      }
+      if (!locals) { await applyEachInTurn(rows, noteStored, noteFailure, noteConflict); continue; }
+
+      const d = PullApply.decidePage(rows, locals, { now: Date.now(), inOutbox: (k) => outbox.has(k) });
+      /* Last-write-wins still applies -- the server copy is newer -- but a local
+       * editor whose change was superseded has to be told, or they keep trusting a
+       * screen that has already been overruled. */
+      d.conflicts.forEach(noteConflict);
+      if (d.conflicts.length) saveOutbox();
+      if (!d.winners.length) continue;
+      try {
+        await DB.bulkPutRaw(store, d.winners.map((r) => r.data));
+        d.winners.forEach(noteStored);
+      } catch (e) {
+        // One bad row aborts the whole transaction, so NOTHING in this store
+        // landed. Redo it a record at a time to find which row it was and to hold
+        // the cursor at exactly that rev rather than at the whole page's.
+        await applyEachInTurn(d.winners, noteStored, noteFailure, noteConflict);
+      }
+    }
+    const before = since;
+    if (typeof j.maxRev === 'number') {
+      // Never past a record this device still owes itself.
+      const next = holdRev ? Math.min(j.maxRev, holdRev - 1) : j.maxRev;
+      if (next > since) {
+        if (scratch) { scratchRev = next; }        // in memory only; never stored
+        else if (only) {
+          lastRevDeferred = next; ls.setItem('lastRevDeferred', String(lastRevDeferred));
+        } else {
+          lastRev = next; ls.setItem('lastRev', String(lastRev));
+          // A page with no `defer` held every store, the deferred ones included, so
+          // their cursor is satisfied to the same point. Leaving it behind here is
+          // what would keep the catch-up drain running for ever.
+          if (!defer && next > lastRevDeferred) {
+            lastRevDeferred = next; ls.setItem('lastRevDeferred', String(lastRevDeferred));
+          }
+        }
+      }
+    }
+    const stuck = Object.keys(pullSkips).length;
+    if (stuck && cbStoreFail) cbStoreFail(stuck, pullSkips);
+    if (applied && cbApplied) await cbApplied(applied);
+    if (conflicts && cbConflict) await cbConflict(conflicts);
+    // Only keep going while the cursor is actually moving, so a server that
+    // reports `more` without advancing cannot loop us.
+    return !!j.more && (scratch ? scratchRev : only ? lastRevDeferred : lastRev) > before;
+  }
+
+  // One-time backfill for stores that were added to STORES after records already
+  // existed locally (they never went through markDirty, so they're absent from the
+  // outbox and stranded on this device). Enumerate the newly-synced stores and
+  // enqueue every live record so it reaches the server exactly once. Gated by a
+  // version flag; if it throws, the flag stays unset so it retries next start.
+  async function backfillOnce() {
+    const V = 'syncBackfill_compdefvendtrip_v1';
+    if (ls.getItem(V)) return;
+    const NEW = ['components', 'def', 'vendors', 'trips'];
+    try {
+      for (const store of NEW) {
+        const rows = (DB && DB.all) ? await DB.all(store) : [];
+        for (const r of rows) { if (r && r.id) outbox.add(store + '|' + r.id); }
+      }
+      saveOutbox();
+      ls.setItem(V, String(Date.now()));
+    } catch (e) { /* leave flag unset → retry on next start */ }
+  }
+
+  function start(opts = {}) {
+    cbStatus = opts.onStatus; cbApplied = opts.onApplied; cbConflict = opts.onConflict;
+    cbStoreFail = opts.onStoreFail || null;
+    cbRefused = opts.onRefused || null;
+    DB.onChange = markDirty;                 // wire the outbox to local writes
+    window.addEventListener('online', tick);
+    clearInterval(pollTimer);
+    pollTimer = setInterval(tick, 4000);     // background reconcile
+    backfillOnce().then(kick);               // enqueue any stranded records, then sync
+    tick();
+    healOnce();                              // once per device: re-read the table
+  }
+
+  /* The sync destination decides where every later PIN and session goes, so only
+   * a real server address is accepted: https anywhere, http only on this machine
+   * or the local network. Empty clears it back to the default. */
+  function validSyncUrl(u) {
+    if (!u) return true;
+    let x; try { x = new URL(u); } catch (e) { return false; }
+    if (x.username || x.password) return false;
+    if (x.protocol === 'https:') return true;
+    return x.protocol === 'http:' &&
+      /^(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(x.hostname);
+  }
+  function setUrl(u) {
+    u = (u || '').trim().replace(/\/+$/, '');
+    if (!validSyncUrl(u)) return false;
+    if (u) ls.setItem('syncUrl', u); else ls.removeItem('syncUrl');
+    tick();
+    return true;
+  }
+  // Re-download everything: rewind the cursor and pull the table again. Safe to
+  // run at any time — pull only overwrites a local record when the server copy
+  // is NEWER by updatedAt, and anything this device still owes the server is
+  // held in the outbox and pushed first.
+  function reset() {
+    ls.removeItem('lastRev'); lastRev = 0;
+    ls.removeItem('lastRevDeferred'); lastRevDeferred = 0;
+    ls.removeItem('tableMax'); tableMax = 0;
+    return tick();
+  }
+
+  /* One-time heal, on the deploy that fixed the paging bug above.
+   *
+   * Fixing the code does not fix the devices: a phone whose cursor has already
+   * run past records it never received will never ask for them again. So every
+   * device rewinds its cursor exactly once and re-reads the table. It costs one
+   * full sync, and it is the only way a fix reaches a device that is already
+   * wrong without somebody being talked through a menu. */
+  async function healOnce() {
+    const V = 'syncHeal_pullPaging_v1';
+    try {
+      if (ls.getItem(V)) return;
+      ls.setItem(V, String(Date.now()));   // set first: a failed heal must not retry on every boot
+      await reset();
+    } catch (e) { /* the 4s tick carries on regardless */ }
+  }
+  /* Has this device got everything the server had, last time it asked?
+   *
+   * tableMax of 0 means no pull has ever come back, so the honest answer is "we
+   * do not know" -- which must read as NOT complete, or a brand-new device would
+   * announce a complete replica while holding nothing but the bundled seed.
+   * A record the device could not store counts against it too: the cursor is held
+   * behind it, so the replica genuinely is short. */
+  const replicaState = () => PullApply.replicaState(lastRev, tableMax, Object.keys(pullSkips).length);
+  const info = () => ({ deviceId, lastRev, lastRevDeferred, tableMax,
+    behind: replicaState().behind, complete: replicaState().complete, pending: outbox.size,
+    heldForOthers: [...outbox].filter((k) => outboxBy[k] && outboxBy[k] !== actor).length, url: baseUrl(), status, authed: !!token, lastSyncAt, lastError, lastErrorAt, notStored: Object.keys(pullSkips).length,
+                        photosPending: Object.keys(photoQ).length, quarantined: Object.keys(quarantine).length });
+
+  // Sync-safe delete used by feature code: tombstone + dirty so the deletion
+  // propagates to every device (see DB.softDel).
+  function remove(store, id) { return DB.softDel(store, id).then(() => kick()); }
+  // Ids in one store that this device has changed but not yet pushed. The login
+  // screen needs them: it reconciles against the server roster, and an account
+  // created here while offline is not on that roster yet.
+  function pendingIds(store) {
+    const pre = store + '|';
+    return [...outbox].filter((k) => k.indexOf(pre) === 0).map((k) => k.slice(pre.length));
+  }
+  // Drain the quarantine so retried/fixed records get another chance.
+  function clearQuarantine() { quarantine = {}; saveQuarantine(); kick(); }
+
+  // Web-push: register this device's subscription, and fire a server test alert.
+  async function subscribePush(subscription, role) {
+    try {
+      const res = await fetch(baseUrl() + '/push/subscribe', {
+        method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ subscription, role }),
+      });
+      return res.ok;
+    } catch (e) { return false; }
+  }
+  async function pushTest() {
+    try {
+      const res = await fetch(baseUrl() + '/push/test', { method: 'POST', headers: authHeaders() });
+      return res.ok ? await res.json() : null;
+    } catch (e) { return null; }
+  }
+
+  return { start, tick, kick, setUrl, reset, info, login, logout, warmUp, roster, pendingIds, addStaff, deleteStaff, renameStaff, registerRoster, setPin, gps, validSyncUrl, backfillContacts, setActor, tokenUser, now, deleteUploads, ai, aiVision, challans, itsLookup, myReviews, aiReviews, aiNames, aiGate, aiBill, aiCore, aiReports, aiCoaching, coachDecide, myCoaching, aiDigest, fleet, latest, uploadPhoto,
+           queuePhoto, uploadError, remove, clearQuarantine, subscribePush, pushTest, flagOn, flagList,
+           get status() { return status; } };
+})();

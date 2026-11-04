@@ -1,0 +1,183 @@
+/* The screens, in the v2 design system.
+ *
+ * Named screens.css and not home.css because the pieces in it -- the card, the
+ * greeting, the KPI row, the triage row, the detail row -- are not the home's.
+ * They are what the app is built from, and each screen family that moves across
+ * finds most of its work already done here.
+ *
+ * Originally written for the home screens, in the v2 design system.
+ *
+ * Eight screens, one per role, built from four shared pieces -- the greeting, the
+ * KPI row, the triage row and the detail row. Moving the PIECES moves all eight,
+ * which is why this file is short and the change is not.
+ *
+ * Why anything is needed here at all: the markup keeps its original class names,
+ * and the live stylesheet still matches them. Inside the [data-v2] wrapper some
+ * tokens resolve to v2 values (--surface, --line, --ink, --accent, the spacing
+ * scale) while others do not exist there and keep the live ones (--surface2,
+ * --text, --muted, --tile, --radius). That mix is the one thing that would look
+ * worse than either palette on its own, so every colour and edge below is stated
+ * outright rather than inherited. Specificity does the rest: [data-v2] .card is
+ * an attribute plus a class and beats the bare .card it is replacing.
+ *
+ * Chrome 109 is the ceiling: no nesting, no oklch(), no color-mix(), no :has().
+ */
+
+/* ---- panels ---------------------------------------------------------- */
+[data-v2] .card {
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: none;
+  padding: var(--pad);
+  margin-bottom: var(--s3);
+  color: var(--ink);
+}
+[data-v2] .card h3 { margin: 0 0 var(--s2); font-size: var(--t4); font-weight: 650; color: var(--ink); }
+[data-v2] .ptitle { margin-bottom: var(--s2); }
+[data-v2] .ptitle h3 { margin: 0; }
+
+/* ---- the greeting ----------------------------------------------------- */
+/* Was a 46px emoji in a rounded tile. The emoji is an icon now, so the tile can
+ * stop pretending to be a photograph and just be a mark. */
+[data-v2] .greet { display: flex; align-items: center; gap: var(--s3); margin: 0 0 var(--s5); }
+[data-v2] .greet-av {
+  width: 40px; height: 40px; border-radius: 50%;
+  display: grid; place-items: center; flex: none;
+  background: var(--surface-raised); border: 1px solid var(--line);
+  box-shadow: none; color: var(--accent); font-size: 0;
+}
+[data-v2] .greet-av svg { width: 20px; height: 20px; }
+[data-v2] .greet-hi { font-size: var(--t3); font-weight: 650; letter-spacing: -0.2px; color: var(--ink); }
+[data-v2] .greet .muted, [data-v2] .greet .small { color: var(--ink-dim); font-size: var(--t5); }
+
+/* ---- the numbers people open the app for ------------------------------ */
+[data-v2] .kpirow { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s3); margin-bottom: var(--s4); }
+[data-v2] .kpirow.one { grid-template-columns: 1fr; }
+[data-v2] .kpi {
+  display: flex; align-items: center; gap: var(--s3);
+  background: var(--surface-raised); border: 1px solid var(--line);
+  border-radius: 12px; padding: var(--pad); box-shadow: none; min-width: 0;
+}
+[data-v2] .kpi-ic {
+  width: 32px; height: 32px; border-radius: 8px; flex: none;
+  display: grid; place-items: center;
+  background: transparent; color: var(--ink-dim); font-size: 0;
+}
+[data-v2] .kpi-ic svg { width: 20px; height: 20px; }
+[data-v2] .kpi-l { font-size: var(--t6); color: var(--ink-dim); line-height: 1.25; }
+/* The figure. tabular-nums so a column of them does not jitter as it updates --
+ * these are read against each other, which is the whole reason they are a row. */
+[data-v2] .kpi-v {
+  font-size: var(--t2); font-weight: 650; letter-spacing: -0.4px; line-height: 1.2;
+  color: var(--ink); font-variant-numeric: tabular-nums;
+}
+[data-v2] .kpi-v.long { font-size: var(--t3); letter-spacing: -0.2px; }
+[data-v2] .kpi-u { font-size: var(--t6); font-weight: 500; color: var(--ink-dim); margin-inline-start: 4px; }
+
+/* ---- what needs you now ----------------------------------------------- */
+[data-v2] .trow {
+  display: flex; align-items: center; gap: var(--s3);
+  min-height: var(--row-h);
+  background: transparent; border: 0; border-radius: 0;
+  box-shadow: inset 0 -1px 0 var(--line);
+  padding: var(--s2) 0; color: var(--ink);
+}
+[data-v2] .card > .trow:last-child { box-shadow: none; }
+[data-v2] .trow .ti {
+  width: 28px; height: 28px; border-radius: 8px; flex: none;
+  display: grid; place-items: center; font-size: 0; color: var(--ink-dim);
+}
+[data-v2] .trow .ti svg { width: 18px; height: 18px; }
+[data-v2] .trow .tt { font-weight: 600; font-size: var(--t5); letter-spacing: 0; }
+[data-v2] .trow .ts { font-size: var(--t6); color: var(--ink-dim); margin-top: 1px; }
+[data-v2] .trow .tc {
+  margin-inline-start: auto; font-weight: 650; font-size: var(--t4);
+  font-variant-numeric: tabular-nums; color: var(--ink-dim);
+}
+/* Severity is carried by the icon's colour, not by a filled tile behind it: on a
+ * list of six rows, six coloured tiles is a decoration, one coloured mark is a
+ * signal. */
+[data-v2] .trow.crit .ti { background: transparent; color: var(--bad); }
+[data-v2] .trow.warn .ti { background: transparent; color: var(--warn); }
+[data-v2] .trow.ok   .ti { background: transparent; color: var(--ok); }
+[data-v2] .trow.crit .tc { color: var(--bad); }
+
+/* ---- a fact inside a panel -------------------------------------------- */
+[data-v2] .drow { display: flex; align-items: center; gap: var(--s2); padding: var(--s2) 0; min-width: 0; }
+[data-v2] .drow + .drow { border-top: 1px solid var(--line); }
+[data-v2] .drow-i { width: 20px; flex: none; display: grid; place-items: center; color: var(--ink-dim); font-size: 0; }
+[data-v2] .drow-i svg { width: 16px; height: 16px; }
+[data-v2] .drow-l { flex: 1; min-width: 0; font-size: var(--t5); color: var(--ink-dim); }
+[data-v2] .drow-v { font-size: var(--t5); font-weight: 650; text-align: end; color: var(--ink); font-variant-numeric: tabular-nums; }
+[data-v2] .drow-v .u { font-size: var(--t6); font-weight: 500; color: var(--ink-dim); margin-inline-start: 3px; }
+
+/* An icon handed to a builder that expects a glyph still has to sit on the text
+ * baseline it was written for. */
+[data-v2] .trow svg, [data-v2] .kpi svg, [data-v2] .drow svg, [data-v2] .greet svg { display: block; }
+
+/* Two places a glyph was standing in for an avatar or a mark: the job tile in
+ * "in the shop", and the AI insight badge. Both were sized as text, so the SVG
+ * that replaced them needs the box the text used to occupy. */
+[data-v2] .ava { display: grid; place-items: center; color: var(--ink-dim); font-size: 0; }
+[data-v2] .ava svg { width: 20px; height: 20px; }
+[data-v2] .ai-ic { display: grid; place-items: center; color: var(--accent); font-size: 0; }
+[data-v2] .ai-ic svg { width: 18px; height: 18px; }
+[data-v2] .ai-ic.big svg { width: 28px; height: 28px; }
+
+/* ---- pieces the money family brought with it -------------------------- */
+/* .li is the app's other list item -- 100 uses, older than .trow and not going
+ * anywhere. Same treatment: a separator instead of a card edge, and room for a
+ * drawing where a glyph used to sit. */
+[data-v2] .li {
+  display: flex; align-items: center; gap: var(--s3);
+  min-height: var(--row-h); padding: var(--s2) 0;
+  background: transparent; border: 0; border-radius: 0;
+  box-shadow: inset 0 -1px 0 var(--line); color: var(--ink);
+}
+[data-v2] .card > .li:last-child, [data-v2] .li:last-child { box-shadow: none; }
+[data-v2] .li .t { font-weight: 600; font-size: var(--t5); }
+[data-v2] .li .s { font-size: var(--t6); color: var(--ink-dim); }
+[data-v2] .li .main { flex: 1; min-width: 0; }
+
+/* The trend chip beside a figure. Its arrow is U+25B2/U+25BC, which Windows 7
+ * does carry -- unlike the emoji -- so it stays a character; what changes is that
+ * the direction is stated in colour as well, because the same arrow means the
+ * opposite thing one tile along. */
+[data-v2] .schip {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: var(--t6); font-weight: 600; font-variant-numeric: tabular-nums;
+}
+[data-v2] .schip.ok { color: var(--ok); }
+[data-v2] .schip.crit { color: var(--bad); }
+/* The live chip puts an 8px coloured square beside the arrow. That is two marks
+ * for one fact -- and the square's colour comes from --red/--green, which v2 does
+ * not define, so inside the wrapper it was drawing in the old palette. The arrow
+ * and the text colour already say direction and severity. */
+[data-v2] .schip i { display: none; }
+
+/* The three facts under a bus card -- odometer, km/l, open jobs -- were a glyph
+ * and a number each. The glyph is a drawing now, so it needs the box the text
+ * used to take up and the dim colour its label already had. */
+[data-v2] .vc-mv { display: flex; align-items: center; gap: 5px; font-variant-numeric: tabular-nums; }
+[data-v2] .vc-mv svg { width: 15px; height: 15px; color: var(--ink-dim); flex: none; }
+[data-v2] .vc-ml { color: var(--ink-dim); font-size: var(--t6); }
+/* The bus card itself, so it reads as a panel in this palette rather than a
+ * shadow in the old one. */
+[data-v2] .vcard { background: var(--surface-raised); border: 1px solid var(--line); border-radius: 12px; box-shadow: none; overflow: hidden; }
+
+/* The screen wrapper generates NO BOX.
+ *
+ * v2() wraps a screen's body so the tokens and the density scope apply, and that
+ * wrapper quietly broke every desktop layout in the app: styles.css lays the
+ * content area out as a two-column grid and places things with `.content > .greet`,
+ * `.content > .kpirow`, `.content > *` and thirty-odd more. One wrapper in between
+ * turned every card into a GRANDchild, so not one of those rules matched and each
+ * screen collapsed into a single undifferentiated column -- which is what "lots of
+ * alignment issues on the PC, on all the screens" was.
+ *
+ * display:contents removes the box and leaves the children as the grid items they
+ * were, while custom properties still inherit through it, so [data-v2] keeps
+ * scoping the tokens. Chrome 65+, well inside the Chrome 109 floor.
+ */
+[data-v2].v2wrap { display: contents; }

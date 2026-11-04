@@ -38,12 +38,14 @@ fi
 # which is how these had quietly become documentation.
 TESTS="$DIR/scripts/run-tests.py"
 if [ -f "$TESTS" ]; then
-  # --fast skips test_ui_overlay.js, which spends 174 of its 181 seconds asleep
-  # waiting out real animation durations. It PRINTS what it skipped, and CI runs
-  # the whole set on every branch, so nothing is quietly uncovered. Three minutes
-  # on every push would get this hook disabled, and a disabled hook checks
-  # nothing at all.
-  python3 "$TESTS" -q --fast || { echo "❌ pre-push: blocked by a failing test suite."; exit 1; }
+  # No --fast any more: the whole set runs here, in about 84s wall. The one suite
+  # this hook used to skip was test_ui_overlay.js, which spent 174 of its 181
+  # seconds asleep waiting out real animation durations; it now reads the
+  # declared durations and waits on state rather than on the clock, and runs in
+  # 40-80s depending on how busy the machine is. If a suite ever earns a skip
+  # again, put it in SLOW in run-tests.py, which prints what it left out -- a
+  # silent cap reads as "everything passed".
+  python3 "$TESTS" -q || { echo "❌ pre-push: blocked by a failing test suite."; exit 1; }
 fi
 
 GATE="$DIR/scripts/predeploy-gate.sh"

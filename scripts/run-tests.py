@@ -37,11 +37,15 @@ SLOW_S = 20            # anything over this is reported, so slowness stays visib
 # reason. --fast skips these and SAYS SO; nothing here is ever skipped silently,
 # because a silent cap reads as "everything passed" when it did not run.
 #
-# test_ui_overlay.js: 181s for 100 checks, of which 174s is 57 explicit sleeps
-# waiting out real animation durations (350ms sheet transitions and the like).
-# The intent is right -- it tests motion timing for real -- but it could assert
-# the declared duration instead of living through it. Fixing that is its own job.
-SLOW = {"test_ui_overlay.js": "57 sleeps totalling 174s of the 181s"}
+# EMPTY, and the pre-push hook no longer passes --fast: every suite runs on
+# every push. test_ui_overlay.js was the only entry -- 181s for 100 checks, of
+# which 174s was 57 sleeps waiting out real animation durations. It now asserts
+# the declared durations and waits on the state it is really waiting for. It is
+# still the slowest file here -- measured at 40s on an idle machine and about 80s
+# at a load average of 7, against 196s before -- but the whole set now comes in
+# around 84s wall, which a hook can carry. The mechanism stays for the next suite
+# that earns a place here; nothing is skipped while this is bare.
+SLOW = {}
 
 # Suites that bind a real TCP port, and therefore cannot run beside each other.
 # Found the hard way: the first parallel run failed with "Address already in
