@@ -382,8 +382,15 @@ ck "and a timed-out request clears its timer instead of leaking it" "$(grep -c '
 # worker must stay uncacheable or a device pins an old app.js for ever, so both
 # halves are asserted: one file that must never be cached, and the rest that
 # must be revalidated in the background rather than in front of somebody.
-ck "the service worker is still never cached" \
-  "$(grep -c 'cache=\"no-cache\" if rel == \"sw.js\"' sync_server.py)" "1"
+# Matched by BASENAME, not by exact path. It was `rel == "sw.js"` until v2 took
+# its own worker at /v2/sw.js and missed the rule entirely -- served
+# stale-while-revalidate for a day, so a device could pin an old v2 worker. This
+# check went stale in the same commit that fixed that, and said nothing until a
+# builder noticed it disagreed with isolation invariant 5. Two checks asserting
+# different spellings of one rule is worse than one check, because the pair
+# cannot both be right and neither says so.
+ck "the service worker is still never cached, by basename so every worker is covered" \
+  "$(grep -c 'cache=\"no-cache\" if os.path.basename(rel) == \"sw.js\"' sync_server.py)" "1"
 ck "and every other static file is revalidated behind the request, not in front of it" \
   "$(grep -c 'stale-while-revalidate=86400' sync_server.py)" "1"
 ck "no static file is served on a bare max-age any more" \

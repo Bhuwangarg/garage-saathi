@@ -55,6 +55,13 @@ const Sync = (function () {
                   // The departure checklist: filled on the driver's phone, decided
                   // on the owner's. Synced so both see the same bus at the gate.
                   'gatechecks',
+                  // Tonight's running list: one record per night, a map keyed by bus.
+                  // Synced because the board is filled on one phone and the gate
+                  // round reads it on another. `outboxbase` is deliberately NOT
+                  // here — it is this device's own note of what it has pending, so
+                  // markDirty() returns early for it exactly as it does for
+                  // meta.seeded, and it can never leave the device.
+                  'nightlist',
                   // redPro data, written only by the server from the office collector.
                   // Pulled, never pushed (the server refuses any client write).
                   'rbservices', 'rbreviews', 'rbcomplaints', 'rbassign',
@@ -192,6 +199,17 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
   // Poison quarantine: keys the server keeps rejecting (e.g. malformed record).
   // Skipped on push so one bad record can't wedge the whole outbox.
   let quarantine = JSON.parse(ls.getItem('quarantine') || '{}');
+  /* Keys mid-re-apply after a `"stale"` refusal, and how many rounds each has had.
+   *
+   * Two, then it stops. A record two people are both editing would otherwise push,
+   * lose, re-apply and push again for as long as they both keep typing, and an
+   * unbounded loop against a live record is a worse failure than the one being
+   * fixed. Stored, not held in memory: a reload must not hand a key a fresh budget
+   * and start the loop over. */
+  const STALE_RETRIES = 2;
+  let staleRounds = {};
+  try { staleRounds = JSON.parse(ls.getItem('staleRounds') || '{}') || {}; } catch (e) { staleRounds = {}; }
+  const saveStaleRounds = () => { try { ls.setItem('staleRounds', JSON.stringify(staleRounds)); } catch (e) { /* ignore */ } };
   let token = ls.getItem('token') || '';
   let lastError = ls.getItem('lastSyncError') || '';
   /* When the server has told us to stop for a while (429 + Retry-After).
@@ -238,6 +256,17 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
     ls.setItem('outbox', JSON.stringify([...outbox]));
     for (const k of Object.keys(outboxBy)) if (!outbox.has(k)) delete outboxBy[k];
     ls.setItem('outboxBy', JSON.stringify(outboxBy));
+  };
+  /* A key leaving the outbox has nothing pending, so it owns neither a base
+   * snapshot nor a retry budget any more. Left behind, the base would make the
+   * next edit to that record measure against a state two saves old and a later
+   * re-apply would put back a value somebody had already corrected; the budget
+   * would make an unrelated collision months later start at round three. */
+  const dropKey = (key) => {
+    outbox.delete(key);
+    if (staleRounds[key] !== undefined) { delete staleRounds[key]; saveStaleRounds(); }
+    const i = key.indexOf('|');
+    if (i > 0 && DB.untouch) { try { DB.untouch(key.slice(0, i), key.slice(i + 1)); } catch (e) { /* local note only */ } }
   };
   const tokenUser = () => (token ? token.split('.')[0] : '');
   const savePhotoQ = () => ls.setItem('photoQueue', JSON.stringify(photoQ));
@@ -769,6 +798,50 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
     return { store, id, data: rec, updatedAt: rec.updatedAt || 0 };
   }
 
+  /* A `"stale"` refusal, resolved without anybody being asked about a clock.
+   *
+   * The server refused this record because the stored row's updatedAt is not lower
+   * than ours -- and `updatedAt` came off a phone. Contract §4.0: a phone set
+   * forward wins every comparison and one set back loses every one, so there is
+   * nothing a person could usefully be asked here and no timestamp worth showing
+   * them. What there IS, is the server's own copy, carried in the refusal.
+   *
+   * So: take that copy, put this device's change back on top of it (the fields
+   * DB.touched() names, measured against the base recorded when the edit was
+   * made), and stamp it above the stored row. The `+1` is load-bearing -- step 6
+   * compares STRICTLY greater, so an equal timestamp loses silently, which is the
+   * original bug wearing the fix's clothes. Written with putRaw so it is not
+   * re-stamped, and the key STAYS in the outbox: the next tick pushes it.
+   *
+   * Returns true if the key is still in play, false if it cannot be resolved here
+   * -- and then the caller names it, with a reason and a Retry. */
+  async function reapplyStale(key, r) {
+    const rounds = staleRounds[key] || 0;
+    if (rounds >= STALE_RETRIES) return false;             // budget spent
+    staleRounds[key] = rounds + 1; saveStaleRounds();
+    const i = key.indexOf('|');
+    const store = key.slice(0, i), id = key.slice(i + 1);
+    const srv = r.server;
+    // Over the server's byte cap: it named the refusal but could not afford to
+    // carry the copy. Defer the key one tick and let the next /pull deliver it,
+    // inside this same budget — one stale job card full of inline photos must not
+    // become a 6 MiB response, and must not become a silent loss either.
+    if (!srv || !srv.data || typeof srv.data !== 'object') return true;
+    const local = DB._rawGet ? await DB._rawGet(store, id) : await DB.get(store, id);
+    if (!local) return false;                              // the row went away under us
+    const fields = (DB.touched ? await DB.touched(store, id) : []) || [];
+    // Nothing we can name as ours. Not "nothing changed" -- it also means the base
+    // was never recorded or was too large to hold, and the two are the same answer:
+    // do not guess which field was whose. Surface it instead.
+    if (!fields.length) return false;
+    const merged = Object.assign({}, srv.data);
+    for (const f of fields) merged[f] = local[f];
+    merged[keyField(store)] = id;                          // the server's copy decides nothing about the key
+    merged.updatedAt = Math.max(Number(srv.updatedAt || 0) + 1, now());
+    await DB.putRaw(store, merged, srv.data);
+    return true;
+  }
+
   async function push() {
     await flushPhotos();                       // get offline photos a real URL first
     if (!outbox.size) return;
@@ -798,10 +871,10 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
     let bytes = 0;
     for (const key of keys) {
       const rec = await recordForKey(key);
-      if (!rec) { outbox.delete(key); saveOutbox(); continue; }   // row vanished
+      if (!rec) { dropKey(key); saveOutbox(); continue; }   // row vanished
       // A copy with private fields removed must never be written back: the
       // server would store the gaps as the record.
-      if (rec.data && rec.data._redacted) { outbox.delete(key); saveOutbox(); continue; }
+      if (rec.data && rec.data._redacted) { dropKey(key); saveOutbox(); continue; }
       // Measure before adding. A single record over the budget still goes on
       // its own, because dropping it would wedge the outbox forever — better
       // one oversized request that may fail than a row that is never tried.
@@ -833,21 +906,44 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
     try { body = await res.json(); } catch (e) { body = {}; }
 
     if (res.ok && Array.isArray(body.refused)) {
-      // The server took what it could and named what it would not.
+      /* The server took what it could and named what it would not — and one of
+       * those names is not a refusal at all.
+       *
+       * `"stale"` is the literal string the server uses for a record that lost the
+       * updatedAt comparison (contract §4.1, §4.3); every other reason is a prose
+       * sentence, which is why switching on it is safe. It is the only reason this
+       * device can do anything about, because the refusal carries the server's own
+       * copy: re-apply and push again. Quarantining it would be the old bug with a
+       * message attached — the change would still never reach the server. */
       const refusals = [];
       for (const r of body.refused) {
-        const key = byKey.get(r.store + '|' + r.id);
+        const mapKey = r.store + '|' + r.id;
+        const key = byKey.get(mapKey);
         if (!key) continue;
+        byKey.delete(mapKey);
+        if (r.reason === 'stale') {
+          // Still in play: the key stays in the outbox and goes out next tick.
+          if (await reapplyStale(key, r)) continue;
+          // Two rounds and it still will not land, or we cannot say what this
+          // device changed. That is the residual contract §4.1 calls **R**, and it
+          // is the one case a person is told about — with a reason and a Retry
+          // (clearQuarantine), never with a question about a clock.
+          quarantine[key] = { at: Date.now(), status: 409, reason: 'stale-unresolved' };
+          if (staleRounds[key] !== undefined) { delete staleRounds[key]; saveStaleRounds(); }
+          refusals.push('stale-unresolved');
+          continue;
+        }
         quarantine[key] = { at: Date.now(), status: 403, reason: r.reason || '' };
         refusals.push(r.reason || 'refused');
-        byKey.delete(r.store + '|' + r.id);
       }
       saveQuarantine();
       // A refused write is the quietest way to lose work: the change sits in
       // this phone's database, "Waiting to send" drops to zero, and the server
       // never has it. The server says WHY — pass it on.
       if (refusals.length && cbRefused) cbRefused(refusals.length, refusals);
-      for (const key of byKey.values()) outbox.delete(key);   // everything else landed
+      // Now the comment is true: what is left really did land. A staleness drop
+      // used to be cleared here too, with the screen reporting it sent.
+      for (const key of byKey.values()) dropKey(key);
       saveOutbox();
       return;
     }
@@ -856,7 +952,7 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
       // An older server: no `refused` list, but a 200 means it applied what it
       // understood. Clearing the batch is right — a record it silently skipped
       // would otherwise be resent forever.
-      for (const key of byKey.values()) outbox.delete(key);
+      for (const key of byKey.values()) dropKey(key);
       saveOutbox();
       return;
     }
@@ -866,7 +962,7 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
     // something is actually wrong.
     for (const key of byKey.values()) {
       const rec = await recordForKey(key);
-      if (!rec) { outbox.delete(key); saveOutbox(); continue; }
+      if (!rec) { dropKey(key); saveOutbox(); continue; }
       let one;
       try {
         const bound = boundRequest(PUSH_TIMEOUT_MS);
@@ -878,7 +974,7 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
           });
         } finally { bound.clear(); }
       } catch (e) { throw e; }
-      if (one.ok) { outbox.delete(key); saveOutbox(); continue; }
+      if (one.ok) { dropKey(key); saveOutbox(); continue; }
       if (one.status === 401) throw sessionDead('push');
       if (one.status === 429) throw await throttled(one, 'push');
       if (one.status >= 400 && one.status < 500 && one.status !== 429) {
@@ -886,7 +982,7 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
         try { why = ((await one.json()) || {}).error || ''; } catch (e) { /* no body */ }
         quarantine[key] = { at: Date.now(), status: one.status, reason: why };
         saveQuarantine();
-        outbox.delete(key); saveOutbox();
+        dropKey(key); saveOutbox();
         if (cbRefused) cbRefused(1, [why || ('server said ' + one.status)]);
         continue;
       }
@@ -972,7 +1068,7 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
    * wasteful -- it is the only way to learn WHICH row failed, and a record written
    * by another tab between the batch and this retry should win on its own merits
    * rather than be overwritten by a decision taken before it existed. */
-  async function applyEachInTurn(rows, onStored, onFailed, onConflict) {
+  async function applyEachInTurn(rows, touched, onStored, onFailed, onMerge, onConflict) {
     for (const r of rows) {
       const key = r.store + '|' + r.id;
       let local = null;
@@ -980,10 +1076,18 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
         local = DB._rawGet ? await DB._rawGet(r.store, r.id) : await DB.get(r.store, r.id);
       } catch (e) { onFailed(r, e); continue; }
       const one = {}; one[key] = local;
-      const d = PullApply.decidePage([r], one, { now: Date.now(), inOutbox: (k) => outbox.has(k) });
-      if (d.conflicts.length) { d.conflicts.forEach(onConflict); saveOutbox(); }
+      const d = PullApply.decidePage([r], one,
+        { now: Date.now(), inOutbox: (k) => outbox.has(k), touched: touched || {} });
+      d.merges.forEach(onMerge);
+      d.conflicts.forEach(onConflict);
       if (!d.winners.length) continue;
-      try { await DB.putRaw(r.store, r.data); onStored(r); }
+      /* The WINNER, not the arriving record. On a key this device still owes, the
+       * winner is the server's copy with this device's own pending fields put back
+       * on top -- writing r.data instead would drop them, on the one path that is
+       * only ever taken when something has already gone wrong. And the base is the
+       * server's copy either way, because that is what the next push is measured
+       * against; the winner still carries a change the server has not got. */
+      try { await DB.putRaw(r.store, d.winners[0].data, r.data); onStored(r); }
       catch (e) { onFailed(r, e); }
     }
   }
@@ -1017,7 +1121,8 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
     // Flags ride along on the pull rather than needing a request of their own,
     // which is the difference between being read and not being read.
     if (Array.isArray(j.flags)) { flags = j.flags; ls.setItem('featureFlags', JSON.stringify(flags)); }
-    let applied = 0; let conflicts = 0; let holdRev = 0;
+    let applied = 0; let merged = 0; let holdRev = 0;
+    const pullRefusals = [];
 
     /* Apply the page a STORE at a time, not a record at a time.
      *
@@ -1064,11 +1169,41 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
       if (pullSkips[key].tries < PULL_STORE_TRIES && r.rev && (!holdRev || r.rev < holdRev)) holdRev = r.rev;
       console.warn('pull: could not store', key, e);
     };
-    const noteConflict = (key) => { conflicts++; outbox.delete(key); };
+    /* A pending edit the server has now overtaken is no longer thrown away: the
+     * key stays in the outbox and the next push is where the two versions meet,
+     * reconciled by the side that can order them without consulting a clock
+     * (contract §4.4). So this is a MERGE, and a merge is nobody's problem --
+     * there is nothing for a person to do and nothing for them to be told. */
+    const noteMerge = () => { merged++; };
+    /* The residual, and the only one a person sees. A field this device changed is
+     * not the field the server is holding and §4.4 gives no domain rule that
+     * decides it, so it goes out with its reason and its field names through the
+     * refusal path -- NOT as a count in a toast. A number with no reason attached
+     * is the silent drop one step further on: the person learns that something of
+     * theirs was overruled and still cannot find out what. The key is kept, so the
+     * next push is the retry and `cbRefused` names what it is retrying. */
+    const noteConflict = (c) => {
+      const fields = (c && c.fields && c.fields.length) ? ' (' + c.fields.join(', ') + ')' : '';
+      pullRefusals.push(((c && c.reason) || 'stale-conflict') + fields);
+    };
 
     const grouped = PullApply.byStore(usable);
     for (const store of Object.keys(grouped)) {
       const rows = grouped[store];
+      /* What this device has pending on these records, read ONCE for the store.
+       *
+       * decidePage is pure and DB.touched() is not, so the fields have to arrive
+       * as data, exactly as `locals` does -- and for the same reason: the IO
+       * happens once per store, not once per record. Without this the re-apply is
+       * inert. The code reads as though it works and every pending edit is still
+       * overwritten, which is the failure mode this whole slice exists to end. */
+      let touched = {};
+      try {
+        const pend = rows.filter((r) => outbox.has(r.store + '|' + r.id)).map((r) => r.id);
+        const got = (pend.length && DB.touchedMany) ? await DB.touchedMany(store, pend) : {};
+        // Keyed by the outbox key, which is what decidePage looks up.
+        for (const id of Object.keys(got)) touched[store + '|' + id] = got[id];
+      } catch (e) { touched = {}; }   // no base readable -> decidePage keeps the key and says nothing
       let locals = null;
       try {
         const got = await DB.bulkRawGet(store, rows.map((r) => r.id));
@@ -1080,23 +1215,35 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
         // so one unreadable store cannot cost the rest of the page.
         locals = null;
       }
-      if (!locals) { await applyEachInTurn(rows, noteStored, noteFailure, noteConflict); continue; }
+      if (!locals) { await applyEachInTurn(rows, touched, noteStored, noteFailure, noteMerge, noteConflict); continue; }
 
-      const d = PullApply.decidePage(rows, locals, { now: Date.now(), inOutbox: (k) => outbox.has(k) });
-      /* Last-write-wins still applies -- the server copy is newer -- but a local
-       * editor whose change was superseded has to be told, or they keep trusting a
-       * screen that has already been overruled. */
+      const d = PullApply.decidePage(rows, locals,
+        { now: Date.now(), inOutbox: (k) => outbox.has(k), touched: touched });
+      d.merges.forEach(noteMerge);
       d.conflicts.forEach(noteConflict);
-      if (d.conflicts.length) saveOutbox();
       if (!d.winners.length) continue;
       try {
         await DB.bulkPutRaw(store, d.winners.map((r) => r.data));
+        /* bulkPutRaw takes each row it wrote as that row's new base, which is right
+         * for an ordinary pull and wrong for a pending key: the row just written
+         * carries this device's change back on top, and a base taken from it would
+         * make DB.touched() report nothing and the next stale refusal unresolvable.
+         * The server's own copy is the base. */
+        for (const r of rows) {
+          if (outbox.has(r.store + '|' + r.id) && DB.rebase) await DB.rebase(store, r.id, r.data);
+        }
         d.winners.forEach(noteStored);
       } catch (e) {
         // One bad row aborts the whole transaction, so NOTHING in this store
         // landed. Redo it a record at a time to find which row it was and to hold
         // the cursor at exactly that rev rather than at the whole page's.
-        await applyEachInTurn(d.winners, noteStored, noteFailure, noteConflict);
+        // Re-decided from the ARRIVING records, not from the merged winners: the
+        // comment above says this path reads and decides again on purpose, and a
+        // winner handed back in would be measured against itself.
+        const origin = {};
+        for (const r of rows) origin[r.store + '|' + r.id] = r;
+        const again = d.winners.map((w) => origin[w.store + '|' + w.id] || w);
+        await applyEachInTurn(again, touched, noteStored, noteFailure, noteMerge, noteConflict);
       }
     }
     const before = since;
@@ -1121,7 +1268,17 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
     const stuck = Object.keys(pullSkips).length;
     if (stuck && cbStoreFail) cbStoreFail(stuck, pullSkips);
     if (applied && cbApplied) await cbApplied(applied);
-    if (conflicts && cbConflict) await cbConflict(conflicts);
+    /* A refusal, with its reason, down the same path a refused push takes -- so a
+     * screen has one place to read "what of mine did not land, and why".
+     *
+     * This replaces the old "N record(s) updated on another device" count, and
+     * `cbConflict` is no longer raised from anywhere: nothing it used to report
+     * still happens. What it counted was local edits being DISCARDED, and they are
+     * not discarded any more (they merge, or they surface here with a reason).
+     * `onConflict` is kept in start()'s options so an older caller is not broken,
+     * and the frontend should wire `onRefused` instead. */
+    if (pullRefusals.length && cbRefused) cbRefused(pullRefusals.length, pullRefusals);
+    if (merged) saveOutbox();      // the merged keys stay pending; keep storage in step
     // Only keep going while the cursor is actually moving, so a server that
     // reports `more` without advancing cannot loop us.
     return !!j.more && (scratch ? scratchRev : only ? lastRevDeferred : lastRev) > before;
@@ -1211,7 +1368,27 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
    * A record the device could not store counts against it too: the cursor is held
    * behind it, so the replica genuinely is short. */
   const replicaState = () => PullApply.replicaState(lastRev, tableMax, Object.keys(pullSkips).length);
+  /* Every record a person was told about, with a reason — `ux §7` measure 7, and
+   * the row Me's device state draws from.
+   *
+   * `stale` is in-flight work, not a problem: a key mid-re-apply is being fixed by
+   * the device on its own and nobody need be told. `staleUnresolved` is the
+   * residual that IS somebody's to see, and `reasons` is what to show them: the
+   * server's own words, deduplicated. Retry is Sync.clearQuarantine(). */
+  const quarantineReasons = () => {
+    const seen = [];
+    for (const k of Object.keys(quarantine)) {
+      const why = (quarantine[k] && quarantine[k].reason) || 'refused';
+      if (seen.indexOf(why) < 0) seen.push(why);
+    }
+    return seen;
+  };
+  const staleUnresolvedCount = () => Object.keys(quarantine)
+    .filter((k) => quarantine[k] && quarantine[k].reason === 'stale-unresolved').length;
   const info = () => ({ deviceId, lastRev, lastRevDeferred, tableMax,
+    stale: Object.keys(staleRounds).length,
+    staleUnresolved: staleUnresolvedCount(),
+    reasons: quarantineReasons(),
     behind: replicaState().behind, complete: replicaState().complete, pending: outbox.size,
     heldForOthers: [...outbox].filter((k) => outboxBy[k] && outboxBy[k] !== actor).length, url: baseUrl(), status, authed: !!token, lastSyncAt, lastError, lastErrorAt, notStored: Object.keys(pullSkips).length,
                         photosPending: Object.keys(photoQ).length, quarantined: Object.keys(quarantine).length });

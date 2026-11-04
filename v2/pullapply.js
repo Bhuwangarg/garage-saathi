@@ -22,23 +22,56 @@
    * for as long as that clock says so. */
   const FUTURE_MS = 86400000;   // 24h
 
+  const sameVal = function (a, b) {
+    return JSON.stringify(a === undefined ? null : a) === JSON.stringify(b === undefined ? null : b);
+  };
+
   /* records: the page, already validated (store known, data an object, key matching).
    * locals:  { "store|id": row|null } for exactly those records, read in bulk.
    * opts.now:       the clock, injected so this is testable.
    * opts.inOutbox:  (key) => boolean, whether we still owe the server that record.
+   * opts.touched:   { "store|id": [field names] } for the keys we still owe, read in
+   *                 bulk from DB.touched() before this runs. A map rather than a
+   *                 callback because DB.touched() is async and this function is not:
+   *                 the whole reason the module exists is that the decision is pure
+   *                 and the IO happens once per store, not once per record.
    *
-   * Returns { winners, conflicts }:
-   *   winners   - records to write, in page order
-   *   conflicts - keys where the server copy beat a local edit we had not pushed;
-   *               last-write-wins still applies, but the editor has to be told,
-   *               or they keep trusting a screen that has already been overruled.
+   * Returns { winners, merges, conflicts }:
+   *   winners   - records to write, in page order. A record whose key is still in
+   *               the outbox is written with this device's own pending fields put
+   *               back on top, so the server's copy lands without the local edit
+   *               being erased off the screen that is still showing it.
+   *   merges    - keys whose pending edit is kept for the SERVER to reconcile. They
+   *               stay in the outbox and push again; contract §4.4 merges them by
+   *               the domain rule for that store.
+   *   conflicts - [{ key, store, id, reason, fields }] for a residual R collision:
+   *               a field this device changed is not the field the server is
+   *               holding, and no domain rule decides between them. Named with a
+   *               reason so it can be surfaced with a Retry -- never as a number in
+   *               a toast, and never as a dialog.
+   *
+   * Why this file no longer discards a pending edit. v1 removed the key from the
+   * outbox and counted a conflict, so the local change was gone and the user was
+   * told only that "N record(s) updated on another device". That was survivable
+   * while a stale push was silently dropped too -- both ends lost the same edit --
+   * and the moment the stale push became recoverable (contract §4.3, §4.5) this
+   * became THE remaining way a v2 edit vanishes, and it would have quietly undone
+   * that fix.
+   *
+   * The division of labour is the point. The client cannot order two writes: both
+   * timestamps came off device clocks, which is the clock the original bug depends
+   * on (§4.0). The server can, because it issued the `rev`. So the client's only
+   * job here is not to throw the edit away before the server gets a second look at
+   * it, and no screen is ever asked to adjudicate a clock.
    */
   function decidePage(records, locals, opts) {
     const o = opts || {};
     const now = typeof o.now === 'number' ? o.now : Date.now();
     const inOutbox = typeof o.inOutbox === 'function' ? o.inOutbox : function () { return false; };
+    const touched = o.touched || {};
     const ls = locals || {};
     const winners = [];
+    const merges = [];
     const conflicts = [];
 
     for (let i = 0; i < records.length; i++) {
@@ -57,11 +90,72 @@
       const remoteTs = (r.data && r.data.updatedAt) || 0;
 
       if (!local || unredact || remoteTs > localAt) {
-        if (inOutbox(key)) conflicts.push(key);
-        winners.push(r);
+        winners.push(inOutbox(key) ? keepPending(r, local, unredact, touched[key], merges, conflicts) : r);
       }
     }
-    return { winners: winners, conflicts: conflicts };
+    return { winners: winners, merges: merges, conflicts: conflicts };
+  }
+
+  /* The remote record to write for a key we still owe the server, and which bucket
+   * that key belongs in. Returns a record; pushes the key into `merges` or an entry
+   * into `conflicts`. Never mutates what it is handed -- sync.js writes these same
+   * objects and also computes the cursor from them.
+   *
+   * `fields` is what DB.touched() named: the top-level fields this device altered,
+   * measured against the base recorded when the edit was made. Only contract §4.4's
+   * **R** fields are ever recorded, because every F store is merged on the server
+   * and never reaches a collision at all.
+   */
+  function keepPending(r, local, unredact, fields, merges, conflicts) {
+    /* Nothing of ours to name: either the store has no R fields at all -- the
+     * ordinary case -- or the base was never recorded or was too large to hold.
+     * Both are the same answer here, and it is the same answer sync.js gives on a
+     * stale refusal: do not guess which field was whose. Keep the key, write the
+     * server's copy, and let the next push have the second look. If the server
+     * refuses that push as stale and there is still nothing to name, sync.js
+     * surfaces it with a reason and a Retry, which is where an unnameable
+     * collision belongs.
+     *
+     * Say what this does NOT fix, because it looks fixed. DB.touched() records a
+     * base only for contract §4.4's R stores -- correct for the push path it was
+     * built for, where every F store is merged on the server and never refused.
+     * Pull-apply is a different path and an F store does reach it: a pending
+     * `routes` or `meta` edit that has not been pushed yet is overwritten by the
+     * arriving copy, and the key kept here then pushes the server's own data back.
+     * The key is no longer dropped, which is this slice; the payload behind it is
+     * only as good as the base DB.touched() has. Widening that base to the F
+     * stores is a change to v2/db.js and belongs to whoever owns it. */
+    const names = Array.isArray(fields) ? fields : [];
+    /* An unredaction is not an edit of ours and the local copy is strictly less
+     * information, so putting its fields back would write a stripped value over a
+     * full one -- and a `_redacted` copy is never written back. */
+    if (!names.length || unredact || !local || local._redacted) {
+      merges.push(r.store + '|' + r.id);
+      return r;
+    }
+
+    const data = {};
+    for (const k in r.data) if (Object.prototype.hasOwnProperty.call(r.data, k)) data[k] = r.data[k];
+    const collided = [];
+    for (let i = 0; i < names.length; i++) {
+      const f = names[i];
+      /* The server's copy of a field we changed is not our value. Whether the other
+       * device set it or simply carried the old one forward, the effect is the same:
+       * there is one value and two authors, and §4.4 gives no domain rule that
+       * decides an R field. That is the residual the contract says must be surfaced
+       * rather than resolved. */
+      if (!sameVal(local[f], r.data[f])) collided.push(f);
+      if (local[f] === undefined) delete data[f];
+      else data[f] = local[f];
+    }
+
+    if (collided.length) {
+      conflicts.push({ key: r.store + '|' + r.id, store: r.store, id: r.id,
+                       reason: 'stale-conflict', fields: collided });
+    } else {
+      merges.push(r.store + '|' + r.id);
+    }
+    return { store: r.store, id: r.id, rev: r.rev, data: data };
   }
 
   /* The page's records grouped by store, so each store's reads and writes can be
@@ -140,10 +234,36 @@
 
   /* The stores a first screen draws from. Deliberately short: everything else can
    * arrive behind it, and a list that grows to cover every screen is the same as
-   * no list at all. */
+   * no list at all.
+   *
+   * `gatechecks`, `driverreports` and `crewnotes` were missing, and the two safety
+   * stores are the whole reason the Attention screen exists: a departure check
+   * waiting on a hold decision and a "something is wrong with my bus" report are
+   * its top band. Behind the full drain they arrived whenever their rev came up,
+   * so a re-synced phone showed an empty Attention screen while the records that
+   * belong at the top of it were somewhere in the log rows. `crewnotes` is the
+   * same position for a driver, whose entire app is Me.
+   *
+   * `dutylog` is deliberately NOT here even though it was missing too. It is
+   * append-only with a 365-day window and its only consumer is the historical
+   * "who was on bus X on date Y" lookup, which nobody asks on arrival; adding it
+   * would slow the first screen to serve a query that is not a first-screen
+   * question.
+   *
+   * One cost that is not obvious and is not ours to fix: `gatechecks` has no
+   * server send window at all -- stored forever, and absent from HISTORY_DAYS --
+   * so this pass now pulls every gate check ever recorded, each with a selfie and
+   * up to three item photos, when the only ones Attention needs are `awaiting`.
+   * The pull page is byte-governed (2.5 MB, trimmed on a rev boundary), so the
+   * failure mode is an extra page or two rather than a hang. A
+   * GATECHECKS_HISTORY_DAYS send window would be strictly better; that is
+   * retention policy and therefore the owner's call, so it sits in contract §9(g)
+   * rather than here. v1 has the identical gap and v1's copy of this file is not
+   * changed -- that too goes to the owner. */
   const FIRST_STORES = ['meta', 'users', 'buses', 'parts', 'jobcards', 'drivers',
                         'challans', 'fuel', 'rbreviews', 'incidents', 'routes',
-                        'vendors', 'components', 'attendance', 'stockmoves', 'breakdowns'];
+                        'vendors', 'components', 'attendance', 'stockmoves', 'breakdowns',
+                        'gatechecks', 'driverreports', 'crewnotes'];
 
   const api = { decidePage: decidePage, byStore: byStore, drainPlan: drainPlan,
                 FIRST_STORES: FIRST_STORES,

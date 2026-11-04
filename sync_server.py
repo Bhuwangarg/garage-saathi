@@ -38,6 +38,7 @@ import gate_ai
 import name_ai
 import report_ai
 import review_ai
+import v2_perms
 import wa_client
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -1207,6 +1208,12 @@ WRITE_ROLES = {
     # aggregation over them, and nothing here carries business data.
     "usage":         {"owner", "supervisor", "crewmanager", "office", "store", "mechanic", "driver", "conductor"},
     "driverreports": {"owner", "supervisor", "store", "mechanic", "driver", "conductor"},
+    # Tonight's running list — the duty board's three roles, and nobody else:
+    # saying a bus runs tonight is what the gate round and the seat count are
+    # both read against. New store, so no v1 device can read, write or clobber
+    # it (`sync.js:1040` discards a pulled record whose store it does not know,
+    # and `markDirty` returns early for one that is not in its STORES).
+    "nightlist":     {"owner", "supervisor", "crewmanager"},
     # Server-ingest only — no client ever pushes these (AirFi → ingest_gps):
     "gpsevents":     set(),
     "gpslive":       set(),
@@ -1248,6 +1255,13 @@ SERVER_INGEST_ONLY = {"gpsevents", "gpslive", "challans", "odometerlogs", "wacon
 # bound, last-write-wins makes a far-future write permanent — the owner's
 # correction is silently discarded because its timestamp is "older".
 MAX_FUTURE_SKEW_MS = 5 * 60 * 1000
+# `nightlist`'s id carries the night it is about, and the `date` field has to
+# agree with it or one night's ticks land under another night's key.
+_NIGHT_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+# The record is one per NIGHT rather than one per bus per night, which is the
+# only reason its cost on a v1 phone is a rounding error. A bound on the map
+# keeps it that way.
+NIGHTLIST_MAX_BUSES = 200
 # A check-in reaching the server later than this after its stated time is marked
 # `atUnverified`: offline, or a phone clock set back to dodge a late mark.
 ATTENDANCE_TRUST_MS = 10 * 60 * 1000
@@ -1289,6 +1303,19 @@ APPEND_ONLY_FOR_STAFF = ("audits", "fuel", "def")
 PURCHASE_STAFF_FIELDS = ("paymentStatus", "paidAt", "paidBy")
 # Server stamps and bookkeeping that differ on every write and are not content.
 _META = ("updatedAt", "_by", "_byRole", "_org", "_createdBy", "_createdRole")
+
+
+# Fields the server stamps from the token or its own clock on the FIRST write, so
+# a device's retry cannot be carrying them: it never saw them. An "identical"
+# replay therefore has to be judged with these set aside as well as the metadata
+# — otherwise the retry that closes `04 §3.2`'s gap would still be refused, for
+# the absence of a field the server put there itself. Content is never in here:
+# `attendance.at` is the check-in time and stays a difference that matters.
+_REPLAY_STAMPED = {
+    "dutylog":    ("by",),
+    "crewnotes":  ("by",),
+    "attendance": ("userId", "receivedAt", "atUnverified"),
+}
 
 
 def _same_except(a, b, allowed):
@@ -1359,14 +1386,29 @@ def crew_reviews_for(user_id):
 
 
 def _guard_write(store, rid, data, actor, existing, c=None):
-    """Enforce, server-side, the rules the app promises.
+    """Enforce, server-side, the rules the app promises — then merge. §4.4.
 
     Everything here was previously enforced only in app.js. Staff are given a
     login, not a copy of app.js, so any of it could be walked straight past with
     one authenticated HTTP request. Returns a reason to reject, or None to allow;
     may rewrite `data` in place to stamp server truth over anything the body
     claimed.
+
+    The rules run first and the field merge second, deliberately: a guard must
+    judge the payload the device actually sent. A bill a storekeeper may not edit
+    has to be refused on its own contents, not on a copy the server has already
+    helped along — otherwise the merge would quietly widen what each guard allows.
     """
+    reason = _guard_rules(store, rid, data, actor, existing, c)
+    if reason:
+        return reason
+    if isinstance(data, dict):
+        _merge_stale_fields(store, data, existing or {})
+    return None
+
+
+def _guard_rules(store, rid, data, actor, existing, c=None):
+    """The rules themselves. Called only through `_guard_write`."""
     if not actor or not isinstance(data, dict):
         return None
     old = existing or {}
@@ -1406,6 +1448,58 @@ def _guard_write(store, rid, data, actor, existing, c=None):
             return "a duty row needs a real time"
         # Who made the change comes from the token, never the body.
         data["by"] = actor["id"]
+        return None
+
+    if store == "nightlist":
+        # Tonight's running list: one record per night, edited through the evening
+        # by whoever is on the duty board. Contract §5.
+        #
+        # Each entry's `at` is stamped from SERVER time and its `by` from the
+        # token, exactly as `attendance.receivedAt`, `dutylog.by` and
+        # `gatechecks.decision.at` already are. That stamp is the whole reason
+        # this store is immune to §4.0's clock problem: per-bus last-write-wins
+        # becomes server-ordered rather than clock-ordered, so a phone set
+        # forward cannot win every tick and a phone set back cannot lose every
+        # one. It is not tidying, and it is not optional.
+        if data.get("_deleted"):
+            return "a night that happened cannot be deleted"
+        date = data.get("date")
+        if not isinstance(date, str) or not _NIGHT_DATE.match(date):
+            return "a night needs a date"
+        # The id carries the night, so two people opening the board tonight write
+        # one record rather than two (`03 §9.25`). A date that disagrees with it
+        # would put one night's ticks under another night's key.
+        if rid != "nl-" + date:
+            return "the date and the id of a night must agree"
+        buses = data.get("buses")
+        if not isinstance(buses, dict):
+            return "a night's buses must be an object"
+        if len(buses) > NIGHTLIST_MAX_BUSES:
+            return "too many buses on one night"
+        now = now_ms()
+        prev = old.get("buses") if isinstance(old.get("buses"), dict) else {}
+        clean = {}
+        for bus_id, entry in buses.items():
+            if not isinstance(bus_id, str) or not bus_id or len(bus_id) > 200:
+                return "invalid bus"
+            if not isinstance(entry, dict) or not isinstance(entry.get("running"), bool):
+                # `running: false` is a real state and is not the same as absent:
+                # absent means nobody has decided about that bus tonight.
+                # "Unknown" and "no" must never look alike.
+                return "each bus on a night is running or not"
+            was = prev.get(bus_id) if isinstance(prev.get(bus_id), dict) else None
+            if was is not None and was.get("running") == entry.get("running"):
+                clean[bus_id] = was          # unchanged: keep the stamp it already had
+            else:
+                clean[bus_id] = {"running": entry["running"], "at": now, "by": actor["id"]}
+        # A bus in the stored copy that the incoming write does not mention is a
+        # device that loaded the board before that tick, not somebody un-deciding
+        # it — "no tick is ever lost" (§5), and a tick is taken back by setting
+        # `running: false`, which is a state of its own, not by omission.
+        for bus_id, was in prev.items():
+            if bus_id not in clean and isinstance(was, dict):
+                clean[bus_id] = was
+        data["buses"] = clean
         return None
 
     if store == "attendance":
@@ -3287,6 +3381,198 @@ def _merge_parts_used(old_lines, new_lines):
     return merged
 
 
+# ------------------- the field-level merge (contract §4.4) -----------------
+#
+# `LIVE-ISSUES.md` issue 1: a record that loses push()'s `upd > stored` test was
+# not applied, not counted and not named, so the change sat in that phone's
+# database while "Waiting to send" dropped to zero. The fix is NOT to ask
+# somebody which copy to keep: `updatedAt` comes from the pushing device's clock,
+# which is the same clock the bug depends on, so a phone set forward wins every
+# comparison and a phone set back is asked to confirm an overwrite on every save
+# until it learns the dialog means nothing. No screen adjudicates a clock.
+#
+# Instead the server merges where the fields are independent, by a DOMAIN rule
+# that needs no clock and no guess at intent. `_merge_parts_used` has been doing
+# exactly this for one field since before this was written -- "a missing line is
+# a stale device, not a removal, because the stock already left the store" --
+# and it is why `partsUsed` has never been lost to staleness while the rest of
+# the card has. A merged payload is re-stamped `max(upd+1, now)` by step 5, so
+# step 6's comparison cannot drop it. Extending the merge is therefore the whole
+# fix, and it changes the ordering condition not at all.
+#
+# Transcribed from contract §4.4. Nothing here is invented, and `parts.qty` is
+# deliberately absent: two storekeepers can both decrement it offline, the server
+# cannot tell a correction from a second issue, and `03 §5.5` says `ledger` and
+# `stockmoves` "exist to expose this, not prevent it". v2 does not fix that and
+# must not look as though it has.
+
+# Arrays unioned by element key, newest copy winning on a collision. `None` means
+# the element IS its own key (a URL string, a history entry).
+_MERGE_UNION_BY = {
+    "jobcards":   {"partRequests": ("id",), "coreReturns": ("id",),
+                   "busMoves": ("at", "by"), "beforePhotos": None, "afterPhotos": None},
+    "audits":     {"lines": ("partId",)},
+    "fuel":       {"lines": ("partId",)},
+    "def":        {"lines": ("partId",)},
+    "purchases":  {"lines": ("partId",)},
+    "buses":      {"docs": ("type", "number"), "photos": None},
+    "routes":     {"stops": ("id",)},
+    "components": {"history": None},
+    "trips":      {"expenses": ("id",)},
+}
+# A reading that only ever goes up. The odometer arrives from a fuel fill, a job
+# card, the WhatsApp capture and document edits, and a LOWER reading is never the
+# newer truth — which is a domain rule, so it needs no clock. This is the
+# clock-independence proof: the merge is right even when the newer write carries
+# the smaller number.
+_MERGE_MAX = {"buses": ("odometer", "odometerAt", "lastServiceOdo")}
+# Written by exactly one role each (completeAt is the mechanic's, DECISIONS.md
+# §6), so "non-null wins, then larger" decides them without knowing intent.
+_MERGE_NONNULL_MAX = {"jobcards": ("startAt", "completeAt", "labourHours",
+                                   "odometer", "enterAt", "outAt")}
+# Keyed maps merged per key: a key the incoming write does not mention is kept
+# from the stored copy. For `gatechecks.items` that is `_merge_parts_used`'s rule
+# exactly — an item absent from the write is a stale device, not an un-tick.
+_MERGE_BY_KEY = {"drivers": ("docs",), "gatechecks": ("items",)}
+# **R** — free text and state two people genuinely can disagree on. No domain
+# rule decides these, so they are left exactly as the body sent them and never
+# taken from the stored copy: a losing write falls to step 6's named refusal
+# instead of being merged behind somebody's back.
+_MERGE_REFUSE = {
+    "jobcards":   ("problem", "priority", "remark", "notes", "status"),
+    "buses":      ("regNo", "company", "model", "chassis", "engine"),
+    "drivers":    ("busId", "driverSlot"),
+    "components": ("state",),
+}
+# Server stamps, the redaction marker and the delete flag. Carrying `_deleted`
+# over from the stored copy would make un-deleting a record impossible.
+_MERGE_NEVER_CARRY = frozenset(_META) | {"_redacted", "_deleted"}
+# The stores a merge rule applies to at all. Deliberately absent: `parts` (see
+# above); `ledger`, `crewnotes`, `dutylog`, `stockmoves`, `triplog`, which are
+# append-only and so have no conflict to resolve; `nightlist`, which is ordered
+# from server time instead (contract §5); `rbalias`, whose whole §4.4 rule —
+# a person's write clears the AI's `auto`/`reason`/`evidence` and `history` is
+# server-accumulated — is already enforced in `_guard_rbalias`, and where a
+# carry-over would undo that clearing; and every store no client pushes.
+_MERGE_STORES = frozenset({
+    "jobcards", "audits", "fuel", "def", "attendance", "purchases", "buses",
+    "drivers", "meta", "users", "trips", "components", "gatechecks",
+    "driverreports", "incidents", "breakdowns", "vendors", "gatepasses",
+    "routes", "usage",
+})
+
+
+def _elem_key(el, fields):
+    """How two array elements are judged to be the same thing."""
+    if fields is None:
+        return el if isinstance(el, str) else json.dumps(el, sort_keys=True)
+    if not isinstance(el, dict):
+        return json.dumps(el, sort_keys=True)
+    return tuple(el.get(f) for f in fields)
+
+
+def _union_by(old_list, new_list, fields):
+    """`_merge_parts_used`'s rule, one level up: an element missing from the
+    incoming write is a device that loaded the record before it was added, not
+    somebody removing it. Nothing is dropped and nothing is reordered."""
+    merged = list(new_list or [])
+    seen = {_elem_key(el, fields) for el in merged}
+    for el in old_list or []:
+        if _elem_key(el, fields) not in seen:
+            merged.append(el)
+    return merged
+
+
+def _merge_usage(old, data):
+    """A usage row's counters, merged per key.
+
+    Contract §4.4 says these ADD. They must not: `trackScreen`/`trackAct` in
+    app.js increment a CUMULATIVE row held on the device
+    (`r.screens[name] = (r.screens[name] || 0) + 1`, `r.taps++`) and push the
+    whole row each time it is dirty, so adding would re-add the running total on
+    every push and inflate the adoption report without bound. The counter never
+    goes down, so `max` is the domain rule that holds here, and it is the one
+    that also survives a retry. Reported to the lead as a contract correction.
+    """
+    for field in ("screens", "acts"):
+        a, b = old.get(field), data.get(field)
+        if not isinstance(a, dict):
+            continue
+        merged = dict(b) if isinstance(b, dict) else {}
+        for k, v in a.items():
+            if isinstance(v, (int, float)) and isinstance(merged.get(k), (int, float)):
+                merged[k] = max(v, merged[k])
+            elif k not in merged:
+                merged[k] = v
+        data[field] = merged
+    if isinstance(old.get("taps"), (int, float)):
+        data["taps"] = max(old["taps"], data.get("taps") or 0)
+    # The slow-action table keeps the WORSE reading: the point of it is the screen
+    # that once took four seconds, and an average would hide exactly that.
+    a, b = old.get("slow"), data.get("slow")
+    if isinstance(a, dict):
+        merged = dict(b) if isinstance(b, dict) else {}
+        for k, v in a.items():
+            cur = merged.get(k)
+            if isinstance(v, dict) and isinstance(cur, dict):
+                merged[k] = {"n": max(v.get("n") or 0, cur.get("n") or 0),
+                             "worstMs": max(v.get("worstMs") or 0, cur.get("worstMs") or 0)}
+            elif k not in merged:
+                merged[k] = v
+        data["slow"] = merged
+    if isinstance(old.get("firstAt"), (int, float)):
+        data["firstAt"] = min(old["firstAt"], data.get("firstAt") or old["firstAt"])
+    if isinstance(old.get("lastAt"), (int, float)):
+        data["lastAt"] = max(old["lastAt"], data.get("lastAt") or 0)
+
+
+def _merge_stale_fields(store, data, old):
+    """Merge the stored copy into an accepted write, by domain rule. §4.4.
+
+    Runs after every guard has accepted the write, so no guard's view of the body
+    is changed by the merge — a bill a storekeeper may not edit is still refused
+    on what the device actually sent, not on a payload the server helped it with.
+    """
+    if store not in _MERGE_STORES or not isinstance(old, dict) or not old:
+        return
+    if data.get("_deleted"):
+        return                       # a delete is not a partial write to merge into
+    for field, fields in (_MERGE_UNION_BY.get(store) or {}).items():
+        if isinstance(old.get(field), list) or isinstance(data.get(field), list):
+            data[field] = _union_by(old.get(field), data.get(field), fields)
+    for field in _MERGE_MAX.get(store, ()):
+        a, b = old.get(field), data.get(field)
+        if isinstance(a, (int, float)) and isinstance(b, (int, float)):
+            data[field] = max(a, b)
+        elif isinstance(a, (int, float)) and b is None:
+            data[field] = a
+    for field in _MERGE_NONNULL_MAX.get(store, ()):
+        a, b = old.get(field), data.get(field)
+        if isinstance(a, (int, float)) and isinstance(b, (int, float)):
+            data[field] = max(a, b)
+        elif b is None and a is not None:
+            data[field] = a
+    for field in _MERGE_BY_KEY.get(store, ()):
+        a = old.get(field)
+        if isinstance(a, dict):
+            merged = dict(a)
+            b = data.get(field)
+            merged.update(b if isinstance(b, dict) else {})
+            data[field] = merged
+    if store == "usage":
+        _merge_usage(old, data)
+    # A field the stored record has and the incoming write does not mention at
+    # all is a device that loaded the record before that field was written. Under
+    # whole-record last-write-wins it was simply dropped, which is the rest of
+    # issue 1: the loser's photos, notes and part requests went with the record.
+    # An R field the body DID send is left alone above, so a real collision still
+    # reaches step 6's refusal rather than being resolved by a clock.
+    never = _MERGE_NEVER_CARRY | set(_MERGE_REFUSE.get(store, ()))
+    for k, v in old.items():
+        if k not in never and k not in data:
+            data[k] = v
+
+
 def _log_stock_moves(c, moves, ledger_rows, actor, rev):
     """Append an immutable record of each quantity change in one push.
 
@@ -3452,7 +3738,13 @@ def push(records, actor=None):
             # the owner's later correction.
             if isinstance(data, dict):
                 data["updatedAt"] = upd
-            row = c.execute("SELECT updatedAt,data FROM records WHERE store=? AND id=?",
+            # `rev` comes back with the row because a stale refusal carries it: it
+            # is the one ordering fact a client can trust, being issued by the
+            # server rather than by a phone's clock. It is never used as a count
+            # and never assumed unique -- the cursor 136,050 already exceeds the
+            # row count 81,680 (`03 §9.20`) and issue 3's collision window is
+            # real -- only as "the server issued this after that".
+            row = c.execute("SELECT updatedAt,data,rev FROM records WHERE store=? AND id=?",
                             (store, rid)).fetchone()
             existing = None
             if row is not None:
@@ -3472,6 +3764,23 @@ def push(records, actor=None):
                 else:
                     data.pop("_createdBy", None)
                     data.pop("_createdRole", None)
+            # Idempotent replay, checked before every rule below.
+            #
+            # A phone that pushed successfully and lost the RESPONSE retries the
+            # same record. Into an append-only store — `ledger`, `dutylog`,
+            # `crewnotes`, and `fuel`/`def`/`audits`/`attendance` for a
+            # non-manager — that retry is refused today even though the first
+            # write landed, and the device then quarantines a change the server
+            # already has (`04 §3.2`). Nothing was lost, but the person is told
+            # something failed and has to look at it.
+            #
+            # Byte-identical after the server's own stamps are removed is the only
+            # safe test: those differ on every write and are not content.
+            # `_same_except` already exists for exactly this shape.
+            if (actor and isinstance(data, dict) and isinstance(existing, dict)
+                    and _same_except(existing, data, _REPLAY_STAMPED.get(store, ()))):
+                applied += 1
+                continue
             if actor:
                 before_guard = json.dumps(data, sort_keys=True)
                 reason = _guard_write(store, rid, data, actor, existing, c)
@@ -3490,7 +3799,21 @@ def push(records, actor=None):
                 # showing the job card without the part. A changed payload gets
                 # a later timestamp so its author sees it too.
                 if json.dumps(data, sort_keys=True) != before_guard:
-                    upd = max(upd + 1, now_ms())
+                    # The stored row's stamp is in here too, and it has to be.
+                    #
+                    # This line used to read `max(upd + 1, now_ms())`, which lifts
+                    # a corrected payload above the INCOMING stamp and above the
+                    # server's own clock — but not necessarily above the row it is
+                    # being merged into. The stored stamp comes from a phone, and
+                    # a phone set forward writes up to MAX_FUTURE_SKEW_MS ahead of
+                    # now; so in exactly the case §4.0 is about, the correction
+                    # was computed, re-stamped, and then dropped by step 6 anyway.
+                    # Contract §4.2 claims a corrected payload "cannot be dropped"
+                    # by the comparison. It could. Now it cannot.
+                    #
+                    # Bounded, not open-ended: the stored stamp was itself clamped
+                    # to now + 5 min on the way in, so this can never run away.
+                    upd = max(upd + 1, now_ms(), (row[0] or 0) + 1 if row is not None else 0)
                     data["updatedAt"] = upd
             if row is None or upd > (row[0] or 0):
                 # A part's quantity is money. Record every change of it in a store
@@ -3514,6 +3837,48 @@ def push(records, actor=None):
                     gate_alerts.append(data)
                 rev = _upsert_record(c, store, rid, data, upd, rev)
                 applied += 1
+            else:
+                # The hole `LIVE-ISSUES.md` issue 1 lives in. Until now a record
+                # that lost this comparison was not applied, not counted in
+                # `rejected` and not named in `refused` — it fell off the end of
+                # the loop and the response said 200. The client then cleared the
+                # whole batch from its outbox under the comment "everything else
+                # landed", so the change stayed in that phone's database, "Waiting
+                # to send" dropped to zero, and the server never had it. The code
+                # three lines up already knew this failure mode and said so about
+                # REFUSED writes: "a refused write is the quietest way to lose
+                # work... the server says WHY — pass it on." The identical hole
+                # was still open for staleness.
+                #
+                # The comparison itself is deliberately untouched: changing
+                # `upd > row[0]` changes conflict resolution for every v1 device
+                # in the field. The fix is step 5 merging first (§4.4) — by the
+                # time a record reaches here, no domain rule decided it, so it is
+                # the residual **R** case and a person has to see it.
+                #
+                # `reason` is the literal string "stale", distinct from every
+                # other refusal reason in this function, all of which are prose
+                # sentences. v2's client switches on it and re-applies; v1, which
+                # is not changed, quarantines it — which is strictly better than
+                # today, where v1 loses the record silently and says it sent.
+                rejected += 1
+                entry = {"store": store, "id": rid, "reason": "stale"}
+                stored = row[1] if row is not None else None
+                if stored is not None and len(stored) <= STALE_COPY_MAX_BYTES:
+                    # Sent so the client can re-apply on top of it without a
+                    # second round trip — and so the fix is correct even when a
+                    # rev was skipped, which is why contract §9(d) can hand the
+                    # rev collision over instead of blocking on it.
+                    try:
+                        entry["server"] = {"data": json.loads(stored),
+                                           "updatedAt": row[0], "rev": row[2]}
+                    except Exception:
+                        pass          # an unparseable stored row is still a refusal
+                # Omitted above the cap so one stale job card carrying inline
+                # photos as `data:` URLs cannot turn a refusal into a 6 MiB
+                # response. The client defers the key a tick and lets the next
+                # /pull deliver the copy instead.
+                refused.append(entry)
         if moves:
             rev = _log_stock_moves(c, moves, applied_ledger, actor, rev)
         c.commit()
@@ -3675,14 +4040,30 @@ PULL_MAX_BYTES = int(os.environ.get("PULL_MAX_BYTES", "2500000"))   # ~2.5 MB, w
 # updatedAt, rev and their punctuation. Deliberately generous -- going over the
 # budget costs a 413 from the platform, going under costs one extra round trip.
 PULL_REC_OVERHEAD = 160
+# How large a stored copy may be before a stale refusal stops carrying it. A job
+# card whose photo upload failed holds the image inline as a `data:` URL and
+# travels in every pull and push (`03 §6`; a driver's phone once failed to store
+# crew because of 21 MB of it), so without a cap one such card in a batch of a
+# thousand would make the refusal list the biggest thing in the response.
+STALE_COPY_MAX_BYTES = int(os.environ.get("STALE_COPY_MAX_BYTES", str(256 * 1024)))
 
 
 # Who may see crew contact details, identity documents and pay. Everyone else still
 # syncs every store — the screens depend on it — but gets those fields removed
 # from other people's records before they leave the server.
+# NOT a read-authorisation set any more. In v1 a role in here received every
+# store and a role outside it received everything the handful of named checks
+# below did not withhold, which is `LIVE-ISSUES.md` issue 2. The store-level
+# decision now comes from v2_perms, and PII_ROLES is only the field-redaction
+# set (contract §1.1, §3.3).
 PII_ROLES = ("owner", "supervisor", "crewmanager")
-_DRIVER_PRIVATE = ("phone", "altPhone", "address", "dob", "bloodGroup", "license",
-                   "docs", "salaryMonthly")
+# One copy, in v2_perms, because this list had already drifted once: a crew
+# member's emergency contact and their reference's phone number were not in it
+# and so reached every login, conductors included (`03 §9.26`).
+_DRIVER_PRIVATE = v2_perms.FIELD_REDACT["drivers"]
+# A labour rate and a day's revenue decide what work costs and what the business
+# took. One row in this store was handing both to every login.
+_META_MONEY = v2_perms.FIELD_REDACT["meta"]
 
 
 # Live-GPS history. Every screen that reads it looks back 7 days at most (the
@@ -3710,9 +4091,19 @@ HISTORY_DAYS = {
     "usage":      int(os.environ.get("USAGE_HISTORY_DAYS", "90")),
     "audits":     int(os.environ.get("AUDITS_HISTORY_DAYS", "365")),
     "dutylog":    int(os.environ.get("DUTYLOG_HISTORY_DAYS", "365")),
+    # Aligned with dutylog's window on purpose: the two are read against each
+    # other for measure 5 ("buses on tonight's board still showing an empty seat
+    # at departure"), and a store that answers for a shorter period than the one
+    # it is compared with makes the comparison quietly wrong.
+    "nightlist":  int(os.environ.get("NIGHTLIST_HISTORY_DAYS", "365")),
 }
 # And who has a screen for it at all. A driver's phone was downloading the
 # complete stock-movement ledger of the garage.
+# Kept as the record of WHY each window exists, but it no longer decides who may
+# read a store: that is v2_perms' single table, and two copies of a read rule are
+# how they drift apart. Every list here is a subset of `v2_perms.read_roles`,
+# which `test_readscope.py` asserts — `usage` is the one that differs, because
+# every role now receives its own usage row (contract §3.3, §4.4).
 HISTORY_ROLES = {
     "gpsevents":  GPS_HISTORY_ROLES,
     "stockmoves": ("owner", "supervisor", "store"),
@@ -3752,24 +4143,14 @@ def _never_for(actor):
 
     Nothing here is about one record's age. The history stores are still read and
     still trimmed per record by redact_for, because `old` is a property of a row
-    and not of a store."""
-    role = (actor or {}).get("role")
-    never = {"aimeta"}                          # server bookkeeping, for no device
-    if role not in ("owner", "supervisor"):
-        never.add("digest")                     # the Monday summary carries money
-    if role not in ("owner", "supervisor", "crewmanager", "office"):
-        never.add("crewnotes")
-    for st, roles in HISTORY_ROLES.items():
-        if roles and role not in roles:
-            never.add(st)
-    # Mirrors redact_for's early return: with no actor at all, nothing past this
-    # point is withheld, so nothing past this point may be skipped either.
-    if actor and role not in PII_ROLES:
-        never.add("waconv")                     # keyed by a crew member's phone number
-        never.update(("itslookup", "rbaliasai", "gateai", "coreai", "reportai", "coachai"))
-        if role != "office":
-            never.update(("rbreviews", "rbcomplaints", "rbassign", "rbreviewai"))
-    return frozenset(never)
+    and not of a store.
+
+    This used to be a hand-written list of the stores each role was denied, and
+    its sibling `redact_for` was another one — which is how a `conductor` token
+    came to be able to pull supplier bills, the stock ledger and gate selfies
+    (`LIVE-ISSUES.md` issue 2). Both are now DERIVED from the one table in
+    `v2_perms`, so there is no second copy left to drift."""
+    return v2_perms.never_for(actor)
 
 
 def redact_for(actor, rec):
@@ -3777,72 +4158,68 @@ def redact_for(actor, rec):
 
     /pull used to hand every authenticated role the whole table, so a conductor's
     login could download every colleague's Aadhaar and licence numbers, document
-    photos, phone numbers and salary. The client hid them; the server did not."""
+    photos, phone numbers and salary. The client hid them; the server did not.
+
+    Two layers, in this order and never the other way round:
+
+    1. **May this role receive a record from this store at all?** One table,
+       `v2_perms.STORE_READ_ROLES`, and a store absent from it is sent to nobody.
+       This is the inversion: v1 named what it withheld and returned the rest to
+       every authenticated login, which is why a conductor token — zero
+       capabilities, zero routes — could pull supplier bills, purchases, the
+       vendor registry, parts, the stock ledger, job-card costs, fuel, driver
+       trip cash, challan liabilities, garage settings, all-staff attendance and
+       gate checks with their selfies. Hiding a screen in `PERMS` never changed
+       any of that (`LIVE-ISSUES.md` issue 2, `ux §4.3`).
+    2. **Which fields come out of it?** The age window and the field drops,
+       unchanged in spirit. `PII_ROLES` governs only this second layer now.
+    """
     st, d = rec["store"], rec["data"]
+    role = (actor or {}).get("role")
+    # First, before anything else looks at the record. Deny by default: an
+    # unknown store is None for every role, which is what makes adding a store
+    # (`nightlist`) safe — it reaches nobody until it is named in the table.
+    if not v2_perms.may_read(role, st):
+        return None
+    # The per-record ownership rule, as a backstop on the SQL predicate pull()
+    # already applied. It is derived from the same map rather than restated, and
+    # it is the only thing standing behind `?store=` (which takes a different
+    # path through pull()) and behind `triplog`, whose owner is a bus and so is
+    # post-filtered by design.
+    if not v2_perms.own_row_ok(st, actor, d):
+        return None
     # Checked before the PII_ROLES shortcut: this is about volume, and it
     # applies to the owner's phone as much as anyone's. Omitted records still
     # count as sent — pull() takes its cursor before redaction — so the client
     # does not ask for them again.
-    if st == "aimeta":                    # server bookkeeping (the open review batch), for no phone
-        return None
-    if st == "digest" and (actor or {}).get("role") not in ("owner", "supervisor"):
-        return None                       # the Monday summary carries money: owner and supervisor only
-    if st == "crewnotes" and (actor or {}).get("role") not in ("owner", "supervisor", "crewmanager", "office"):
-        # A note written knowing its subject will read it stops being a record
-        # and becomes a performance. The crew member has /my/coaching for what
-        # they are meant to see — approved, constructive, and written for them.
-        return None
     if st in HISTORY_DAYS:
-        roles = HISTORY_ROLES.get(st)
-        if roles and (actor or {}).get("role") not in roles:
-            return None
         if _record_at(d) < now_ms() - HISTORY_DAYS[st] * 86400000:
             return None
         return rec
-    if not actor or actor.get("role") in PII_ROLES:
-        return rec
     if not isinstance(d, dict):
         return rec
-    if st == "waconv":                    # keyed by a crew member's phone number
-        return None
-    if st in ("rbreviews", "rbcomplaints", "rbassign", "rbreviewai"):
-        # Reviews, complaints and Claude's reading of them are for the people who act
-        # on them. A driver's phone does not need every passenger's comment about
-        # every colleague. (rbservices holds no names: drivers need it to pick the
-        # service on the gate check.)
-        #
-        # The office is one of the people who act on them -- these four stores ARE its
-        # screen. It is deliberately kept out of PII_ROLES so it can never hold an
-        # Aadhaar, a licence or a salary, and for a while this one check gated both
-        # things: every review was withheld from the only login whose job is to read
-        # them, so the leaderboard drew each heading and not one crew member. Reading
-        # what a passenger said is a different question from reading a crew member's
-        # documents, and it is now asked separately.
-        if actor.get("role") != "office":
-            return None
-        # It may read the review; it may not read the passenger out of it.
-        # itslookup is withheld just below for carrying a PNR, a seat and a fare --
-        # and a review record carries the very same fields, so withholding one and
-        # not the other was a rule that only looked strict. A PNR plus a date is a
-        # booking-lookup credential on our own portal; the leaderboard needs the
-        # stars, the words, the route and whose trip it was, and none of that.
-        if st in ("rbreviews", "rbcomplaints") and isinstance(d, dict):
-            drop = ("pnr", "tin", "seats", "fare", "boardAt", "doj", "amount")
-            if any(k in d for k in drop):
-                return dict(rec, data=dict({k: v for k, v in d.items() if k not in drop},
-                                           _redacted=True))
+    # The garage settings row is read by every login for the geofence and the
+    # late cutoff, and carried the labour rate and the daily revenue with it. The
+    # money fields come out for the roles whose screens never price anything —
+    # including the crew manager, which is why this sits ABOVE the PII_ROLES
+    # shortcut rather than below it. See v2_perms.META_MONEY_ROLES for who keeps
+    # them and which five screens would otherwise read zero.
+    if st == "meta" and role not in v2_perms.META_MONEY_ROLES:
+        drop = _META_MONEY
+    elif not actor or role in PII_ROLES:
         return rec
-    if st in ("itslookup", "rbaliasai", "gateai", "coreai", "reportai", "coachai"):
-        # Not for the office either. itslookup carries a passenger's PNR, seat and
-        # journey, bought to resolve one review; the rest are Claude's drafts for the
-        # workshop and the crew manager. A desk reading performance needs none of it.
-        return None
-    if st == "drivers" and d.get("userId") != actor.get("id"):
+    elif st in ("rbreviews", "rbcomplaints") and role == "office":
+        # The office may read the review; it may not read the passenger out of
+        # it. `itslookup` is withheld at the store level for carrying a PNR, a
+        # seat and a fare — and a review record carries the very same fields, so
+        # withholding one and not the other was a rule that only looked strict. A
+        # PNR plus a date is a booking-lookup credential on our own portal; the
+        # leaderboard needs the stars, the words, the route and whose trip it was.
+        drop = v2_perms.FIELD_REDACT[st]
+    elif st == "drivers" and d.get("userId") != actor.get("id"):
         drop = _DRIVER_PRIVATE
     elif st == "buses":
-        drop = ("crewPhone",)
-    elif st == "odometerlogs":
-        drop = ("phone",)
+        drop = v2_perms.FIELD_REDACT["buses"]
     else:
         return rec
     if not any(k in d for k in drop):
@@ -3888,6 +4265,36 @@ def pull(since, limit=None, actor=None, only=None, defer=None):
                     "tableMax": since, "serverTime": now_ms()}
         gap = " AND store IN (%s)" % ",".join(["?"] * len(allow))
         skip = allow
+    # Per-record ownership, in SQL rather than after the page is read.
+    #
+    # `attendance` alone grows ~100 people x 2 x 365 rows a year, and handing a
+    # driver's phone the whole table so redaction can drop 99% of it recreates
+    # exactly the bug the skip list above was written to cure: a new device
+    # spending its first sync on pages that arrive empty. So the narrowing goes
+    # into the query — on BOTH statements, for the same reason the skip list is
+    # on both. Completing a rev group with a different filter would readmit a row
+    # the page had just excluded, and the device would never know.
+    #
+    # The fragments filter a page rather than a table: they are `json_extract` on
+    # an unindexed expression, applied after the `store`/`rev` predicates the
+    # composite index serves. That is a claim, and slice B5 measures it on the
+    # fleet-sized fixture rather than taking it from here.
+    own_sql, own_params = [], []
+    _dialect = "postgres" if _USE_PG else "sqlite"
+    for _st in sorted(v2_perms.OWN_ROWS_ONLY):
+        _pred = v2_perms.own_rows_predicate(_st, actor, _dialect)
+        if not _pred:
+            continue
+        _frag, _args = _pred
+        own_sql.append(" AND (store<>? OR %s)" % _frag)
+        own_params.append(_st)
+        own_params.extend(_args)
+    gap += "".join(own_sql)
+    # One list of bound values for the gap, in the order the placeholders appear.
+    # `skip` stayed the store-name list because the two queries below each splice
+    # it between their own parameters, and a second meaning for the same name is
+    # how a placeholder count comes to disagree with its arguments.
+    gap_args = list(skip) + own_params
     with _lock:
         c = db()
         # The bound is read BEFORE the page and the page is clamped to it. Read the
@@ -3901,7 +4308,7 @@ def pull(since, limit=None, actor=None, only=None, defer=None):
         maxrev = c.execute("SELECT COALESCE(MAX(rev),0) FROM records").fetchone()[0]
         rows = c.execute(
             "SELECT store,id,data,updatedAt,rev FROM records WHERE rev>? AND rev<=?" + gap +
-            " ORDER BY rev ASC LIMIT ?", tuple([since, maxrev] + skip + [limit])).fetchall()
+            " ORDER BY rev ASC LIMIT ?", tuple([since, maxrev] + gap_args + [limit])).fetchall()
         # Trim to the byte budget before anything else looks at the page. The cut
         # lands on a rev boundary for the same reason the count-based one does:
         # push() gives every record in one batch the same rev, and splitting a group
@@ -3945,7 +4352,7 @@ def pull(since, limit=None, actor=None, only=None, defer=None):
                 rows += c.execute(
                     "SELECT store,id,data,updatedAt,rev FROM records WHERE rev=?" + gap +
                     " ORDER BY id ASC LIMIT ? OFFSET ?",
-                    tuple([last] + skip + [1000000, len(rows)])).fetchall()
+                    tuple([last] + gap_args + [1000000, len(rows)])).fetchall()
         c.close()
     recs = [{"store": st, "id": i, "data": json.loads(d), "updatedAt": u, "rev": rv}
             for (st, i, d, u, rv) in rows]

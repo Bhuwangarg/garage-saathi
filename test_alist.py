@@ -173,9 +173,8 @@ def main():
     put("waconv", "9000000003", {"id": "9000000003", "phone": "9000000003"})
     mine = pulled(drv)
     other = mine.get(("drivers", "d-other"), {})
-    check("a driver gets a colleague's record without phone, documents, licence, address or pay",
-          other and not any(k in other for k in ("phone", "docs", "salaryMonthly", "license", "address"))
-          and other.get("_redacted") is True and other.get("name") == "Other")
+    check("a driver gets no colleague's record at all, not even a redacted one",
+          not other)
     check("a driver still gets their own record in full",
           mine.get(("drivers", "d-self"), {}).get("phone") == "9000000002")
     check("a driver gets buses without the crew phone",

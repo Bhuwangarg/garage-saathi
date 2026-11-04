@@ -306,3 +306,66 @@ call.
 
 What should not continue is the current state, where the app says it saved
 something it did not.
+
+---
+
+## 9. Gate-check selfies can be stored inline, and gate checks are never aged out
+
+**Severity: medium, and it grows on its own.** Verified in source. Found because
+B5 assumed the record holds a URL, said in its report that the assumption was
+unverified, and was right to flag it — it holds a URL most of the time and the
+whole image some of the time, and the exception is the common case on the device
+that matters.
+
+**The mechanism.** `app.js:9818`:
+
+```js
+const selfie = cap.photo ? (await Sync.uploadPhoto(cap.photo) || cap.photo) : '';
+```
+
+`Sync.uploadPhoto` returns `null` when it cannot reach the server — offline, a
+503 from storage, a 401, or a payload over the limit. The `||` then falls back to
+`cap.photo`, which is the `data:` URL itself: a JPEG capped at 720px at quality
+0.72, base64-encoded, so roughly 80–160 KB **inside the record**. That estimate
+is arithmetic from the capture settings at `app.js:961` and `app.js:965`, not a
+measurement of a real one.
+
+A driver at the gate, outside in a yard, is exactly who takes the offline path.
+So the inline case is not the rare one for this store; it is the normal one for
+the devices that produce most of its rows.
+
+**Why it accumulates.** `HISTORY_DAYS` in `sync_server.py:3706` windows six
+stores — `gpsevents`, `triplog`, `stockmoves`, `usage`, `audits`, `dutylog`.
+`gatechecks` is not among them, so **every gate check ever recorded is still
+sent, for ever, to every device entitled to it.** One departure per bus per day
+across a hundred buses is tens of thousands of rows a year, and whatever
+fraction of them carry an inline image carry it permanently.
+
+**This is live in v1 today**, not a v2 concern. Every device that syncs pulls the
+whole history. It is also why v2 adding `gatechecks` to the first sync pass —
+correct in itself, because a departure check awaiting a hold decision is the top
+band of the Attention screen — makes a pre-existing cost land on the first
+screen instead of later.
+
+**Two fixes, and they are independent.** Either is worth having; both is better.
+
+- **A send window.** `GATECHECKS_HISTORY_DAYS`, the same shape as the other six.
+  A departure check from last March answers no question anybody asks. This is
+  retention policy, so it is the owner's: contract §9(g).
+- **Never store the image inline.** A failed upload should queue the photo for
+  retry and leave the record referring to where it will be, rather than carrying
+  the bytes into the sync stream for ever. That is a real piece of work and it
+  interacts with issue 7, because the same offline fallback is the reason a
+  signed-URL scheme cannot simply expire these links.
+
+**Not measured, and it is the number that decides the priority:** how many
+production `gatechecks` rows currently hold a `data:` URL rather than a path. A
+read-only query settles it, and until somebody runs it this is a mechanism with
+an unknown multiplier:
+
+```sql
+SELECT COUNT(*) AS total,
+       COUNT(*) FILTER (WHERE data::jsonb->>'selfie' LIKE 'data:%') AS inline,
+       COUNT(*) FILTER (WHERE data::jsonb->>'selfie' LIKE '/uploads/%') AS uploaded
+FROM records WHERE store = 'gatechecks';
+```

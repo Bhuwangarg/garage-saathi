@@ -20,7 +20,15 @@
  * The cost is that v2 starts empty and does a full first sync. That is correct:
  * a separate app has a separate database, and sharing one was never a feature. */
 const DB_NAME = 'garage-saathi-v2';
-const DB_VERSION = 28;  // v28 adds crewnotes; v27 adds digest; v26 adds coachai; v25 adds reportai; v24 adds coreai; v23 adds gateai; v22 adds rbaliasai; v21 adds rbreviewai; v20 adds itslookup; v19 adds rbalias; v18 adds the redPro stores; v17 adds gatechecks; v16 adds dutylog (dated crew seat changes); v12 adds the usage store (daily per-person feature counters) — onupgradeneeded creates any missing
+/* 29, not 1, although the database is v2's own and starts empty.
+ *
+ * The rename above already shipped into this tree at 28, so a machine that has
+ * opened v2 since then holds `garage-saathi-v2` AT 28 and without the two stores
+ * below -- and onupgradeneeded only fires on a bump, so a version line that
+ * started again at 1 would throw VersionError on exactly the devices doing the
+ * testing. Contract §5 says 28 -> 29 for the same reason. A fresh device creates
+ * every store in one upgrade either way, so the higher number costs nothing. */
+const DB_VERSION = 29;  // v29 adds nightlist (tonight's running list) and outboxbase (device-local, never synced); v28 adds crewnotes; v27 adds digest; v26 adds coachai; v25 adds reportai; v24 adds coreai; v23 adds gateai; v22 adds rbaliasai; v21 adds rbreviewai; v20 adds itslookup; v19 adds rbalias; v18 adds the redPro stores; v17 adds gatechecks; v16 adds dutylog (dated crew seat changes); v12 adds the usage store (daily per-person feature counters) — onupgradeneeded creates any missing
 
 const STORES = {
   users: 'id',
@@ -68,6 +76,12 @@ const STORES = {
   gatechecks: 'id',    // departure checklist: one per bus departure — selfie, items, release / office decision
   dutylog: 'id',       // append-only: one row per crew seat change, with when. The duty board
                         // only knows who is on a bus now; this is who was on it on a given day.
+  nightlist: 'id',     // one record per night (nl-<YYYY-MM-DD>): which buses run tonight, as a
+                        // map keyed by bus so a tick can be taken back and the count can reach
+                        // zero. New store, so v1 never has it and cannot clobber it. Contract §5.
+  outboxbase: 'key',   // DEVICE-LOCAL, never synced: what a pending change is measured against.
+                        // Deliberately absent from sync.js's STORES, so markDirty() returns
+                        // early for it exactly as it does for meta.seeded.
   meta: 'key',
 };
 
@@ -137,6 +151,55 @@ function tx(store, mode = 'readonly') {
 const _dirtyStores = new Set();
 const _markDirty = (store) => { _dirtyStores.add(store); };
 
+/* What a pending change is measured against -- for the residual stores only.
+ *
+ * A stale refusal is the one case where this device has to re-apply its own
+ * change on top of the server's copy, and to do that it has to know WHICH fields
+ * it changed. It cannot ask (contract §4.0: no screen ever asks a person to
+ * adjudicate a clock) and it cannot work it out by diffing against the server's
+ * copy, because that diff cannot tell this device's edit from the other device's.
+ *
+ * Only the fields contract §4.4 marks **R** ever reach this path: everything else
+ * is merged on the server by a domain rule and is never refused at all. So this is
+ * a handful of named fields on five stores rather than a copy of every record --
+ * which is what the first draft of the contract proposed and then retired, because
+ * a job card's photo array can carry a failed upload inline as a `data:` URL.
+ *
+ * `parts` is deliberately NOT here. §4.4 says in plain words that a lost qty
+ * decrement is unfixed, and a base snapshot for it would make it look otherwise. */
+const R_FIELDS = {
+  jobcards:   ['problem', 'priority', 'remark', 'notes', 'status'],
+  buses:      ['regNo', 'company', 'model', 'chassis', 'engine'],
+  drivers:    ['busId', 'driverSlot'],
+  components: ['state'],
+  gatechecks: ['items'],
+};
+/* A base value this big is not something one person typed into one field --
+ * gatechecks.items carries an item's photos. Rather than store it, the snapshot
+ * records that it HAS no usable base: touched() then reports nothing, so sync
+ * surfaces the refusal with a reason and a Retry instead of guessing. Bounded by
+ * construction beats bounded by hope, which is the claim §4.2 retired. */
+const BASE_MAX_BYTES = 16384;
+const BASE_STORE = 'outboxbase';
+const baseKey = (store, id) => store + '|' + id;
+const _sameVal = (a, b) => JSON.stringify(a === undefined ? null : a) === JSON.stringify(b === undefined ? null : b);
+
+// The snapshot row for `row`'s R fields, or null for a store that has none.
+function _baseRow(store, id, row) {
+  const fields = R_FIELDS[store];
+  if (!fields) return null;
+  const out = { key: baseKey(store, id), store, id, base: {}, at: Date.now() };
+  for (const f of fields) {
+    const v = row ? row[f] : undefined;
+    if (v === undefined) continue;                 // absent is itself a base: see touched()
+    if (v !== null && typeof v === 'object' && JSON.stringify(v).length > BASE_MAX_BYTES) {
+      return { key: out.key, store, id, unbounded: true, at: out.at };
+    }
+    out.base[f] = v;
+  }
+  return out;
+}
+
 const DB = {
   // A copy, deliberately NOT cleared here: a write that lands while load() is
   // awaiting its reads must stay dirty, or that write is the one that goes missing.
@@ -180,6 +243,10 @@ const DB = {
   // let seed data outrank the server and become impossible to correct.
   async bulkPut(store, arr, notify = true, stamp = true) {
     if (!arr || !arr.length) return 0;
+    // Local writes, so each row's base is the row as it stood before the import —
+    // read once for the whole batch rather than once per row, for the reason the
+    // two bulk methods exist at all.
+    await this._rebaseMany(store, arr.map((o) => o[STORES[store] || 'id']));
     _markDirty(store);
     const now = Date.now();
     const os = await tx(store, 'readwrite');
@@ -197,8 +264,14 @@ const DB = {
   },
   // Remote write: applies a record from the server AS-IS (keeps its updatedAt,
   // does NOT re-notify the outbox) so sync never echoes a change back.
-  async putRaw(store, obj) {
-    await this._write(store, obj);
+  //
+  // `baseFrom` is the copy the written record should be measured against from now
+  // on, and it exists for exactly one caller: a stale re-apply writes the server's
+  // copy with this device's change back on top, so the record it stores is NOT its
+  // own base -- the server's copy is. Default (and the pull's case): the record
+  // written is the new base, because it is what the server has.
+  async putRaw(store, obj, baseFrom) {
+    await this._write(store, obj, true, baseFrom);
     return obj;
   },
   /* The two below are putRaw and _rawGet done a page at a time, for sync's pull.
@@ -232,6 +305,13 @@ const DB = {
   // echoes the server's own records back at it as local edits.
   async bulkPutRaw(store, rows) {
     if (!rows || !rows.length) return 0;
+    // Remote writes: what the server has is the new base for every row in the page.
+    if (R_FIELDS[store]) {
+      for (const o of rows) {
+        const row = _baseRow(store, o[STORES[store] || 'id'], o);
+        if (row && row.id != null) await this._putBase(row);
+      }
+    }
     _markDirty(store);
     const os = await tx(store, 'readwrite');
     await new Promise((res, rej) => {
@@ -245,15 +325,128 @@ const DB = {
     });
     return rows.length;
   },
-  _write(store, obj) {
+  async _write(store, obj, remote, baseFrom) {
+    await this._rebase(store, obj[STORES[store] || 'id'], remote, baseFrom || obj);
     _markDirty(store);
-    return tx(store, 'readwrite').then((os) => new Promise((res, rej) => {
+    const os = await tx(store, 'readwrite');
+    return new Promise((res, rej) => {
       const r = os.put(obj);
       r.onsuccess = () => res(obj);
       r.onerror = () => rej(r.error);
-    }));
+    });
+  },
+  /* Record the base, at the only places a row is ever written, so no caller has to
+   * remember to declare what it touched -- the same reason the dirty marks live
+   * there and not in the feature code.
+   *
+   * A REMOTE write (the pull, or a stale re-apply) sets the base to the copy the
+   * server has. A LOCAL write sets it to the row as it stood BEFORE the write, and
+   * only once: a second edit made before the first has been pushed still measures
+   * against the last state the server knew, which is what a re-apply has to put
+   * its change on top of.
+   *
+   * Two extra reads per local write, on five stores. The write itself was measured
+   * at ~1ms and this is the path a tap waits on, so it is worth saying that it is
+   * two reads and not a scan -- and that it buys the difference between a change
+   * being re-applied and a change being lost while the screen says it sent. */
+  async _rebase(store, id, remote, from) {
+    if (!R_FIELDS[store] || id == null) return;
+    const key = baseKey(store, id);
+    if (remote) {
+      const row = _baseRow(store, id, from);
+      if (row) await this._putBase(row);
+      return;
+    }
+    if (await this._rawGet(BASE_STORE, key)) return;        // first base wins
+    const row = _baseRow(store, id, await this._rawGet(store, id));
+    if (row) await this._putBase(row);
+  },
+  // _rebase for a whole local batch: one read of the prior rows, one read of the
+  // bases already held, then only the rows that have none.
+  async _rebaseMany(store, ids) {
+    if (!R_FIELDS[store]) return;
+    const live = (ids || []).filter((id) => id != null);
+    if (!live.length) return;
+    const prev = await this.bulkRawGet(store, live);
+    const held = await this.bulkRawGet(BASE_STORE, live.map((id) => baseKey(store, id)));
+    for (const id of live) {
+      if (held[baseKey(store, id)]) continue;
+      const row = _baseRow(store, id, prev[id]);
+      if (row) await this._putBase(row);
+    }
+  },
+  // Written straight to its own store rather than through _write: the base is not
+  // app data, so marking it dirty would make load() re-read it for nobody.
+  async _putBase(row) {
+    const os = await tx(BASE_STORE, 'readwrite');
+    return new Promise((res, rej) => {
+      const r = os.put(row);
+      r.onsuccess = () => res(row);
+      r.onerror = () => rej(r.error);
+    });
+  },
+  /* The top-level fields of a pending change, measured against the base above:
+   * what this device altered and the server's copy therefore does not have.
+   *
+   * [] means "cannot say" as well as "nothing" -- no base recorded, or one too
+   * large to hold. Both are the same answer to sync: it must not guess, so the
+   * refusal is surfaced with a reason and a Retry rather than resolved silently. */
+  async touched(store, id) {
+    const fields = R_FIELDS[store];
+    if (!fields) return [];
+    const snap = await this._rawGet(BASE_STORE, baseKey(store, id));
+    if (!snap || snap.unbounded || !snap.base) return [];
+    const row = await this._rawGet(store, id);
+    if (!row) return [];
+    return fields.filter((f) => !_sameVal(snap.base[f], row[f]));
+  },
+  /* touched() for a whole page's pending keys, in two reads instead of two per
+   * record. PullApply.decidePage is pure and this is not, so the fields have to be
+   * handed to it as data -- which is only affordable if the IO is once per store,
+   * the same reason bulkRawGet exists. Returns { id: [field names] }. */
+  async touchedMany(store, ids) {
+    const fields = R_FIELDS[store];
+    const out = {};
+    const live = (ids || []).filter((id) => id != null);
+    if (!fields || !live.length) return out;
+    const snaps = await this.bulkRawGet(BASE_STORE, live.map((id) => baseKey(store, id)));
+    const rows = await this.bulkRawGet(store, live);
+    for (const id of live) {
+      const snap = snaps[baseKey(store, id)];
+      const row = rows[id];
+      if (!snap || snap.unbounded || !snap.base || !row) continue;   // cannot say: see touched()
+      out[id] = fields.filter((f) => !_sameVal(snap.base[f], row[f]));
+    }
+    return out;
+  },
+  /* Say explicitly what a record's base is.
+   *
+   * bulkPutRaw takes each row it writes as that row's own base, which is right for
+   * an ordinary pull and wrong for a key this device still owes: the row written
+   * then carries the local change back on top, a base taken from it would report
+   * nothing as pending, and the next stale refusal would be unresolvable. The
+   * server's copy is the base. (putRaw's third argument is the same thing for one
+   * record; this is the bulk path, which has to re-base after the write.) */
+  async rebase(store, id, from) {
+    const row = _baseRow(store, id, from);
+    if (row) await this._putBase(row);
+  },
+  // A key that is no longer pending has no base. Left behind, the next edit to
+  // that record would be measured against a state two saves old, and a re-apply
+  // would put back a value somebody had already corrected.
+  async untouch(store, id) {
+    if (!R_FIELDS[store]) return false;
+    const os = await tx(BASE_STORE, 'readwrite');
+    return new Promise((res, rej) => {
+      const r = os.delete(baseKey(store, id));
+      r.onsuccess = () => res(true);
+      r.onerror = () => rej(r.error);
+    });
   },
   async del(store, id) {
+    // A hard delete leaves nothing pending, so nothing to measure. (softDel is a
+    // local write of a tombstone and goes through _write like any other edit.)
+    await this.untouch(store, id);
     _markDirty(store);
     const os = await tx(store, 'readwrite');
     return new Promise((res, rej) => {

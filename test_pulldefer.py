@@ -106,7 +106,9 @@ check("…is told there is no more", page["more"] is False)
 check("…and their cursor does NOT move", page["maxRev"] == 0)
 
 d_main, _, _ = drain(DRIVER, defer=DEFER)
-check("a driver's own drain is unaffected by the defer list", {("jobcards", "j0")} <= set(d_main))
+# `buses`, not `jobcards`: job cards are filtered per record now, which is not
+# what this check is about.
+check("a driver's own drain is unaffected by the defer list", {("buses", "b0")} <= set(d_main))
 check("…and still carries no telemetry", not [x for x in d_main if x[0] == "gpsevents"])
 
 print("\nA name that is not a store is harmless")

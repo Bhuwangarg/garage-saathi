@@ -54,7 +54,7 @@ check("a year-old event is not", S.redact_for(OWNER, ev(365)) is None)
 print("Everything else is untouched by this rule")
 crew = {"store": "drivers", "id": "d1", "data": {"id": "d1", "name": "Ramlal", "phone": "9876500000"}}
 check("the owner still gets a crew record whole", (S.redact_for(OWNER, crew) or {}).get("data", {}).get("phone") == "9876500000")
-check("a driver still gets one, redacted", (S.redact_for(DRIVER, crew) or {}).get("data", {}).get("_redacted") is True)
+check("a driver gets no colleague crew record at all", S.redact_for(DRIVER, crew) is None)
 bus = {"store": "buses", "id": "b1", "data": {"id": "b1", "regNo": "RJ14 PA 1023"}}
 check("a crew manager still gets buses", S.redact_for(CREWMGR, bus) is not None)
 

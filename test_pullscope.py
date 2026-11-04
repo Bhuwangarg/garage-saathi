@@ -75,7 +75,9 @@ check("a driver's phone skips the GPS table", "gpsevents" in S._never_for({"id":
 check("and the reviews it may not read", "rbreviews" in S._never_for({"id": "u", "role": "driver"}))
 check("the office skips GPS", "gpsevents" in S._never_for({"id": "u", "role": "office"}))
 check("but NOT the reviews, which are its screen", "rbreviews" not in S._never_for({"id": "u", "role": "office"}))
-check("the owner skips nothing but bookkeeping", S._never_for({"id": "u", "role": "owner"}) == frozenset({"aimeta"}))
+check("the owner skips nothing but bookkeeping",
+      S._never_for({"id": "u", "role": "owner"})
+      == frozenset({"aimeta", "gpslive", "odometerlogs", "waconv"}))
 
 print("\nEnd to end: the same records arrive, just without the empty pages")
 c = S.db()
@@ -151,9 +153,12 @@ class _RaceConn(object):
 def _push_from_another_container():
     c2 = S.db()
     rev2 = c2.execute("SELECT COALESCE(MAX(rev),0) FROM records").fetchone()[0]
-    S._upsert_record(c2, "jobcards", "race-1",
-                     {"id": "race-1", "busId": "b-1", "problem": "landed mid-pull",
-                      "status": "open", "at": now, "updatedAt": now}, now, rev2)
+    # `buses`, not `jobcards`: job cards are now filtered per record for some
+    # roles, so a jobcard fixture would fail here for a reason that is not the
+    # mid-pull race this test exists to check.
+    S._upsert_record(c2, "buses", "race-1",
+                     {"id": "race-1", "regNo": "RJ14 PA 9999",
+                      "at": now, "updatedAt": now}, now, rev2)
     c2.commit()
     c2.close()
 
