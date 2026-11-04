@@ -169,3 +169,56 @@ admits the figure was set on a developer's Mac. Every density rule in
 
 Stage 3 takes the reading on an actual office PC and the budget moves to
 whatever that says. Until then it is an assumption wearing a number's clothes.
+
+---
+
+# Owner's answers, second round, 2026-11-04
+
+Asked because the first round's answers, each sensible alone, put the parts, the
+cash reconciliation, the departure record and sign-off on a supervisor's own
+closed work into one pair of hands. The owner was shown that and chose two
+controls rather than accepting it.
+
+## 10. A supervisor's closed work needs a second signature again
+
+**This reverses the 15 September decision** (`fbcd246`, hardcoded at
+`app.js:3873` as `const selfSignsOff = (role) => role === 'supervisor'`), which
+the commit records as the owner's own call at the time. The owner has now
+changed it, knowing that is what it is.
+
+In v2: a job closed by a supervisor sits in a verify queue for somebody else —
+the owner, or the other supervisor. One tap by a second person per job.
+
+- The existing shape already supports this. `closedBy` is written on close and
+  `verifiedBy` on verify, both from the token, and `app.js:3019` already filters
+  a verify list to `closedBy !== S.user.id`. The v2 rule is that filter applied
+  to everyone, rather than skipped for supervisors.
+- No record-shape change, so v1 keeps reading it.
+- The owner still cannot sign off what the owner closed. That was true before
+  and stays true, so the rule is now the same for every role.
+
+**v1 is NOT changed by this.** `selfSignsOff` is live and supervisors are
+signing off their own work today. Bringing v1 into line is a production
+behaviour change and a separate decision — if it is wanted, say so and it goes
+on its own branch through the gate. Until then v1 and v2 differ here on purpose,
+and that difference is worth knowing when the two are compared.
+
+## 11. The supervisor records trip cash
+
+Dropping the driver's Trip cash screen left Money's per-bus running cost with no
+input, which would have made that number wrong rather than absent. The
+supervisor enters it: bus, date, allowance given, expenses back, on Money.
+
+Noted honestly: this adds to the same supervisor's load, and it is money entered
+and reconciled by one person. Decision 10 is the control that offsets it, and
+the owner chose it knowing both.
+
+## 12. The departure check keeps everything, selfie included
+
+The ten items, the photo and the hold decision all stay, and the supervisor
+photographs the driver at the gate. So the record still evidences who took which
+bus out, which is what it was for — recorded by a different pair of hands than
+before, but about the same person.
+
+This is the second control the owner chose, and it is why moving the check off
+the driver does not cost what it looked like it would.
