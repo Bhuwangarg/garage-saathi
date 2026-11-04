@@ -22,10 +22,14 @@ what is lost.
 | **Drivers and conductors have logins but do not use them** (`DECISIONS.md §7`) | **Gate check and Trip cash are dropped as screens.** 14 → 12. The departure check moves to the Duty board as the supervisor's. Trip cash folds into Money. The trip-cash Hindi friction is **re-ranked to zero** (§2.3). A driver and a conductor now land on **Me and nothing else** (§4.2), which is resolved here rather than left implied. Q5 closed |
 | **Tonight's running list is a register in the office** (`DECISIONS.md §8`) | The Duty board gets a quick daily entry: pick tonight's buses, then fill their seats, so the count can reach zero. **This is the one thing in the plan that needs a data addition**, and §6 states the only safe shape for it. Q8 closed |
 | **The 200-row / 250 ms desk budget is a placeholder, not a measurement** (`DECISIONS.md §9`) | §7 measure 10 no longer implies it is measured |
+| **A supervisor's closed work needs a second signature again** (`DECISIONS.md §10`) | **Job card (#4)** and the verify queue on **Attention (#2)**: the closer is never the verifier, for every role including the owner. One line, no shape change — and §6 names the two places it is **not** enforced (the server still permits it; v1 still self-signs). §7 measure 12 counts it. Q14 closed |
+| **The supervisor records trip cash** (`DECISIONS.md §11`) | **Money (#7)** gains a quick entry — bus, date, allowance given, expenses back — filled on the gate round (§3.3). Money entered and reconciled by one person, offset by the decision above. Q15 closed |
+| **The departure check keeps everything, selfie included** (`DECISIONS.md §12`) | **Duty board (#9)** keeps the ten items, the photos, the hold and the selfie of the driver, now taken by the supervisor. The record still evidences who took which bus out. Q16 closed, and §5's "what is lost" item 8 is withdrawn |
 
-Five of the fourteen owner questions are closed. Nine remain, two are new, and one
-(Q14) **matters more than it did** because the control that was going to answer it
-has been reversed — see §8.
+**Eight of the sixteen owner questions are closed.** Eight remain — Q4, Q6, Q7, Q9,
+Q10, Q11, Q12, Q13 — and none of them blocks stage 2; only Q9 could change whether a
+screen exists. The concern I raised about separation of duties was answered with two
+controls rather than accepted: §8 and §9.
 
 ## Evidence labels used throughout
 
@@ -252,9 +256,18 @@ the person sees, what they do, and what the system writes. No visual description
    is visible from step 2 so it is never a surprise at the end — *"once the part is off
    the bus you can never take it again"* ([D] manual Part 2; the server enforces it,
    `02 §4.4`). Writes: `jobcards.status = done`, `closedAt`, `closedBy` (server truth).
-7. **Sign-off** is one row on somebody else's Today, not a screen. The closer cannot be
-   the verifier unless the verifier is a supervisor ([C] `02 §4.4`; the owner's 15 Sep
-   decision). Writes: `status = verified`, `verifiedBy`, `verifiedAt`.
+7. **Sign-off is one row on somebody else's Today, and it is now always somebody
+   else's.** The owner has reversed the 15 September decision knowingly
+   (`DECISIONS.md §10`): a card closed by a supervisor waits for the owner or the other
+   supervisor. **One rule for every role, the owner included** — the closer is never
+   the verifier. The shape already carries it: `closedBy` and `verifiedBy` are both
+   written from the token, and `app.js:3019` already filters a verify list to
+   `closedBy !== S.user.id`; v2 applies that filter to everybody instead of skipping it
+   for supervisors. No record-shape change. The cost is one tap by a second person per
+   card, and the supervisor's own closed work is no longer finished when he closes it —
+   which is the point, and he should see it as "waiting for sign-off" rather than
+   discover it later (v1 already shows him that note, [E] 000c3dd). Writes:
+   `status = verified`, `verifiedBy`, `verifiedAt`.
 
 ### 3.2 The mechanic's two taps — **approved** (`DECISIONS.md §6`)
 
@@ -276,31 +289,55 @@ the person sees, what they do, and what the system writes. No visual description
 Everything else on a mechanic's card stays read-only. No hours field, no photo
 requirement, no close button.
 
-### 3.3 The departure check — now the supervisor's round, not the driver's (`DECISIONS.md §7`)
+### 3.3 The supervisor's gate round — out with a check, back with the cash
 
-**Rewritten.** As first drafted this was a driver flow on a driver screen. The owner's
-answer removes the person, so it moves to the one who is holding a phone.
+**Rewritten twice.** As first drafted the departure check was a driver flow on a driver
+screen; `DECISIONS.md §7` removed the person. `DECISIONS.md §11` and `§12` then put
+both halves of the gate on the same round, which is where they belong: the same person,
+the same place, twice in a shift.
+
+**Out, at departure:**
 
 1. **The supervisor opens the Duty board in the evening.** Tonight's buses, picked
-   earlier from the office register (§3.5 step 1), each showing its three seats and
+   earlier from the office register (§3.6 step 1), each showing its three seats and
    whether it has been checked out of the gate. Writes: nothing.
 2. **Walks the line. Taps a bus, runs the ten items.** Three need a photo; the live
    capture and the 1.5-second hold stay, because the hold is the control, not
-   decoration ([E] 8a8cde5; `v2-foundation-ui.md §5.7`). All pass → released, and the
-   bus goes. Writes: `gatechecks` (server state machine, `02 §4.4`).
+   decoration ([E] 8a8cde5; `v2-foundation-ui.md §5.7`). **And the selfie stays, of the
+   driver, taken by the supervisor** (`DECISIONS.md §12`) — so the record still
+   evidences who took which bus out, which is what it was always for. All pass →
+   released, and the bus goes. Writes: `gatechecks` (server state machine, `02 §4.4`).
 3. **A fail does not block him.** The check waits and becomes a row on Attention for
    whoever holds `gateDecide` — go or hold, with a reason either way ([E]
    GATE_CHECK.md). A 20:00 check still counts at 02:00. Writes: `gatechecks`.
-4. **A driver's fault report still reaches the app**, but from Me (§3.4) rather than
+4. **Gives the driver his allowance, and records it** — bus, date, amount — on Money
+   (#7), two fields and a save (`DECISIONS.md §11`). Writes: `trips`.
+
+**Back, on return:**
+
+5. **Takes the expenses back and enters them** against the same trip, then closes it;
+   a closed trip is frozen by the server ([C] `02 §4.4`). Writes: `trips`.
+6. **A driver's fault report still reaches the app**, but from Me (§3.4) rather than
    from a screen he does not open. Writes: `driverreports`. The server already drafts
    a job card from it within ten minutes and pushes the owner if it reads as unsafe
    ([C] `04 §6`, report_ai).
 
-**What this flow loses, stated rather than buried.** The ten items, the live selfie and
-the hold were built so that *the person being checked certifies the bus himself, at the
-bus*. Recorded by a supervisor, the same record means something weaker: the bus was
-inspected, and the driver's presence at it is no longer evidenced. See §9 — I am not
-objecting to the screen moving, but to what it joins.
+**Said plainly, because it is the one place this plan asks something uncomfortable.**
+Steps 4 and 5 are **money entered and reconciled by the same person** — the supervisor
+hands out the allowance, takes the change back, types both, and is also the person who
+reconciles the cash (`DECISIONS.md §5`). The owner chose it knowing that, and chose the
+offsetting control in the same breath: his closed job cards now need a second signature
+(`DECISIONS.md §10`, §3.1 step 7). What makes the trip entry safe is not the screen, it
+is that the figures land in a store the server treats as a trip with a start and an end
+rather than a free-text total, and that the entry is visible to the owner on the same
+screen he reads the cost from. The alternative was worse than uncomfortable: without
+these two steps, Money's per-bus running cost would have been **wrong rather than
+absent**, which is the failure this document objects to most (§4.1, [E] 8db78e7).
+
+Also honest: this is **additional load on the busiest person in the business**, on top
+of the job cards that already cost him 3–13 hours a week (`05 §3` row 1). It is two
+fields twice per trip and it replaces nothing. §7 measure 13 watches whether it is
+actually done.
 
 ### 3.4 A driver or a conductor who does sign in
 
@@ -388,7 +425,9 @@ a number instead of an assumption.
    Attention queue. Four numbers and a short list ([E] 000c3dd; [D] manual Part 2).
    **Every number says when it was last true** (`spec §4.7`) — see §6.
 3. **Taps into Attention** for the things only he can settle: work waiting on his
-   signature (never his own closes, [E] 000c3dd), unexplained stock changes, pilferage
+   signature — **never his own closes, which was already true for him alone ([E]
+   000c3dd) and is now the rule for everybody** (`DECISIONS.md §10`), so this queue is
+   where a supervisor's closed cards arrive — unexplained stock changes, pilferage
    flags, challans, expired documents, gate checks waiting for a decision. One ranked
    list, each row carrying the reason and the money or the safety it represents.
 4. **Taps Money** when he wants the cost itself rather than a flag. He is no longer the
@@ -419,14 +458,14 @@ a number instead of an assumption.
 | # | Screen | The job it serves | Role that does that job | What must be on it | What must NOT be on it |
 |---|---|---|---|---|---|
 | 1 | **Today** | "What needs me, now?" — role-shaped | owner, supervisor, store, mechanic, crewmanager, office — **not driver or conductor** (§4.2) | The person's own queue: a supervisor's standing buses oldest-first with idle time, and tonight's unchecked departures; a mechanic's own cards; a storekeeper's low stock and waiting requests; a crew manager's empty seats among tonight's buses; the owner's four numbers and the top of Attention; the Monday summary when there is one | Anything that is not this person's to act on. No five cards that each link to a different ranked list — that is Attention's job (#2). **No Today at all for a driver or a conductor**: for them it would be a shell, and a shell is the dead end of [E] 8db78e7 |
-| 2 | **Attention** | "What is wrong across the business, ranked by money and safety?" — one list instead of five screens | owner, supervisor (per-row, see §4.3) | Every open flag as a row, ranked, each with the reason attached and a link to where it is fixed: gate checks awaiting a decision, work awaiting sign-off, unexplained stock changes, pilferage flags, documents expiring or expired, unpaid challans, open unsafe driver reports, breakdown patterns, buses with no driver | Anything a person cannot act on. Any row whose capability this person does not hold (§4.3). Any count that can never reach zero — [E] 5eb8c6e ("110 of 110 missing documents") and [E] ba274f6 ("67 buses need a driver" with 54 drivers) are the app teaching its user to scroll past red |
+| 2 | **Attention** | "What is wrong across the business, ranked by money and safety?" — one list instead of five screens | owner, supervisor (per-row, see §4.3) | Every open flag as a row, ranked, each with the reason attached and a link to where it is fixed: gate checks awaiting a decision, **work awaiting a second signature — never the reader's own closes, for any role including the owner** (`DECISIONS.md §10`), unexplained stock changes, pilferage flags, documents expiring or expired, unpaid challans, open unsafe driver reports, breakdown patterns, buses with no driver | Anything a person cannot act on. Any row whose capability this person does not hold (§4.3). Any count that can never reach zero — [E] 5eb8c6e ("110 of 110 missing documents") and [E] ba274f6 ("67 buses need a driver" with 54 drivers) are the app teaching its user to scroll past red |
 | 3 | **Jobs** | "What is standing in the yard, for how long, and has it been started?" | supervisor; owner; store (read); mechanic (own only) | Every open card oldest-first with idle time, who is carrying what, filters for completed and for away-for-repair, new job, and mechanic workload where a card needs an owner (open work, rework, turnaround — [E] 38e1914: "who should take this job" is not a question one score answers) | The card's contents. A mechanic must never see another mechanic's card here ([C] `02 §4.3`; it leaked once, `02 §6.2`) |
-| 4 | **Job card** | "What is the state of this one repair, and what is the one next step?" | supervisor (keeps it); mechanic (two taps); owner (verify, move, delete); store (parts) | Bus, fault, priority, crew and their tasks, the four workshop times with the gaps between them, odometer, parts down with the ledger behind them, part requests, old-part returns, before/after photos with the close gate visible from the top, outside-vendor and its printable gate pass, and **one** next step for whoever is looking | Four empty time fields presented as a form. The close button for anyone who may not close. A pre-selected job on the issue sheet ([E] d738a6e). Any sign-off path that lets the closer verify their own work ([C] `02 §4.4`) |
+| 4 | **Job card** | "What is the state of this one repair, and what is the one next step?" | supervisor (keeps it); mechanic (two taps); owner (verify, move, delete); store (parts) | Bus, fault, priority, crew and their tasks, the four workshop times with the gaps between them, odometer, parts down with the ledger behind them, part requests, old-part returns, before/after photos with the close gate visible from the top, outside-vendor and its printable gate pass, and **one** next step for whoever is looking — which for a card the reader closed themself is "waiting for somebody else", not a button | Four empty time fields presented as a form. The close button for anyone who may not close. A pre-selected job on the issue sheet ([E] d738a6e). **A verify button for the person who closed the card — any person, any role, the owner and a supervisor alike** (`DECISIONS.md §10`, reversing 15 Sep). A supervisor's own closed card must read "waiting for sign-off", never "verified" |
 | 5 | **Buses** | "What does this bus need, and what has it cost?" | owner, supervisor | Searchable register; per bus: papers with expiry, service due, odometer, pending challans, tyres and batteries fitted, assigned crew, live position, open driver reports with "make a job", and the repair history. Add a bus, and log a scheduled service | Five different cost bases for one bus (`01 §5.2` — there are five today). Crew phone numbers for a role not in `PII_ROLES` ([C] `03 §2.1`) |
 | 6 | **Store** | "Hand out a part against a card without the count drifting, and record what arrived." | store; supervisor; owner; mechanic (read) | Catalogue with stock and reorder, waiting part requests, issue against a chosen card, receive stock, the supplier bill (photographed and read), the shelf count and the trust number, the per-piece register for tyres/batteries/rotables including warranty state, and the vendor behind each bill | Fleet-wide spend totals — those are Money's (#7). This is the `bills` split: **manage the bill here, read the total there** (`spec §6`) |
-| 7 | **Money** | "What did running the fleet cost, where did it go, and what do we owe?" | **owner and supervisor** — the 2 Nov decision is reversed because a supervisor does the cash reconciliation (`DECISIONS.md §5`) | One total that reconciles to its parts (fuel and AdBlue, parts, labour, outside, misc), the trend, cost per km and the money-pit list, running cost per bus **including the trip cash that Trip cash used to collect**, supplier dues, and the period report | Any per-km figure divided by a missing odometer — [E] 8db78e7: ₹45,000 of work read as ₹45,000/km and topped the money-pit list, sending the owner to inspect a healthy bus. **A trip-cash figure presented as complete** while nobody enters trips (Q15): it must read as "no trips recorded", not as ₹0 — "unknown" and "zero" must never look alike (`v2-foundation-ui.md §3.6`) |
+| 7 | **Money** | "What did running the fleet cost, where did it go, and what do we owe?" | **owner and supervisor** — the 2 Nov decision is reversed because a supervisor does the cash reconciliation (`DECISIONS.md §5`) | One total that reconciles to its parts (fuel and AdBlue, parts, labour, outside, misc), the trend, cost per km and the money-pit list, running cost per bus including trip cash, supplier dues, the period report, and — new — **the quick trip entry the supervisor fills at the gate: bus, date, allowance given, expenses back** (`DECISIONS.md §11`, §3.3 steps 4–5) | Any per-km figure divided by a missing odometer — [E] 8db78e7: ₹45,000 of work read as ₹45,000/km and topped the money-pit list, sending the owner to inspect a healthy bus. **A trip-cash figure presented as complete** when trips are missing: a bus with no trip entered reads "no trips recorded", never ₹0 — "unknown" and "zero" must never look alike (`v2-foundation-ui.md §3.6`). A free-text cash total: it is a trip with a start and an end, or it is not recorded |
 | 8 | **People** | "Who is on the roll, how are they doing, and what did we do about it?" | crewmanager, office (read), owner, supervisor | Crew worst-first with the blended score; one person: documents and expiry, incidents, their reviews, the append-only conversation log, the week's coaching note to approve; add a joiner with duplicate detection, mark a leaver; crew logins and PINs; staff logins | Salary for a role that should not hold it — **Q4 is open and this screen changes on the answer.** Another person's identity documents for anyone outside `manageDrivers`-or-self ([C] `02 §4.3`; it leaked once, `02 §6.2`). The conversation log must never reach the person it is about ([E] 4a42e38) |
-| 9 | **Duty board** | "Is every bus that runs tonight staffed, and has it left the gate fit?" | crewmanager (tonight's buses and the seats); supervisor (the departure check); owner | **Tonight's buses first**, ticked off the office register (`DECISIONS.md §8`) — then three seats per bus, who is free, fill and change a seat, "who was on bus X on date Y" from the duty log, and **per bus whether it has been checked out of the gate**: the ten items, the three photos, the live capture and the 1.5-second hold ([E] 8a8cde5) | A count that can never reach zero — which is exactly what picking tonight's buses fixes ([E] ba274f6). Anything that clears a seat the person did not touch (`05 §4` row 26). The go/hold **decision**, which is a row on Attention where the decider already looks. Status by colour alone (`spec §4.3`) |
+| 9 | **Duty board** | "Is every bus that runs tonight staffed, and has it left the gate fit?" | crewmanager (tonight's buses and the seats); supervisor (the departure check); owner | **Tonight's buses first**, ticked off the office register (`DECISIONS.md §8`) — then three seats per bus, who is free, fill and change a seat, "who was on bus X on date Y" from the duty log, and **per bus whether it has been checked out of the gate**: the ten items, the three photos, the 1.5-second hold, and **the selfie of the driver, taken by the supervisor** — everything is kept (`DECISIONS.md §12`; [E] 8a8cde5) | A count that can never reach zero — which is exactly what picking tonight's buses fixes ([E] ba274f6). Anything that clears a seat the person did not touch (`05 §4` row 26). The go/hold **decision**, which is a row on Attention where the decider already looks. Status by colour alone (`spec §4.3`) |
 | 10 | **Fuel & tyres** | "Record what went into or onto a bus away from the workshop." | crewmanager, store; owner, supervisor | Diesel (litres, rupees, pump and place, last-fill panel, run since), AdBlue, fit a tyre, fit a battery, km/l per bus with the partial-fill rule, and the falling-mileage flag | Per-bus cost reports — the row tap into `busreport` is a dead end for store and crewmanager today ([C] `01 §1.3` item 7). The piece's whole life history — that is Store's register (#6) |
 | 11 | **Reviews** | "Which crew member did this passenger mean, and whose fault was it?" | crewmanager, office, owner, supervisor | Reviews and complaints traced to bus and crew, filters (low, conflict, untraced), Claude's reading of fault and topic, the typed-redBus-name confirmation queue, and why a review could not be pinned on anybody | Passenger journey fields for `office` — PNR, seat, fare, board point are stripped by the server for that role and must not be re-added ([E] bd11e75, `03 §2.1`) |
 | 12 | **Me** | "Am I checked in, what is mine, and what is this device doing?" | all 8 — and for driver and conductor it is **the whole app** (§3.4) | Check in / out with the live face and location, own attendance, own documents, own reviews, own coaching note, own score (a mechanic's included), **"something is wrong with my bus"** for a driver or conductor, PIN, language, theme, and **what this device is missing and why** — plus, owner only, Excel import and **who opened what** (`DECISIONS.md §5`) | A normal-looking empty screen. [E] 2170703, 8eb73dc, 7c3f5f8, 0c8f434, 5d125d2, 241af2c: "everything exists, just no data" has had at least **eight distinct causes** and the only symptom the user ever saw was silence (`05 §3` row 4). The conversation log about a crew member, ever ([E] 4a42e38) |
@@ -474,10 +513,10 @@ and that is a build-time error.**
 | Today | *(none — the one deliberate exception, as `home` is today)* | Its **contents** are capability-scoped row by row, like Attention below |
 | Attention | `viewAttention` + **per row kind** | See the warning below |
 | Jobs | `viewJobs` | mechanic narrowed to own cards in the query, not the view |
-| Job card | `viewJobs`; `addJob` to create; `mayCloseJob` to close; `verifyJob` to verify; `deleteJob`, `changeJobBus` owner-only | The mechanic's two taps need **no new capability** — the server already permits them ([C] `02 §4.4`) |
+| Job card | `viewJobs`; `addJob` to create; `mayCloseJob` to close; `verifyJob` to verify **plus the per-record rule `closedBy !== me`, for every role**; `deleteJob`, `changeJobBus` owner-only | The mechanic's two taps need **no new capability** — the server already permits them ([C] `02 §4.4`). The second signature needs no new capability either, only the removal of `selfSignsOff` — but see §6: **the server will still permit a supervisor to verify their own close**, so in v2 this control lives in the client until `_guard_write` is tightened |
 | Buses | `fleet`; `addBus` to add; `logService`; `challans` for the liability card | |
 | Store | `viewStore`; `issuePart`; `receiveStock` (**decide: Q6**); `manageSupplierBills`; `manageComponents` | |
-| Money | `viewSpendTotals` (new, from the `bills` split) + `money`; `viewCompanyBilling` for anything company-level | **Owner and supervisor both hold all of these** (`DECISIONS.md §5`). The split still happens, and the reason is now explicitly forward-looking rather than restrictive: it stops a *future* role inheriting money because it was granted an operational capability |
+| Money | `viewSpendTotals` (new, from the `bills` split) + `money`; `viewCompanyBilling` for anything company-level; the trip entry is `trips`, which the server already lets a supervisor write ([C] `02 §4.4`) — **no new capability and no server change** | **Owner and supervisor both hold all of these** (`DECISIONS.md §5`). The split still happens, and the reason is now explicitly forward-looking rather than restrictive: it stops a *future* role inheriting money because it was granted an operational capability |
 | People | `crewPerf` to read; `manageDrivers` to write; `crewNote`; `manageCrewLogins`; `manageStaff`; salary behind **Q4** | `crewPerf`/`manageDrivers` were split once already and the split was right ([E] 2c72951) |
 | Duty board | `assignDriver` for tonight's buses and the seats; **`gateCheck`** for the departure check; the go/hold decision is `gateDecide`, on Attention | Two capabilities on one screen, row-scoped exactly as Attention is: a crew manager holds `assignDriver` and not `gateCheck`, so he sees tonight's buses and their seats and no check action; a supervisor holds both ([C] `02 §2`) |
 | Fuel & tyres | `addFuel`; `manageComponents` | |
@@ -582,8 +621,8 @@ so the route arithmetic does not move for it, but it is no longer a promoted scr
 
 | Today's route | Becomes | Why it is not a screen |
 |---|---|---|
-| **`gate`** (new to this table) | The departure check on **Duty board (#9)**, run by the supervisor | **`DECISIONS.md §7`: drivers have logins and do not use them.** The check still happens; the person recording it changes. It belongs on the board that already knows which buses run tonight and who is on them — one evening, one round, one list. The ten items, the three photos and the 1.5-second hold are unchanged ([E] 8a8cde5). **What this costs is in §3.3 and §9**: the check stops being self-certification by the person being checked |
-| *(the driver home's trip-cash card)* | Per-bus running cost on **Money (#7)**; the driver's own things move to **Me (#12)** | Same answer. Not a route today, so it does not move the route count — but it was a promoted screen in the first draft and is not one now. **Q15 follows from it:** if nobody enters a trip, Money's trip-cash component has no input |
+| **`gate`** (new to this table) | The departure check on **Duty board (#9)**, run by the supervisor | **`DECISIONS.md §7`: drivers have logins and do not use them.** The check still happens; the person recording it changes. It belongs on the board that already knows which buses run tonight and who is on them — one evening, one round, one list. **Everything is kept — ten items, three photos, the hold and the selfie of the driver, now taken by the supervisor** (`DECISIONS.md §12`; [E] 8a8cde5), so the record still evidences who took which bus out. The concern I raised about this is answered, and §9 says so |
+| *(the driver home's trip-cash card)* | **A quick entry on Money (#7), filled by the supervisor at the gate** — bus, date, allowance given, expenses back (`DECISIONS.md §11`); the driver's own things move to **Me (#12)** | Same answer. Not a route today, so it does not move the route count — and it was a promoted screen in the first draft and is not one now. **This closes Q15.** Without it Money's running cost would have been wrong rather than absent, which is worse; §3.3 states what it costs and what offsets it |
 | `newjob` | An action on Jobs that creates a real card at step 1 | A 3-step wizard with a `localStorage` draft is a form pretending to be a place. [E] 4f0691e: a phone call lost a half-filled card |
 | `history` | A filter on Jobs | It is a subset of the job board ([C] `01 §5.2`) |
 | `outsidejobs` | A filter on Jobs ("away for repair") | Same list, different status. The "away for repair" tick is also overloaded onto the vendor field today and gets its own state (`05 §4` row 21) |
@@ -662,10 +701,16 @@ breath tests (planned, when the devices arrive, [E] GATE_CHECK.md); invoicing (Q
    If a handful of drivers *do* use the app, they lose the gate check and the trip
    screen and keep their documents, their rating and their coaching note. Measure 11
    in §7 is how we find out, and it should be read before stage 3 touches crew.
-8. **The departure check stops being self-certification.** The hold and the live
-   capture survive, but recorded by the supervisor they evidence that the bus was
-   inspected, not that the driver was at it. This is the one item in this list I think
-   the owner should weigh again — not the screen, but what it joins (§9).
+8. ~~The departure check stops being self-certification.~~ **Withdrawn.** The owner
+   kept the whole check including the selfie, with the supervisor photographing the
+   driver at the gate (`DECISIONS.md §12`), so the record still evidences who took
+   which bus out — about the same person, recorded by different hands. Nothing is lost
+   here that I can name.
+9. **The supervisor gains two jobs rather than losing any**: a trip's cash twice per
+   trip (`DECISIONS.md §11`) and a second signature to collect on every card he closes
+   (`DECISIONS.md §10`). Neither is a loss to the business and both are load on the
+   person who already carries the top friction in it. That is the honest cost of the
+   last three answers, and §7 measures 12 and 13 are how we find out whether it holds.
 
 ---
 
@@ -720,6 +765,29 @@ the person it is about ([E] 4a42e38); `office` never receives passenger journey 
 ([E] bd11e75); crew identity documents are permission-or-self ([C] `02 §4.3`); crew
 emergency and reference phone numbers reach **every** role today and are not in
 `_DRIVER_PRIVATE` (LIVE-ISSUES 2) — Q11.
+
+**The second signature, and the two places it is not enforced.** `DECISIONS.md §10`
+reverses the 15 September decision: a supervisor's closed card waits for somebody else.
+The rule is a one-line change in v2 and no record changes shape — but it is a *control*
+now, and a control is worth exactly what enforces it, so both gaps are named here
+rather than discovered in stage 5.
+
+1. **The server still permits it.** `_guard_write` says `verified` needs owner or
+   supervisor and *"the closer cannot be the verifier **unless the verifier is a
+   supervisor**"* ([C] `02 §4.4`). So a supervisor self-verifying is a legal push
+   today. v2's rule therefore lives in the client until that clause is tightened to
+   `closedBy != verifiedBy` for every role. Until then this is a UI convention, not a
+   boundary — and this codebase has six recorded cases of a client-only rule being
+   walked around ([C] `02 §6.1`, `02 §6.2`).
+2. **v1 is deliberately not changed, and v1 is the bypass.** `selfSignsOff` is live at
+   `app.js:3873` and supervisors are signing off their own work in the office today;
+   bringing v1 into line is a production behaviour change and a separate decision
+   (`DECISIONS.md §10`). Both apps run against the same server for the whole build
+   (`DECISIONS.md §2`), so while that holds, **a supervisor who wants to verify his own
+   card can open v1 and do it.** That is not an argument against the decision — it is
+   the reason §7 measure 12 counts cards where `closedBy == verifiedBy` across *both*
+   clients rather than testing the v2 button. The two apps differ here on purpose and
+   the difference is worth knowing when they are compared.
 
 **Anything v2 writes must stay legible to v1** (`DECISIONS.md §2`). Under whole-record
 last-write-wins this is stronger than it sounds: **a field v2 invents is erased the
@@ -801,6 +869,10 @@ needs the owner: who reads Hindi only, and who cannot read at all.
 
 Numbers readable afterwards, from the `usage` store and the records themselves. Two of
 these need a **before** reading taken before stage 3 starts, or the comparison is lost.
+Fourteen measures for twelve screens; **measures 12 and 13 exist because the owner's
+last three answers added two controls and one piece of work, and a control that stops
+happening quietly has failed** — which is the whole reason they are counted rather than
+assumed.
 
 | # | Measure | Today | Target | Where to read it |
 |---|---|---|---|---|
@@ -809,23 +881,28 @@ these need a **before** reading taken before stage 3 starts, or the comparison i
 | 3 | Distinct people who opened the app in a week, by role | unknown | names a real number for the first time | the adoption report — **read it before anything is built**, it answers Q13 and most of the UNKNOWNs here |
 | 4 | Screens with zero opens after four weeks | 3 already listed "built but never opened" (`warranty`, `forecast`, `routes`) plus 2 more orphans | **0 of the twelve.** Any v2 screen with zero opens in four weeks is a screen I got wrong | `usage` screen counters |
 | 5 | **Replaced.** Buses on tonight's board still showing an empty seat at departure | the number could not reach zero at all, because the app had no notion of which buses run ([E] ba274f6) | **a number that reaches zero on a good night** — that is the whole point of `DECISIONS.md §8` | the nightly board record against `dutylog` |
-| 6 | Departure checks recorded per night, and by which role | unknown. **Restated:** this was going to settle contradiction C2; the owner has settled it, so the query's job changes — it now tells us whether the *supervisor* is actually doing the round | tonight's buses checked, not a sample | `gatechecks._byRole` against the nightly board |
+| 6 | Departure checks recorded per night, and by which role | unknown. **Restated:** this was going to settle contradiction C2; the owner has settled it, so the query's job changes — it now tells us whether the *supervisor* is actually doing the round, and the kept selfie (`DECISIONS.md §12`) means the record still says which driver each bus left with | tonight's buses checked, not a sample | `gatechecks._byRole` against the nightly board record |
 | 7 | Records a person was told about: refused, quarantined, or dropped | 0 surfaced for the staleness case (LIVE-ISSUES 1) | every one surfaced, with a reason and a retry | the Me screen's device state |
 | 8 | Capabilities held with no reachable screen | 16 for a supervisor today (LIVE-ISSUES 6) | **0, enforced by a build check** (§4.4) | the (role × capability) vs (role × screen) check |
 | 9 | Screens answering "what is wrong?" / "what did it cost?" | 5 and 8 | 1 and 1 | the screen list |
 | 10 | Tap to visible response, screen change, first paint, idle sync | 884 ms / — / — / 880 ms before the October fixes, on a Mac | `spec §8`: < 100 ms, < 250 ms, < 1 s, ~0 ms. **None of these is a measured office number yet**, and neither is the 200-row / 250 ms desk budget every density rule in the foundation is sized against — `DECISIONS.md §9` records that it was set on a developer's Mac. The reading on an actual office PC is stage 3's, and the budgets move to whatever it says | the fleet-sized fixture, failing the build |
 | 11 | **New.** Crew logins (driver, conductor) that have ever been used, and by how many people | unknown; 165 were minted and read out one by one ([E] GO_LIVE step 6) | **a number, not an assumption.** If it is zero after four weeks and Q10 says attendance does not decide pay, recommend the logins go (§4.2) | `users.lastLoginAt`, and the `usage` store's per-person rows |
-| 12 | **New.** Who opened Money, and when | nothing surfaces it, although the data has been recorded all along | the owner can read it without asking anybody (`DECISIONS.md §5`) | the `usage` store's per-screen counters, through Me's who-opened-what row — and see §4.3 on narrowing `usage` to the owner on the server |
+| 12 | **New, and the one that matters most.** Verified cards where `closedBy == verifiedBy` — i.e. the second signature did not happen | **every supervisor-closed card today**, by design: `selfSignsOff` is live at `app.js:3873` | **0 among cards closed in v2.** Any non-zero count is the control failing, and because v1 still self-signs and both run on one server (§6), a non-zero count tells you *which client* it came through. Also read the companion number — **median hours a closed card waits for its signature** — because a control nobody gets round to is a queue, not a control (`DECISIONS.md §10`) | `jobcards`: `closedBy`, `verifiedBy`, `closedAt`, `verifiedAt`, all server-written from the token |
+| 13 | **New.** Trips with an allowance recorded, and trips also closed with expenses back | **0** — the driver screen that was meant to collect this is opened by nobody | one entry per trip that ran, and a closing entry for most. **A falling ratio is the measure to watch**: it means Money's running cost is drifting back to wrong-rather-than-absent, which is the failure §3.3 exists to prevent (`DECISIONS.md §11`) | `trips`, with `_byRole` to confirm it is the supervisor entering them |
+| 14 | **New.** Who opened Money, and when | nothing surfaces it, although the data has been recorded all along | the owner can read it without asking anybody (`DECISIONS.md §5`) | the `usage` store's per-screen counters, through Me's who-opened-what row — and see §4.3 on narrowing `usage` to the owner on the server |
 
 ---
 
 ## 8. Owner must decide
 
 Carried from `05 §7`, `02 §8` and the contradictions in `05 §6` — only the ones that
-change a screen in this plan. **Five are now closed** by `DECISIONS.md §5–8`, and they
-are kept in the table with their answers rather than deleted, because the answer is
-what the screens now rest on. **Two are new (Q15, Q16).** One, **Q14, matters more
-than it did** — see the note under the table.
+change a screen in this plan. **Eight of the sixteen are now closed** by
+`DECISIONS.md §5–12`, and they are kept in the table with their answers rather than
+deleted, because the answer is what the screens now rest on.
+
+**Still open: Q4, Q6, Q7, Q9, Q10, Q11, Q12, Q13** — eight, and none of them blocks
+stage 2 from specifying a screen. Each is listed with the screen it would change, and
+the one that changes a screen's *existence* rather than its contents is Q9.
 
 | # | Question | Status | Which screen changes |
 |---|---|---|---|
@@ -842,20 +919,31 @@ than it did** — see the note under the table.
 | **Q11** | Who may see a crew member's emergency and reference phone numbers? (Today: every signed-in role) | **OPEN** | **People (#8)** and the server's read boundary |
 | **Q12** | Which staff read Hindi only, and which cannot read at all — voice or pictures only? | **OPEN — re-scoped** | No longer the floor roles' screens, which are gone. Now **the mechanic's two buttons on the Job card (#4)**, Store (#6) at the counter, and Duty board (#9) on the evening round (§6) |
 | **Q13** | Please open Usage and adoption and send the list of logins that have never been used. | **OPEN — partly answered** by Q5, still worth the two minutes | All twelve. It replaces most of the `[I]` labels in this document, and §7 measures 3 and 11 are the same reading |
-| **Q14** | Does a supervisor closing their own job without a second signature still stand (your 15 Sep decision)? | **OPEN — and it matters more now, not less** | **Job card (#4).** See below |
-| **Q15** | **NEW.** If no driver records a trip, who records a trip's cash, and where? | **OPEN** | **Money (#7).** Its per-bus running cost includes trip cash; without an answer that component has no input and must read "no trips recorded" rather than ₹0 (§4.1) |
-| **Q16** | **NEW.** Now that a supervisor records the departure check instead of the driver: is the live selfie still wanted, and whose face should it be? | **OPEN** | **Duty board (#9).** The ten items and the hold are unchanged; the selfie's meaning is not, and whether a fraud control survives that is the owner's call, not mine (§3.3, §9) |
+| **Q14** | Does a supervisor closing their own job without a second signature still stand (your 15 Sep decision)? | **CLOSED — no, it is reversed** (`DECISIONS.md §10`) | **Job card (#4)** and the verify queue on **Attention (#2)**. The closer is never the verifier, for every role including the owner. I agree it is answered in substance and close it — with the two enforcement gaps named in §6, which are stage 3's work and not a further question for the owner |
+| **Q15** | If no driver records a trip, who records a trip's cash, and where? | **CLOSED — the supervisor, on Money** (`DECISIONS.md §11`) | **Money (#7)** gains the quick entry: bus, date, allowance given, expenses back (§3.3 steps 4–5). Money entered and reconciled by one person, offset by Q14's answer |
+| **Q16** | Now that a supervisor records the departure check: is the live selfie still wanted, and whose face? | **CLOSED — kept, the driver's, taken by the supervisor** (`DECISIONS.md §12`) | **Duty board (#9)** keeps the whole check. The record still evidences who took which bus out |
 
-**Why Q14 got heavier.** The 2 Nov decision — a supervisor loses company money — was
-going to be the separation of duties in a cash-handling business. It has been reversed
-for a good reason (the man actually does the reconciliation). But with it gone, the
-same two people now hold the workshop clock, the parts, the cash reconciliation, the
-departure record and the sign-off — and `selfSignsOff` means a supervisor's own closed
-card is verified in the same step, by them, with no second pair of eyes ([C]
-`02 §4.3`, `02 §8.1`; the owner's 15 Sep decision). **Self-sign-off is now the only
-separation left on that side of the business.** One line from the owner settles whether
-that is intended; it is not a decision this document should make, and it is not a
-reason to re-open Q1.
+**On separation of duties: what the owner decided.** I raised this as the one thing
+worth weighing again — not any single screen, but the accumulation across the answers:
+with the 2 November decision reversed, the same two people would have held the workshop
+clock, the parts, the cash reconciliation, the departure record and a sign-off on their
+own closed work. **The owner did not accept the concentration. He chose two controls**
+(`DECISIONS.md §10` and `§12`), and he chose them knowing what each costs:
+
+- **A second signature on every supervisor-closed card**, reversing his own 15 September
+  decision. One tap by a second person per card, and the rule is now identical for
+  every role — the owner could never sign off his own closes and now nor can anybody.
+- **The departure check keeps its selfie**, so the gate record still names the driver
+  who took the bus, recorded by a different pair of hands.
+
+What that leaves, stated so nobody has to reconstruct it: the supervisor still enters
+and reconciles the same cash (`DECISIONS.md §11`, and the owner says so himself), and
+the two controls are a second pair of eyes on the *work* and a photograph at the
+*gate*, not on the money. The money's check is that the owner reads the same screen the
+entry lands on, and can now see who opened it (`DECISIONS.md §5`, §7 measure 14). That
+is a judgement the owner is entitled to make about his own business, it is written down
+rather than implied, and §7 measures 12 and 13 are how anyone later can tell whether
+the controls he chose actually ran.
 
 **Not re-opened here, by instruction:** the Chrome 109 floor; v2 at `/v2` alongside v1;
 53 → 14 (now 12, by the owner's own later answer); deny-by-default; emoji → inline SVG; tenancy in the data model with no signup
@@ -865,79 +953,99 @@ surfaces (`DECISIONS.md §1–3`).
 
 ## 9. Status
 
-**ok = true.** I did not halt, and after the revision every one of the **twelve**
-screens has a person and a moment from `[E]` or `[D]` evidence. The exception I flagged
-in the first draft is resolved: Trip cash and Gate check rested on drivers signing in,
-the owner has answered that they do not, and both are gone rather than kept on a
-persona.
+**ok = true, and this document is ready for stage 2 to specify all twelve screens
+against.** Every one of the twelve has a person and a moment from `[E]` or `[D]`
+evidence. The one exception in the first draft is gone: Trip cash and Gate check rested
+on drivers signing in, the owner answered that they do not, and both were dropped
+rather than kept on a persona.
 
 The twelve: **Today · Attention · Jobs · Job card · Buses · Store · Money · People ·
 Duty board · Fuel & tyres · Reviews · Me.**
 
-Decisions that were the owner's and are now his answers, not my choices: the
-supervisor's money scope (Q1, Q2 — reversed), whether a mechanic may say "done" (Q3 —
-yes), whether crew sign in (Q5 — no), and where tonight's list lives (Q8 — the office
-register). Nine remain open in §8, two of them new.
+Eight of the sixteen owner questions are closed. **Eight remain — Q4, Q6, Q7, Q9, Q10,
+Q11, Q12, Q13 — and none blocks stage 2**: seven change what is *on* a screen, and only
+Q9 could change whether one exists (a live map would be a thirteenth). Each is listed
+in §8 with the screen it touches.
 
-### What I think is a mistake in the answers
+### The concern I raised, and what the owner did with it
 
-Asked plainly, so answered plainly. **I do not object to Gate check ceasing to be a
-driver screen.** The evidence supports it: a driver holds one capability, does not open
-the app, and a check nobody fills is worse than a check somebody else fills. Moving it
-to the Duty board costs no screen and gains a coherent evening round.
+I said the problem was not any single screen but the accumulation: with the 2 November
+decision reversed, one pair of hands would have held the workshop clock, the parts, the
+cash reconciliation, the departure record and a sign-off on their own closed work. I
+offered three remedies and said any one would do.
 
-**What I would put back in front of the owner is not that screen. It is what it joins.**
+**He took two of them** (`DECISIONS.md §10`, `§12`), knowing what each costs: the second
+signature is back, reversing his own 15 September decision, with the rule now identical
+for every role including himself; and the departure check keeps its selfie, so the gate
+record still names the driver who took the bus. §8 states what that leaves and §7
+measures 12 and 13 are how anyone later can tell whether the controls actually ran.
+**I have nothing further to put in front of him on this.**
 
-The ten items, the live selfie and the 1.5-second hold were built so that the person
-being checked certifies the bus **himself, at the bus** ([E] 8a8cde5). Recorded by a
-supervisor, the same record evidences that the bus was inspected and no longer that the
-driver was at it. Taken together with the other answers, in a business that handles
-cash, the supervisor now holds: the workshop clock, the parts issue, the cash
-reconciliation (Q1), the departure record (Q5), and a sign-off on his own closed work
-with no second pair of eyes (`selfSignsOff`, 15 Sep). The 2 November decision was the
-separation of duties, and it has been reversed for a good reason — but **nothing
-replaced it**, and that is the accumulation worth one line of the owner's attention. It
-is Q14 and Q16, and the remedy is cheap: either the second signature comes back, or the
-departure check keeps a driver's face on it, or the owner says plainly that he accepts
-the concentration. Any of the three is fine; silently having all five is the thing I
-would not want to find out about later.
+### Do the three new decisions create a problem I can see? Yes — three, all small
 
-One smaller caution. "Drivers and conductors have logins but do not use them" is a
-blanket, and the adoption report (Q13) would say *how many* and *which*. The mechanics'
-dead end was also an absence of complaints ([E] 8db78e7). I have resolved it at
-near-zero cost — one honest screen rather than removing the logins — precisely so that
-the handful who do sign in are not the people this plan silently drops.
+1. **The second signature is a client-only control for now.** `_guard_write` still
+   permits a supervisor to verify their own close, and v1 — which is still self-signing
+   and still on the same server by design — can do it today. Named in §6 with both
+   gaps, and §7 measure 12 counts the outcome rather than testing the button. Stage 3's
+   work, not a question for the owner.
+2. **A second signature can become a queue instead of a control.** Two supervisors on
+   alternate shifts ([E] manual Part 5) and one owner means a card closed at the end of
+   a shift may wait. If the median wait is days, people will route around it. That is
+   why measure 12 reads the wait alongside the count, and why the Job card must show a
+   supervisor's own closed card as "waiting for sign-off" rather than letting him
+   discover it later.
+3. **Load, not risk.** The three answers give the supervisor a trip entry twice per
+   trip and a signature to chase per card, and take nothing off him. He already carries
+   the top friction in the business at 3–13 hours a week. The mechanic's two taps pull
+   the other way, which is the only reason this nets out defensibly — and measure 2
+   (minutes per card, which has **never been measured**) is the number that would
+   settle it. Take that reading before stage 3.
 
 ### The three things in this plan most likely to be wrong
 
-1. **Attention (#2) is still the one new idea and the one most likely to fail**, and
-   the reversal of the 2 Nov decision makes it slightly worse. Its rows must each
-   declare their own capability or it *is* `dashboard` rebuilt — and the decision that
-   would have forced the server-side half of that work has been withdrawn, so the
-   pressure to do it properly is now entirely internal (§4.3). The foundation's
+1. **Attention (#2) is still the one new idea and the one most likely to fail.** Its
+   rows must each declare their own capability or it *is* `dashboard` rebuilt — and the
+   decision that would have forced the server-side half of that work has been withdrawn
+   (§4.3), so the pressure to do it properly is now entirely internal. The foundation's
    200-row cap handles the performance half; nothing but discipline handles this half.
 2. **Duty board (#9) now answers two questions and may be two screens.** "Is every bus
    staffed?" and "has every bus left the gate fit?" are one list and one evening to me,
-   and they belong to two different roles with two different capabilities. That is the
-   most strained merge in the document, and it is strained because the screen budget is
-   twelve. If supervisors never open the board and record checks from somewhere else,
-   I was wrong and Gate check should come back as a thirteenth screen.
+   and they belong to two roles with two capabilities. It is the most strained merge in
+   the document and it is strained because the budget is twelve. If supervisors record
+   checks from somewhere else, I was wrong and Gate check comes back as a thirteenth.
 3. **Today (#1) and Attention (#2) may still be one screen for the owner**, and the
-   case is thinner than it was: with the floor roles reduced to Me, Today now serves
-   six roles instead of eight, and for the owner "what do I do next" and "what is
-   wrong, ranked" collapse into the same question. If the owner's Today is only ever a
-   doorway to Attention, I was wrong. The usage counters say so within a month, and
-   measure 4 is where to read it.
+   case is thinner than it was: Today now serves six roles rather than eight, and for
+   the owner "what do I do next" and "what is wrong, ranked" are close to one question.
+   If his Today is only ever a doorway to Attention, I was wrong; measure 4 says so
+   within a month.
 
-The mechanic's two taps are no longer on this list: the owner has confirmed the phones
-and the intent (`DECISIONS.md §6`), which removes the inference the claim rested on.
-What remains there is a reading risk, not a design risk — Q12.
+The mechanic's two taps are no longer on this list — the owner confirmed the phones and
+the intent (`DECISIONS.md §6`), which removes the inference the claim rested on. What
+remains there is a reading risk, not a design risk: Q12.
+
+### Contradictions with `v2-foundation-ui.md`, named rather than left for stage 2
+
+Checked again after these three decisions. **Nothing in the foundation's own
+decisions — tokens, colour, icons, motion, copy — is contradicted** (§4.5). Three
+things in it need editing for the twelve screens, all of them mechanical:
+
+| In the foundation | Needs |
+|---|---|
+| §3.7 nav table: driver 4 slots, conductor 2 | **driver 1, conductor 1** — Me only, and therefore no bottom nav for either (§4.4). Its nav "empty" state also says this cannot occur; after `DECISIONS.md §7` it can |
+| §4.1 icon coverage rows 11 (Gate check) and 13 (Trip cash) | Rewrite as rows of **Duty board (#9)** and **Money (#7)**. The `gate` mark keeps consumers — the departure check and Attention's awaiting-decision row — and `money` keeps its nav slot, so **the set stays at 34 and the cap stays reached** |
+| §5.7 hold-to-release, which says the bar exists so *"a driver cannot release a bus by brushing a cracked screen"* | The reason stands, the person changes: it is now the supervisor's phone at the gate. The specification itself does not move |
+
+One thing in the foundation deserves a direct answer because it asked for one. Its
+§8.2 item 2 doubts a phone-shaped bottom nav on a 1024×768 Windows 7 desk machine, and
+says the usage counters will settle it. **I agree with the doubt**, and the supervisor
+now holds all twelve screens with six behind the More sheet, which strengthens it — but
+I would not change the primitive on my say-so, and that is stage 2's call with a
+measurement behind it, not stage 1's.
 
 **Written to:** `docs/v2/plan/v2-ux.md`
-**Reconciled with:** `docs/v2/plan/v2-foundation-ui.md` (§4.5); two rows of its nav
-table (driver, conductor) need updating there, and its icon coverage table rows 11 and
-13 need rewriting for the twelve screens. No token, colour, icon or motion decision of
-its own is contradicted.
-**Blocking for stage 3, not stage 2:** the one new store in §6 (the backend lead's to
-accept or refuse), and Q15 before Money's trip-cash component is built.
+**Accounts for:** all 53 v1 routes (§5: 9 survive as screens, 38 fold, 6 dropped
+outright).
+**Blocking for stage 3, not stage 2:** the one new store for tonight's running list
+(§6 — the backend lead's to accept or refuse), and tightening `_guard_write` so the
+second signature is a boundary rather than a convention (§6).
 **Next stage:** 2b — the twelve screens.
