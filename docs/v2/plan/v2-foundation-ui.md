@@ -1,11 +1,16 @@
 # Garage Saathi v2 — UI foundation
 
 Stage 2 of the pipeline (`docs/v2/PIPELINE.md`), **foundation only**. This document
-specifies the material the fourteen screens of `docs/v2/plan/v2-ux.md` are built from:
+specifies the material the twelve screens of `docs/v2/plan/v2-ux.md` are built from:
 tokens, density, primitives, icons, motion and copy. It does **not** specify the
-screens. Six of the fourteen change on owner questions Q1, Q2 and Q3 (`v2-ux.md §8`),
-which are with the owner and explicitly deferred for this pass. **Nothing in this
-document changes on any of their answers** — the check is in §8.1, question by question.
+screens. It was written while Q1, Q2 and Q3 (`v2-ux.md §8`) were still with the owner,
+on the claim that nothing in the foundation turns on their answers. **Those three are
+now answered** (`DECISIONS.md §5`, §6, §7) and two further decisions arrived with them
+(§10 the second signature, §11 the supervisor's trip entry, §12 the departure check
+kept whole), taking the product from fourteen screens to **twelve**. The claim held:
+no token, no rejected colour, no icon, no motion rule and no copy rule moved. What
+moved is listed in §8.3, and §8.1 re-checks the claim against the answers rather than
+against the questions.
 
 Read in full before writing a line of it: `docs/v2/plan/v2-ux.md` (654 lines),
 `docs/v2/DECISIONS.md`, `docs/v2/inventory/03-data-and-sync.md §8` (measured budgets),
@@ -42,7 +47,8 @@ Gates run at the end of this document, green:
 | Ranked row carrying a reason | nothing | **Missing** (§3.4) |
 | Photo capture and view | `camera` icon only | **Missing** (§3.5) |
 | Filter control | `.tabs` + `V2.openSheet` + `.field` | **Already covered** — no new primitive (§3.6) |
-| Bottom nav | nothing (`home` and `me` icons were drawn for it) | **Missing** (§3.7) |
+| Nav | nothing (`home` and `me` icons were drawn for it) | **Missing** (§3.7) — a bottom bar at yard, a left rail at desk, and **none at all** for the two roles that hold one screen |
+| A state for work waiting on a second signature | nothing | **Missing** (§3.8), and new since the first pass (`DECISIONS.md §10`) |
 | Fixed words in Hindi | nothing: 21 English literals inside `states.js` and `overlay.js` | **Missing, and it is the named GO_LIVE defect** (§6.3) |
 
 The brief's count of "26 icons" is stale: the set is **31** and `test_ui_icons.js` caps
@@ -56,14 +62,14 @@ it at 34. That cap decides §4.
 
 All of it. **30 distinct names, 61 declarations, nothing removed, nothing redefined.**
 
-| Group | Names | Where the fourteen screens use them |
+| Group | Names | Where the twelve screens use them |
 |---|---|---|
 | Ink | `--ink`, `--ink-dim` | Every row title (`--ink`), every sub-line, label, table head and figure note (`--ink-dim`) |
 | Surface | `--surface`, `--surface-raised` | `--surface` is the page on all 14; `--surface-raised` is every card, sheet panel, toast, field and the row's hover fill |
 | Edge | `--line` | The row hairline (an inset shadow, so it takes no height), card and field borders, the tab strip, the nav's top edge |
 | Accent | `--accent`, `--accent-ink`, `--accent-text` | `--accent` is the one next step (Job card #4), the focus ring everywhere, the selected tab bar and the overlay scrim at 0.5; `--accent-ink` is text on it; `--accent-text` is the active nav tab, the active filter and `.btn-quiet` |
-| Status | `--ok`, `--warn`, `--bad` | Attention row severity (#2), gate state released/waiting/held (#11), stale figures (`--warn`), the three badges, the three toasts. **Never alone** — always with a word and a mark |
-| Type | `--font`, `--font-hi` | `--font-hi` carries Devanagari on every screen; Trip cash (#13) and Gate check (#11) are read in Hindi first |
+| Status | `--ok`, `--warn`, `--bad` | Attention row severity (#2), departure-check state released/waiting/held (#9), stale figures (`--warn`), the three badges, the three toasts. **Never alone** — always with a word and a mark |
+| Type | `--font`, `--font-hi` | `--font-hi` carries Devanagari on every screen. **Me (#12) is the whole app for a driver and a conductor** (`DECISIONS.md §7`), which makes it the first place Hindi has to be right rather than the last (§6.3) |
 | Space | `--s1`..`--s8` | Every gap and pad. `--s8` is also the sheet's enter distance |
 | Density | `--tap`, `--row-h`, `--pad`, `--t1`..`--t6` | §2 |
 
@@ -74,19 +80,20 @@ survive a `font:` shorthand or reach a form control**, which is why
 `components.css` re-declares it on controls; and each hue's lightness is tuned
 separately for contrast, so the numbers must not be regularised.
 
-### 1.2 What is missing: two tokens, no colours
+### 1.2 What is missing: three tokens, no colours
 
 `test_ui_components.js` allows a px literal only in a `border*`, `outline*` or
 `box-shadow` value (`PX_OK_PROP`). Any new component's height, width, padding or
-gap **must** come from a token or that suite fails. Both additions below are
+gap **must** come from a token or that suite fails. All three additions below are
 therefore required by the test, not a preference.
 
 | New token | yard | desk | Named consumer |
 |---|---|---|---|
-| `--nav-h` | `56px` | `44px` | The bottom nav (§3.7), which is on **all fourteen** screens; and the bottom padding of every screen's scroll container, which must equal `calc(var(--nav-h) + env(safe-area-inset-bottom))` or the last row of Jobs (#3) and Attention (#2) sits under the nav |
-| `--thumb` | `72px` | `56px` | The photo primitive (§3.5): Job card before/after photos and the close gate (#4), the three gate-check items that need a photo (#11), the supplier bill photo (#6), a driver report's photo (#1/#13) |
+| `--nav-h` | `56px` | `44px` | The nav **as a bottom bar** (§3.7), on every screen a nav-bearing role opens; and the bottom padding of that screen's scroll container, which must equal `calc(var(--nav-h) + env(safe-area-inset-bottom))` or the last row of Jobs (#3) and Attention (#2) sits under the bar |
+| `--thumb` | `72px` | `56px` | The photo primitive (§3.5): Job card before/after photos and the close gate (#4), the **three departure-check photos and the driver's selfie on Duty board (#9)**, the supplier bill photo (#6), a driver's "something is wrong with my bus" photo on Me (#12) |
+| `--rail-w` | — | `160px` | The nav **as a left rail** (§3.7.2), on every screen a supervisor or an owner opens on the office PC — which after `DECISIONS.md §5` and §7 is all twelve of them. Desk only: a rail is what a nav becomes when there is width and twelve slots |
 
-Arithmetic for both, so they are not taste:
+Arithmetic for all three, so they are not taste:
 
 - **`--nav-h` yard 56px.** Stacked item: icon 20px + gap `--s1` 4px + label `--t6`
   15px. In Hindi `--lh` is 1.7, so the label box is 25.5px: 20 + 4 + 25.5 = 49.5px,
@@ -98,6 +105,11 @@ Arithmetic for both, so they are not taste:
   `login.css`) the content width is 360 - 2 x `--pad` 16 = 328px. Four tiles of 72
   plus three `--s2` gaps = 288 + 24 = 312px <= 328. Desk 56px fits six across a
   660px panel.
+- **`--rail-w` desk 160px.** `--pad` 8 + mark 20 + `--s2` 8 + label + `--pad` 8. The
+  longest label is "Fuel & tyres", 12 characters at `--t6` 14px, about 84px in Latin:
+  128px. Devanagari runs wider, so 160px leaves 32px of slack rather than 8px.
+  Vertically, twelve items at `--tap` 32px is 384px of a 768px office screen, so every
+  slot a supervisor holds fits without a More sheet. Content keeps 1024 - 160 = 864px.
 
 ### 1.3 Colour: nothing new, and here is the arithmetic
 
@@ -128,14 +140,14 @@ put `--bad` `hsl(5 85% 66%)` at 4.17:1, under 4.5, and only `hsl(30 12% 18%)`
 
 **And it has no consumer.** Every filter named in `v2-ux.md` is a mutually
 exclusive view, not an additive flag: Jobs (#3) "completed" / "away for repair",
-Reviews (#12) "low / conflict / untraced", Store (#6) catalogue / waiting
+Reviews (#11) "low / conflict / untraced", Store (#6) catalogue / waiting
 requests. `.tabs` already draws exactly that — `--accent-text` plus a 2px
 `--accent` bar, never colour alone, already at 4.5:1 and 3:1 — so a selected-chip
 fill is a token with nothing behind it. No row in `v2-ux.md` is multi-selected
 either; a tap on a Jobs row opens the Job card. **Rejected on both counts.**
 
 So: **zero new colour tokens.** The status, accent and surface tokens cover all
-fourteen screens, including the things a reader might expect to need one:
+twelve screens, including the things a reader might expect to need one:
 
 | Thing someone will ask for | What it uses instead |
 |---|---|
@@ -160,7 +172,7 @@ not a token.
 |---|---|
 | Radius | `components.css` uses 8px for controls, 12px for panels, 999px for pills, as literals, legally (`border-radius` is exempt). A radius token now would mean two conventions in one file and an edit to all 923 lines to be consistent. New primitives **reuse those three literals** |
 | Duration and easing | Same reason: the ladder is 120 / 150 / 180 / 200 / 250 ms and `ease-out`, written out, and pinned by `test_ui_components.js` |
-| Shadow | Only `login.css` has one (an `rgba()` desktop lift). Nothing in the fourteen needs a second |
+| Shadow | Only `login.css` has one (an `rgba()` desktop lift). Nothing in the twelve needs a second |
 | Z-index | `overlay.js` owns the top layer via `<dialog>`; the toast lane is 1000. The nav sits in normal flow |
 
 ---
@@ -259,9 +271,10 @@ that document names: a count that can never reach zero.
 
 ## 3. Primitives
 
-Seven, in the order `v2-ux.md` demands them. Each lists its exports, whether it
+Eight, in the order `v2-ux.md` demands them. Each lists its exports, whether it
 exists, and all eight states. Where a state cannot occur, that is said rather than
-left out.
+left out — and §3.7's `empty` row is a worked example of that claim being wrong and
+having to be corrected.
 
 | # | Primitive | Exists in `ui/`? | New code needed |
 |---|---|---|---|
@@ -271,7 +284,8 @@ left out.
 | 3.4 | Ranked row `.v2row.v2row-why` | Variant of 3.1 | ~12 lines CSS |
 | 3.5 | Photo `.photos` | No | ~40 lines CSS + one `photos.js` |
 | 3.6 | Filter | **Yes** (`.tabs` + sheet + field) | None |
-| 3.7 | Bottom nav `.nav` | No | ~30 lines CSS + one `nav()` builder |
+| 3.7 | Nav `.nav` (bar or rail) | No | ~45 lines CSS + one `nav()` builder |
+| 3.8 | Second-signature state | No (composed from 3.1, 3.4 and the badge) | No new CSS |
 
 ### 3.1 List row — `.v2row` (exists)
 
@@ -280,9 +294,10 @@ left out.
 A three-column grid: `auto minmax(0, 1fr) auto`, so a long bus number truncates with
 an ellipsis instead of shrinking the action.
 
-**Consumers:** all fourteen. Jobs (#3) standing buses oldest-first; Today (#1) every
+**Consumers:** all twelve. Jobs (#3) standing buses oldest-first; Today (#1) every
 role's queue; Store (#6) catalogue and waiting requests; People (#8) crew worst-first;
-Duty board (#9) three seats per bus; Buses (#5) register; Reviews (#12); Me (#14).
+Duty board (#9) tonight's buses and their three seats; Buses (#5) register; Reviews
+(#11); Me (#12), which for a driver and a conductor is the whole app.
 
 | State | Specification |
 |---|---|
@@ -310,7 +325,8 @@ files for the whole migration.
 **Consumers:** every write in `v2-ux.md §3`. Issue a part against a chosen card (#6,
 and the card is **never** pre-selected — a part was charged to the wrong bus,
 [E] `d738a6e`); a part request (#4); one workshop time (#4 step 3); fit a tyre or log
-diesel (#10); fill a seat (#9); add an expense (#13); the secondary filters of §3.6.
+diesel (#10); fill a seat and record a departure check (#9); the supervisor's trip
+entry (#7); the secondary filters of §3.6.
 
 | State | Specification |
 |---|---|
@@ -358,7 +374,8 @@ caught the click, and the storekeeper was thrown off the screen mid-count.
 **Consumers:** Store (#6) issue against a card, receive stock, and the shelf count —
 "the book is corrected by counting, not by typing", which is a grid of one field per
 part; Job card (#4) part request quantity and the **odometer**; Fuel & tyres (#10)
-litres and rupees (`data-kind="decimal"`); Trip cash (#13) an expense amount.
+litres and rupees (`data-kind="decimal"`); Money (#7) the supervisor's trip entry —
+allowance given and expenses back (`DECISIONS.md §11`).
 
 | State | Specification |
 |---|---|
@@ -425,10 +442,11 @@ The input is `.sr-only` (clipped, still in the accessibility tree, never
 `outline: 2px solid var(--accent); outline-offset: 2px`.
 
 **Consumers:** Job card (#4) before/after photos with the close gate **visible from
-the top of the card**, so it is never a surprise at the end; Gate check (#11) the
-three items that need a photo, and the live selfie; Store (#6) the supplier bill,
-photographed and read by Claude; a driver report (#1) by photo or voice; Me (#14)
-check-in with the live face.
+the top of the card**, so it is never a surprise at the end; Duty board (#9) the three
+departure-check items that need a photo **and the driver's selfie, photographed by the
+supervisor** (`DECISIONS.md §12`); Store (#6) the supplier bill, photographed and read
+by Claude; Me (#12) check-in with the live face, and a driver's "something is wrong
+with my bus" by photo or voice.
 
 | State | Specification |
 |---|---|
@@ -453,7 +471,7 @@ dismissal behaviour and a second modal mechanism would have none of them.
 3. `.field` with `icon('search')` — for a needle (a part, a bus, a person).
 
 **Consumers:** Jobs (#3) open / completed / away for repair / mechanic workload;
-Reviews (#12) low / conflict / untraced, plus the typed-redBus-name queue;
+Reviews (#11) low / conflict / untraced, plus the typed-redBus-name queue;
 Store (#6) catalogue / waiting requests / counts; People (#8) crew / staff / logins;
 Buses (#5) and Store (#6) search.
 
@@ -472,64 +490,203 @@ Buses (#5) and Store (#6) search.
 a tab must not push a route, because a back press would then walk back through
 filters instead of leaving the screen.
 
-### 3.7 Bottom nav — `.nav` (NEW)
+### 3.7 Nav — `.nav` (NEW): a bottom bar at yard, a left rail at desk
 
 Nothing in `ui/` draws it, though `icons.js` says `home` and `me` were drawn for it.
-It is on **all fourteen screens** and it is where the most plainly broken thing in
-today's app gets fixed: a supervisor holds 16 capabilities with no reachable screen
-(LIVE-ISSUES 6), and `v2-ux.md §4.4` makes "no capability is held without a path" a
-build-time check.
+It is where the most plainly broken thing in today's app gets fixed: a supervisor
+holds 16 capabilities with no reachable screen (LIVE-ISSUES 6), and `v2-ux.md §4.4`
+makes "no capability is held without a path" a build-time check.
 
 **Exports:** one builder, `nav(items, activeId)` -> markup (new file `ui/nav.js`, or
 the screen layer — it is twelve lines of string building either way).
 `<nav class="nav" aria-label="Main"><a class="nav-i" aria-current="page"><span class="nav-ic">[icon]</span><span class="nav-l">Today</span></a>...</nav>`
-`position: fixed; left/right/bottom: 0; height: calc(var(--nav-h) + env(safe-area-inset-bottom)); border-top: 1px solid var(--line); background: var(--surface-raised)`.
-Items are `flex: 1 1 0`, `min-height: var(--tap)`, column at yard, row at desk.
+**One component, two orientations** (§3.7.2), chosen by the page's own density.
 
 **Slots, from `v2-ux.md §4.4`, which is the whole point of the primitive:**
 
 | Role | Slots | Tabs |
 |---|---|---|
-| driver | 4 | Today, Gate check, Trip cash, Me |
-| conductor | 2 | Today, Me |
+| driver | **1** | Me — **and therefore no nav at all** (§3.7.1) |
+| conductor | **1** | Me — **and therefore no nav at all** (§3.7.1) |
 | mechanic | 4 | Today, Jobs, Store, Me |
 | store | 5 | Today, Store, Jobs, Fuel & tyres, Me |
 | crewmanager | 6 | Today, Duty board, People, Fuel & tyres, Reviews, Me |
 | office | 4 | Today, People, Reviews, Me |
-| supervisor | 6 | Today, Attention, Jobs, Buses, More, Me |
-| owner | 6 | Today, Attention, Money, Buses, More, Me |
+| supervisor | 6 at yard, **all 12 at desk** | Today, Attention, Jobs, Buses, More, Me |
+| owner | 6 at yard, **all 12 at desk** | Today, Attention, Money, Buses, More, Me |
 
-**One arithmetic disagreement inside stage 1, resolved and flagged.** `v2-ux.md §4.4`
-counts the crew manager at **5** tabs, while `§4.2` lists **6** destinations for that
-role (Today, Duty board, People, Fuel & tyres, Reviews, Me) and none of them is a
-detail of another — unlike store and mechanic, where Jobs and the Job card are
-legitimately one tab. I have taken the list in `§4.2` and given the crew manager six
-slots, because `§4.4`'s own rule is that a person must be able to reach every screen
-they hold. If the intent was five, the sixth belongs behind More, and that is a
-one-line change here. **This belongs back in the UX doc.**
+The crew manager's six is settled: the first draft of `v2-ux.md §4.4` said five, this
+document took `§4.2`'s list of six, and the revised `§4.4` confirms six and says the
+foundation's reasoning is the reason. Nothing to carry back any more.
 
-**Six slots is the ceiling.** At 360px, six items are 60px wide, which holds a 20px
-mark and a `--t6` label. The overflow is a **More** tab (`icon('more')`) that opens
-`V2.openSheet` listing every remaining screen this person holds — that is the
-mechanism by which a supervisor reaches Store, People, Duty board, Fuel & tyres,
-Reviews and Gate-check decisions, and the mechanism the (role x capability) vs
-(role x reachable screen) check reads. **A screen reachable only from another role's
-home is a build error.**
+**Six slots is the ceiling at phone width.** At 360px, six items are 60px wide, which
+holds a 20px mark and a `--t6` label. The overflow is a **More** tab (`icon('more')`)
+that opens `V2.openSheet` listing every remaining screen this person holds — that is
+the mechanism by which a supervisor on a phone reaches Store, People, Duty board,
+Fuel & tyres, Reviews and the departure check, and the mechanism the
+(role x capability) vs (role x reachable screen) check reads. **A screen reachable
+only from another role's home is a build error.**
 
 | State | Specification |
 |---|---|
-| default | Mark + label, `--ink-dim`. The label is **always** visible: 2-slot and 6-slot navs must read the same, and an icon-only tab on a Windows 7 machine is how the emoji problem started |
+| default | Mark + label, `--ink-dim`. The label is **always** visible: a 4-slot and a 12-slot nav must read the same, and an icon-only tab on a Windows 7 machine is how the emoji problem started |
 | pressed | scale(0.97), 120 ms `ease-out`, same as every pressable |
 | focus | `outline: 2px solid var(--accent); outline-offset: -2px` |
 | disabled | Never. A tab a role does not hold is **absent** |
 | loading | The nav draws in the first paint, before any store is read. It is the one thing on screen that must never wait for data |
-| empty | Cannot occur: every role has at least Today and Me |
+| **empty** | **One slot means no nav is drawn at all** — see §3.7.1. This was written as "cannot occur: every role has at least Today and Me", which `DECISIONS.md §7` has made false: a driver and a conductor now have Me and nothing else |
 | error | Cannot occur. The nav holds no data |
-| offline | The **Me** tab's label carries a count when records are waiting: "Me (3)". Not a coloured dot — `v2-ux.md §7` measure 7 wants every refused, quarantined or dropped record surfaced with a reason, and a dot carries neither. Me (#14) then names them |
+| offline | The **Me** tab's label carries a count when records are waiting: "Me (3)". Not a coloured dot — `v2-ux.md §7` measure 7 wants every refused, quarantined or dropped record surfaced with a reason, and a dot carries neither. Me (#12) then names them |
 
-**Active tab:** `aria-current="page"`, `--accent-text`, plus a 2px `--accent` bar
-along the **top** edge of the item (mirroring `.tabs`' bottom bar). Colour is never
-the only cue. **The bar does not animate** (§5.8).
+**Active tab:** `aria-current="page"`, `--accent-text`, plus a 2px `--accent` bar on
+the edge the nav sits against — the **top** edge of a bottom-bar item, the **leading**
+edge of a rail item (mirroring `.tabs`' bottom bar). Colour is never the only cue.
+**The bar does not animate** (§5.8).
+
+#### 3.7.1 One slot: a driver and a conductor get no nav
+
+`DECISIONS.md §7` and `v2-ux.md §3.4`: Me (#12) is the **whole app** for these two
+roles, who between them hold zero capabilities. **A nav with one item is a lie about
+there being somewhere else to go** — the same lie as a disabled tab, which §3.7's
+disabled row already forbids. So `.nav` is not rendered, and the two jobs a nav does
+are done by the screen itself:
+
+| What a nav would have done | What Me does instead |
+|---|---|
+| Say whose app this is and who is signed in | The greeting block at the top of the screen (`screens.css .greet`): `icon('me')` in a 40px ring, the person's name at `--t3`, their role and the garage's name at `--t5` in `--ink-dim`. It scrolls with the screen; the screen is one short column |
+| Offer a way out of where you are | There is nowhere else, so **no `back` control and no More**. A back arrow pointing at nothing is the same lie. Every sheet opened from Me closes to Me, which `overlay.js` already guarantees with Escape, the Close button and a backdrop click |
+
+Three further rules for this screen, because it is the one screen two whole roles ever
+see and `v2-ux.md` is explicit that a login landing nowhere is what cost a month of
+mechanics' time ([E] `8db78e7`):
+
+1. **No fixed bottom bar of any kind**, including an action bar. A bar pinned to the
+   bottom edge of a one-screen app reads as a nav that has lost its tabs.
+2. **Check in / out is the first thing on the screen**, a full-width `.btn-primary`
+   inside the first card — it is what the business needs from these two roles
+   (attendance is wages in practice, Q10) and what they came for.
+3. **"Something is wrong with my bus"** is a `.btn` in its own card opening a sheet
+   (area, then voice or photo). It is this screen's one consumer of the photo
+   primitive (§3.5) and of `warn` and `camera`.
+
+**What `--nav-h` means on a screen with no nav: nothing — it is not consumed.** The
+scroll padding rule is therefore conditional, and both halves are exact:
+
+- With a bottom bar: `padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom))`.
+- With no nav, or with the rail: `padding-bottom: calc(var(--pad) + env(safe-area-inset-bottom))`.
+
+`--nav-h` keeps every other consumer: it is the bar's height on every screen the other
+six roles open, at both densities (§3.7.2 explains why its desk value stays alive).
+
+**Stage 1 counts `--nav-h` as being "on ten screens, not fourteen" (`v2-ux.md §4.5`).
+I read that count as wrong in a way that does not matter.** The nav appears on all
+**twelve** screens; what is true is that it is absent for **two of the eight roles**,
+and the one screen those two open (Me) is drawn *with* a nav for the other six. The
+token's consumers are unaffected either way, which is presumably why the slip survived
+the revision.
+
+#### 3.7.2 Desk: the nav is a left rail, and that is now decided
+
+My §8.2 doubt — that a phone-shaped bottom bar is wrong on a 1024x768 office PC — is
+agreed by the revised `v2-ux.md §4.4`, which adds the fact that settles it: **the
+supervisor and the owner now hold all twelve screens**, so a six-slot bar leaves
+*half the app* permanently one extra tap and one sheet away from the two people who
+run the garage. That is the same shape as the defect we are fixing, one tap shallower.
+
+**Decision: the nav is a left rail in desk density, and it is the same component, not
+a second primitive.** `.nav` turns:
+
+`flex-direction: column; position: fixed; left/top/bottom: 0; width: var(--rail-w); border-top: 0; border-inline-end: 1px solid var(--line)`,
+each item a row (`icon` then label, which is already the desk item's shape), and the
+screen gets `padding-inline-start: var(--rail-w)` instead of a bottom padding.
+
+| | |
+|---|---|
+| **Third new token** | `--rail-w: 160px`, declared in the **desk** density block only |
+| Arithmetic | Twelve items at `--tap` 32px = 384px of a 768px column, so every slot fits and **More disappears entirely at desk**. Width: `--pad` 8 + mark 20 + `--s2` 8 + label + `--pad` 8. The longest label is "Fuel & tyres", 12 characters at `--t6` 14px, about 84px Latin; Devanagari runs wider, so 160px leaves 32px of slack rather than 8px |
+| Content width | 1024 - 160 = **864px** for the screen. A desk Jobs row needs about 700px for a lead mark, a title, a figure, a badge and a button |
+| **The condition** | Rail when the page is `data-density="desk"` **and** the viewport is at least 1024px wide. Both clauses, each for a reason: density is already how this system says "this is a desk screen" and a width-only rule would put a rail on a tablet in landscape, which is also 1024x768; and a desk-density page on a 360px phone (a supervisor opening the office screen on a phone, which `000c3dd` says happens) must not lose 44% of its width to a rail. That case keeps the bottom bar, which is why `--nav-h`'s desk value stays alive |
+| Reduced motion, press, focus | Unchanged. The rail does not animate, slide or collapse — see §5.8 |
+
+**This decision does not depend on the placeholder budget, and that is worth saying
+because `DECISIONS.md §9` records that the 200-rows-in-250 ms figure came from a
+developer's Mac.** A rail changes the width available to a row, not the cost of
+drawing one: 200 rows cost the same at 864px as at 1024px, because the work is style
+and layout per row, not pixels. So the rail is decidable now and I have decided it.
+What the office-PC reading changes is §2.3 — what a desk row is allowed to *contain* —
+and if 864px turns out to be too narrow for that content, the thing that gives is the
+row's badge, not the rail.
+
+**What would overturn it**, stated so it is falsifiable rather than defended: the
+`usage` store counts screen opens per person per day (`03 §2`). If after four weeks a
+supervisor's and the owner's opens are concentrated in six or fewer screens, then the
+rail is 160px of every desk screen spent on screens nobody opens, and the bottom bar
+with More was right. That reading is `v2-ux.md §7` measure 4 run per role, it needs no
+new instrument, and it is the same measurement that would prove me wrong about the
+twelve screens themselves.
+
+### 3.8 Second-signature state (NEW — composed, no new CSS)
+
+`DECISIONS.md §10` reverses the 15 September decision: **a job closed by anybody now
+waits for a second person to verify it, and nobody may sign off their own close —
+supervisor, owner, every role, one rule.** So a card has a state it did not have in
+the first pass, and `v2-ux.md §4.1` #4 makes it a "must not" on the screen: *a verify
+button for the person who closed the card, any person, any role.*
+
+This is a state and a disabled rule, so it belongs here rather than in a screen. It
+needs no new CSS and no new token — it is §3.1's row, §3.4's reason row, the existing
+badge, and one rule about who sees a button.
+
+**The rule, exactly:** the verify control is **absent** when
+`card.closedBy === me.id`, for every role including the owner. Not disabled, not
+greyed, not present-and-erroring. This is the same deny-by-default shape as §3.1's
+disabled row and §3.7's — a control you may not use is not drawn — and it matches the
+filter the live app already has at `app.js:3019` (`closedBy !== S.user.id`), applied
+to everyone instead of skipped for supervisors.
+
+**But absent is not silent.** The closer must be told what the card is waiting for,
+or they will hunt for the button and then ask somebody. So the card's **one next step**
+slot (§3.4's row at the top of the Job card) carries the state for whoever is looking:
+
+| Who is looking | The one-next-step slot holds |
+|---|---|
+| The person who closed it | A `div.v2row` — **no press, no link** — `lead` = `icon('clock')` in `--warn`, `.t` = "Waiting for sign-off", `.sub` = "Somebody else has to check this card. You closed it." |
+| Somebody else who may verify | A `.btn-primary` in the same slot: "Sign off" |
+| Anybody who may not verify | The same unpressable row, `.sub` = "Waiting for a supervisor or the owner to check it" |
+
+| State | Specification |
+|---|---|
+| default | On the card: a `badge badge-warn` beside the status carrying `icon('clock')` and the words **"Waiting for sign-off"**. Never colour alone, and never the word "verified" on a card nobody has verified |
+| pressed | Only the "Sign off" button presses (scale 0.97, 120 ms). The waiting row must not press: a row that moves under the thumb and then does nothing is the feedback failure §5.1 exists to prevent, inverted |
+| focus | Standard ring on the button. The waiting row is not focusable — it is not a control, so it must not be in the tab order |
+| **disabled** | **The verify control is absent, not disabled** (the rule above). The only thing that is ever *disabled* here is the "Sign off" button for the ~200 ms its write is in flight, via `aria-disabled="true"`, reading "Signing off..." |
+| loading | While the card's own read is in flight the slot is `skeleton(1)`. It must never draw "Sign off" optimistically and then take it away — on a 30-36 s cold server that is a button a person presses twice |
+| empty | A card that is not closed has no second-signature state at all and the slot holds its real next step ("Add the two after photos", "Issue the part") |
+| error | A sign-off that fails is `V2.toast(msg, {kind: 'bad'})` and the slot returns to "Sign off". The close itself is already saved, so the message says what is still true: "Not signed off. The card is still closed and still waiting." |
+| offline | Sign-off is a local write and works offline, so the button stays. What changes is the card's own freshness line: the queue of cards waiting on somebody else is only as current as the last sync, so the list header says when that was. **A card may already have been verified on another phone** — under whole-record last-write-wins (`v2-ux.md §6`) two people signing off the same card is a conflict, so the Attention row and the card both carry the `at` of the reading, and the copy never says "nobody has signed this off", only "not signed off here yet" |
+
+**On Attention (#2)** the same state is one ranked row kind, and it is the one row kind
+that must filter itself out by *identity* and not only by capability: a person's own
+closes never appear in their own queue. Mark: `ok`. Reason line: "Closed 2 days ago,
+needs a second signature". That is the row-kind-plus-identity case `v2-ux.md §4.3`
+warns about; a capability check alone would show the owner their own closed cards.
+
+**Three falsifiable checks** stage 3 owes this state, because a rule nobody can fail
+is decoration:
+
+1. Sign in as the closer, open their own closed card, assert **no** verify control
+   exists in the DOM — for `supervisor` **and** for `owner`, since the owner is the
+   role the old rule exempted by name.
+2. Sign in as a second eligible person, open the same card, assert the control is
+   there and one tap writes `verifiedBy` and `verifiedAt`.
+3. Assert the closer's own closed card is **not** in their Attention queue while it
+   *is* in the other person's.
+
+**Noted for stage 3, because it will be compared:** `DECISIONS.md §10` says v1 is
+deliberately **not** changed — `selfSignsOff` is live and supervisors are signing off
+their own work today. So v1 and v2 differ here on purpose, and a tester moving between
+them will see a supervisor verify their own card in one and not the other. That is not
+a bug in this spec.
 
 ---
 
@@ -539,27 +696,74 @@ the only cue. **The bar does not animate** (§5.8).
 each on a 24-grid, geometry inside 1..23 so the 1.75 stroke is never clipped,
 `currentColor` only, no `<text>`, no font, pure ASCII, no two icons sharing a drawing.
 
-### 4.1 Coverage of the fourteen screens
+### 4.1 Coverage of the twelve screens
 
 | Screen | Nav mark | Marks inside it | Gap |
 |---|---|---|---|
 | 1 Today | `home` | every row kind below | none |
 | 2 Attention | `alert` | per row kind, see §4.2 | 2 |
-| 3 Jobs | `job` | `clock` (idle time), `filter`, `add`, `person`, `map` (away) | none |
-| 4 Job card | `job` | `clock`, `part`, `camera`, `doc` (gate pass), `person`, `ok`, `add`, `edit`, `delete`, `bus` | none |
+| 3 Jobs | `job` | `clock` (idle time), `filter`, `add`, `person`, `map` (away for repair) | none |
+| 4 Job card | `job` | `clock` (the four times, and **"waiting for sign-off"**, §3.8), `part`, `camera`, `doc` (gate pass), `person`, `ok` (sign off), `add`, `edit`, `delete`, `bus`, `back` | none |
 | 5 Buses | `bus` | `doc` (papers), `clock` (service due), `tyre`, `battery`, `person`, `map` (live position), `warn`, **`challan`** | 1 |
 | 6 Store | `part` | `add`, `search`, `doc` (bill), `camera`, `tyre`, `battery`, **`count`** (shelf count vs book), `person` | 1 |
-| 7 Money | `money` | `fuel`, `part`, `bus`, `doc`, `clock` | none |
+| 7 Money | `money` | `fuel`, `part`, `bus`, `doc`, `clock`, `add` (**the supervisor's trip entry**, `DECISIONS.md §11`) | none |
 | 8 People | `person` | `doc`, `star`, `review`, `warn`, `add`, `edit` | none |
-| 9 Duty board | **`seat`** | `bus`, `person`, `clock` | 1 |
-| 10 Fuel & tyres | `fuel` | `tyre`, `battery`, `bus`, `add`, `warn` | none |
-| 11 Gate check | `gate` | `camera`, `me` (selfie), `ok`, `bad`, `warn`, `clock` | none |
-| 12 Reviews | `review` | `star`, `person`, `bus`, `filter`, `search`, `warn` | none |
-| 13 Trip cash | `money` | `add`, `clock`, `ok`, `fuel` | none |
-| 14 Me | `me` | `sun`, `moon`, `doc`, `star`, `review`, `offline`, `clock`, `back`, `more` | none |
+| 9 Duty board | **`seat`** | `bus`, `person`, `clock`, and **the whole departure check moved here** (`DECISIONS.md §12`): `gate` (the check itself), `camera` (the three item photos), `me` (the driver's selfie, taken by the supervisor), `ok` / `bad` / `warn` (released / held / waiting) | 1 |
+| 10 Fuel & tyres | `fuel` | `tyre`, `battery`, `bus`, `add`, `warn` (falling mileage) | none |
+| 11 Reviews | `review` | `star`, `person`, `bus`, `filter`, `search`, `warn` | none |
+| 12 Me | `me` | `sun`, `moon`, `doc`, `star`, `review`, `offline`, `clock`, `camera` + `warn` (**"something is wrong with my bus"**, the driver's and conductor's one write) | none |
+
+Two things I checked rather than took on trust:
+
+- **`gate` keeps a consumer and does not free a slot.** It loses its nav slot with the
+  Gate check screen, but the mark is still drawn twice: the departure check on Duty
+  board (#9) and the awaiting-decision row on Attention (#2).
+- **`money` keeps its nav slot** — Money (#7) is now the supervisor's as well as the
+  owner's (`DECISIONS.md §5`) — and it also carries the trip entry that used to be
+  Trip cash. It is in two navs and two screens.
 
 `map` keeps a named consumer whatever happens to Q9: the bus's live position on
-Buses (#5). Only the full-screen fleet map is dropped.
+Buses (#5), and "away for repair" on Jobs (#3). Only the full-screen fleet map is
+dropped.
+
+**Count, done by hand over the whole set rather than asserted.** All 34 marks have at
+least one named consumer among the twelve, so dropping two screens frees nothing and
+the cap stays reached:
+
+| Mark | Consumer |
+|---|---|
+| `home` | #1 nav |
+| `me` | #12 nav, #9 the driver's selfie |
+| `alert` | #2 nav |
+| `job` | #3 nav, #4 |
+| `bus` | #5 nav, #9, #2 breakdown pattern |
+| `part` | #6 nav, #2 pilferage, #4, #7 |
+| `money` | #7 nav, #7 trip entry |
+| `person` | #8 nav, #3, #5, #9, #11 |
+| **`seat`** | #9 nav, #2 bus with no driver |
+| `fuel` | #10 nav, #7 |
+| `review` | #11 nav, #12 own reviews |
+| `tyre`, `battery` | #10 fitting, #6 piece register |
+| `gate` | #9 the departure check, #2 awaiting a decision |
+| `more` | the supervisor's and owner's More tab at yard width (§3.7) |
+| `star` | #11 ratings, #12 own rating |
+| `map` | #5 live position, #3 away for repair |
+| `warn` | #2 unsafe report, #10 falling mileage, #12 "something is wrong with my bus" |
+| `ok` | #2 awaiting a second signature, #9 released, #4 sign off, `badge-ok`, the Done toast |
+| `bad` | #9 held, `errorState()`, the Error toast |
+| `clock` | #3 idle time, #4 the four times and "waiting for sign-off", every `figure` note |
+| `search` | #5, #6, #11 |
+| `filter` | #3, #11 |
+| `add` | #3 new job, #6 receive, #7 trip entry, #10 |
+| `edit` | #4, #8 |
+| `delete` | #4, owner deletes a mistaken card |
+| `back` | #4, the Job card under the Jobs tab |
+| `camera` | #4, #9, #6, #12 |
+| `doc` | #4 gate pass, #5 papers, #2 expiring, #6 bill, #12 own documents |
+| `sun`, `moon` | #12 the light/dark choice, which is a row on Me for every role |
+| `offline` | #12 device state, `offlineState()`, an unsent photo |
+| **`challan`** | #2 unpaid challan, #5 per-bus liability |
+| **`count`** | #6 shelf count, #2 unexplained stock change |
 
 ### 4.2 Attention's row kinds, which is where the gaps are
 
@@ -569,8 +773,8 @@ different things is the exact mistake `icons.js` records fixing when a cog did b
 
 | Row kind | Mark |
 |---|---|
-| Gate check awaiting a decision | `gate` |
-| Work awaiting sign-off | `ok` |
+| Departure check awaiting a decision (the check itself is on Duty board, the decision is here, where the decider already looks) | `gate` |
+| **Work awaiting a second signature** — never the reader's own closes, for any role including the owner (`DECISIONS.md §10`, §3.8) | `ok` |
 | Document expiring or expired | `doc` |
 | Unpaid challan | **`challan`** (new) |
 | Unexplained stock change | **`count`** (new) |
@@ -688,7 +892,12 @@ roles whose PIN is never cached). **No new component may do this**, and
 `test_ui_components.js` enforces it for `components.css`, where every primitive
 above lives.
 
-### 5.7 Gate-check hold to release — NEW, and the one exception to the ceiling
+### 5.7 Departure check, hold to release — NEW, and the one exception to the ceiling
+
+**The spec does not move; the person in it does.** `DECISIONS.md §12`: the ten items,
+the three photos, the 1.5-second hold and the driver's selfie all stay, and **the
+supervisor** performs the check and photographs the driver at the gate. It is a state
+of Duty board (#9), not a screen of its own.
 
 | | |
 |---|---|
@@ -697,14 +906,30 @@ above lives.
 | Duration / easing | **1500 ms `linear`** |
 | Release before it completes | `scaleX` back to 0, 150 ms `ease-out` |
 | Reduced motion | The bar does not move: `opacity: 0 -> 1`, 1500 ms `linear`, on the same overlay |
-| **Why** | The 1.5 s hold is not decoration, it **is** the control ([E] `8a8cde5`): it exists so a driver cannot release a bus by brushing a cracked screen. Without a growing bar he lifts early, the check does not release, and he is standing at the bus at 20:00 not knowing why. Linear because the bar is a clock |
+| **Why** | The 1.5 s hold is not decoration, it **is** the control ([E] `8a8cde5`): a bus must not be released by a palm brushing a screen in the dark. Without a growing bar the person lifts early, the check does not release, and a bus is standing at the gate with nobody knowing why. Linear because the bar is a clock, not an easing |
 
-**Where it may live:** the Gate check screen's own stylesheet, **not**
+**Two things change with the person, and both are specified rather than assumed:**
+
+1. **It can now happen at a desk.** The supervisor may be on a phone at the gate or at
+   the office PC, so the hold target is `min-height: var(--tap)` in **both** densities
+   — 48px yard, 32px desk — and the bar is the full width of the button at either. A
+   1.5 s hold with a mouse is unusual and that is deliberate: the hold is the same
+   deliberate act whoever is doing it.
+2. **It is now repeated.** One supervisor may check out twenty buses in an evening,
+   and §5.8's rule is that a frequently repeated action does not animate. **The bar
+   stays, and the rule is not broken**, because the bar is not motion laid over the
+   action — it is the action's own readout, and removing it would not make the action
+   one millisecond faster: the 1.5 seconds are mandatory either way. If twenty holds a
+   night turns out to be the wrong price, the thing to revisit is the **1.5 seconds**,
+   which is the owner's decision and `DECISIONS.md §12` has just confirmed it, not the
+   bar that reports them.
+
+**Where it may live:** the Duty board screen's own stylesheet, **not**
 `components.css`. The 300 ms ceiling there is proved by a test over the whole file,
 and it exists to stop *decorative* motion costing frames on a Core 2 Duo. This is one
-composited layer on one element on a phone-only screen. Putting it in
-`components.css` would mean weakening a check that guards 923 lines to admit one
-exception — which is how ceilings stop meaning anything.
+composited layer on one element. Putting it in `components.css` would mean weakening a
+check that guards 923 lines to admit one exception — which is how ceilings stop
+meaning anything.
 
 ### 5.8 What does not animate, and why
 
@@ -773,9 +998,19 @@ on it must say which one it is:
 
 ### 6.3 Hindi: the defect, its cause, and the rule that prevents it
 
-**The named defect** ([E] `GO_LIVE` "Still open"): Trip cash is **English-only in
-Hindi mode** — on the screen used by the largest role, whose habit in consequence is
-logging the week from memory on Friday.
+**The named defect** ([E] `GO_LIVE` "Still open"): Trip cash was **English-only in
+Hindi mode**, on a screen for the largest role.
+
+**That screen is gone, and the defect it was evidence of is not.** `DECISIONS.md §7`
+says drivers do not use their logins, so — as that decision itself asks stage 1 to say
+out loud — if no driver ever opened Trip cash then **that defect was never costing the
+hours it was ranked for**, and its place in the friction ranking was wrong. I am not
+keeping the estimate. What I am keeping is the *mechanism*, because the mechanism is
+untouched and it now points somewhere worse: the two roles most likely to read Hindi
+only, and least likely to read English, now have **one screen that is their whole app**
+(Me, #12, `DECISIONS.md §7`). A silent English fallback there is not a screen stuck in
+the wrong language; it is the entire application in the wrong language, for the only
+people who have no second screen to fall back to.
 
 **The cause is a mechanism, not an oversight,** and it is written down in the
 dictionary itself. `i18n-hi.js` line 8: *"Until it arrives `t()` falls back to
@@ -786,7 +1021,7 @@ opens the screen. Nothing fails. Nobody is told.
 **And the foundation has the same hole today.** `states.js` and `overlay.js` hold
 **21 English string literals** and `states.js` says so in its own header ("English
 only for now... Wiring the fixed words to the app's translator is a migration step,
-not done here"). Every one of them is drawn on all fourteen screens. So this is the
+not done here"). Every one of them is drawn on all twelve screens. So this is the
 foundation's one real defect, and fixing it is foundation work, not screen work.
 
 **The change.** One table, `ui/words.js`, in the shape of the other `ui/` files (ES5,
@@ -823,7 +1058,7 @@ decoration"):
 Two further carried rules, because they are copy as much as permission: the
 conversation log's words must never reach the person they are about ([E] `4a42e38`),
 and `office` never receives passenger journey fields ([E] `bd11e75`) — so no label on
-Reviews (#12) may name a PNR, a seat, a fare or a board point for that role.
+Reviews (#11) may name a PNR, a seat, a fare or a board point for that role.
 
 ---
 
@@ -883,18 +1118,27 @@ Reviews (#12) may name a PNR, a seat, a fare or a board point for that role.
 
 **ok = true.** I did not halt and I did not decide anything that is the owner's.
 
-### 8.1 The three open questions, checked against this document
+### 8.1 The answers, checked against this document
 
-| Question | Changes the foundation? |
+The first pass claimed nothing here turned on Q1, Q2 or Q3. They are answered now, so
+the claim is checkable rather than a promise:
+
+| Answer | What it did to the foundation |
 |---|---|
-| **Q1** Does either supervisor do the cash reconciliation today? | **No.** It decides whether Money (#7) exists for the supervisor — a nav slot and a capability. The nav primitive is built from a per-role list either way (§3.7), and no token, primitive, icon, motion or copy rule moves |
-| **Q2** Does the 2 Nov decision stand, and does a supervisor keep challans? | **No.** It moves rows between Attention (#2), Money (#7) and Buses (#5). The ranked row is the same row and the `challan` mark has a consumer on Buses (#5) whichever way it goes |
-| **Q3** Do you want a mechanic to mark "work done" with one tap? | **No.** It is two `.btn-primary` buttons on the Job card (#4), already specified as a primitive with all eight states. A no removes two buttons and removes nothing from this document |
+| **Q1 / Q2 — a supervisor DOES reconcile cash; the 2 Nov decision is reversed** (`DECISIONS.md §5`) | **Nothing.** Money (#7) gains a role and a nav slot. `money` was already in the owner's nav; it is now in the supervisor's too. No token, icon, motion or copy rule moved |
+| **Q3 — mechanics have phones and may record their own start and finish** (`§6`) | **Nothing.** Two `.btn-primary` buttons on the Job card, already specified with all eight states |
+| **Q5 — drivers and conductors do not use their logins** (`§7`) | **The one real hit.** Two screens went, two nav rows became one slot each, and **"empty: cannot occur" in §3.7 turned out to be false** — which is why that row now carries the correction rather than a quiet rewrite. `--nav-h`'s consumers survived; `--thumb`'s moved screens; `camera`, `me` and `gate` kept consumers |
+| **Q8 — tonight's running list is a register in the office** (`§8`) | **Nothing.** Duty board gains a daily pick; `seat` keeps its slot and its row kind |
+| **§10 — a supervisor's closed work needs a second signature** | **One new state**, §3.8, composed from the existing row, badge and button. No new CSS, no new token, no new icon |
+| **§11 — the supervisor records trip cash** | **Nothing new.** The number entry (§3.3) was already specified with a decimal kind; it moves from Trip cash to Money |
+| **§12 — the departure check keeps everything, selfie included** | **Nothing but the person.** §5.7's reason, property, duration and easing are unchanged; it is now performed at a desk as well as at a gate, and by somebody doing it twenty times an evening, so both of those are now specified |
 
-The three that could have blocked me and did not: Q5 (do drivers sign in — if no,
-Gate check and Trip cash serve nobody, but §3.5 and §5.7 are also consumed by Job
-card and Me); Q9 (the live map — `map` keeps a consumer on Buses #5 regardless);
-Q12 (who reads Hindi only — §6.3 is the mechanism, and the mechanism is needed
+Still open and still harmless to this document: **Q4** (is crew pay money or people —
+it decides whether salary appears on People #8, which is rows of existing primitives),
+**Q9** (`map` keeps a consumer on Buses #5 regardless), **Q10** (whether attendance
+decides wages — it decides whether the driver's and conductor's logins survive at all,
+and §3.7.1 is written so that if they go, one screen and no nav goes with them),
+**Q12** (who reads Hindi only — §6.3 is the mechanism, and the mechanism is needed
 whoever the readers turn out to be).
 
 ### 8.2 The three specifications most likely to be wrong
@@ -906,14 +1150,17 @@ whoever the readers turn out to be).
    Core 2 Duo. If the office PC comes back at 700 ms, the desk row loses its badge
    and its figure before it loses anything else, and §2.3 becomes the most important
    page in this document rather than a checklist.
-2. **The bottom nav may be the wrong shape for the desk.** Six slots and a More sheet
-   is a phone pattern, and `v2-ux.md §4.4` only says stage 2 decides the shape. On a
-   1024x768 Windows 7 screen a left rail would cost no vertical space and show every
-   slot at once, which is what a supervisor holding twelve screens actually needs; I
-   chose one component over two because a second nav is a second thing to keep
-   reachable, and reachability is the broken thing we are fixing. If the supervisor
-   lives in the More sheet, I was wrong, and the usage counters will say so within a
-   month.
+2. **The rail is 160px of a 1024px screen and I have not seen a desk row at 864px.**
+   This replaces the first pass's doubt, which was "the bottom nav may be the wrong
+   shape for the desk" — stage 1 agreed, the supervisor now holds all twelve screens,
+   and §3.7.2 decides it: a rail at desk density and 1024px or wider. The doubt moves
+   rather than disappears. A desk Jobs row carries a lead mark, a title, a figure, a
+   badge and a button, and I have specified it at 864px from arithmetic, not from
+   looking at it. If it is too narrow, §2.3 says what gives (the badge, then the
+   figure), but it is the rail that caused it. The reading that would overturn the
+   rail itself is in §3.7.2 and it is the same `usage` counter as item 1's budget is
+   not: **the nav decision does not depend on the 200-row measurement**, because a
+   rail changes a row's width and not the cost of drawing one.
 3. **`count` and `challan` may be marks nobody reads.** A balance meaning "the shelf
    against the book" and a ticket meaning "a fine" are both idioms, and I have no
    evidence a storekeeper or an owner reads either at 20px. The alternative was to
@@ -923,7 +1170,54 @@ whoever the readers turn out to be).
    the last two slots under the 34-icon cap, which is the part that would be
    expensive to undo.
 
+### 8.3 What moved when fourteen became twelve
+
+Kept here rather than smoothed away, so the next reader can see what a product change
+costs a foundation. **Nothing in §1.1 (the 30 existing tokens), §1.3 (zero new
+colours), §2 (density), §4.3 (the three new marks) or §6.1–6.2 (the voice) moved at
+all.**
+
+| Moved | From | To |
+|---|---|---|
+| Nav slots | driver 4, conductor 2 | **1 each, so no nav at all** (§3.7, §3.7.1) |
+| A nav's `empty` state | "cannot occur" | the corrected row in §3.7, and §3.7.1 |
+| The nav's desk shape | undecided, flagged as a doubt | **decided: a left rail** (§3.7.2), with `--rail-w` as a third token |
+| `--thumb`'s consumers | Gate check #11, Me #14 | Duty board #9, Me #12 |
+| The hold-to-release bar | Gate check #11, a driver, a phone | Duty board #9, **the supervisor**, phone or desk (§5.7) |
+| The number entry's decimal kind | Trip cash #13 | Money #7, the supervisor's trip entry |
+| Icon coverage | 14 rows | 12 rows, plus a by-hand check that all 34 marks still have a consumer (§4.1) |
+| The Hindi argument | "the defect is on Trip cash" | "the mechanism now threatens Me, which is two roles' whole app" (§6.3) |
+| — | — | **New: §3.8, the second-signature state** |
+
+### 8.4 What I think is wrong in `v2-ux.md`
+
+**One thing**, and it is small:
+
+1. **`§4.5` counts `--nav-h` as being "on ten screens, not fourteen".** The nav is on
+   all **twelve**; what is true is that it is absent for **two of the eight roles**.
+   The token's consumers are the same either way, which is probably why the slip
+   survived the revision. Argued in §3.7.1.
+
+Three things I went looking for and will not report as wrong, because they hold:
+
+- **Me as two different screens.** I expected `§4.1` #12 to hide the fork between "a
+  tab among six" and "a whole app with no nav". It does not — the row says "all 8 —
+  and for driver and conductor it is **the whole app**" and points at `§3.4`. The
+  foundation's half of that fork is §3.7.1.
+- **The supervisor's path to the departure check.** They perform it nightly at a gate
+  on a phone, and `§4.4` gives them no Duty board tab at yard width, which looked like
+  a timed task buried behind a More sheet. But `§4.1` #1 puts "tonight's unchecked
+  departures" on the supervisor's **Today**, so the path is one tap from the screen
+  they land on. Nothing to fix. Worth knowing that `§4.4`'s falsifiable check cannot
+  tell "reachable" from "reachable in one tap", and that it is Today's content rather
+  than the nav that is carrying this one.
+- **The friction ranking.** `DECISIONS.md §7` asks stage 1 to say that the Trip cash
+  Hindi defect was not costing the hours it was ranked for if no driver opened it, and
+  `v2-ux.md` now says so. §6.3 matches that rather than keeping the dead estimate
+  alive as the foundation's justification.
+
 **Written to:** `docs/v2/plan/v2-foundation-ui.md`
 **Gates:** `python3 scripts/check-floor.py v2 ui` green (10 files);
-`node test_ui_tokens.js` green (25 checks).
-**Next:** stage 2b — the fourteen screens, after Q1, Q2 and Q3.
+`node test_ui_tokens.js` green (25 checks). The three new icon paths were run against
+`test_ui_icons.js` in a scratch copy: 30 checks green, set at exactly 34.
+**Next:** stage 2b — the twelve screens.
