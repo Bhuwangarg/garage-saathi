@@ -32,6 +32,20 @@ if [ -x "$ISO" ] && [ -d "$DIR/v2" ]; then
   "$ISO" || { echo "❌ pre-push: v1 and v2 are not isolated."; exit 1; }
 fi
 
+# The 47 test files, which nothing ran until now. They are quick, they need no
+# server, and every Python one points DB_PATH at a tempfile and pops
+# DATABASE_URL, so none can reach production. A test nobody runs cannot fail,
+# which is how these had quietly become documentation.
+TESTS="$DIR/scripts/run-tests.py"
+if [ -f "$TESTS" ]; then
+  # --fast skips test_ui_overlay.js, which spends 174 of its 181 seconds asleep
+  # waiting out real animation durations. It PRINTS what it skipped, and CI runs
+  # the whole set on every branch, so nothing is quietly uncovered. Three minutes
+  # on every push would get this hook disabled, and a disabled hook checks
+  # nothing at all.
+  python3 "$TESTS" -q --fast || { echo "❌ pre-push: blocked by a failing test suite."; exit 1; }
+fi
+
 GATE="$DIR/scripts/predeploy-gate.sh"
 [ -x "$GATE" ] || { echo "⚠️  pre-push: $GATE missing/not executable — skipping gate."; exit 0; }
 exec "$GATE"

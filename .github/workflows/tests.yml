@@ -1,0 +1,53 @@
+name: Tests
+
+# There are 47 test files in this repository and, until this workflow, nothing
+# ran any of them -- not the pre-deploy gate, not the pre-push hook, not CI.
+# They were written alongside real fixes and they encode what those fixes were
+# for, so leaving them unrun turned them into documentation: a test nobody runs
+# cannot fail, and therefore is not a test.
+#
+# They need no server and no secrets. Every Python test pops DATABASE_URL,
+# TURSO_URL and TURSO_DATABASE_URL from the environment and points DB_PATH at a
+# tempfile, so none of them can reach production. That is why this workflow has
+# no environment of its own: it does not need one, and anything it were given
+# would be a way for a test to escape its sandbox.
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch: {}
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Python 3 and Node are both on ubuntu-latest already. Pinned anyway,
+      # because "whatever the runner has" is how a suite starts failing on a
+      # morning when nobody changed anything.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Every test file
+        run: python3 scripts/run-tests.py
+
+      # Cheap, deterministic, and the two things most likely to be broken by a
+      # change that looks harmless: a CSS feature the office cannot render, and
+      # a v2 service worker that could seize the live app.
+      - name: Chrome 109 floor
+        run: python3 scripts/check-floor.py v2 ui
+
+      - name: v1 and v2 stay isolated
+        run: bash scripts/check-v2-isolation.sh

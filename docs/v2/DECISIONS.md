@@ -63,3 +63,83 @@ surfaces are built. These are not re-litigated per feature.
 - Device-level confirmation on the driver phones: versions are unmeasured.
 - GPS retention on the device: 60 days locally against the server's 30. Halving
   it halves the login's cache read and loses history the server already discarded.
+
+---
+
+# Owner's answers, 2026-11-04
+
+These came from the owner directly and override anything written before them,
+including the 2 November decision and `v2-ux.md` as first written. Stage 1 is
+being revised against them.
+
+## 5. A supervisor DOES reconcile cash — the 2 November decision is reversed
+
+The 2 Nov decision was that a supervisor loses company money visibility. The
+owner says a supervisor actually does the cash reconciliation, so taking Money
+away would stop a real job.
+
+- The supervisor keeps **Money** (`v2-ux.md` #7).
+- `dashboard` still splits, but into `viewAlerts` and `viewCompanyBilling`, with
+  the supervisor holding both; the split stays worth having because it stops a
+  future role inheriting money by accident.
+- Because the money is deliberately shared, the owner should be able to see who
+  looked at what. The `usage` store already records per-person screen use, so
+  this is a screen on existing data, not new plumbing.
+- **This does not soften `LIVE-ISSUES.md` issue 2.** A conductor token can still
+  pull supplier bills, the ledger, job costs and gate selfies. Supervisor
+  visibility being intended does not make everyone else's accidental.
+
+## 6. Mechanics have phones, and may record their own start and finish
+
+The friction worth the most in the whole inventory: supervisors key mechanics'
+job cards, 3–13 hours a week. The owner confirms mechanics have usable phones
+and may tap their own times.
+
+So v2 gives a mechanic exactly **two one-tap writes** — `startAt` and
+`completeAt` — on fields that already exist, which the server already permits a
+mechanic to write.
+
+- No record-shape change, so v1 keeps reading everything v2 writes.
+- No new capability, no server change.
+- A mechanic still cannot close or verify their own card. Sign-off stays with
+  whoever may verify, which `02 §4.4` requires and which is the one rule the
+  job card must not bend.
+
+## 7. Drivers and conductors have logins but do not use them
+
+Fourteen screens becomes **twelve**. Dropped as destinations:
+
+- **Gate check** — becomes the supervisor's screen. The departure check still
+  happens; it is recorded by the person who is actually holding a phone.
+- **Trip cash** — moves into Money as the per-bus running cost it feeds.
+
+Two consequences stage 1 must resolve rather than leave implied:
+
+- The known Hindi defect was in the driver's trip-cash screen. If no driver
+  opens it, that defect was never costing the hours it was ranked for, and the
+  friction ranking changes. Say so rather than quietly keeping the estimate.
+- A driver who does sign in must still land somewhere honest. A login with no
+  screen is the dead end that cost a month of mechanics' time (`8db78e7`), and
+  the conductor role already holds zero capabilities. Decide what a driver and
+  a conductor see, or decide the logins go.
+
+## 8. Tonight's running list lives in a register in the office
+
+There is no schedule anywhere in the app, which is why the duty board could
+count buses that never needed a driver (`ba274f6`).
+
+The duty board gets a quick daily entry: pick the buses that run tonight, then
+fill their seats. The count can then reach zero, which is the whole point — a
+number that cannot reach zero teaches people to scroll past red.
+
+No WhatsApp integration and no file import. Neither was asked for.
+
+## 9. One budget in the foundation is a placeholder, not a measurement
+
+Recorded because it would otherwise be mistaken for a measured number. The
+"200 dense desk rows inside 250 ms" budget comes from the existing gate, which
+admits the figure was set on a developer's Mac. Every density rule in
+`v2-foundation-ui.md` is sized against it.
+
+Stage 3 takes the reading on an actual office PC and the budget moves to
+whatever that says. Until then it is an assumption wearing a number's clothes.
