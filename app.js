@@ -3860,17 +3860,25 @@ function isVerifierRole() { return can(S.user.role, 'verifyJob'); }
 
 /* Whose work needs a SECOND person to sign it off.
  *
- * The two-person rule — nobody verifies a job they closed — is kept for the
- * owner, and was dropped for the supervisor on the owner's instruction
- * (15 Sep 2026): Vajid's closed work needs no separate verification. When a
- * supervisor closes a job it is signed off in the same step, and a supervisor
- * may verify a job they closed earlier.
+ * Nobody's own. Every role, the owner included: you cannot verify a job you
+ * closed, and closing never signs off in the same step.
  *
- * This is by ROLE, not by name, so it covers Latif too if he is added as a
- * supervisor. The proof rule is untouched: before and after photos (or a
- * vendor bill) are still required to close — what went is only the second
- * signature, not the evidence. */
-const selfSignsOff = (role) => role === 'supervisor';
+ * From 15 Sep 2026 the supervisor was exempt, on the owner's instruction, and
+ * this read `role === 'supervisor'`. The owner reversed it on 4 Nov 2026 after
+ * being shown what the exemption had come to sit beside -- one pair of hands
+ * now holds the parts, the cash reconciliation and the departure record, and
+ * the signature on their own closed work was the fourth.
+ *
+ * Kept as a function rather than deleted because the five call sites already
+ * branch on it and were written for both answers; one line at the single point
+ * of truth is a smaller change than five edits, and the name still says what
+ * the question is. The server refuses a self-verify now whatever this returns
+ * (sync_server: "you closed this job — someone else must verify it"), so this
+ * only decides whether the app offers a button that would be refused.
+ *
+ * The proof rule is untouched and always was: before and after photos, or a
+ * vendor bill, are still required to close. */
+const selfSignsOff = () => false;
 // Closing a card belongs to the supervisor or the owner — never to the mechanic
 // on it, however much of it is theirs. The server refuses any other close
 // (sync_server: "only an owner or supervisor may close a job"), so a close the

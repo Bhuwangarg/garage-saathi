@@ -373,24 +373,41 @@ def main():
     attack("a mechanic works a pre-crew card that names them",
            jo.get("labourHours") == 1, "hours=%r" % jo.get("labourHours"))
 
-    print("\nRound 4 — a supervisor's own work signs itself off (owner's call, 15 Sep):")
-    # Vajid closes and signs off in one write — the app now sends it that way.
+    print("\nRound 4 — nobody signs off their own close (owner's call, 4 Nov 2026):")
+    # This round asserted the OPPOSITE until today. From 15 Sep a supervisor's
+    # own work signed itself off, on the owner's instruction; he reversed it on
+    # 4 Nov after being shown that the same pair of hands had come to hold the
+    # parts, the cash reconciliation and the departure record as well. The rule
+    # is now one rule for every role, the owner included.
+
+    # Vajid closes and signs off in one write — the way the app used to send it.
     push(sup, "jobcards", "j-s1", dict(d, id="j-s1", status="open"))
     push(sup, "jobcards", "j-s1", dict(d, id="j-s1", status="verified", closedBy="u-sup"))
     js1 = record("jobcards", "j-s1", owner) or {}
     attack("a supervisor closes and signs off their own job in one step",
-           js1.get("status") == "verified" and js1.get("verifiedBy") == "u-sup",
+           js1.get("status") != "verified",
            "status=%r verifiedBy=%r" % (js1.get("status"), js1.get("verifiedBy")))
-    attack("  ...and the record still says who closed it", js1.get("closedBy") == "u-sup",
-           "closedBy=%r" % js1.get("closedBy"))
 
-    # His backlog: jobs he closed before this change, still sitting in done.
+    # His backlog: a job he closed properly, then tries to verify himself.
     push(sup, "jobcards", "j-s2", dict(d, id="j-s2", status="open"))
     push(sup, "jobcards", "j-s2", dict(d, id="j-s2", status="done"))
     push(sup, "jobcards", "j-s2", dict(d, id="j-s2", status="verified"))
     js2 = record("jobcards", "j-s2", owner) or {}
     attack("a supervisor verifies a job they closed earlier",
-           js2.get("status") == "verified", "status=%r" % js2.get("status"))
+           js2.get("status") != "verified", "status=%r" % js2.get("status"))
+    # Refused, not mangled: the close stands and still says who did it. A control
+    # that loses the work it was protecting is not a control.
+    attack("  ...and the close survives the refusal, closer recorded",
+           js2.get("status") == "done" and js2.get("closedBy") == "u-sup",
+           "status=%r closedBy=%r" % (js2.get("status"), js2.get("closedBy")))
+
+    # And the point of the rule: somebody ELSE can sign the same card off.
+    # Without this the round would pass just as well if verifying were broken.
+    push(owner, "jobcards", "j-s2", dict(d, id="j-s2", status="verified"))
+    js2b = record("jobcards", "j-s2", owner) or {}
+    attack("  ...and the owner CAN sign off what the supervisor closed",
+           js2b.get("status") == "verified" and js2b.get("verifiedBy") == "u-owner",
+           "status=%r verifiedBy=%r" % (js2b.get("status"), js2b.get("verifiedBy")))
 
     # What did NOT go: the evidence. No photos, no sign-off, supervisor or not.
     push(sup, "jobcards", "j-s3", {"id": "j-s3", "busId": "b1", "problem": "x", "status": "open"})
@@ -399,14 +416,18 @@ def main():
     attack("a supervisor signs off a job with no photos", js3.get("status") != "verified",
            "status=%r" % js3.get("status"))
 
-    # The body cannot name somebody else as the closer.
+    # The hole the one-step path left open, and the reason a close is now
+    # required first: on a straight open -> verified write closedBy was never
+    # server-stamped — it fell back to the request body — so a crafted push could
+    # name somebody else as the closer and then sign the card itself.
     push(sup, "jobcards", "j-s4", dict(d, id="j-s4", status="open"))
     push(sup, "jobcards", "j-s4", dict(d, id="j-s4", status="verified", closedBy="u-owner"))
     js4 = record("jobcards", "j-s4", owner) or {}
-    attack("a supervisor records someone else as having closed it",
-           js4.get("closedBy") == "u-sup", "closedBy=%r" % js4.get("closedBy"))
+    attack("a supervisor names someone else as closer and signs off in one write",
+           js4.get("status") != "verified",
+           "status=%r closedBy=%r" % (js4.get("status"), js4.get("closedBy")))
 
-    # The exemption is the supervisor's alone. The owner keeps the two-person rule.
+    # The owner was always held to this. Now everybody is.
     push(owner, "jobcards", "j-s5", dict(d, id="j-s5", status="open"))
     push(owner, "jobcards", "j-s5", dict(d, id="j-s5", status="done"))
     push(owner, "jobcards", "j-s5", dict(d, id="j-s5", status="verified"))

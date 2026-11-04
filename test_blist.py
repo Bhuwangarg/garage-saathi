@@ -91,8 +91,14 @@ def main():
 
     print("B14/B15 — verified job cards")
     PROOF = {"beforePhotos": ["b.jpg"], "afterPhotos": ["a.jpg"]}
-    push(SUP, "jobcards", "j-1", {**PROOF, "status": "verified", "labourHours": 2, "externalCost": 0,
-                                  "partsUsed": [{"partId": "p1", "qty": 1, "cost": 100}], "assignees": [{"userId": "u-m1"}]})
+    # Reaching "verified" now takes two people: a supervisor closes, the owner
+    # signs off. This fixture used to go straight there in one push, which the
+    # server refused once nobody could sign off their own close (4 Nov 2026).
+    CARD_1 = {**PROOF, "labourHours": 2, "externalCost": 0,
+              "partsUsed": [{"partId": "p1", "qty": 1, "cost": 100}],
+              "assignees": [{"userId": "u-m1"}]}
+    push(SUP, "jobcards", "j-1", {**CARD_1, "status": "done"})
+    push(OWNER, "jobcards", "j-1", {**CARD_1, "status": "verified"})
     tick()
     check("store cannot raise hours on a verified card", not ok(push(STORE, "jobcards", "j-1", {**PROOF, "status": "verified", "labourHours": 40, "externalCost": 0,
                                                                                                "partsUsed": [{"partId": "p1", "qty": 1, "cost": 100}]})))
