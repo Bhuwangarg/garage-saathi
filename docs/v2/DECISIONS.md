@@ -45,6 +45,32 @@ What this requires, and whose job it is:
 - **Cutover** is one line changing what `/` serves, and is therefore also one
   line to undo. Keep it that way.
 
+**What is proved about the worker scope, and what is not.** Worth stating
+exactly, because the claim is load-bearing and I over-tested it before I could
+not test it at all.
+
+Proved: `/v2/sw.js` is served from inside `v2/` with `Content-Type:
+text/javascript` and `Cache-Control: no-cache`; the registration passes no
+`scope` option; neither the server nor `vercel.json` sends
+`Service-Worker-Allowed`; and v1's worker returns early for `/v2` and anything
+under `/v2/`. Each of those four has a check in
+`scripts/check-v2-isolation.sh`, and each check was mutation-tested by breaking
+the thing it guards.
+
+Not proved: the live behaviour in a real Chrome. Service workers do not
+register at all in the browser available here -- v1's own worker fails the same
+way, and no network request for the script is even attempted -- so the cap was
+never observed, only derived. It rests on the HTML specification, which bounds a
+worker's scope by its own directory unless `Service-Worker-Allowed` widens it,
+and on that header being absent.
+
+So before `/` is switched to v2, somebody opens `/v2/` on a real machine and
+reads `navigator.serviceWorker.getRegistrations()` in the console. Two
+registrations should appear, one scoped to the origin root and one to `/v2/`,
+and `navigator.serviceWorker.controller` on a `/v2/` page should name
+`/v2/sw.js`. That is a one-minute check and it is the last thing standing
+between a derived guarantee and an observed one.
+
 ## 3. The product direction from the approved v2 design stands
 
 From `docs/superpowers/specs/2026-11-01-garage-saathi-v2-design.md` (committed).
