@@ -282,3 +282,32 @@ with no else branch and the client clears the batch under the comment
 v2 starts from the same code, so **v2 starts with the same bug**, and fixing it
 in v2's copy is a stage-3 backend slice rather than something to be noticed
 later by somebody losing a job card.
+
+## 15. Duty board splits in two — thirteen screens, not twelve
+
+Stage 1 named Duty board the weakest point in its own plan: it answered two
+questions, and was merged that way because of the twelve-screen budget rather
+than because the questions belong together. Stage 2 specified it as one screen,
+confirmed it works, and then recommended the split anyway, with the reason that
+decides it:
+
+**The two counts empty at different hours of the evening.** Seats are filled
+before the buses leave; departure checks arrive as each one goes. One screen
+showing both therefore always has a number that is not yet zero, which is
+exactly the `ba274f6` defect — a count that cannot reach zero teaches people to
+scroll past red, and this plan exists partly to stop that.
+
+So:
+
+- **#9 Duty board** (`assignDriver`) — tonight's running list ticked off the
+  office register, the three seats per bus, who is free, and the duty-log
+  lookup. Gate state appears here as words, not as a pressable thing.
+- **#13 Gate round** (`gateCheck`) — the ten items, the driver's photograph
+  taken by the supervisor, and the hold decision.
+
+The cost is one screen, one row in the rail for the owner and supervisor, and
+nothing else: no new icon, no new token, no new capability. The owner approved
+"about fourteen"; thirteen is inside that.
+
+This is a design judgment made on evidence, not an owner decision, and it is
+recorded here so it can be overruled in one line if he disagrees.
