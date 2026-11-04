@@ -207,3 +207,46 @@ This is the single strongest argument for the rebuild in this document. The
 v2 rule — a screen declares the capability it needs, and a screen that declares
 nothing is unreachable by everybody — replaces three disagreeing mechanisms
 with one.
+
+---
+
+## 7. Uploaded files are served to anyone holding the URL
+
+**Severity: medium-high.** Verified in source, not relayed.
+
+`GET /uploads/<name>` at `sync_server.py:5231` has **no authentication of any
+kind**. It checks that the file exists, that the name matches `_UPLOAD_NAME`
+(32 hex characters plus an extension), and serves the bytes.
+
+So the only protection is that the name is unguessable. At 32 hex characters
+that is 128 bits, which is genuinely infeasible to brute-force — this is the
+capability-URL pattern, and it is a legitimate one. The weaknesses are the
+pattern's, not the implementation's:
+
+- A URL leaks through a `Referer` header, a server log, browser history, a
+  screenshot, a forwarded WhatsApp message, or a shared device.
+- There is no revocation. Anybody who has ever held the URL holds it for ever,
+  including somebody who has left.
+- The role model does not reach it at all. Every rule in `redact_for` about who
+  may see a crew member's documents is bypassed by having the link.
+
+**What is behind these URLs matters.** Crew identity documents — Aadhaar and
+licence photographs — gate-check selfies, supplier bills, and before/after
+repair photographs. An Aadhaar image on an unauthenticated URL is the most
+sensitive thing in the system.
+
+**Probably not deliberate.** Compare `/roster`, two handlers below, which is
+also unauthenticated and carries a comment saying exactly why that is safe and
+what it does not expose. `/uploads/` carries no such note, which suggests it
+was not a decision so much as the shortest path to a working photo.
+
+**Not fixed, and the fix is the owner's call** because it is not free. Requiring
+a session token would mean every `<img src>` in the app sends one, which for an
+offline-first PWA means either the service worker attaching it or short-lived
+signed URLs. Either is real work, and a wrong move there breaks photographs on
+a hundred devices. Worth doing for the documents; arguably not worth it for a
+repair photograph.
+
+Note also that uploads may be served from Cloudflare R2 (`R2_PUBLIC_URL` is in
+the health probe), in which case the same reasoning applies to the bucket's own
+public URLs and the fix has to cover both.
