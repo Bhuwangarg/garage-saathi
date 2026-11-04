@@ -78,6 +78,25 @@ ck "the /v2 route comes after it" \
 ck "v2 does not source v1's scripts" \
   "$(grep -ohE 'src="[^"]+"' v2/*.html 2>/dev/null | grep -cE '\.\./|/app\.js|/sync\.js|/db\.js' || true)" "0"
 
+# 8. The databases must not be the same one. This is the invariant the first
+#    eleven missed, and it is the worst of the lot: both clients are served from
+#    one origin, IndexedDB versions a database globally, and v2 bumping
+#    DB_VERSION for its own store makes v1's open(name, 28) throw VersionError.
+#    v1 would come up with NO DATABASE on an office machine, because a tester
+#    opened v2 once.
+V1_DB="$(grep -oE "DB_NAME = '[^']+'" db.js | head -1)"
+V2_DB="$(grep -oE "DB_NAME = '[^']+'" v2/db.js | head -1)"
+ck "v1 and v2 do not share an IndexedDB database" \
+  "$([ -n "$V1_DB" ] && [ -n "$V2_DB" ] && [ "$V1_DB" != "$V2_DB" ] && echo differ || echo "SAME: $V1_DB")" "differ"
+
+# 9. And v2's files have to be in the deployed bundle at all. includeFiles is an
+#    ALLOW-LIST: it named every other served directory and not v2, so /v2
+#    returned 404 in production while passing every check here and working
+#    perfectly against a local server. A gate that only ever sees localhost is
+#    not a gate on the deploy.
+ck "the deploy bundle includes v2/" \
+  "$(grep -c 'v2/\*\*' vercel.json)" "1"
+
 printf '──\n'
 if [ "$FAIL" -eq 0 ]; then printf '✅ v1 and v2 are isolated\n'; exit 0; fi
 printf '❌ %s isolation failure(s) — do not deploy\n' "$FAIL"; exit 1

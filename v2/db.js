@@ -4,7 +4,22 @@
  * merge devices later (Phase 2) without changing any of the screens.
  */
 
-const DB_NAME = 'garage-saathi';
+/* v2's OWN database, not v1's.
+ *
+ * Both clients are served from one origin, so one database name means one
+ * database between them -- and IndexedDB versions it globally. The moment v2
+ * bumps DB_VERSION for a new store, every device that has opened v2 has the
+ * shared database at the higher version, and v1's open(name, 28) throws
+ * VersionError. v1 would come up with no database at all, on the office's own
+ * machines, for a store v1 does not even use.
+ *
+ * Same shape as the service-worker hazard and missed by all eleven of the
+ * original isolation invariants, which guarded the worker and the paths and
+ * never thought about the database name. There is a twelfth now.
+ *
+ * The cost is that v2 starts empty and does a full first sync. That is correct:
+ * a separate app has a separate database, and sharing one was never a feature. */
+const DB_NAME = 'garage-saathi-v2';
 const DB_VERSION = 28;  // v28 adds crewnotes; v27 adds digest; v26 adds coachai; v25 adds reportai; v24 adds coreai; v23 adds gateai; v22 adds rbaliasai; v21 adds rbreviewai; v20 adds itslookup; v19 adds rbalias; v18 adds the redPro stores; v17 adds gatechecks; v16 adds dutylog (dated crew seat changes); v12 adds the usage store (daily per-person feature counters) — onupgradeneeded creates any missing
 
 const STORES = {
