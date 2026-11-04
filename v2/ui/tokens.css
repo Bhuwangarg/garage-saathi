@@ -125,6 +125,14 @@
   --t4: 18px;
   --t5: 16px; /* body */
   --t6: 15px; /* small: captions, table heads. Still floored at 15. */
+
+  /* Nav bar height. Stacked item: icon 20 + --s1 4 + label --t6 15 x 1.7 (Hindi
+   * line-height) = 25.5, so 49.5 of content inside 56. A literal height in a
+   * component would fail test_ui_components.js (px only in border/outline/shadow),
+   * so the bar and its scroll container's bottom padding both read this. */
+  --nav-h: 56px;
+  /* Photo tile. Four across at the 360px phone: 4 x 72 + 3 x --s2 = 312 <= 328. */
+  --thumb: 72px;
 }
 
 [data-v2][data-density="desk"],
@@ -138,4 +146,14 @@
   --t4: 17px;
   --t5: 15px; /* body */
   --t6: 14px; /* small. Still floored at 14. */
+
+  /* Label sits beside the icon at desk: max(20, 15 x 1.7) = 25.5 + 2 x --s2 = 41.5
+   * inside 44. This is the bottom-bar height on a desk-density page narrower than
+   * 1024px (a supervisor opening the office screen on a phone). */
+  --nav-h: 44px;
+  --thumb: 56px;
+  /* Desk only: the left rail that replaces the bottom bar at >= 1024px. --pad 8 +
+   * mark 20 + --s2 8 + label (~84 Latin, wider in Devanagari) + --pad 8, so 160
+   * leaves 32 of slack. Yard has no rail, hence no yard value. */
+  --rail-w: 160px;
 }

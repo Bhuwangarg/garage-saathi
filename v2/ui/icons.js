@@ -57,7 +57,16 @@
     more: 'M4.5 12a1 1 0 1 0 2 0 1 1 0 1 0-2 0 M11 12a1 1 0 1 0 2 0 1 1 0 1 0-2 0 M17.5 12a1 1 0 1 0 2 0 1 1 0 1 0-2 0',
     camera: 'M3 8a2 2 0 0 1 2-2h2l1.5-2h5L15 6h4a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z M12 9.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7z',
     doc: 'M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z M14 3v5h5 M9 13h6 M9 17h6',
-    offline: 'M2 9a15 15 0 0 1 20 0 M5.5 12.5a10 10 0 0 1 13 0 M9 16a5 5 0 0 1 6 0 M12 19.5h.01 M4 4l16 16'
+    offline: 'M2 9a15 15 0 0 1 20 0 M5.5 12.5a10 10 0 0 1 13 0 M9 16a5 5 0 0 1 6 0 M12 19.5h.01 M4 4l16 16',
+    // Added for the v2 Attention list, which puts nine row kinds in one list and so
+    // needs nine different marks. `seat` is a place on a bus (side view: back,
+    // cushion, two legs) and is not `person` or `bus`. `challan` is a ticket pinched
+    // at both sides with a perforated stub, and is not `doc`, which in the same list
+    // means a bus paper expiring. `count` is a balance -- the shelf against the book --
+    // and is not `part`, a cog, which in the same list means pilferage.
+    seat: 'M7 4h2.6a2 2 0 0 1 2 2v7H7z M7 13h10a2 2 0 0 1 2 2v2H7z M7.6 17v3 M18.4 17v3',
+    challan: 'M3.4 7.6h17.2v3a1.6 1.6 0 0 0 0 3.2v3.6H3.4v-3.6a1.6 1.6 0 0 0 0-3.2z M8.6 7.6v9.8 M12.4 11.2h5 M12.4 14h3',
+    count: 'M12 3.6v16.8 M8.4 20.4h7.2 M4.6 7.2h14.8 M4.6 7.2 2 13h5.2z M19.4 7.2 16.8 13h5.2z'
   };
 
   // A dotted square: a near-zero dash (0.01) with a 4-unit gap, drawn as dots only because the root sets
