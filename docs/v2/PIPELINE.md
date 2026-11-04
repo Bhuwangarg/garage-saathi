@@ -100,3 +100,22 @@ fix needs no restart: dispatch a `general-purpose` agent and tell it to read its
 own definition file first and follow it as its operating instructions. The
 definition stays the single source of truth either way, which is the only
 property that matters.
+
+## What the gate does and does not guard
+
+`.githooks/pre-push` runs only for a push whose remote ref is `refs/heads/main`.
+Every other branch pushes without it, which the hook says in its own first
+comment and which is deliberate — a work-in-progress branch should not have to
+pass a deploy gate.
+
+The consequence is worth stating because it is easy to assume otherwise:
+**`launch-v2` is ungated.** It has no upstream at all — origin carries `main` and
+one `vercel/` branch — so the hook has never fired on a single commit of the v2
+work. The checks are real and they pass; they have been run by hand each time,
+not by the hook.
+
+So the first person to push this branch should expect the gate's first real run
+against it to be the merge into `main`, and should run all four by hand before
+that: `scripts/run-tests.py`, `scripts/check-floor.py v2 ui`,
+`scripts/check-v2-isolation.sh`, and `scripts/predeploy-gate.sh`. Four commands,
+and the alternative is finding out at the one moment it matters.
