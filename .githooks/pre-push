@@ -14,6 +14,15 @@ done
 [ "$push_main" -eq 1 ] || exit 0
 
 DIR="$(git rev-parse --show-toplevel)"
+
+# The browser floor runs first because it is instant and because a push that
+# ships CSS Chrome 109 cannot parse is not worth spending a browser suite on.
+# It only inspects src/ (the v2 client), so it is a no-op on a v1-only push.
+FLOOR="$DIR/scripts/check-css-floor.sh"
+if [ -x "$FLOOR" ] && [ -d "$DIR/src" ]; then
+  "$FLOOR" "$DIR/src" || { echo "❌ pre-push: blocked by the Chrome 109 floor."; exit 1; }
+fi
+
 GATE="$DIR/scripts/predeploy-gate.sh"
 [ -x "$GATE" ] || { echo "⚠️  pre-push: $GATE missing/not executable — skipping gate."; exit 0; }
 exec "$GATE"
