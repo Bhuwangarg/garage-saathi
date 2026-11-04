@@ -9,7 +9,11 @@
 #
 # Covers, for the deploy-critical paths:
 #   1. Login works for every role that HAS a login (owner/supervisor/store/driver),
-#      and mechanics — who no longer sign in — are absent from the picker.
+#      mechanics included -- NO_LOGIN_ROLES is empty, so every role has a login,
+#      and line 242 below signs in as one and asserts it. The old claim here was
+#      that mechanics no longer sign in, which cost real time to disprove: it
+#      disagreed with the code, with SITEMAP.html and with the training manual,
+#      and the gate underneath it had been testing the opposite all along.
 #   2. Stock-count REGRESSION: the count fields don't navigate away on tap, and
 #      a Full count actually persists (audits +1) + closes the sheet.
 #   3. Invariant: form controls never trigger navigation (the bug class that

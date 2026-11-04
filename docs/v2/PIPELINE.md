@@ -92,3 +92,11 @@ Agent: subagent_type ui-designer       (stage 2)
 
 Stage 1 and stage 2 are cheap and are where the leverage is. Stage 3 is where
 the money goes. Do not start stage 3 on a UX doc nobody has read.
+
+**One wrinkle worth knowing.** Agent types are read from `.claude/agents/` when a
+session starts, so a session that was already running when these files were
+written cannot dispatch them by name — it will say the type does not exist. The
+fix needs no restart: dispatch a `general-purpose` agent and tell it to read its
+own definition file first and follow it as its operating instructions. The
+definition stays the single source of truth either way, which is the only
+property that matters.
