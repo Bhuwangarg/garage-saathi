@@ -250,3 +250,59 @@ repair photograph.
 Note also that uploads may be served from Cloudflare R2 (`R2_PUBLIC_URL` is in
 the health probe), in which case the same reasoning applies to the bucket's own
 public URLs and the fix has to cover both.
+
+---
+
+## 8. "Log service" has been half-failing for eight weeks
+
+**Severity: high**, because the half that fails is the money, and the half that
+succeeds makes it look done. Verified by reproducing the exact push against both
+the current server and the one deployed this morning.
+
+`confirmLogService` (`app.js:9376`) writes two records: it updates the bus with
+a new `lastServiceOdo` and `lastServiceDate`, and it creates a job card holding
+the labour hours and the cost. The card is created **straight at
+`status: 'verified'`, with `verifiedBy` set to the person logging it and empty
+photo arrays.**
+
+The server refuses that card:
+
+```
+  buses update : applied=1   (the service DATE lands)
+  service card : applied=0   (the COST and history do not)
+  reason: "job needs before and after photos (or a vendor bill) to close"
+```
+
+So the bus records that it was serviced, and the cost, the hours and the audit
+trail never leave the device. The screen says "Service logged". The repair
+history is missing a record that the bus's own service date implies exists, and
+the running-cost total for that bus is short by the amount.
+
+**It has been like this since 10 September 2026**, commit `2299533`, "Enforce
+the anti-theft rules on the server, not just in the browser". That commit was
+right to require photographs. What it did not do was audit the client's write
+paths against the new rule, and `confirmLogService` had been writing a photoless
+verified card since 22 June (`1b42850`). Eight weeks.
+
+**I did not cause this, and I checked rather than assumed.** The second-signature
+change deployed today (`b1fb43b`) refuses the same push for a second reason —
+a card must be closed before it is signed off — but the photo rule is evaluated
+first and was already refusing it. Running the identical push against `4732dac`,
+the commit that was live this morning, gives the same refusal word for word.
+
+**Why nobody reported it.** The client writes to IndexedDB first and reports
+success from that, so the person sees "Service logged" and moves on. The refusal
+arrives later, on a sync tick, as a toast with no context next to a screen that
+has already moved. And the bus's service date — the thing anybody would check —
+is correct, because that record was accepted.
+
+**The fix is a design question, not a patch**, which is why it is recorded rather
+than done. A preventive service is work somebody did, so under `DECISIONS.md`
+§10 it needs a photograph and a second signature like any other work. The v2
+specification already says so: the service log stops at `done` and requires a
+photo. Making v1 behave that way means a supervisor can no longer log a service
+in one tap, which is a real change to a daily habit and therefore the owner's
+call.
+
+What should not continue is the current state, where the app says it saved
+something it did not.
