@@ -40,11 +40,17 @@ SLOW_S = 20            # anything over this is reported, so slowness stays visib
 # EMPTY, and the pre-push hook no longer passes --fast: every suite runs on
 # every push. test_ui_overlay.js was the only entry -- 181s for 100 checks, of
 # which 174s was 57 sleeps waiting out real animation durations. It now asserts
-# the declared durations and waits on the state it is really waiting for. It is
-# still the slowest file here -- measured at 40s on an idle machine and about 80s
-# at a load average of 7, against 196s before -- but the whole set now comes in
-# around 84s wall, which a hook can carry. The mechanism stays for the next suite
-# that earns a place here; nothing is skipped while this is bare.
+# the declared durations and waits on the state it is really waiting for.
+#
+# It is still the slowest file here, and both its numbers are worth quoting, not
+# just the best one. Run back to back against the old version on the same
+# machine: 67s against 190s at a load average of 7, and 57s against 164s at a
+# load average of 5. On an idle machine it has done 40s; under heavier load it
+# has taken 83-111s. The whole set comes in at 84-104s wall, which a hook can
+# carry. Its few wall-clock checks report NOT MEASURED, loudly and without
+# failing, where the machine will not keep its own timers -- see unmeasurable()
+# in that file. The mechanism here stays for the next suite that earns a place in
+# it; nothing is skipped while this is bare.
 SLOW = {}
 
 # Suites that bind a real TCP port, and therefore cannot run beside each other.

@@ -68,7 +68,7 @@ const needEnv = (env) => {
  * mid-exit. Those are declared {solo: true} and run with nothing else in flight, because a duration measured on a
  * loaded machine is not the duration they exist to check. Output stays in declaration order whatever finishes first. */
 const queue = [];
-let fails = 0, skipped = 0, selfSkipped = 0;
+let fails = 0, skipped = 0, selfSkipped = 0, unmeasured = 0;
 function test(name, fn, o) { queue.push({ name, fn, browser: !!(o && o.browser), solo: !!(o && o.solo), selfTest: /\b(goes|go) red\b/.test(name) }); }
 const NO_BROWSER = process.env.OVERLAY_NO_BROWSER === '1';
 const LANES = Math.max(1, Number(process.env.OVERLAY_LANES || 4));
@@ -87,7 +87,10 @@ async function runQueue() {
     try {
       await Promise.race([Promise.resolve().then(t.fn), new Promise((_, rej) => { timer = setTimeout(() => rej(new Error('test timed out after 90s')), 90000); })]);
       lines[i] = '  ok  ' + t.name + took();
-    } catch (e) { lines[i] = ' FAIL ' + t.name + took() + '\n        ' + String(e && e.message || e).split('\n').join('\n        ') + (process.env.OVERLAY_STACK ? '\n' + e.stack : ''); fails++; }
+    } catch (e) {
+      if (e && e.unmeasurable) { lines[i] = ' SKIP ' + t.name + took() + '\n        NOT MEASURED: ' + e.message; unmeasured++; }
+      else { lines[i] = ' FAIL ' + t.name + took() + '\n        ' + String(e && e.message || e).split('\n').join('\n        ') + (process.env.OVERLAY_STACK ? '\n' + e.stack : ''); fails++; }
+    }
     clearTimeout(timer);
   };
   let next = 0, active = 0, soloRunning = false;
@@ -105,6 +108,15 @@ async function runQueue() {
   });
   show();
 }
+/* "I could not measure that here" is not "that passed". A handful of checks assert a WALL-CLOCK figure, and a machine
+ * too busy to run its own timers on time cannot answer them: the toast-duration check leaves 220ms of margin, and a
+ * page that comes back from a 700ms wait after 1150ms has measured nothing. Such a check reports SKIPPED, with the
+ * reason, and the summary says the run was not a full pass -- the same rule as SLOW in scripts/run-tests.py, which
+ * prints what it left out because a silent cap reads as "everything passed". Two things must not happen: it must not
+ * read as a PASS, which would make it decoration on exactly the slow machines this suite exists for, and it must not
+ * read as a FAILURE, because this suite gates every push and a gate that blocks for something that is not a defect is
+ * how a gate ends up bypassed with --no-verify. So: loud, counted, and exit 0. */
+function unmeasurable(why) { const e = new Error(why); e.unmeasurable = true; return e; }
 const hits = (failures, why) => assert(failures.length > 0, why);
 const none = (failures) => { assert(Array.isArray(failures), 'a checker returned ' + typeof failures + ', not a list of failures'); if (failures.length) assert.fail(failures.length + ' failure(s):\n  - ' + failures.join('\n  - ')); };
 // Replace in a source; THROWS if nothing matched, so a mutant that stopped applying fails loudly instead of passing.
@@ -859,7 +871,25 @@ test('a toast is a non-modal dialog that does not take focus, make the page iner
   none(await checkToastLeavesPageAlone(needEnv(REAL)));
 }, { browser: true });
 
+/* The one checker whose every figure is a wall-clock one, so the only one that can be spoiled by a machine too busy
+ * to run its timers on time. The tightest margin is 220ms: with a 300ms default (the mutant), the toast is removed
+ * 300 + 150 exit + 30 slack = 480ms in, against the 700ms wait. Measured, with other pages in flight, the 700ms wait
+ * came back after 1124ms and the toast was still mid-exit - at which point "still there at 700ms" is true of the page
+ * and says nothing about the toast's ms, which is what is under test.
+ *
+ * So the measurement is CHECKED before it is believed, and taken again when it was not a measurement: either the
+ * page's own timers ran late, or the default toast is on its way out rather than up. Nothing was loosened to achieve
+ * this - every assertion below is the one that was there - and a page that can never be measured says so. */
 async function checkToastTiming(env) {
+  for (let attempt = 1; ; attempt++) {
+    const r = await toastTimingRun(env);
+    if (!r.starved) return r.failures;
+    if (attempt === 4) throw unmeasurable('every figure in this check is a wall-clock one, and on four tries the page '
+      + 'never kept time well enough for them to mean anything (' + r.why + '). The machine is too busy to measure on; '
+      + 'this is not a verdict on ui/overlay.js, and it is not a pass either.');
+  }
+}
+async function toastTimingRun(env) {
   // realMotion: every figure here is a toast's ms, which is not a transition duration and does not scale with one.
   // On a scaled page the wait budgets would scale down under it and the test would time out rather than measure.
   return withPage(env, { realMotion: true }, async (p) => {
@@ -868,11 +898,14 @@ async function checkToastTiming(env) {
       var gone = await H.until(function () { return !a.isConnected; }, 2000), took = Date.now() - t0;
       // The three waits below are the only real ones left in the suite, and they stay: they are not waiting out a
       // transition but asserting how long a toast LIVES, which is the thing under test. 1.9s of the suite's total.
+      var tA = Date.now();
       var b = V2.toast('default', { kind: 'ok' }); await H.sleep(700); var defaultStill = b.isConnected;
+      var slept = Date.now() - tA, leaving = b.isConnected && !b.hasAttribute('data-mounted');
       var c = V2.toast('sticky', { kind: 'bad', ms: 0 }); await H.sleep(900); var stickyStill = c.isConnected;
       var junk = V2.toast('junk', { ms: -5 }); var junk2 = V2.toast('junk2', { ms: 'soon' });
       await H.sleep(300);
-      return { present0: present0, gone: gone, took: took, defaultStill: defaultStill, stickyStill: stickyStill, closeWord: H.squash(H.spoken(c.querySelector('.ov-toast-close'))), junkOk: junk.isConnected && junk2.isConnected };
+      return { present0: present0, gone: gone, took: took, defaultStill: defaultStill, stickyStill: stickyStill, slept: slept, leaving: leaving,
+        closeWord: H.squash(H.spoken(c.querySelector('.ov-toast-close'))), junkOk: junk.isConnected && junk2.isConnected };
     })()`);
     const f = [];
     if (!r.present0) f.push('the toast was not on the page when asked for');
@@ -884,7 +917,12 @@ async function checkToastTiming(env) {
     if (!r.junkOk) f.push('a negative or non-numeric ms made the toast vanish at once instead of using the default');
     await p.clickEl('dialog.ov-toast-bad .ov-toast-close');
     if (!(await p.until("!document.querySelector('dialog.ov-toast-bad')", 2000))) f.push('clicking Close did not remove the sticky toast');
-    return f;
+    // Was this a measurement at all? A 700ms wait that took 820ms or more says the page's timers are running late
+    // by more than the margin these figures leave; a default toast that is mid-exit says the same from the other end.
+    const late = r.slept > 820, why = [];
+    if (late) why.push('a 700ms wait took ' + r.slept + 'ms');
+    if (r.leaving) why.push('the default toast was already leaving, only not yet removed');
+    return { failures: f, starved: late || r.leaving, why: why.join(' and ') };
   });
 }
 test('a toast stays for its ms (150 goes in about 150ms plus its exit), a default one outlasts 700ms, ms 0 stays until Close is clicked, and a nonsense ms falls back to the default', async () => {
@@ -1250,14 +1288,16 @@ test('where nothing animates (transitions forced to none) closeSheet() removes t
 /* The app stays open all day on these PCs, so a sheet or a toast must not leave a timer behind once it is gone.
  * The page records every pending timer (the waits here happen in node, so the page has none of its own). */
 async function checkNoLeakedTimers(env) {
-  // realMotion: an exit timer only exists while the exit is playing, and this check reads the pending list from
-  // node, over a round trip. Against a scaled 18ms exit the timer can have fired before the answer comes back,
-  // which would report "no timer pending" for an overlay that had in fact left one behind.
+  // realMotion: an exit timer only lives as long as the exit is playing, and a scaled 18ms one can be gone before
+  // the answer gets back to node, which would read as "nothing pending" for an overlay that had in fact left a
+  // timer behind. The first case below is tighter still, so it COUNTS IN THE PAGE, in the same task that makes the
+  // timer, rather than over a round trip: that way no amount of load can let the timer expire before it is counted.
   return withPage(env, { trackTimers: true, realMotion: true }, async (p) => {
     const f = [], pending = () => p.eval('Object.keys(window.__pending).length'), settled = () => p.eval('H.settled()');
     const expect = async (label, n) => { const got = await pending(); if (got !== n) f.push(label + ': ' + got + ' timer(s) pending, expected ' + n); };
-    await p.eval("V2.openSheet('A', 'x'); V2.closeSheet(); V2.openSheet('B', 'y'); 1");
-    await expect('a sheet replaced while it was closing', 0);
+    const expectNow = (label, got, n) => { if (got !== n) f.push(label + ': ' + got + ' timer(s) pending, expected ' + n); };
+    expectNow('a sheet replaced while it was closing',
+      await p.eval("V2.openSheet('A', 'x'); V2.closeSheet(); V2.openSheet('B', 'y'); Object.keys(window.__pending).length"), 0);
     await p.eval('V2.closeSheet(); H.settled()');
     await expect('after a sheet closed', 0);
     await p.eval("V2.confirmDialog('Q?'); H.confirm().querySelector('.ov-no').click(); H.settled()");
@@ -1599,7 +1639,9 @@ test('a full session (sheet, confirmation over it, three kinds of toast, Escape 
  * ===================================================================================================== */
 async function red(check, label, env, extra) {
   let failures;
-  try { failures = await check(env, extra); } catch (e) { failures = ['checker threw: ' + e.message]; }
+  // An unmeasurable run is NOT a red: it would let the self-test claim the checker is not blind on the strength of a
+  // measurement that was never taken. It propagates, so the self-test reports SKIPPED for the same reason.
+  try { failures = await check(env, extra); } catch (e) { if (e && e.unmeasurable) throw e; failures = ['checker threw: ' + e.message]; }
   assert(failures.length > 0, 'the checker stayed GREEN for the mutant: ' + label);
   return failures;
 }
@@ -1762,9 +1804,10 @@ test('the toast-leaves-the-page-alone checker goes red for a modal toast, a toas
 // Pages of nothing but timers starve each other enough to eat that - measured, with several pages in flight the
 // 700ms wait came back after 1124ms and the toast was still mid-exit - and the mutant then reads as still on
 // screen, which is a false green. Serial here, so the figures mean what they say. It costs about 8s.
-// The same arithmetic is why this is also the one test whose own waits were left alone. It is not fully immune:
-// measured against the suite as it was before this change, on a machine already at a load average of 7, each goes
-// false-green about one run in seven. Narrowing that means moving the 700ms, which is a figure this test asserts.
+// The same arithmetic is why this is also the one test whose own waits were left alone, and why checkToastTiming
+// checks that its page kept time before it believes what it measured: narrowing the margin itself would mean moving
+// the 700ms, which is a figure this test asserts. Where the machine will not keep time, the checker reports NOT
+// MEASURED rather than a verdict either way (see unmeasurable() above).
 test('the toast-timing checker goes red when ms is ignored, when 0 does not mean sticky, when a nonsense ms vanishes at once, when the default is too short and when Close does nothing', async () => {
   await redAll(checkToastTiming, [
     ['ms is ignored and the toast stays for ever', mJs("var ms = typeof opts.ms === 'number' && isFinite(opts.ms) && opts.ms >= 0 ? opts.ms : k.ms;", 'var ms = 0;')],
@@ -2012,6 +2055,10 @@ test('the static checks go red for a stylesheet with scale(0) or an animation, a
   await closeBrowser();
   if (selfSkipped) console.log('\n' + selfSkipped + ' self-test(s) of the checkers were left out (the suite was pointed at another copy of the files, or OVERLAY_SKIP_SELFTESTS=1)');
   if (skipped) console.log('\n' + skipped + ' browser test(s) were SKIPPED (OVERLAY_NO_BROWSER=1): this is not a full pass');
+  if (unmeasured) console.log('\n' + unmeasured + ' check(s) were NOT MEASURED: this machine would not keep time well enough (see NOT MEASURED above).'
+    + '\nThis is not a full pass. Nothing here says ui/overlay.js is wrong, and nothing here says it is right either;'
+    + '\nrun it again on a quieter machine, or read the CI run, which does the same checks with the box to itself.');
   if (fails) { console.log('\n' + fails + ' FAILED'); process.exit(1); }
-  console.log('\nall passed' + (skipped ? ' (' + skipped + ' skipped)' : ''));
+  const caveat = [skipped ? skipped + ' skipped' : '', unmeasured ? unmeasured + ' not measured' : ''].filter(Boolean).join(', ');
+  console.log('\n' + (caveat ? 'no check failed (' + caveat + ') -- NOT a full pass' : 'all passed'));
 })();

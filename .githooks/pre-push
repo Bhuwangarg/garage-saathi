@@ -41,10 +41,17 @@ if [ -f "$TESTS" ]; then
   # No --fast any more: the whole set runs here, in about 84s wall. The one suite
   # this hook used to skip was test_ui_overlay.js, which spent 174 of its 181
   # seconds asleep waiting out real animation durations; it now reads the
-  # declared durations and waits on state rather than on the clock, and runs in
-  # 40-80s depending on how busy the machine is. If a suite ever earns a skip
-  # again, put it in SLOW in run-tests.py, which prints what it left out -- a
-  # silent cap reads as "everything passed".
+  # declared durations and waits on state rather than on the clock: measured back
+  # to back against the old one, 67s against 190s on a machine at a load average
+  # of 7, and 57s against 164s at a load average of 5. Under heavier load it has
+  # been seen at 83-111s, so quote both numbers, not the best one.
+  #
+  # Its handful of wall-clock checks report NOT MEASURED, loudly and without
+  # failing, on a machine too busy to run its own timers on time -- a gate that
+  # blocks a push for something that is not a defect gets bypassed, and then it
+  # checks nothing. If a suite ever earns a full skip again, put it in SLOW in
+  # run-tests.py, which prints what it left out: a silent cap reads as
+  # "everything passed".
   python3 "$TESTS" -q || { echo "❌ pre-push: blocked by a failing test suite."; exit 1; }
 fi
 
