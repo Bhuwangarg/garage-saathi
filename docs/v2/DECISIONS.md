@@ -222,3 +222,27 @@ before, but about the same person.
 
 This is the second control the owner chose, and it is why moving the check off
 the driver does not cost what it looked like it would.
+
+## 13. Building without the job-card measurement, on the owner's instruction
+
+`MEASURE-JOBCARD.md` was written, the owner was told the plan's largest claim is
+currently unfalsifiable, and he chose to time it. Asked again, he said to carry
+on and build. So stage 2 and stage 3 proceed without the reading.
+
+What that means, stated here so it is not discovered later as a surprise:
+
+- "Supervisors lose 3 to 13 hours a week keying mechanics' job cards" remains an
+  **estimate built on two inferred numbers**. It is the stated justification for
+  the Job card screen and the mechanic's two taps.
+- The mechanic's two taps are cheap and almost certainly worth having whatever
+  the reading says — they remove retyping, and they cost no new capability, no
+  record-shape change and no server work.
+- What the reading could still overturn is the **ranking**, not the feature. If a
+  card takes ninety seconds, or if most of the time is interruption rather than
+  typing, then this was not the biggest friction in the business and something
+  else should have been first.
+- The protocol stays in the repository. It is five cards and one afternoon, and
+  it is worth taking at any point — before the screens are built, while they are
+  being built, or after, as the before-number that says whether v2 helped.
+
+Nothing else in the plan depends on it.
