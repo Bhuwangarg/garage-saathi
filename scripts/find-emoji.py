@@ -20,7 +20,7 @@ def is_emoji(ch):
 
 def main(targets):
     hits = 0
-    for t in targets or ["src"]:
+    for t in targets or ["v2"]:
         root = pathlib.Path(t)
         files = [root] if root.is_file() else sorted(root.rglob("*"))
         for f in files:

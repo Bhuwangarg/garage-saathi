@@ -185,6 +185,21 @@ self.addEventListener('fetch', (e) => {
   const url = new URL(request.url);
   if (url.origin !== location.origin) return;   // API / uploads / Anthropic → pass through to network
 
+  /* v2 is a second client of the same server, served from /v2/ while v1 keeps
+   * running for the office. This worker's scope is '/', so without this line it
+   * would intercept every v2 request: the first load would be cached into v1's
+   * cache, later loads answered from it, and an offline navigation to /v2/ would
+   * be handed v1's shell -- the wrong app, with no way for the person to tell.
+   *
+   * v2 registers its own worker at /v2/sw.js, whose scope the browser caps at
+   * its own directory. Two workers then coexist, the more specific scope winning
+   * for pages under /v2/. Passing through here keeps that clean from the very
+   * first load rather than from whenever v2's worker happens to activate.
+   *
+   * No existing v1 path begins with /v2/, so this changes nothing the office
+   * uses today. */
+  if (url.pathname === '/v2' || url.pathname.startsWith('/v2/')) return;
+
   e.respondWith((async () => {
     if (FRESH_FIRST.test(url.pathname)) return fromNetworkFirst(request);
     const cached = await caches.match(request);

@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Garage Saathi</title>
+<!-- The v2 app root. Its contents are written by the build stage of the
+     pipeline, from the UX and UI documents in docs/v2/plan/. Nothing here
+     makes a design decision; this file exists so the serving path, the worker
+     scope and their gate checks can be proved before any screen is built. -->
+</head>
+<body>
+<noscript>This app needs JavaScript.</noscript>
+<div id="app"></div>
+<script>
+  /* Registered with no scope override, and from inside /v2/, so the browser
+   * caps this worker's scope at /v2/ and it can never claim the live app at /.
+   * That cap is the browser's rule rather than ours, which is why it is the
+   * protection worth relying on -- and why a `scope` option or a
+   * Service-Worker-Allowed header must never appear here. The gate checks both. */
+  if ('serviceWorker' in navigator) {
+    addEventListener('load', () => {
+      navigator.serviceWorker.register('sw.js').catch(() => {});
+    });
+  }
+</script>
+</body>
+</html>

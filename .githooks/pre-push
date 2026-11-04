@@ -15,12 +15,21 @@ done
 
 DIR="$(git rev-parse --show-toplevel)"
 
-# The browser floor runs first because it is instant and because a push that
-# ships CSS Chrome 109 cannot parse is not worth spending a browser suite on.
-# It only inspects src/ (the v2 client), so it is a no-op on a v1-only push.
+# These two run first because they are instant, and because a push that ships
+# CSS Chrome 109 cannot parse -- or a v2 worker that could seize the live app --
+# is not worth spending a browser suite on.
+#
+# The floor check only inspects v2/, so it is a no-op on a v1-only push. v1's
+# own source is excluded on purpose: its comments discuss several banned CSS
+# features by name, and a grep cannot tell a property from prose about it.
 FLOOR="$DIR/scripts/check-css-floor.sh"
-if [ -x "$FLOOR" ] && [ -d "$DIR/src" ]; then
-  "$FLOOR" "$DIR/src" || { echo "❌ pre-push: blocked by the Chrome 109 floor."; exit 1; }
+if [ -x "$FLOOR" ] && [ -d "$DIR/v2" ]; then
+  "$FLOOR" "$DIR/v2" || { echo "❌ pre-push: blocked by the Chrome 109 floor."; exit 1; }
+fi
+
+ISO="$DIR/scripts/check-v2-isolation.sh"
+if [ -x "$ISO" ] && [ -d "$DIR/v2" ]; then
+  "$ISO" || { echo "❌ pre-push: v1 and v2 are not isolated."; exit 1; }
 fi
 
 GATE="$DIR/scripts/predeploy-gate.sh"

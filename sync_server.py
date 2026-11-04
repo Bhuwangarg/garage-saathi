@@ -5152,6 +5152,16 @@ class Handler(BaseHTTPRequestHandler):
         # health, which is what the keepalive cron and every deploy check use.
         if u.path == "/" and self._serve_static("/index.html"):
             return
+        # v2 is served from the v2/ directory as plain files: /v2/app.js and the
+        # rest already resolve through _serve_static, which allows the directory
+        # and the extensions. Only the bare path needs saying, because
+        # _serve_static refuses anything without an extension in _STATIC_OK.
+        #
+        # The eventual cutover is this handler serving /v2/index.html for "/"
+        # instead of /index.html -- one line, and therefore one line to undo,
+        # which is the whole reason v2 is a directory rather than a branch.
+        if u.path in ("/v2", "/v2/") and self._serve_static("/v2/index.html"):
+            return
         if u.path in ("/", "/health"):
             _gps_hydrate()                                 # accurate live count on serverless (fresh container)
             _turso_live = bool(_USE_TURSO and _TURSO_OK)   # actually connected, not just configured
@@ -5453,7 +5463,7 @@ class Handler(BaseHTTPRequestHandler):
         # deployment: stale here means "a few minutes behind the edge", never "a
         # build behind". The worker is network-first on top of that.
         self._send(200, raw=body, ctype=_CTYPES.get(ext, "application/octet-stream"),
-                   cache="no-cache" if rel == "sw.js"
+                   cache="no-cache" if os.path.basename(rel) == "sw.js"
                    else "public, max-age=0, s-maxage=600, stale-while-revalidate=86400")
         return True
 

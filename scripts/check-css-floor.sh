@@ -23,7 +23,7 @@
 #   Array toSorted and kin   Chrome 110
 #   Promise.withResolvers    Chrome 119
 #
-# Usage:  scripts/check-css-floor.sh [paths...]      (default: src/)
+# Usage:  scripts/check-css-floor.sh [paths...]      (default: v2/)
 #
 # Checks only the files it is given. It is NOT run over the v1 app.js, whose
 # comments discuss several of these features by name -- a grep cannot tell a
@@ -34,7 +34,7 @@
 set -uo pipefail
 
 TARGETS=("$@")
-[ ${#TARGETS[@]} -eq 0 ] && TARGETS=("src")
+[ ${#TARGETS[@]} -eq 0 ] && TARGETS=("v2")
 
 FAIL=0
 hit() {   # hit <description> <grep-pattern>
