@@ -184,7 +184,11 @@ body { margin: 0; }
 
   function whyRow(i) {
     var w = WHY[i % WHY.length], n = 1 + (i % 89);
-    return '<a class="v2row v2row-why" href="#"><span class="lead ' + w.tone + '">' + ic(w.mark, 16) + '</span><div class="txt"><div class="t">' + w.t.replace('{n}', n) + '</div>'
+    /* The tone goes on the ROW, not on .lead. components.css:1018 is
+     * `.v2row-why.crit > .lead`, so a tone class on .lead itself matches
+     * nothing and the mark drew uncoloured -- this bed was measuring a row
+     * that does not ship. Found by slice A while building the real screen. */
+    return '<a class="v2row v2row-why ' + w.tone + '" href="#"><span class="lead">' + ic(w.mark, 16) + '</span><div class="txt"><div class="t">' + w.t.replace('{n}', n) + '</div>'
       + '<div class="sub">' + w.r + '</div></div>'
       + '<div class="act">' + figure(1 + (i % 12) * 3, w.unit ? { unit: w.unit } : {}) + '</div></a>';
   }

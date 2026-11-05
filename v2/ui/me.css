@@ -1,0 +1,130 @@
+/* Garage Saathi v2 — Me (#12). Spec: screens-shell.md §4.2.
+ *
+ * SIX RULES THIS FILE DOES NOT GET TO CHOOSE.
+ *
+ * 1. No colour and no size of its own. Every length below is one of the 33
+ *    tokens or a calc() of them; every colour is a token reference. A px
+ *    literal appears only inside a border, outline or box-shadow value
+ *    (`PX_OK_PROP`), and this file has none of those either. That is the rule
+ *    that keeps thirteen screens coherent, and it is the one a well-meaning
+ *    builder breaks first.
+ * 2. Every selector starts with [data-v2], so the file is inert anywhere the
+ *    v2 attribute is absent — v1 is live for about a hundred people and shares
+ *    the document for the whole migration.
+ * 3. Chrome 109 is the ceiling (Windows 7 office PCs): no oklch(), no
+ *    color-mix(), no nesting, no @starting-style, no subgrid, no text-wrap.
+ * 4. Motion is transform and opacity only, never over 300 ms, ease-out. The
+ *    press feedback on every control here is components.css's scale(0.97) at
+ *    120 ms and this file adds none of its own.
+ * 5. No `position` at all. The nav's one `position: fixed` rule is the app's
+ *    only fixed layer (components.css §3.7), and §1.4.1 forbids a bottom bar of
+ *    ANY kind on this screen — including an action bar — because a bar pinned to
+ *    the bottom edge of a one-screen app reads as a nav that has lost its tabs.
+ *    For a driver and a conductor Me has no nav, so a sticky anything here is
+ *    exactly the lie §1.4.1 names.
+ * 6. Almost nothing. Nine of this screen's ten pieces are already components:
+ *    `.card` and `.greet*` and `.drow*` are ui/screens.css's, `.v2row`, `.badge`,
+ *    `.btn*`, `.tabs`, `.figure`, `.photos` and `.num` are ui/components.css's.
+ *    What is left is one column, one full-width control, one value in a row's
+ *    action column, and two lines of text in a sheet.
+ *
+ * THE DESK SHAPE. §4.2: the cards stay ONE COLUMN at desk — Me is read top to
+ * bottom once, not scanned — and the measure is capped so the lines do not run
+ * to the width of a 1920px monitor. `--read-w` is the token tokens.css added
+ * for exactly this (the 900px §4.2 asks for, as a token, because a px literal
+ * here is the rule above). Block 3's twelve `.drow` facts are unaffected: a
+ * `.drow` is not a `.v2row` and has no two-line rule.
+ */
+
+/* ---------- the one column -------------------------------------------------
+ * A grid rather than margins on the children, so the gap between cards is
+ * stated once. `--s7` of space at the end is §4.2's: Sign out is never flush
+ * against the bar, which matters most on the roles that HAVE a bar, and costs
+ * nothing on the two that do not.
+ */
+[data-v2] .me {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--s5);
+  padding-bottom: var(--s7);
+}
+
+/* One column at desk too, with a capped measure. Both clauses of the condition,
+ * matching shell.css and components.css exactly: desk density AND at least
+ * 1024px, because a width-only rule would cap a tablet in landscape (also
+ * 1024x768, held in two hands) and a desk-density page on a 360px phone must
+ * not be told its measure is 900px. */
+@media (min-width: 1024px) {
+  [data-v2][data-density="desk"] .me {
+    max-width: var(--read-w);
+  }
+}
+
+/* ---------- the full-width controls ----------------------------------------
+ * Block 2's Check in, block 4's "Something is wrong with my bus", block 6's
+ * device row and block 9's Sign out. `--tap` is the floor: these are the
+ * controls a person in a yard presses with a thumb, and block 2's is the first
+ * thing two whole roles came for.
+ *
+ * `.btn` already carries the box, the press and the focus ring; what is added
+ * is the width and the floor. Width on a .btn and not on a wrapper because a
+ * label-wrapped file input is also a .btn (ui/photos.js's capture control) and a
+ * wrapper would not reach it.
+ */
+[data-v2] .btn.me-wide {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  min-height: var(--tap);
+}
+
+/* Two full-width controls in one card stack with the card's own rhythm rather
+ * than touching. `+` and not a gap on .card, because .card is screens.css's and
+ * holds every other screen's rows too. */
+[data-v2] .me .btn.me-wide + .btn.me-wide {
+  margin-top: var(--s3);
+}
+
+/* Sign out is the last thing in the column and is not inside a card: §4.2 draws
+ * it as a bare `.btn-danger`, so it carries the card's own inline alignment
+ * itself and nothing else. */
+[data-v2] .me > .btn-danger {
+  margin: 0;
+}
+
+/* ---------- a value in a row's action column -------------------------------
+ * Block 7's "English" / "हिंदी", "Light" / "Dark" / "Follow the phone". Not a
+ * `.figure`: it is a word, and figure() is for a number whose unknown, zero and
+ * stale states must not look alike. A word has none of those states.
+ */
+[data-v2] .me-value {
+  color: var(--ink-dim);
+  font-size: var(--t5);
+  white-space: nowrap;
+}
+
+/* ---------- block 6's refusal line -----------------------------------------
+ * "3 records the server would not take." It is --warn because it is something
+ * the person has to act on, and it carries the WORD as well — the colour is
+ * never the status (§3 ground rules: status is never colour alone). The mark is
+ * on each row below it, in the row's own `.lead`.
+ */
+[data-v2] .me-refused {
+  margin: var(--s3) 0 0;
+  color: var(--warn);
+  font-size: var(--t5);
+  font-weight: 650;
+  line-height: var(--lh);
+}
+
+/* ---------- a coaching note's lines ----------------------------------------
+ * Three lines of somebody's own coaching note, in a sheet. Full measure, no
+ * truncation and no ellipsis: a note truncated to one line is a note nobody can
+ * act on, which is the same mistake as a truncated reason on Attention.
+ */
+[data-v2] .me-note {
+  margin: 0 0 var(--s2);
+  color: var(--ink);
+  font-size: var(--t5);
+  line-height: var(--lh);
+}

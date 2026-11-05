@@ -1,0 +1,142 @@
+/* Garage Saathi v2 — Today (#1). Spec: screens-shell.md §2.2 (the structure)
+ * and §2.5 (the presses).
+ *
+ * SIX RULES, AND WHAT IS NOT HERE IS THE POINT.
+ *
+ * Almost nothing. `ui/components.css` already owns `.card`, `.v2row`, `.badge`
+ * and `.btn`; `ui/screens.css` already owns `.kpirow`, `.kpi`, `.kpi-ic`,
+ * `.kpi-l`, `.kpi-v`, `.drow` and `.schip`. This file is the five things §2.2
+ * asks for that no existing rule says, and it adds no token, no animation and
+ * no colour literal — every colour below is a token and every size is a token.
+ * A sixth rule would mean a component was missing, and that would belong in
+ * components.css and not in a screen's file.
+ *
+ *   1  .today-fresh      the one freshness line, --t6 / --ink-dim (§2.2)
+ *   2  .today-fresh-off  the same line in --warn when there is no signal (§2.4)
+ *   3  .kpi-b            the tile's text column. v1's markup has it and v1's
+ *                        stylesheet for it is in styles.css, which v2 reaches
+ *                        into for nothing — so the two lines come across here.
+ *   4  the desk figure row, which §2.2 makes one line so the owner's four
+ *      numbers can be read against each other
+ *   5  .today-lead / .today-line   the digest's heading and Claude's lines
+ *   6  .today-all        "See all (n)" as a ROW, not a centred button
+ *
+ * `px` appears only in a border, an outline or a shadow, which is the one place
+ * the foundation allows a literal; everything else is a token, so both
+ * densities move together when a token does.
+ */
+
+/* 1 + 2. THE SCREEN STATES ITS FRESHNESS ONCE, AND THIS IS IT.
+ *
+ * It is the reason no figure inside a row on this screen carries `at`: `at`
+ * adds `.figure-note` as a block element, which triples the row height and
+ * runs the age words once per row (foundation §2.3 rule 4). One line here, four
+ * tiles with an age, and no row with one.
+ *
+ * Offline it turns --warn and says when the signal went, in words — never a
+ * colour on its own, which is why the mark beside it changes too (the screen
+ * draws `icon('offline')` instead of `icon('clock')`). */
+[data-v2] .today-fresh {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  margin: 0 0 var(--s5);
+  color: var(--ink-dim);
+  font-size: var(--t6);
+  line-height: var(--lh);
+}
+
+[data-v2] .today-fresh svg {
+  display: block;
+  flex: none;
+}
+
+[data-v2] .today-fresh-off {
+  color: var(--warn);
+}
+
+/* 3. The tile's text column. `.kpi` is a flex row of the mark and this, and
+ * `min-width: 0` is what lets a long rupee figure truncate instead of pushing
+ * the mark out of the tile. */
+[data-v2] .kpi-b {
+  min-width: 0;
+}
+
+/* The trend chip sits beside the figure inside `.kpi-v`, which sets --t2 and
+ * weight 650. `.schip` re-declares its own size in screens.css, so this only
+ * has to put a gap between the number and the chip. */
+[data-v2] .kpi-v .schip {
+  margin-inline-start: var(--s2);
+  vertical-align: middle;
+}
+
+/* 4. THE DESK FIGURE ROW IS ONE LINE (§2.2).
+ *
+ * `grid-auto-flow: column` rather than `repeat(4, 1fr)`, and the difference
+ * matters: only the OWNER has four tiles. The storekeeper, the crew manager and
+ * the office have two, and four fixed columns would leave each of their tiles
+ * at half width with two empty columns beside it — a layout that looks like two
+ * tiles failed to load. Auto-flow gives four columns to four tiles and two to
+ * two, which is what "one line, read against each other" means for all four
+ * roles.
+ *
+ * Both selector shapes, because `data-density` sits on the html element in the
+ * app and on a wrapper in the gallery (components.css §0 note). */
+[data-v2][data-density="desk"] .kpirow,
+[data-v2] [data-density="desk"] .kpirow {
+  grid-template-columns: none;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+}
+
+/* 5. The Monday summary: its headline, then Claude's three lines. Plain
+ * paragraphs — a bullet list would be a component, and a component used on one
+ * card of one role's screen is a component nobody maintains. */
+[data-v2] .today-lead {
+  margin: 0 0 var(--s2);
+  color: var(--ink);
+  font-size: var(--t5);
+  font-weight: 600;
+  line-height: var(--lh);
+}
+
+[data-v2] .today-line {
+  margin: 0 0 var(--s2);
+  color: var(--ink-dim);
+  font-size: var(--t6);
+  line-height: var(--lh);
+}
+
+[data-v2] .today-line:last-child {
+  margin-bottom: 0;
+}
+
+/* 6. "See all (n)" IS A ROW, not a centred button.
+ *
+ * It is the last line of the card and it reads as the continuation of the list
+ * above it, so it takes the row's height and the row's left edge. `.btn-quiet`
+ * already gives it the press, the focus ring and the hover, so none of those is
+ * restated here — restating a press is how two components end up disagreeing
+ * about what a tap looks like.
+ *
+ * It is ABSENT at a count of 0 or 1, and that is the screen's rule, not this
+ * file's: a stylesheet cannot hide a control honestly. */
+[data-v2] .today-all {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  width: 100%;
+  min-height: var(--row-h);
+  padding: 0;
+  text-align: left;
+}
+
+/* A mark that carries a severity does it in the icon's colour and never in a
+ * filled tile behind it: on a card of five rows, five coloured tiles is a
+ * decoration and one coloured mark is a signal (screens.css says the same thing
+ * about `.trow`). Only --warn is used on this screen — the supervisor's
+ * waiting closes — and --bad and --ok are declared beside it so a row that
+ * needs them does not invent a class. */
+[data-v2] .v2row > .lead.tone-warn { color: var(--warn); }
+[data-v2] .v2row > .lead.tone-bad { color: var(--bad); }
+[data-v2] .v2row > .lead.tone-ok { color: var(--ok); }

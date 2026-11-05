@@ -110,6 +110,27 @@
     // delete is the one edit nobody can see afterwards — so it is the owner's
     // alone, and only from their own login.
     deleteJob: ['owner'],
+    /* Closing a card, and moving a signed-off one to another bus.
+     *
+     * Neither was a capability in v1: `mayCloseJob` is a role helper at
+     * app.js:3887 and the bus move is a bare role test on the server. So a
+     * screen asking Caps.can(role, 'mayCloseJob') got false for EVERYBODY, and
+     * the close button would have been absent for the two people who hold it.
+     * Slice W found that, transcribed the server's rules as role lists in its
+     * own file, and escalated rather than inventing a capability.
+     *
+     * Minted here instead, because a role list inside a screen file is exactly
+     * the v1 pattern that let permission and reachability diverge -- the thing
+     * this rebuild exists to end. deleteJob above is already a capability for
+     * the same kind of act, so the inconsistency was v1's and is not inherited.
+     *
+     * Role lists taken from the server, not from a screen:
+     *   closeJob    sync_server.py:1760  "only an owner or supervisor may close a job"
+     *   moveJobBus  sync_server.py:1702  "only an owner may move a verified job card
+     *                                     to another bus" -- it moves money after
+     *                                     sign-off, so it is the owner's alone. */
+    closeJob: ['owner', 'supervisor'],
+    moveJobBus: ['owner'],
     logService: ['owner', 'supervisor'],       // resets service + writes a verified job
     manageRoutes: ['owner', 'supervisor'],     // routes, stops, go-times, punctuality
     // Diesel, AdBlue and tyres are the crew manager's too: the person who runs
@@ -266,8 +287,15 @@
        * `if closer and closer == actor["id"]`, with the role test gone). Any
        * spec calling it a client-only rule until the guard is tightened is
        * stale. It is still not a capability, so it is not in this list. */
-      gates: ['addJob', 'verifyJob', 'deleteJob', 'outsideJob', 'requestPart',
-              'issuePart', 'viewScoreboard', 'viewWarranty'],
+      /* `closeJob` and `moveJobBus` are gates here rather than orphans: slice W
+       * found that neither existed as a capability, so Caps.can() was false for
+       * everybody and the close button would have been absent for the two people
+       * who hold it. They are minted above from the SERVER's rules, and they
+       * belong in this list because the Job card uses them without declaring
+       * them -- which is the distinction `gates` exists to carry. */
+      gates: ['addJob', 'verifyJob', 'deleteJob', 'closeJob', 'moveJobBus',
+              'outsideJob', 'requestPart', 'issuePart', 'viewScoreboard',
+              'viewWarranty'],
     },
     buses: {
       title: 'Buses', word: 'scBuses', order: 5, nav: true, mark: 'bus',

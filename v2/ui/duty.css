@@ -1,0 +1,269 @@
+/* Screen #9, the duty board.
+ *
+ * Nothing here is a new component. The pick list, the seat rows, the gate row
+ * and the duty-log rows are all `.v2row` from ui/components.css; the per-bus
+ * panels are `.card` and the tabs are `.tabs` from the same file. What this
+ * sheet adds is the screen's own layout and the three places a state needs a
+ * colour BESIDE its mark and its word.
+ *
+ * STATUS IS NEVER COLOUR ALONE. Every rule below that sets --ok, --warn or
+ * --bad is colouring a mark that is already distinct (ok / clock / bus / gate /
+ * bad are five different drawings) next to a sentence that already says the same
+ * thing. The colour is the third signal, which is why this file would still be
+ * readable with it switched off -- and the pick list's three states are checked
+ * by test_v2_duty.js on the marks and the words, not on these rules.
+ *
+ * Chrome 109 is the ceiling: no nesting, no :has(), no oklch(), no color-mix().
+ * Colours come from ui/tokens.css and are never written out here, so dark mode
+ * and the light override both follow without a second rule. `px` appears only
+ * in a border, an outline or a shadow; everything else is a token or a calc of
+ * one. Only `transform` and `opacity` animate, and nothing here animates at all
+ * -- the one press this screen has is already ui/components.css's.
+ */
+
+/* ---- the screen's column ---------------------------------------------- */
+[data-v2] .dt {
+  display: block;
+  padding: 0 0 var(--s6);
+  color: var(--ink);
+}
+
+/* ---- the count, which is the screen's whole argument -------------------- */
+/* A grid rather than a flex row, because the mark must not shrink and the
+ * sentence must be free to wrap onto a second line at 360px: "3 of 24 buses
+ * still need somebody" does not fit one line in Hindi, and a sentence that
+ * truncated would turn the one number people open this screen for into an
+ * ellipsis. */
+[data-v2] .dt-count {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 0 var(--s3);
+  margin: 0;
+  padding: var(--pad) var(--pad) var(--s3);
+}
+[data-v2] .dt-count-m {
+  grid-column: 1;
+  grid-row: 1;
+  display: flex;
+  align-items: center;
+  min-height: calc(var(--t5) * var(--lh));
+  color: var(--ink-dim);
+}
+[data-v2] .dt-count-s {
+  grid-column: 2;
+  font-size: var(--t5);
+  font-weight: 650;
+  line-height: var(--lh);
+  color: var(--ink);
+}
+/* tabular-nums so the count does not jitter as seats fill: it is read again
+ * every few minutes through the evening, which is the one list on this screen
+ * where a shifting digit is noticed. */
+[data-v2] .dt-count-s,
+[data-v2] .dt-when { font-variant-numeric: tabular-nums; }
+[data-v2] .dt-when,
+[data-v2] .dt-off {
+  grid-column: 2;
+  display: block;
+  font-size: var(--t6);
+  color: var(--ink-dim);
+}
+/* The offline line carries more weight here than on any other screen: another
+ * supervisor may already have released a bus, so the reader has to be told the
+ * board may be out of date before they believe its gate column. --warn, beside
+ * the words and the offline mark. */
+[data-v2] .dt-off { color: var(--warn); }
+[data-v2] .dt-off svg { vertical-align: -2px; }
+
+/* The count mark's three tones. `zero` is the one this screen exists to be able
+ * to show, so it is the one that is not dim. */
+[data-v2] .dt-count-m.dt-zero { color: var(--ok); }
+[data-v2] .dt-count-m.dt-need { color: var(--warn); }
+[data-v2] .dt-count-m.dt-none { color: var(--ink-dim); }
+[data-v2] .dt-count-m.dt-unknown { color: var(--ink-dim); }
+
+/* ---- the tabs and the pane --------------------------------------------- */
+[data-v2] .dt .tabs { margin: 0 0 var(--s4); padding: 0 var(--pad); }
+[data-v2] .dt-pane { display: block; padding: 0 var(--pad); }
+
+[data-v2] .dt-h2 {
+  margin: 0 0 var(--s1);
+  font-size: var(--t4);
+  font-weight: 650;
+  color: var(--ink);
+}
+[data-v2] .dt-hint,
+[data-v2] .dt-more {
+  margin: 0 0 var(--s3);
+  font-size: var(--t6);
+  line-height: var(--lh);
+  color: var(--ink-dim);
+}
+[data-v2] .dt-more { margin-top: var(--s2); text-align: center; }
+[data-v2] .dt-find { margin: 0 0 var(--s3); padding: 0; }
+/* `.field` is the box; the search input inside it must not draw a second one. */
+[data-v2] .dt-find input {
+  display: block;
+  width: 100%;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  border: 0;
+  font: inherit;
+}
+
+/* ---- the pick list: three states, three marks, three words -------------- */
+/* The row is a label and the whole of it is the checkbox's target, which gives a
+ * 56px tap area without a pressable wrapper and without a second handler. The
+ * ring therefore has to come from :focus-within -- a label takes no focus of its
+ * own -- and it is inset so it is not clipped by the row above. */
+[data-v2] label.v2row.dt-pick { cursor: pointer; }
+[data-v2] label.v2row.dt-pick:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+[data-v2] .dt-pick-main { min-width: 0; }
+/* The box is a full tap target square, so a thumb in the yard can aim at the
+ * box itself and not only at the row. `accent-color` is Chrome 93, inside the
+ * floor, and is the only way to tint the native control without rebuilding it
+ * -- and a rebuilt checkbox is a checkbox a screen reader no longer recognises. */
+[data-v2] .dt-tick {
+  width: var(--tap);
+  height: var(--tap);
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+/* The three states of a bus in tonight's record. `off` is somebody's answer and
+ * `undecided` is nobody's; folding them together is the thing v2/night.js's
+ * `running === true` exists to prevent, so they do not share a colour either. */
+[data-v2] .dt-night-running { color: var(--ok); }
+[data-v2] .dt-night-undecided { color: var(--warn); }
+[data-v2] .dt-night-off { color: var(--ink-dim); }
+/* A bus somebody said does not run tonight is quietened -- not hidden, because
+ * the reader has to be able to put it back. */
+[data-v2] .v2row.dt-pick[data-night="off"] .t { color: var(--ink-dim); }
+
+[data-v2] .dt-picklist,
+[data-v2] .dt-loglist,
+[data-v2] .dt-sheet-list { display: block; }
+
+/* ---- Save: sticky inside the column, never fixed to the viewport -------- */
+/* A bar pinned to a viewport edge reads as a nav, and this screen's nav belongs
+ * to the frame (v2-foundation-ui.md 3.7.1 forbids a second one). Sticky inside
+ * the scroll container keeps the button where the thumb is without claiming the
+ * edge, and the backdrop is opaque so the rows do not show through it. */
+[data-v2] .dt-save {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  display: block;
+  margin: 0;
+  padding: var(--s3) 0 var(--s2);
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+  text-align: center;
+}
+[data-v2] .dt-save-b { width: 100%; }
+/* The reason a disabled Save is disabled, in words, beside it. */
+[data-v2] .dt-why {
+  display: block;
+  margin-top: var(--s1);
+  font-size: var(--t6);
+  color: var(--warn);
+}
+
+/* ---- a bus, and its three seats ---------------------------------------- */
+[data-v2] .dt-bus { margin-bottom: var(--s3); padding: 0; }
+[data-v2] .dt-bus-h {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0 var(--s3);
+  margin: 0;
+  padding: var(--pad) var(--pad) var(--s2);
+}
+[data-v2] .dt-bus-m {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  display: flex;
+  align-items: center;
+  color: var(--ink-dim);
+}
+[data-v2] .dt-reg {
+  grid-column: 2;
+  font-size: var(--t4);
+  font-weight: 650;
+  color: var(--ink);
+}
+[data-v2] .dt-route {
+  grid-column: 2;
+  overflow: hidden;
+  font-size: var(--t6);
+  color: var(--ink-dim);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* An empty seat that HOLDS THE COUNT OPEN is warned; Driver 2 is not, because
+ * it is the relief seat and an empty one is never the reason the count is not
+ * zero. A warning mark on a row that cannot be the reason is the scroll-past-red
+ * defect in miniature, which is the one this screen exists to remove. */
+[data-v2] .v2row.dt-seat > .lead.dt-warn { color: var(--warn); }
+/* The last row in a card carries no hairline: the card's own edge is there. */
+[data-v2] .dt-bus > .v2row:last-child { box-shadow: none; }
+
+/* ---- the gate state, which is words and not a control ------------------ */
+/* `div.v2row` for everybody on this screen. The ten items, the photograph and
+ * the hold are screen #13's: the two counts empty at different hours of the
+ * evening, so one screen holding both always has a number that is not yet zero
+ * (DECISIONS.md 15). Nothing here gets a cursor or a press, because there is
+ * nothing to press -- and the one `button.dt-gate` in the file is the lookup's
+ * read-only link into #13, which is a route and not an action. */
+[data-v2] .v2row.dt-gate > .lead.dt-ok { color: var(--ok); }
+[data-v2] .v2row.dt-gate > .lead.dt-warn { color: var(--warn); }
+[data-v2] .v2row.dt-gate > .lead.dt-bad { color: var(--bad); }
+[data-v2] .v2row.dt-gate > .lead.dt-dim { color: var(--ink-dim); }
+[data-v2] div.v2row.dt-gate { cursor: default; }
+[data-v2] .dt-look-gate { margin-top: var(--s4); }
+
+/* ---- the lookup -------------------------------------------------------- */
+/* Two fields and a button. They stack at 360px because a date input and a bus
+ * select side by side leave neither readable, and go to one line as soon as
+ * there is room for all three. */
+[data-v2] .dt-look {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--s2);
+  margin: 0 0 var(--s4);
+}
+[data-v2] .dt-look-go { width: 100%; }
+[data-v2] div.v2row.dt-log,
+[data-v2] div.v2row.dt-person { cursor: default; }
+
+@media (min-width: 560px) {
+  [data-v2] .dt-look { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) auto; align-items: center; }
+  [data-v2] .dt-look-go { width: auto; }
+}
+
+/* ---- desk -------------------------------------------------------------- */
+/* Tonight's buses become two columns on a desk, and they are the one list in
+ * these three screens where that is right rather than merely possible: the
+ * office reads all twenty-four at once, three seats each, and a single column
+ * puts half of them below the fold on a 1024px screen for no reason.
+ *
+ * The rail's own inset belongs to the frame (shell.css), not here. A screen that
+ * padded for the rail as well would pad twice.
+ */
+@media (min-width: 1024px) {
+  [data-density="desk"] .dt-board {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--s4);
+    align-items: start;
+  }
+  [data-density="desk"] .dt-board > .dt-bus { margin-bottom: 0; }
+}

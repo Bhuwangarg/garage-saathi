@@ -1,0 +1,203 @@
+/* Garage Saathi v2 — Attention (#2). Spec: screens-shell.md §3.5.
+ *
+ * FIVE RULES THIS FILE DOES NOT GET TO CHOOSE.
+ *
+ * 1. No colour and no size of its own. Every length is one of tokens.css's
+ *    tokens or a calc() of them; every colour is a token reference. A px
+ *    literal appears only inside a border, outline or box-shadow value
+ *    (`PX_OK_PROP`), and this file has none of those. That is the rule that
+ *    keeps thirteen screens coherent and the one a well-meaning builder breaks
+ *    first.
+ * 2. Every selector starts with [data-v2], so the file is inert anywhere the
+ *    v2 attribute is absent — v1 is live for about a hundred people and shares
+ *    the document for the whole migration.
+ * 3. Chrome 109 is the ceiling (Windows 7 office PCs): no oklch(), no
+ *    color-mix(), no nesting, no @starting-style, no subgrid, no text-wrap.
+ * 4. Motion is transform and opacity only, never over 300 ms. The press
+ *    feedback on a row and on a tab is components.css's scale(0.97) at 120 ms,
+ *    and this file adds no animation of its own.
+ * 5. No `position` at all. The nav's one `position: fixed` rule is the app's
+ *    only fixed layer, and §3.5 keeps the filter strip IN THE BODY at both
+ *    densities — so it scrolls away with the list rather than sticking, and the
+ *    header is not sticky either (shell.css owns that).
+ *
+ * ALMOST NOTHING, and that is the point. `.tabs`, `.v2row`, `.v2row-why` with
+ * its wrapped reason and its three tones, `.figure`, `.card`, `.field`, `.btn`
+ * and the empty/error/skeleton states are all already components. What is left
+ * is: the gap under the strip, one line of freshness, the list as a column, one
+ * line of remainder, one heading, and the advisor card's four pieces.
+ *
+ * TWO THINGS THAT ARE ABSENT ON PURPOSE, each stated because an absence rots
+ * unless it is written down and checked:
+ *
+ *   NO max-width AT DESK. §3.5: "the same single column, not capped to 900px
+ *   (it wants the 864px the rail leaves)". Every other reading screen caps its
+ *   measure with `--read-w`; this one must not, because the row's content is a
+ *   wrapped reason and narrowing the column turns two lines into three — and
+ *   three lines is a taller row on the one list in the product that may not be
+ *   windowed. So `--read-w` does not appear below, and test_v2_attention.js
+ *   fails if it ever does.
+ *
+ *   NO HEIGHT ON A ROW, anywhere. `.v2row-why` grows: its reason wraps to two
+ *   lines, about 72px in the yard and nearer 88px in Hindi, and
+ *   `v2-foundation-ui.md §2.4` forbids windowing it for exactly that reason.
+ *   The 200-row cap is the mechanism instead. A fixed height here would make
+ *   the reason truncate, which turns the row into a colour and a number — which
+ *   is `dashboard` again, the screen Attention replaces.
+ *
+ * FULL BLEED. §3.5 asks for the one full-bleed list in the document, so the
+ * hairline under each row reaches both edges. `.appbody` carries no side
+ * padding (shell.css: "Side padding is the scroll container's, so a full-bleed
+ * list can still reach the edge") and `.v2row` carries its own
+ * `padding: 0 var(--pad)`, so the rows are already edge to edge and there is
+ * nothing to negative-margin. The LINES AROUND the list are the ones that need
+ * the inset, which is why `--pad` appears on the text below and not on the list.
+ */
+
+/* ---------- the filter strip -----------------------------------------------
+ * Five tabs, each `min-height: var(--tap)` from components.css, the selected
+ * one `--accent-text` plus a 2px `--accent` bottom bar — a word, a position and
+ * a colour, never colour alone. The strip scrolls horizontally at 360px, which
+ * components.css already does; all this adds is the space under it.
+ *
+ * Each tab's count is `figure(n)`, and `figure(null)` while the index is still
+ * building, so an unknown count is a dash and never a 0. `.tabs [role="tab"]`
+ * is already an inline-flex with a `--s2` gap, so the figure needs no rule of
+ * its own to sit beside the word — only its note must never appear here, and it
+ * cannot, because nothing on this screen passes `at`.
+ */
+[data-v2] .att-tabs {
+  margin-bottom: var(--s4);
+}
+
+/* ---------- the one freshness line -----------------------------------------
+ * The list says how fresh it is ONCE, here. A `.figure-note` inside a row would
+ * say it two hundred times, as a block element, which triples the row height
+ * and runs the age words once per row (foundation §2.3 rule 4) — so this line
+ * existing is what makes that rule affordable rather than merely forbidden.
+ *
+ * Offline it names the last signal instead ("No signal since 06:40"): the rows
+ * are from the local database and are real, and only their age is in question.
+ */
+[data-v2] .att-fresh {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  margin: 0 0 var(--s3);
+  padding: 0 var(--pad);
+  color: var(--ink-dim);
+  font-size: var(--t6);
+  line-height: var(--lh);
+}
+
+/* The mark keeps its size when the sentence wraps in Hindi, where the line is
+ * longer and the line box taller. */
+[data-v2] .att-fresh svg {
+  flex: 0 0 auto;
+}
+
+/* ---------- the list -------------------------------------------------------
+ * A grid of one column rather than margins on the children: the rows carry
+ * their own hairline as an inset shadow (so a desk row holding a 32px control
+ * is exactly 32px, not 33), and a grid cannot collapse a margin between two of
+ * them. No gap — the hairline is the separator.
+ */
+[data-v2] .att-list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* ---------- what is not shown ----------------------------------------------
+ * "200 shown. 46 more. Use the filters above." Three clauses, and the third is
+ * the one that matters: a capped list with a stated remainder is not a count
+ * that cannot reach zero, because it says what to do next. Never a longer list,
+ * never an infinite scroll, never a page control.
+ */
+[data-v2] .att-more {
+  margin: var(--s3) 0 0;
+  padding: 0 var(--pad);
+  color: var(--ink-dim);
+  font-size: var(--t6);
+  line-height: var(--lh);
+}
+
+/* ---------- the rows that could not be ranked ------------------------------
+ * A single row with a missing basis or an unreadable date is dropped from the
+ * ranking and listed here under its own count — never ranked at zero, which
+ * would put it above a real emergency, and never silently discarded.
+ */
+[data-v2] .att-unranked {
+  margin: var(--s6) 0 var(--s2);
+  padding: 0 var(--pad);
+  color: var(--ink-dim);
+  font-size: var(--t6);
+  font-weight: 600;
+  line-height: var(--lh);
+}
+
+/* ---------- the advisor, LAST ----------------------------------------------
+ * Last and not first: it is the most expensive path in the product (six
+ * sequential Opus calls) and the ranked list is what the person came for.
+ *
+ * One field and one button, stacked, because at 360px they do not fit side by
+ * side and a question is longer than a plate. The wait has NO spinner and no
+ * animation: this is the one control on the screen whose wait is seconds, and a
+ * six-call path cannot be made to feel fast by a moving thing — so the label
+ * says "Asking..." and aria-disabled says the rest.
+ */
+[data-v2] .att-ask {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--s3);
+  margin-top: var(--s6);
+  margin-bottom: var(--s7);
+}
+
+[data-v2] .att-ask-h {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--t4);
+  font-weight: 600;
+  line-height: var(--lh);
+}
+
+/* The label wraps the field, so a tap anywhere on it puts the caret in the
+ * field and does nothing else — which is also why the screen's one delegated
+ * listener returns early on `label` before it reads [data-act]. */
+[data-v2] .att-ask-l {
+  display: block;
+  margin: 0;
+}
+
+/* Said BEFORE the person fills the field in, not after they press: what the
+ * answer costs in time, or that it will not send at all without a connection.
+ */
+[data-v2] .att-ask-n {
+  margin: 0;
+  color: var(--ink-dim);
+  font-size: var(--t6);
+  line-height: var(--lh);
+}
+
+/* ---------- desk: NOTHING ---------------------------------------------------
+ * There is no desk rule in this file, and that is the specification rather than
+ * an omission. Every one of §3.5's desk statements is "the same" or "not":
+ *
+ *   - the same single column, NOT capped to 900px — it wants the 864px the rail
+ *     leaves, so no `--read-w` (see this file's header);
+ *   - the rows STAY `v2row-why` and keep their wrapped reason. This is the one
+ *     list in the product that does not become a one-line desk row, because the
+ *     reason is the content — and the one-line row is what windowing would
+ *     need, which is the other half of why the cap is the mechanism here;
+ *   - the filter strip STAYS IN THE BODY at both densities. It moves to the
+ *     header's trailing slot only if a sixth filter is ever added, which is why
+ *     `Attention.trailing()` is exported empty with a check pinning it to the
+ *     five.
+ *
+ * Everything the desk does change — the rail's inline padding, the 32px row
+ * height, the smaller type scale — is already shell.css's and tokens.css's and
+ * arrives here through `--row-h`, `--pad` and `--t1..--t6` without this file
+ * naming a width. The two density rules this screen would otherwise have
+ * written are therefore absent, and test_v2_attention.js fails if either
+ * appears: a `max-width` here, or a one-line variant of the row.
+ */

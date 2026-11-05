@@ -1390,6 +1390,44 @@ APP_BUILD="$(sed -n "s/^const BUILD = '\(v[0-9]*\)';$/\1/p" app.js)"
 ck "the build stamp in app.js names the same build as the worker's cache" "${APP_BUILD:-missing}" "${SW_CACHE:-missing}"
 ck "and the login actually prints it" "$(grep -c 'class="lg-build">\${esc(BUILD)}' app.js)" "1"
 
+# ---------------------------------------------------------------------------
+# 3) Every v2 screen returns early on a form control BEFORE it reads data-act.
+#
+# This is the exact line a shipped regression was missing: tapping a count field
+# navigated away instead of letting somebody type. The v1 half of it is the
+# stock-count block above and the invariant sweep, and BOTH are v1-only -- this
+# gate never opens /v2 at all. Six screen briefs claimed the rule was "checked
+# by predeploy-gate.sh:508", which was wrong: :508 is a comment. Slice T found
+# that and supplied this, which needs no browser.
+#
+# Static on purpose. The ordering is what matters -- a guard that runs after the
+# [data-act] read is not a guard -- and a grep can see an ordering a click
+# cannot.
+#
+# TWO CONDITIONS, because the first version of this check was too literal and
+# false-positived on duty.js. That file declares the selector as a constant
+# (`var FIELDS = 'input, select, textarea, label, .num'`) and guards with
+# `closest(FIELDS)`, which is correct and arguably better than inlining it. A
+# check that cannot tell a correct implementation from a missing one is worse
+# than no check, because it teaches people to delete it. So:
+#   (a) the file must contain the field selector somewhere, inline or named; and
+#   (b) the first non-data-attribute closest() must come before the first
+#       [data-act]/[data-nav] closest().
+for _f in v2/screens/*.js; do
+  [ -f "$_f" ] || continue
+  _n="$(basename "$_f")"
+  _sel="$(grep -c "input, select, textarea, label, .num" "$_f")"
+  _a="$(grep -nE "closest\('\[data-(act|nav)\]'\)" "$_f" | head -1 | cut -d: -f1)"
+  _g="$(grep -nE "closest\(" "$_f" | grep -vE "closest\('\[data-" | head -1 | cut -d: -f1)"
+  if [ -z "$_a" ]; then
+    ck "$_n reads no data-act, so it needs no field guard" "n/a" "n/a"
+  else
+    ck "$_n declares the field selector" "$([ "${_sel:-0}" -ge 1 ] && echo yes || echo no)" "yes"
+    ck "$_n guards a field before reading data-act" \
+       "$([ -n "$_g" ] && [ "$_g" -lt "$_a" ] && echo yes || echo "guard=${_g:-missing} act=$_a")" "yes"
+  fi
+done
+
 echo "──"
 echo "RESULT: $PASS passed, $FAIL failed"
 if [ "$FAIL" -ne 0 ]; then

@@ -1,0 +1,328 @@
+/* Garage Saathi v2 — the work screens' own stylesheet: #3 Jobs and #4 Job card.
+ * Test: test_v2_work.js. Spec: docs/v2/plan/screens-work.md section 7.2
+ * permission 5 — "add to v2/ui/work.css for layout that belongs to these
+ * screens, keeping the [data-v2] prefix and sizing from tokens".
+ *
+ * WHAT IS NOT HERE, AND WHY. Side padding, bottom padding and the desk rail's
+ * inline inset belong to the frame (v2/ui/shell.css: `body` carries all three,
+ * and test_v2_shell.js reads the two halves of the bottom rule and fails when
+ * they stop matching). Repeating them here would double them on every screen
+ * and put this file in a fight it cannot win. Press feedback, focus rings, the
+ * row grid, the card, the badge, the tabs and the photo grid are
+ * components.css's and are consumed unchanged.
+ *
+ * So this file is layout INSIDE the two screens, and nothing else: no colour of
+ * its own, no size of its own, no animation, and no px outside a border, an
+ * outline or a shadow value. Everything sizes from the thirty-three tokens, or
+ * desk and yard drift apart.
+ */
+
+/* ---------- Jobs (#3) ------------------------------------------------------
+ * One scrolling column. The list reaches the page edge by negative-margining
+ * the container's own --pad, so the row hairline runs the full width — the
+ * documented pattern (shell.css: "a full-bleed list can still reach the edge by
+ * negative-margining --pad"), and the only reason a row may keep its own inset.
+ */
+[data-v2] .jb {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+}
+
+[data-v2] .jb-fresh {
+  margin: 0;
+  color: var(--ink-dim);
+  font-size: var(--t6);
+  line-height: var(--lh);
+}
+
+[data-v2] .jb-off {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s1);
+}
+
+/* The one next thing on this screen, and the only --accent fill on it. */
+[data-v2] .jb-new,
+[data-v2] .jb-wide {
+  width: 100%;
+  min-height: var(--tap);
+}
+
+[data-v2] .jb-tabs {
+  overflow-x: auto;
+  min-height: var(--tap);
+}
+
+[data-v2] .jb-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin-inline: calc(var(--pad) * -1);
+}
+
+/* Mechanic workload at desk. Three numbers in three columns — the office reads
+ * tables, and this is the one place on Jobs where density pays. */
+[data-v2] .jb-work {
+  width: 100%;
+}
+
+[data-v2] .jb-cap {
+  margin: 0;
+  padding-block: var(--s3);
+  padding-inline: var(--pad);
+  color: var(--ink-dim);
+  font-size: var(--t6);
+  line-height: var(--lh);
+}
+
+/* A coloured MARK, never a coloured tile: one mark is a signal, a row of tiles
+ * is decoration. The row also carries the state in words, in its .sub at yard
+ * and its badge at desk — status is never colour alone. */
+[data-v2] .jb-bad > svg,
+[data-v2] .jb-bad {
+  color: var(--bad);
+}
+
+[data-v2] .jb-warn {
+  color: var(--warn);
+}
+
+[data-v2] .jb-dim {
+  color: var(--ink-dim);
+}
+
+/* The desk-only Open control. A 32px row is a small thing to hit with a mouse
+ * and the office reads with a mouse; at yard the row itself is the target and
+ * .act carries exactly one thing, so this never renders there. */
+[data-v2] .jb-open {
+  min-height: auto;
+  padding-block: 0;
+}
+
+/* ---------- the Job card (#4) ----------------------------------------------
+ * Order IS the specification: a person in a hurry reads downward and must hit
+ * the answer in the first screenful. So the id line, the freshness line, the
+ * one next step and the close gate come before any card.
+ */
+[data-v2] .jc {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+}
+
+[data-v2] .jc-id {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  margin: 0;
+}
+
+[data-v2] .jc-reg {
+  color: var(--ink);
+  font-size: var(--t3);
+  font-weight: 600;
+}
+
+[data-v2] .jc-fresh {
+  display: flex;
+  align-items: center;
+  gap: var(--s1);
+  margin: 0;
+  color: var(--ink-dim);
+  font-size: var(--t6);
+  line-height: var(--lh);
+}
+
+/* THE ONE NEXT STEP. Full width of the content column, so the slot is the same
+ * shape whether it holds a ranked row or the mechanic's button. */
+[data-v2] .jc-next > .btn,
+[data-v2] .jc-next > .v2row {
+  width: 100%;
+}
+
+/* The mechanic's tap: the largest control on the screen, for dirty hands,
+ * possibly gloved, in a pit, on a cracked phone, in bad light, in a hurry.
+ * --tap + --s2 is 56px at yard and 40px at desk, both from tokens. */
+[data-v2] .jc-big {
+  width: 100%;
+  min-height: calc(var(--tap) + var(--s2));
+  font-size: var(--t4);
+}
+
+/* The close gate, directly under the one next step and unpressable. */
+[data-v2] .jc-gate {
+  background: var(--surface-raised);
+  border-radius: 12px;
+}
+
+[data-v2] .jc-cols {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+}
+
+[data-v2] .jc-col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  min-width: 0;
+}
+
+[data-v2] .jc-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+
+[data-v2] .jc-head {
+  margin: 0;
+  color: var(--ink-dim);
+  font-size: var(--t6);
+  font-weight: 600;
+  line-height: var(--lh);
+}
+
+[data-v2] .jc-subhead {
+  margin: 0;
+  color: var(--ink-dim);
+  font-size: var(--t6);
+  font-weight: 400;
+  line-height: var(--lh);
+}
+
+[data-v2] .jc-fault {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--t4);
+  line-height: var(--lh);
+}
+
+[data-v2] .jc-prio {
+  margin: 0;
+}
+
+[data-v2] .jc-note,
+[data-v2] .jc-none {
+  margin: 0;
+  color: var(--ink-dim);
+  font-size: var(--t6);
+  line-height: var(--lh);
+}
+
+/* A negative gap is a FINDING, not a format error: device clocks differ, so
+ * completeAt before startAt happens. The row says so in words and in --warn,
+ * and never silently reorders them. */
+[data-v2] .jc-gapwarn .sub {
+  color: var(--warn);
+}
+
+[data-v2] .jc-ok {
+  color: var(--ok);
+}
+
+[data-v2] .jc-warn {
+  color: var(--warn);
+}
+
+[data-v2] .jc-chg {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s1);
+  color: var(--accent-text);
+  font-size: var(--t6);
+}
+
+/* An old part's photo as the row's lead mark. */
+[data-v2] .jc-thumb {
+  width: var(--thumb);
+  height: var(--thumb);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  object-fit: cover;
+}
+
+[data-v2] .jc-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+
+[data-v2] .jc-wide {
+  width: 100%;
+  min-height: var(--tap);
+}
+
+[data-v2] .jb-sheet,
+[data-v2] .jc-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+}
+
+[data-v2] .jc-pass {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+
+/* ---------- desk ----------------------------------------------------------
+ * 864px of content on a 1024px screen is two columns with a --s4 gutter, and
+ * the office reads a card with a mouse and a keyboard. BOTH clauses of the
+ * condition — desk density AND at least 1024px wide — matching shell.css and
+ * components.css exactly: a width-only rule would put two columns on a tablet
+ * in landscape, and a supervisor opening the desk screen on a 360px phone
+ * (which 000c3dd says happens) must keep one column.
+ */
+@media (min-width: 1024px) {
+  [data-v2][data-density="desk"] .jc-cols {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--s4);
+    align-items: start;
+  }
+
+  [data-v2][data-density="desk"] .jc-actions {
+    flex-direction: row;
+    justify-content: flex-end;
+  }
+
+  [data-v2][data-density="desk"] .jc-wide {
+    width: auto;
+  }
+
+  /* The four times keep TWO lines at desk, which is the one exception to the
+   * one-line desk row. It is legal — that rule exists to keep windowing's row
+   * height computable, and this is four rows inside a card, never windowed —
+   * and it is necessary: the gap words are the reason the block exists. */
+  [data-v2][data-density="desk"] .jc-times .v2row {
+    align-items: start;
+    padding-block: var(--s2);
+  }
+
+  [data-v2][data-density="desk"] .jc-times .sub {
+    white-space: normal;
+  }
+}
+
+/* ---------- the printable gate pass ---------------------------------------
+ * A @media print block, not a second layout and not a window. Everything
+ * outside the sheet's panel goes, the scrim and the shadow go with it, and the
+ * hairlines stay: the gatekeeper gets an A4 sheet with a number on it, which is
+ * what a gate pass is. No banned property is involved, and it works offline.
+ */
+@media print {
+  [data-v2] .apphead,
+  [data-v2] .nav,
+  [data-v2] .appbody,
+  [data-v2] .ov-scrim,
+  [data-v2] .ov-close {
+    display: none;
+  }
+
+  [data-v2] .ov-panel {
+    position: static;
+    max-height: none;
+    box-shadow: none;
+  }
+}

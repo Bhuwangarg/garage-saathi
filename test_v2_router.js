@@ -468,12 +468,27 @@ function main() {
         changes.length === 1 && changes[0] === 'store' && Router.current().id === 'store');
 
   /* ================================================================== *
-   * 9. The table itself: 41 capabilities, v1's 37 transcribed plus the
-   *    four v2 names, with v1's exact role lists.
+   * 9. The table itself: 43 capabilities -- v1's 37 transcribed, the four v2
+   *    names, and closeJob + moveJobBus, with v1's exact role lists.
+   *
+   *    This said 41 until slice W found that `mayCloseJob` and `changeJobBus`
+   *    were never capabilities at all: v1's is a role helper (app.js:3887) and
+   *    the bus move is a bare role test on the server, so Caps.can() answered
+   *    false for everybody and the close button would have been absent for the
+   *    two people who hold it. Both are minted from the SERVER's rules
+   *    (sync_server.py:1760 and :1702) and gated on the Job card.
    * ================================================================== */
   const caps = Object.keys(Caps.PERMS);
-  check('41 capabilities: v1\'s 37 plus four v2 names (got ' + caps.length + ')',
-        caps.length === 41);
+  check('43 capabilities: v1\'s 37, four v2 names, closeJob + moveJobBus (got '
+        + caps.length + ')', caps.length === 43);
+  ['closeJob', 'moveJobBus'].forEach(function (c) {
+    check('the minted capability ' + c + ' exists and is role-scoped',
+          Array.isArray(Caps.PERMS[c]) && Caps.PERMS[c].length > 0);
+  });
+  check('closeJob is the owner and the supervisor, as the server says',
+        Caps.PERMS.closeJob.slice().sort().join(',') === 'owner,supervisor');
+  check('moveJobBus is the owner alone, as the server says',
+        Caps.PERMS.moveJobBus.slice().sort().join(',') === 'owner');
   ['viewAttention', 'viewSpendTotals', 'viewCompanyBilling', 'viewAdoption']
     .forEach(function (c) { check('the v2 name ' + c + ' exists', !!Caps.PERMS[c]); });
   /* Transcription, checked against v1's own source rather than against my

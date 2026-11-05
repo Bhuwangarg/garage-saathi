@@ -487,7 +487,7 @@ One honest gap: bed 2 cannot measure the real Attention row yet, because
 `.v2row-why` does not exist until P1 lands. M1 measured a scratch copy with the
 wrap rule added and reported both numbers rather than the convenient one.
 
-## 21. Pending the owner: the Hindi. 28 words now, about 130 by the end
+## 21. Pending the owner: the Hindi. 504 words, of which 459 are genuinely new
 
 **You are the only Hindi speaker on this project.** Every Hindi string in v2 has
 to come from you, and this records exactly what is needed so it is a short task
@@ -520,3 +520,136 @@ and it goes straight into `v2/ui/words.js`. Nobody has to interpret anything.
 **The target is zero, and the count is the measure.** If it never falls, the
 mechanism has become the fallback it was built to replace — which P3 said about
 its own design before anyone else could, and it was right to.
+
+## 22. Pending the owner: the gate round cannot pass a photo item offline
+
+**A genuine trade-off, not a bug, and it needs a decision before screen #13 is
+used in a yard at night.**
+
+Three of the ten departure items need a photograph — `ac`, `blankets`, `cabin`.
+In v2's gate round, **the photograph is uploaded before the check is created**,
+and if the upload fails nothing is created: the supervisor sees a named refusal
+with a Retry. So **offline, the round cannot start a check and cannot pass those
+three items.** It can still record a Problem on all ten, send the check to the
+office, and release a bus.
+
+**Why it was built that way.** `LIVE-ISSUES.md` issue 9: v1 falls back to storing
+the image **inline as a `data:` URL** when the upload fails — which is the normal
+path for a phone in a yard — and `gatechecks` is in no server send window, so
+every one of those images is sent for ever to every entitled device. v2 refusing
+to inline is what stops that accumulating.
+
+**And the obvious middle option does not work today.** Queue the photo, create
+the check, patch the image in later — except `selfie` is in `GATE_FIXED`, so the
+server **refuses** any later write to it. The builder's own words: that path
+would be worse than v1, because the work would be lost rather than merely heavy.
+
+So there are three real options and they cost different things:
+
+- **Accept it as built.** Offline, a supervisor can fail a bus but not pass the
+  three photo items. Simple, safe, and it means the screen is degraded exactly
+  where it is most likely to be used — outside, at night.
+- **Fund a photo queue outside the record.** The image goes to a local queue with
+  its own id, the record refers to it, and a background flush uploads it and
+  rewrites nothing the server protects. Real work, and it needs the server to
+  accept a late reference without `GATE_FIXED` refusing it.
+- **Accept inline bytes deliberately**, as v1 does, and add a
+  `GATECHECKS_HISTORY_DAYS` send window so they stop accumulating for ever. This
+  is the cheapest of the three and it trades privacy exposure for function: the
+  images then live in the sync stream of every entitled device until the window
+  drops them.
+
+**My recommendation is the third**, with a short window — because a departure
+check is worthless if it cannot be completed where departures happen, and a send
+window turns "for ever" into "a fortnight", which is the part of issue 9 that
+actually hurts. But it widens what sits on devices, so it is the owner's call
+and not mine.
+
+
+### §21 corrected, 2026-11-05: the number was 28, then 130, and it is 504
+
+I told the owner 28 pending labels and about 130 by the end. With six screens
+built, `test_v2_words.js` reports **567 registered, 525 pending**, and a parse of
+the registrations puts it at **504 with an empty Hindi value**. The estimate was
+out by a factor of four, and the reason is simply that each screen registers far
+more labels than the chrome did — Me alone registers 107.
+
+**How much of it is already translated somewhere in the owner's own app**, since
+the Me builder found 34 by hand and that suggested a shortcut:
+
+| | |
+|---|---|
+| v1's `i18n-hi.js` | 1,116 translated ids |
+| v2 pending | 504 |
+| **already translated under the same id** | **1** |
+| **same English text under a different id** | **44** |
+| **genuinely new, needs the owner** | **459** |
+
+So mining v1 saves **45 of 504, about 9%** — worth doing because it is free and
+mechanical, and not the shortcut I was hoping for. v2's copy is mostly new
+wording, which is what a rewritten interface means.
+
+**The honest ask is therefore 459 strings, not 130.** That is a real afternoon's
+work for the only Hindi speaker on the project, and it is better to know now than
+at the end. Two things make it smaller than it sounds: `test_v2_words.js` prints
+every pending id with its English beside it, so it is a list to work down rather
+than a hunt; and a pending label is visibly marked in the app, so shipping
+before it is finished degrades honestly instead of silently.
+
+**A note on how this number was got.** My first measurement returned "0
+reusable", which was not a finding but a broken regex — I had guessed at the
+shape of `i18n-hi.js` instead of reading it, and the table is
+`window.I18N_HI = {...}` with several pairs per line. A zero from a parse that
+matched nothing looks exactly like a zero from a real search, which is the same
+trap three separate checks fell into earlier in this project.
+
+## 23. Two rulings the screen builders asked for, and one correction to my own briefs
+
+**Ruling 1: a row figure is not marked stale; the aggregate is.**
+
+S1's shell says "every figure is stale when the replica is incomplete".
+`figure()` adds a `.figure-note` whenever `stale` is passed, so obeying that
+literally puts a note on **every row** while a device is still filling. Slice W
+and slice T both stopped and asked.
+
+The ruling: **mark an aggregate stale, leave a per-record reading plain.** A
+count over a store that is still arriving really is provisional. A single
+record's odometer reading is not — it is that record's, complete, and a note
+beside it says something untrue. `Shell.body`'s `guardFigures` is therefore
+over-broad and will warn-name screens during a first fill; that warning is
+S1's to narrow, and it is a warning rather than a failure, so it does not block.
+
+**Ruling 2: `closeJob` and `moveJobBus` are real capabilities now.**
+
+Slice W found that `mayCloseJob` was never a capability — v1's is a role helper
+at `app.js:3887` — so `Caps.can(role, 'mayCloseJob')` answered **false for
+everybody** and the close button would have been absent for the two people who
+hold it. Slice T found the same for `manageSupplierBills`, an unbuilt half of
+the `bills` split, and aliased it.
+
+Both are minted in `caps.js` from the **server's** rules, not from a screen's
+belief: `closeJob` is owner and supervisor (`sync_server.py:1760`), `moveJobBus`
+is the owner alone (`:1702`, because it moves money after sign-off). They are
+`gates` on the Job card rather than declarations, which is the distinction F1
+built `gates` to carry, and `test_v2_router.js` now asserts both role lists
+against those server lines rather than merely counting capabilities.
+
+The principle: a role list inside a screen file is the v1 pattern that let
+permission and reachability diverge. If something is a permission, it lives in
+the one table where the matrix can be read and checked.
+
+**A correction to six briefs I wrote.**
+
+Every screen brief said the field-guard rule — return early on
+`input, select, textarea, label, .num` **before** reading `[data-act]` — was
+"checked by `predeploy-gate.sh:508` and the sweep at `:1073`". That was wrong.
+Line 508 is a comment, 1073 is a timing line, and **the gate never opens `/v2`
+at all**; both of those blocks are v1's. I repeated line numbers out of the
+frontend cut without opening the file.
+
+Every builder implemented the rule and wrote its own check, so nothing shipped
+broken — but nothing enforced it *across* v2, so a fourteenth screen could have
+omitted it in silence. Slice T found it and supplied a static check, now in the
+gate: for each `v2/screens/*.js`, the guard's line number must be lower than the
+`[data-act]` read's. Static on purpose — the ordering is the whole point, and a
+grep can see an ordering a click cannot.

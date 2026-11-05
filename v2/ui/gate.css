@@ -1,0 +1,293 @@
+/* Garage Saathi v2 — screen 13, the Gate round. Layout only.
+ *
+ * Every rule is `[data-v2]`-prefixed, every size comes from a token, and this
+ * file declares no colour of its own: the six gate states tint through
+ * `--ok` / `--warn` / `--bad` / `--ink-dim`, which is the THIRD signal behind
+ * the mark and the word (v2-ux.md §4.1 row 9 forbids status by colour alone).
+ * `px` appears only where `border`, `outline` and `box-shadow` allow it.
+ *
+ * THE ONE ANIMATION IN HERE IS THE 1500 ms HOLD, AND IT LIVES HERE RATHER THAN
+ * IN components.css FOR A REASON THAT IS A CHECK, NOT A PREFERENCE.
+ * `test_ui_components.js` proves a 300 ms ceiling over the whole of
+ * components.css — 923 lines of it — and one composited layer on one element
+ * does not justify weakening a check that guards all of them. `screens-work.md
+ * §5.4` names `v2/ui/work.css` as the home for this rule because the gate round
+ * was a state of the Duty board when that page was written; the cut made it
+ * screen #13 with its own two files, so the rule is here and the three screens'
+ * CSS files do not have to share one.
+ *
+ * WHY THE BAR IS NOT DECORATION. Foundation §5.8 says a frequently repeated
+ * action does not animate, and a supervisor holds this twenty times an evening.
+ * The bar survives that rule because it is not motion laid over the action — it
+ * is the action's own readout. Without it the person lifts early, the check does
+ * not release, and a bus stands at the gate with nobody knowing why ([E]
+ * `8a8cde5`). Removing it would not make the release one millisecond faster,
+ * because the 1.5 seconds is the control. If the price is wrong, what gives is
+ * the 1.5 seconds, and that is the owner's (`DECISIONS.md §12`).
+ *
+ * `linear`, not an easing: the bar is a clock. `transform: scaleX()` from a
+ * left origin, so it is one composited layer and never a layout pass — which
+ * matters on a Core 2 Duo holding ten answers and three photographs on screen.
+ */
+
+/* ---------- the board ---------- */
+
+[data-v2] .gate-board {
+  display: block;
+}
+
+/* The freshness and the count are stated ONCE, here, at the top — never on a
+ * figure inside a row. `at` on a row's figure adds `.figure-note` as a block
+ * element, triples the row height and runs ageWords() once per row, which is
+ * the rule a well-meaning builder breaks first (foundation §2.3 rule 4). */
+[data-v2] .gate-count {
+  margin: 0;
+  padding: var(--s3) var(--pad);
+  font-size: var(--t4);
+  font-weight: 600;
+}
+
+[data-v2] .gate-note {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0 var(--pad) var(--s3);
+  color: var(--ink-dim);
+  font-size: var(--t6);
+  line-height: var(--lh);
+}
+
+[data-v2] .gate-rows {
+  display: block;
+}
+
+/* The state tint on a row's lead mark. Three tones plus the quiet default, and
+ * each one already has its own word in `.t` — this only colours the mark. */
+[data-v2] .gate-board [data-gate="ok"],
+[data-v2] .gate-panel [data-gate="ok"],
+[data-v2] .gate-item [data-gate="ok"] {
+  color: var(--ok);
+}
+
+[data-v2] .gate-board [data-gate="warn"],
+[data-v2] .gate-panel [data-gate="warn"],
+[data-v2] .gate-item [data-gate="warn"] {
+  color: var(--warn);
+}
+
+[data-v2] .gate-board [data-gate="bad"],
+[data-v2] .gate-panel [data-gate="bad"],
+[data-v2] .gate-item [data-gate="bad"] {
+  color: var(--bad);
+}
+
+[data-v2] [data-gate="dim"] {
+  color: var(--ink-dim);
+}
+
+/* ---------- the panel's sticky header ---------- */
+
+/* Sticky, not fixed. Foundation §3.7.1 forbids a fixed bottom bar on a screen
+ * with no nav, and the principle under it — a bar pinned to a viewport edge
+ * reads as a nav — applies to a panel's own header too. `top: 0` inside the
+ * page's own scroll (shell.js note 2: `body` is the scroll container and there
+ * is no inner scroller, because overlay.js locks the page and not an inner
+ * box). */
+[data-v2] .gate-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--s2);
+  min-height: var(--row-h);
+  padding: 0 var(--pad);
+  background: var(--surface-raised);
+  box-shadow: inset 0 -1px 0 var(--line);
+}
+
+[data-v2] .gate-head-t {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--t4);
+  font-weight: 600;
+}
+
+[data-v2] .gate-head-x {
+  white-space: nowrap;
+}
+
+/* The progress readout: "6 of 10 answered · 1 problem". Tabular figures so the
+ * digits do not shift between two answers — the same reason §5.5 leaves the
+ * counts unanimated. */
+[data-v2] .gate-prog {
+  color: var(--ink-dim);
+  font-size: var(--t6);
+  font-variant-numeric: tabular-nums;
+}
+
+[data-v2] .gate-back {
+  min-width: var(--tap);
+}
+
+[data-v2] .gate-panel {
+  display: block;
+  padding-bottom: var(--s4);
+}
+
+/* ---------- step 1: the driver and the photograph ---------- */
+
+[data-v2] .gate-photo,
+[data-v2] .gate-shot {
+  padding: var(--s3) var(--pad);
+}
+
+/* The reason a control cannot be used yet, in words, beside it. Never a
+ * tooltip and never colour: `aria-disabled` says it to the machine, this says
+ * it to the person. */
+[data-v2] .gate-why {
+  margin: 0;
+  padding: var(--s2) var(--pad) 0;
+  color: var(--ink-dim);
+  font-size: var(--t6);
+  line-height: var(--lh);
+}
+
+[data-v2] .gate-go {
+  width: calc(100% - var(--pad) - var(--pad));
+  margin: var(--s4) var(--pad) 0;
+}
+
+/* ---------- the ten items ---------- */
+
+/* A card and not a row. A row's `.act` holds at most one control at yard
+ * density (foundation §2.1) and an item needs a two-way answer; two 48px
+ * buttons plus a mark plus a title does not fit 328px. */
+[data-v2] .gate-item {
+  margin: var(--s3) var(--pad) 0;
+}
+
+[data-v2] .gate-item-h {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: var(--s3);
+}
+
+[data-v2] .gate-item .txt {
+  min-width: 0;
+}
+
+/* The item's own title and line wrap rather than truncate: "Clean, counted, and
+ * a photo of the rack" is the instruction, and an ellipsis on an instruction is
+ * a shorter instruction. This is the only place these two override
+ * components.css's row rules, and it is why they are scoped to `.gate-item`. */
+[data-v2] .gate-item .t,
+[data-v2] .gate-item .sub {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+}
+
+[data-v2] .gate-answers {
+  display: flex;
+  gap: var(--s2);
+  margin-top: var(--s3);
+}
+
+[data-v2] .gate-answers > .btn {
+  flex: 1 1 0;
+}
+
+[data-v2] .gate-note-f {
+  display: block;
+  margin-top: var(--s3);
+}
+
+[data-v2] .gate-note-f .field {
+  width: 100%;
+}
+
+/* ---------- the two endings ---------- */
+
+[data-v2] .gate-end {
+  padding: var(--s5) var(--pad) var(--s4);
+}
+
+[data-v2] .gate-send {
+  width: 100%;
+}
+
+/* The hold button. `min-height: var(--tap)` and not a literal, which is exactly
+ * what `screens-work.md §4.5` asks for: 48px in the yard, 32px at a desk,
+ * because the supervisor now performs this check and can therefore be at a desk
+ * doing it. One declaration, both densities — tokens.css switches `--tap`. */
+[data-v2] .gate-hold {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  min-height: var(--tap);
+  /* The gesture is unusual and the label is the only thing that teaches it, so
+   * the label must never be the thing that truncates. */
+  white-space: normal;
+}
+
+[data-v2] .gate-hold-l {
+  position: relative;
+  z-index: 1;
+}
+
+/* The bar: --accent-ink at a quarter opacity over .btn-primary, so the button
+ * darkens left to right. Not a width and not a background-position — one
+ * composited layer, the only property category the foundation allows. */
+[data-v2] .gate-bar {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  transform: scaleX(0);
+  transform-origin: left;
+  background: var(--accent-ink);
+  opacity: 0.25;
+  /* Released early: back to nothing in 150 ms, eased. The 1500 ms linear ramp
+   * belongs to the holding state alone, so lifting a finger never plays a
+   * clock backwards for a second and a half. */
+  transition: transform 150ms ease-out;
+}
+
+[data-v2] .gate-hold[data-holding] .gate-bar {
+  transform: scaleX(1);
+  transition: transform 1500ms linear;
+}
+
+/* Reduced motion means gentler, not absent: the person still has to be told the
+ * interface heard them, and at a gate in the dark that is the whole point. The
+ * bar stops moving and becomes the same 1500 ms as an opacity ramp, so the
+ * clock is still readable. */
+@media (prefers-reduced-motion: reduce) {
+  [data-v2] .gate-bar {
+    transform: none;
+    opacity: 0;
+    transition: opacity 150ms ease-out;
+  }
+
+  [data-v2] .gate-hold[data-holding] .gate-bar {
+    transform: none;
+    opacity: 0.25;
+    transition: opacity 1500ms linear;
+  }
+}
+
+/* ---------- desk ---------- */
+
+/* The panel is a reading column at a desk, the width tokens.css already sets
+ * for prose. Nothing else changes: the ten cards stay a single column, because
+ * the check is a sequence and two columns would invite answering it out of
+ * order. */
+@media (min-width: 1024px) {
+  [data-v2] .gate-panel {
+    max-width: var(--read-w);
+  }
+}
