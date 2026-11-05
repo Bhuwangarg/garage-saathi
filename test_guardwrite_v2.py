@@ -175,22 +175,32 @@ check("  …and a vendor's bill photo stands in for both  ->  allowed",
                                     externalVendor="Shree Motors",
                                     beforePhotos=["/uploads/bill.jpg"])) == "allowed")
 
-print("\n  ⚠️ The row contract §10 flags, confirmed: the supervisor still self-verifies")
-# DECISIONS.md §10 wants closedBy != verifiedBy for every role, and says in the
-# same breath that v1 is deliberately NOT changed: `selfSignsOff` is live at
-# app.js:3873 and supervisors sign off their own work in the office today.
-# Tightening the shared guard is a production change for ~100 people, so v2's
-# second signature lives in the v2 client and the two-line patch is §9(c).
-check("the supervisor who closed a card may still verify it  ->  allowed (NOT fixed)",
-      verdict(SUP, "jobcards", dict(JOB, status="verified")) == "allowed")
-check("  …and the record shows the same person on both signatures",
-      (stored("jobcards", "j-1") or {}).get("closedBy")
-      == (stored("jobcards", "j-1") or {}).get("verifiedBy") == "u-sup")
-check("the server's clause still reads exactly as contract §6 rule 4 says",
-      'if closer and closer == actor["id"] and actor["role"] != "supervisor":'
+print("\n  The row contract §10 flagged is now CLOSED, on the server and in v1")
+# These four asserted the opposite until main was merged into launch-v2, and they
+# were right to: this branch forked before the fix, so when they were written a
+# supervisor really could still sign off their own close here. §9(c) was
+# outstanding and they pinned that, which is what made the merge visible instead
+# of silent -- they are the reason nobody had to notice by hand that the two
+# branches disagreed about a production rule.
+#
+# The owner reversed the 15 September self-sign-off on 4 Nov and both halves
+# shipped (b1fb43b, dd26807). So the verdict flips, and the clause greps below
+# flip with it. If they ever go back to the old spelling, this branch has
+# reverted a deployed fix and these say so.
+check("a supervisor may NOT verify a card they closed  ->  refused",
+      verdict(SUP, "jobcards", dict(JOB, status="verified")) != "allowed")
+check("  …and the card is left closed, with the closer still recorded",
+      (stored("jobcards", "j-1") or {}).get("status") == "done"
+      and (stored("jobcards", "j-1") or {}).get("closedBy") == "u-sup"
+      and not (stored("jobcards", "j-1") or {}).get("verifiedBy"))
+check("the server's clause no longer exempts a supervisor",
+      'and actor["role"] != "supervisor"'
+      not in open(os.path.join(HERE, "sync_server.py"), encoding="utf-8").read())
+check("  …and signing off now requires the card to be closed first",
+      "a job must be closed before it can be signed off"
       in open(os.path.join(HERE, "sync_server.py"), encoding="utf-8").read())
-check("…so v1's client half is untouched too",
-      "const selfSignsOff = (role) => role === 'supervisor';"
+check("…and v1's client half matches, so it offers no button the server refuses",
+      "const selfSignsOff = () => false;"
       in open(os.path.join(HERE, "app.js"), encoding="utf-8").read())
 check("an OWNER still may not sign off what the owner closed  ->  refused",
       verdict(OWNER, "jobcards", dict(JOB, id="j-own", status="done")) == "allowed"
