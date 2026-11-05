@@ -65,6 +65,24 @@ STORES = [
 ROLES = list(S.ALL_ROLES)
 now = S.now_ms()
 
+# Three different ids hide behind one login, and `OWN_ROWS_SUBJECT` says which
+# each store's ownership field holds. An actor for a restricted role therefore
+# has to carry all three, exactly as `pull()` resolves them from the crew bank
+# before it builds its predicate -- a bare token dict owns nothing and is denied,
+# which is the safe direction and is asserted further down.
+CREW = {r: "own-drivers-" + r for r in ROLES}      # the crew-bank record below
+BUS = {r: "bus-" + r for r in ROLES}
+
+
+def actor_for(role):
+    return {"id": "u-" + role, "role": role, "crewId": CREW[role], "busId": BUS[role]}
+
+
+def subject_value(store, role):
+    """What this role's own row of `store` must carry in its ownership field."""
+    return {"user": "u-" + role, "crew": CREW[role],
+            "bus": BUS[role]}[P.OWN_ROWS_SUBJECT.get(store, "user")]
+
 print("The table covers every store, and the sweep covers every store in it")
 check("no store in the sweep is missing from the read matrix",
       not sorted(set(STORES) - (set(P.STORE_READ_ROLES) | set(P.V1_COMPAT_READ))))
@@ -83,7 +101,7 @@ print("\n8 roles x %d stores, both directions" % len(STORES))
 # Fresh records on purpose: the history stores are trimmed by AGE as well, and an
 # old record would be withheld for a reason that has nothing to do with the role.
 for role in ROLES:
-    actor = {"id": "u-" + role, "role": role}
+    actor = actor_for(role)
     never = S._never_for(actor)
     leaked, unskipped, lost = [], [], []
     for st in STORES:
@@ -91,7 +109,7 @@ for role in ROLES:
         # A record belonging to SOMEBODY ELSE, so an own-rows store is judged on
         # the store rule and not accidentally on ownership.
         other = rec(st, "r-" + st, userId="u-nobody", _createdBy="u-nobody",
-                    driverId="d-nobody")
+                    driverId="d-nobody", busId="bus-nobody")
         got = S.redact_for(actor, other) is not None
         if not allowed:
             if got:
@@ -101,9 +119,11 @@ for role in ROLES:
         else:
             # And the other direction, which is the half that keeps the office
             # working: an entitled store must still arrive. Own-rows stores are
-            # asked with the actor's OWN row.
+            # asked with the actor's OWN row, keyed on whichever of the three ids
+            # that store's field actually holds.
             field = (P.OWN_ROWS_ONLY.get(st) or (None, ()))[0]
-            mine = other if field is None else rec(st, "m-" + st, **{field: actor["id"]})
+            mine = other if field is None else \
+                rec(st, "m-" + st, **{field: subject_value(st, role)})
             if S.redact_for(actor, mine) is None:
                 lost.append(st)
             if st in never:
@@ -118,7 +138,7 @@ for role in ROLES:
 print("\nAn unknown store reaches nobody — the inverse of v1")
 for role in ROLES:
     check("%-11s is denied a store that is not in the table" % role,
-          S.redact_for({"id": "u", "role": role}, rec("notastore", "x-1")) is None)
+          S.redact_for(actor_for(role), rec("notastore", "x-1")) is None)
 
 print("\nEnd to end: the received set EQUALS the entitled set after a full drain")
 c = S.db()
@@ -132,12 +152,16 @@ for st in STORES:
 # of the SQL predicate and not of an empty set.
 for role in ROLES:
     for st, (field, roles) in P.OWN_ROWS_ONLY.items():
-        if not field:
-            continue
         rid = "own-%s-%s" % (st, role)
-        rev = S._upsert_record(c, st, rid,
-                               {"id": rid, "at": now, "updatedAt": now, field: "u-" + role},
-                               now, rev)
+        row = {"id": rid, "at": now, "updatedAt": now, field: subject_value(st, role)}
+        # `own-drivers-<role>` doubles as the role's crew-bank record, so the
+        # crew and bus ids `pull()` resolves for itself are the same ones this
+        # file seeded its trips, stop arrivals and routes under. Without that the
+        # drain below would be testing two different identities against each
+        # other and would pass for the wrong reason.
+        if st == "drivers":
+            row["busId"] = BUS[role]
+        rev = S._upsert_record(c, st, rid, row, now, rev)
 # The wall that made a new phone's first sync crawl: the records a driver
 # actually needs sit behind thousands of rows it may never see.
 for i in range(2000):
@@ -186,10 +210,15 @@ def entitled(actor):
     return want
 
 
+# Drained with a BARE token -- `{id, role}`, which is all `/pull` ever receives.
+# `pull()` has to resolve the crew and bus ids for itself; handing them to it
+# here would skip the very step whose absence emptied the trip-cash card, and an
+# earlier version of this file did exactly that and stayed green when the
+# resolution was removed.
 for role in ROLES:
     actor = {"id": "u-" + role, "role": role}
     got, pages = drain(actor)
-    want = entitled(actor)
+    want = entitled(actor_for(role))
     extra = sorted(got - want)[:4]
     missing = sorted(want - got)[:4]
     check("%-11s received set equals entitled set%s" % (
@@ -206,10 +235,11 @@ for role in ROLES:
               ("attendance", "own-attendance-" + role) in got)
 
 print("\nNamed regressions — every one of these is true on today's code")
-CON = {"id": "u-conductor", "role": "conductor"}
-MECH = {"id": "u-mechanic", "role": "mechanic"}
-OFF = {"id": "u-office", "role": "office"}
-CM = {"id": "u-crewmanager", "role": "crewmanager"}
+CON = actor_for("conductor")
+MECH = actor_for("mechanic")
+OFF = actor_for("office")
+CM = actor_for("crewmanager")
+DRV = actor_for("driver")
 con_got, _ = drain(CON)
 con_stores = {s for s, _ in con_got}
 for st in ("purchases", "ledger", "jobcards", "fuel", "trips", "challans", "gatechecks",
@@ -249,7 +279,7 @@ crew = rec("drivers", "d-1", name="Ramlal", userId="u-someone",
 for role in ROLES:
     if role in P.PII:
         continue
-    out = S.redact_for({"id": "u-" + role, "role": role}, crew)
+    out = S.redact_for(actor_for(role), crew)
     if out is None:
         check("%-11s receives no colleague crew record at all" % role, True)
         continue
@@ -269,28 +299,65 @@ check("and so does the person themselves",
 
 print("\nOwn rows: its own row, not a colleague's — and the SQL did the narrowing")
 for st, (field, roles) in sorted(P.OWN_ROWS_ONLY.items()):
-    if not field:
-        continue
     for role in sorted(roles):
-        actor = {"id": "u-" + role, "role": role}
         if role not in P.read_roles(st):
             continue
+        actor = actor_for(role)
         check("%-14s %-11s gets its own row" % (st, role),
-              S.redact_for(actor, rec(st, "mine", **{field: actor["id"]})) is not None)
+              S.redact_for(actor, rec(st, "mine",
+                                      **{field: subject_value(st, role)})) is not None)
         check("%-14s %-11s does not get a colleague's" % (st, role),
-              S.redact_for(actor, rec(st, "theirs", **{field: "u-somebody-else"})) is None)
-print("…and the narrowing is in the query, not after it")
-for st in ("attendance", "usage", "drivers", "trips", "gatechecks"):
-    pred = P.own_rows_predicate(st, {"id": "u-d", "role": "driver"}, "sqlite")
-    pg = P.own_rows_predicate(st, {"id": "u-d", "role": "driver"}, "postgres")
-    if "driver" not in (P.OWN_ROWS_ONLY[st][1] or ()):
-        continue
-    check("%-11s is narrowed in SQLite" % st, bool(pred) and "json_extract" in pred[0])
-    check("%-11s is narrowed in Postgres" % st, bool(pg) and "::jsonb->>" in pg[0])
+              S.redact_for(actor, rec(st, "theirs", **{field: "somebody-else"})) is None)
+
+print("…and the narrowing is in the query for EVERY one of them, not after it")
+# Spelled out rather than read off OWN_ROWS_ONLY, so a store dropped from the map
+# fails here instead of quietly dropping its own check with it.
+NARROWED = ["attendance", "usage", "drivers", "driverreports", "trips", "triplog",
+            "routes", "gatechecks"]
+check("the own-rows map holds exactly these stores%s"
+      % ("" if sorted(P.OWN_ROWS_ONLY) == sorted(NARROWED)
+         else " -> gone: " + ",".join(sorted(set(NARROWED) - set(P.OWN_ROWS_ONLY)))),
+      sorted(P.OWN_ROWS_ONLY) == sorted(NARROWED))
+for st in NARROWED:
+    if st not in P.OWN_ROWS_ONLY:
+        continue                      # already named by the check above
+    role = sorted(P.OWN_ROWS_ONLY[st][1])[0]
+    a = actor_for(role)
+    pred = P.own_rows_predicate(st, a, "sqlite")
+    pg = P.own_rows_predicate(st, a, "postgres")
+    check("%-14s is narrowed in SQLite" % st, bool(pred) and "json_extract" in pred[0])
+    check("%-14s is narrowed in Postgres" % st, bool(pg) and "::jsonb->>" in pg[0])
+    check("%-14s binds the id its field actually holds" % st,
+          pred[1] == [subject_value(st, role)])
 check("a manager is not narrowed at all",
-      P.own_rows_predicate("attendance", {"id": "u-own", "role": "owner"}) is None)
-check("triplog is honestly post-filtered, because its owner is a bus",
-      P.own_rows_predicate("triplog", {"id": "u-d", "role": "driver"}) is None)
+      P.own_rows_predicate("attendance", actor_for("owner")) is None)
+
+print("\nAnd an actor with no identity for the subject is DENIED, never widened")
+# The first version of this file keyed `trips` on the login id while app.js
+# writes the crew id, so the predicate matched nothing and a v1 driver's
+# trip-cash card came up empty. The same class of mistake with a NULL field used
+# to return "no narrowing", which is the opposite failure: every bus's stop times
+# to every driver. Both directions are nailed down here.
+BARE = {"id": "u-driver", "role": "driver"}
+for st in ("trips", "triplog", "routes"):
+    pred = P.own_rows_predicate(st, BARE, "sqlite")
+    check("%-14s a bare token with no crew record matches no rows (never None)" % st,
+          pred is not None and pred[0] == "1 = 0" and pred[1] == [])
+    check("%-14s …and the per-record backstop denies too" % st,
+          P.own_row_ok(st, BARE, {"id": "x", "driverId": "d1", "busId": "bus-1"}) is False)
+check("trips is keyed on the CREW id, which is what app.js writes",
+      P.OWN_ROWS_ONLY["trips"][0] == "driverId"
+      and P.OWN_ROWS_SUBJECT["trips"] == "crew")
+check("…so a trip carrying the login id in driverId is NOT the driver's own",
+      S.redact_for(DRV, rec("trips", "t-wrong", driverId="u-driver")) is None)
+check("…and one carrying their crew id is",
+      S.redact_for(DRV, rec("trips", "t-right", driverId=CREW["driver"])) is not None)
+check("triplog and routes are keyed on the BUS",
+      P.OWN_ROWS_SUBJECT["triplog"] == "bus" and P.OWN_ROWS_SUBJECT["routes"] == "bus")
+check("…so a stop arrival for another bus is withheld",
+      S.redact_for(DRV, rec("triplog", "tl-other", busId="bus-other")) is None)
+check("…and the driver's own bus's arrival is not",
+      S.redact_for(DRV, rec("triplog", "tl-mine", busId=BUS["driver"])) is not None)
 
 print("\n`store=` cannot widen what a login receives")
 page = S.pull(0, actor=CON, only=["purchases", "ledger", "gpsevents"])
@@ -308,6 +375,7 @@ COMPAT = [
     ("gatechecks", "office", "the office's traced reviews (traceCtx -> gateChecks)"),
     ("trips", "driver", "v1 driver's trip-cash card (viewDriverHome)"),
     ("triplog", "driver", "v1 driver's stop arrivals"),
+    ("routes", "driver", "captureArrivals, via startRouteMonitor on every login"),
     ("rbservices", "driver", "v1 gate check's service picker (viewGate)"),
     ("components", "mechanic", "the mechanic's Store screen (viewPartDetail tracked pieces)"),
     ("parts", "crewmanager", "the crew manager's Components screen (viewComponentDetail)"),
@@ -339,6 +407,121 @@ check("every compat row grants something the v2 matrix withholds%s"
 check("the compat table holds exactly the rows listed above",
       sorted((st, r) for st, rs in P.V1_COMPAT_READ.items() for r in rs)
       == sorted((st, r) for st, r, _ in COMPAT))
+
+print("\nThe driver's four screens, each checked against what they actually read")
+drv_got, _ = drain(DRV)
+check("the trip-cash card on their home has its trips",
+      ("trips", "own-trips-driver") in drv_got)
+check("…and not a colleague's", ("trips", "seed-trips") not in drv_got)
+check("their stop arrivals arrive, for their own bus",
+      ("triplog", "own-triplog-driver") in drv_got)
+check("…and not another bus's", ("triplog", "seed-triplog") not in drv_got)
+# `captureArrivals` returns early unless `routeForBus(bus.id)` finds a route, and
+# `startRouteMonitor` runs on every login — so without this the driver's phone
+# holds the triplog write role and produces not one line.
+check("the route those arrivals are measured against arrives too",
+      ("routes", "own-routes-driver") in drv_got)
+check("…and only for their own bus", ("routes", "seed-routes") not in drv_got)
+check("their gate check arrives — their only route in v1",
+      ("gatechecks", "own-gatechecks-driver") in drv_got)
+check("…and not a colleague's", ("gatechecks", "seed-gatechecks") not in drv_got)
+check("the service picker that gate check needs arrives",
+      ("rbservices", "seed-rbservices") in drv_got)
+
+print("\nAnd the server resolves those ids itself, from the crew bank")
+# Without this, every check above could be satisfied by a test that kindly handed
+# the server the answer. `/pull` gets a token holding a login id and nothing else.
+_bare_drv = {"id": "u-driver", "role": "driver"}
+_sc = S._scoped_actor(S.db(), _bare_drv)
+check("pull() turns a login id into the crew id app.js writes",
+      _sc.get("crewId") == CREW["driver"])
+check("…and into the bus its stop arrivals and route are keyed on",
+      _sc.get("busId") == BUS["driver"])
+check("a role with no own-rows subject is left alone, so nothing is read for it",
+      S._scoped_actor(S.db(), {"id": "u-owner", "role": "owner"}) == {"id": "u-owner", "role": "owner"})
+check("every store with a subject is a store the map actually narrows",
+      not sorted(set(P.OWN_ROWS_SUBJECT) - set(P.OWN_ROWS_ONLY)))
+
+_bare_got, _ = drain(_bare_drv)
+check("so a bare driver token still receives its own trips",
+      ("trips", "own-trips-driver") in _bare_got)
+check("…its own bus's stop arrivals", ("triplog", "own-triplog-driver") in _bare_got)
+check("…and its own bus's route", ("routes", "own-routes-driver") in _bare_got)
+check("…and still not a colleague's trips", ("trips", "seed-trips") not in _bare_got)
+
+print("\nAnd it notices when somebody is moved to another bus")
+# The resolution is memoised on the crew store's own (count, max rev), because
+# /pull runs every four seconds on every device. A memo that never invalidated
+# would keep a reassigned driver on their old bus's stop times and route for the
+# life of the container — a staleness bug with no symptom but wrong data.
+_mc = S.db()
+_mrev = _mc.execute("SELECT COALESCE(MAX(rev),0) FROM records").fetchone()[0]
+_mrev = S._upsert_record(_mc, "drivers", CREW["driver"],
+                         {"id": CREW["driver"], "userId": "u-driver",
+                          "busId": "bus-moved", "at": now, "updatedAt": now}, now, _mrev)
+_mrev = S._upsert_record(_mc, "routes", "rt-moved",
+                         {"id": "rt-moved", "busId": "bus-moved", "at": now,
+                          "updatedAt": now}, now, _mrev)
+_mc.commit()
+_mc.close()
+check("the crew read notices the new bus",
+      S._scoped_actor(S.db(), _bare_drv).get("busId") == "bus-moved")
+_moved_got, _ = drain(_bare_drv)
+check("…so the route of the bus they are on now arrives",
+      ("routes", "rt-moved") in _moved_got)
+check("…and the one they left does not",
+      ("routes", "own-routes-driver") not in _moved_got)
+
+print("\nA gate check the driver really pushed comes back to them")
+# Not a seeded row: the client never writes `userId`, the SERVER stamps it on a
+# driver create (same commit as the store), so a check pushed through the app
+# always carries it. Diagnosing this from demo rows that no driver ever pushed
+# reads as a boundary bug and is not one, so the round trip is asserted here
+# rather than left to a fixture.
+_c = S.db()
+_rev = _c.execute("SELECT COALESCE(MAX(rev),0) FROM records").fetchone()[0]
+_rev = S._upsert_record(_c, "drivers", "crew-gc",
+                        {"id": "crew-gc", "name": "Gate Driver", "userId": "u-gcdrv",
+                         "busId": "bus-gc", "updatedAt": now}, now, _rev)
+_c.commit()
+_c.close()
+GCDRV = {"id": "u-gcdrv", "role": "driver"}
+_r = S.push([{"store": "gatechecks", "id": "gc-live",
+              "data": {"id": "gc-live", "busId": "bus-gc", "driverId": "crew-gc",
+                       "driverName": "Gate Driver", "status": "open",
+                       "startedAt": now, "date": "2026-11-05", "items": {}},
+              "updatedAt": now}], GCDRV)
+check("the push is accepted", _r["applied"] == 1 and not _r["refused"])
+_gc = [x for x in S.pull(0, actor=GCDRV)["records"] if x["store"] == "gatechecks"]
+check("the server stamped userId from the token, so the client never has to",
+      any(x["id"] == "gc-live" and x["data"].get("userId") == "u-gcdrv" for x in _gc))
+check("and the driver who pushed it receives it back",
+      any(x["id"] == "gc-live" for x in _gc))
+check("…while another driver does not",
+      not [x for x in S.pull(0, actor=DRV)["records"]
+           if x["store"] == "gatechecks" and x["id"] == "gc-live"])
+
+print("\nThe office keeps the one field its screen is computed from")
+# `rvBoard()` in app.js is `parseLocal(r.boardAt || r.doj)`, and every "last N
+# days" filter, every crew scorecard and the review trace are computed from it.
+# Stripping both left the office — the only login whose entire purpose is this
+# screen — reading "Last 7 days 0, — average" with every review dated "—".
+_rv = rec("rbreviews", "rv-1", pnr="PNR123", tin="T1", seats=["1A"], fare=900,
+          amount=900, boardAt="2026-11-01 21:30", doj="2026-11-01",
+          rating=1, comment="late", source="Jaipur", dest="Delhi")
+_off = (S.redact_for(OFF, _rv) or {}).get("data") or {}
+check("the office receives the boarding time", _off.get("boardAt") == "2026-11-01 21:30")
+check("…and the date of journey", _off.get("doj") == "2026-11-01")
+check("…and the rating and the words, which is the screen", _off.get("rating") == 1)
+for _f in ("pnr", "tin", "seats", "fare", "amount"):
+    check("but not the %-6s — the PNR is the booking credential, not the date" % _f,
+          _f not in _off)
+check("and the partial copy is still marked", _off.get("_redacted") is True)
+check("a crew manager still gets the whole review",
+      (S.redact_for(CM, _rv) or {})["data"].get("pnr") == "PNR123")
+for _role in ("driver", "conductor", "store", "mechanic"):
+    check("%-10s still receives no reviews at all" % _role,
+          S.redact_for(actor_for(_role), _rv) is None)
 
 print("\nFour stores no client has an object store for reach nobody at all")
 for st in ("aimeta", "gpslive", "odometerlogs", "waconv"):

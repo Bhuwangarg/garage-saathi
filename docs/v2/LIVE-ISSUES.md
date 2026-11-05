@@ -210,7 +210,7 @@ with one.
 
 ---
 
-## 7. Uploaded files are served to anyone holding the URL
+## 7. Uploaded files are served to anyone holding the URL — PARTLY HARDENED
 
 **Severity: medium-high.** Verified in source, not relayed.
 
@@ -369,3 +369,56 @@ SELECT COUNT(*) AS total,
        COUNT(*) FILTER (WHERE data::jsonb->>'selfie' LIKE '/uploads/%') AS uploaded
 FROM records WHERE store = 'gatechecks';
 ```
+
+
+---
+
+## 7b. What was done about the uploads route, and what was not
+
+**Hardened, 2026-11-05. Not fixed.** The distinction matters, so here it is
+plainly.
+
+**Why the obvious fix was not taken.** Requiring a session token on
+`/uploads/<name>` would break **every photograph in the app at once**. All 32 of
+its image sites are plain `<img src="${...}">` tags built from a record field,
+and a plain image request carries no headers. Nor do the alternatives survive
+contact with this app:
+
+- **A signed URL with an expiry** is wrong here, and the backend contract §12
+  already said so: the URL lives *inside a record* that somebody reads months
+  later, so expiry makes evidence unreadable rather than private.
+- **A cookie** would work with `<img>`, but the app can be served from
+  `bhuwangarg.github.io` while the API is on `vercel.app`, so it would need a
+  cross-site cookie — the thing browsers are actively removing.
+- **The service worker attaching the header** only works where the app and the
+  API share an origin. On the Pages deployment they do not, and `sw.js` returns
+  early for a cross-origin request by design.
+
+So the real fix is a **client** change: convert those 32 sites to fetch the
+image with the auth header and render a blob URL. That is real work, it has to
+keep working offline, and getting it wrong blanks every photograph on a hundred
+devices. It is not something to do in passing.
+
+**What was done, because it costs nothing and closes real paths:**
+
+- **`Cache-Control: private, no-store`.** This route sent *no* `Cache-Control`
+  at all, which left shared and intermediate caches to heuristics. An Aadhaar
+  photograph must never sit in one. The service worker's Cache API is explicit
+  rather than heuristic, so offline display is unaffected.
+- **No `Access-Control-Allow-Origin` at all** — verified absent even when a
+  hostile `Origin` header asks. That is not the same as a restrictive origin: with
+  no CORS header, a page elsewhere cannot `fetch()` these and read the bytes.
+  `<img>` is unaffected, because displaying a cross-origin image has never
+  needed CORS — only reading its pixels does, and nothing here does that
+  (`gradePartWear` takes a data URL and already catches the taint throw).
+- **`X-Content-Type-Options: nosniff`**, so a crafted upload cannot be
+  re-interpreted as markup.
+
+**What is still true after this.** Anyone holding the URL can still open it, and
+there is still no revocation. The exposure is unchanged for anybody who has the
+link; what is closed is the set of ways a link, or the bytes behind it, leaks to
+somebody who never had it. The 128-bit name is still the only thing standing
+between an unauthenticated request and a crew member's licence.
+
+**Still the owner's call**, and it is now a smaller, clearer decision: fund the
+client change, or accept capability URLs for these files and say so on purpose.

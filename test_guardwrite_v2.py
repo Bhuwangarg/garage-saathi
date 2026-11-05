@@ -267,19 +267,27 @@ check("  …a driver still only records their own  ->  refused",
                                 "allowance": 2000, "status": "active", "expenses": [],
                                 "startAt": now}) == "a driver can only record their own trips")
 
-print("\n  🔴 The gate round (DECISIONS.md §12, screen #13) — refused, not merely flagged")
-# Contract §10 records this row as "allowed, with one thing to check in stage 1",
-# on the grounds that WRITE_ROLES["gatechecks"] holds owner/supervisor. It does —
-# but _guard_gatecheck only lets a DRIVER create a check, and answers a manager
-# with no stored row outright. So the owner having moved the round to the
-# supervisor is not something the server permits today.
+print("\n  The gate round (DECISIONS.md §12, screen #13) — now permitted, on its own id")
+# This block asserted the opposite, and was right to: _guard_gatecheck answered
+# any manager with "a gate check is started by the driver at the bus", so the
+# screen the owner asked for could not ship. Flagging it is what got it fixed.
+#
+# Each create now uses its OWN id. The two manager attempts used to be refused,
+# which left nothing stored, so the driver's create could reuse `gc-1`; now they
+# land, and the reuse turned that create into an amend that tripped GATE_FIXED.
+# The test caught the change instead of the change breaking the test.
 GATE = {"id": "gc-1", "busId": "bus-1", "regNo": "RJ14 AA 1111", "driverId": "d-1",
         "driverName": "Ramlal", "status": "open", "startedAt": now, "date": "2026-11-04",
         "selfie": "/uploads/selfie.jpg", "items": {}}
-check("a SUPERVISOR creating the gate round  ->  REFUSED today",
-      verdict(SUP, "gatechecks", GATE) == "a gate check is started by the driver at the bus")
-check("  …and so is an owner", verdict(OWNER, "gatechecks", dict(GATE, id="gc-2"))
-      == "a gate check is started by the driver at the bus")
+check("a SUPERVISOR can start the gate round  ->  allowed",
+      verdict(SUP, "gatechecks", dict(GATE, id="gc-sup")) == "allowed")
+check("  …and an owner can too", verdict(OWNER, "gatechecks", dict(GATE, id="gc-own"))
+      == "allowed")
+check("  …and the record says who RAN it, from the token",
+      (stored("gatechecks", "gc-sup") or {}).get("userId") == "u-sup")
+check("  …a round naming a driver not crewed to that bus  ->  refused",
+      verdict(SUP, "gatechecks", dict(GATE, id="gc-bad", driverId="d-elsewhere"))
+      != "allowed")
 check("the driver creating their own  ->  allowed",
       verdict(DRIVER, "gatechecks", GATE) == "allowed")
 check("  …and userId is stamped from the token",

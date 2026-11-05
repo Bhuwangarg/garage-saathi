@@ -130,6 +130,15 @@ V1_COMPAT_READ = {
     "gatechecks":    frozenset({"driver", "office"}),         # app.js viewGate (driver's only route); viewOfficeHome/viewReviews trace [audit]
     "trips":         frozenset({"driver"}),                   # app.js viewDriverHome, the trip-cash card
     "triplog":       frozenset({"driver"}),                   # app.js driver stop arrivals
+    # [audit] And the route those arrivals are measured against. `startRouteMonitor`
+    # runs on EVERY signed-in login (only the at-risk toast is gated on
+    # `manageRoutes`), and `captureArrivals` returns early unless
+    # `routeForBus(bus.id)` finds a route — so granting `triplog` without
+    # `routes` gives a driver's phone the write role and the read row for a log
+    # it can no longer produce a single line of. Narrowed to the driver's own bus,
+    # which is all `routeForBus` ever asks for and all their `triplog` write
+    # guard permits.
+    "routes":        frozenset({"driver"}),                   # app.js captureArrivals via startRouteMonitor
     "rbservices":    frozenset({"driver"}),                   # app.js viewGate, the service picker
     # [audit] The mechanic's Store screen. viewPartDetail renders a "Tracked
     # pieces" card for any rotable, and `componentsOfPart` reads this store
@@ -170,13 +179,47 @@ OWN_ROWS_ONLY = {
     "drivers":       ("userId",      frozenset({"store", "mechanic", "driver", "conductor"})),
     "driverreports": ("_createdBy",  frozenset({"driver", "conductor"})),
     "trips":         ("driverId",    frozenset({"driver"})),
-    # `triplog`'s owner is a BUS, and which bus is the actor's needs their crew
-    # record -- which this module cannot read. So it post-filters with the store
-    # still in the page. Named as a known cost rather than hidden: it is the one
-    # row here that costs a read.
-    "triplog":       (None,          frozenset({"driver"})),
+    "triplog":       ("busId",       frozenset({"driver"})),
+    "routes":        ("busId",       frozenset({"driver"})),
     "gatechecks":    ("userId",      frozenset({"driver"})),
 }
+
+# WHICH IDENTITY each ownership field above holds. Getting this wrong is silent
+# in the worst way: the predicate simply never matches, every row is withheld,
+# and the screen is blank with no error anywhere.
+#
+# It is easy to get wrong because the three ids look alike in a token. A login id
+# (`u-d1`) is what `attendance.userId`, `usage.userId`, `drivers.userId` and
+# `driverreports._createdBy` hold. A CREW-BANK id (`d1`) is what
+# `trips.driverId` holds -- `saveStartTrip` in app.js writes `driverId` from
+# `data-driver="${esc(d.id)}"`, where `d` is the crew record, and the server's own
+# write guard agrees (`data.get("driverId") != crew.get("id")`). A BUS id is what
+# `triplog.busId` and `routes.busId` hold.
+#
+# `trips` was keyed on the login id in the first version of this file, so a v1
+# driver received none of their own trips and the trip-cash card on their home
+# screen -- one of the four screens that login has -- came up empty.
+OWN_ROWS_SUBJECT = {
+    "trips":   "crew",
+    "triplog": "bus",
+    "routes":  "bus",
+}
+# Where each subject's value is found on an actor. `pull()` fills `crewId` and
+# `busId` from the actor's crew-bank record before it builds the predicate; a
+# plain token dict carries neither, and both functions below then DENY rather
+# than quietly widening (see own_rows_predicate).
+_SUBJECT_KEY = {"user": "id", "crew": "crewId", "bus": "busId"}
+
+# The two tables above have to agree, and the failure if they do not is the worst
+# kind: a store narrowed with its subject missing silently falls back to the
+# login id, which is the exact defect that emptied the driver's trip-cash card.
+# So this is a hard stop at import rather than a wrong answer at run time — the
+# only safe way round for a rule nothing downstream can detect.
+_orphan_subjects = sorted(set(OWN_ROWS_SUBJECT) - set(OWN_ROWS_ONLY))
+if _orphan_subjects:
+    raise RuntimeError(
+        "OWN_ROWS_SUBJECT names stores OWN_ROWS_ONLY does not narrow: %s — "
+        "either narrow them or drop the subject" % ", ".join(_orphan_subjects))
 
 # The second layer, applied AFTER the store check decided the record may be sent
 # at all. Removing a field is not the same question as withholding a record, and
@@ -195,10 +238,22 @@ FIELD_REDACT = {
     # says and for a reason found in `app.js`.
     "meta":         ("labourRate", "latePenalty", "lateGraceDays", "latePenaltyCap",
                      "dailyRevenue"),
-    # A PNR plus a date is a booking-lookup credential on our own portal. The
-    # leaderboard needs the stars, the words, the route and whose trip it was.
-    "rbreviews":    ("pnr", "tin", "seats", "fare", "boardAt", "doj", "amount"),
-    "rbcomplaints": ("pnr", "tin", "seats", "fare", "boardAt", "doj", "amount"),
+    # The PNR is the booking-lookup credential on our own portal, and the seat,
+    # the fare and the amount are the passenger's business. The BOARDING TIME is
+    # not any of those, and taking it away broke the only screen this login
+    # exists for: `rvBoard()` in app.js is `parseLocal(r.boardAt || r.doj)`, and
+    # every "last 7 days" filter, every scorecard and the review trace itself are
+    # computed from it. With both fields gone it returns 0, so the office's
+    # landing screen reads "Last 7 days 0, — average, — 1★" with every review
+    # dated "—", while a crew manager on the same data sees real figures.
+    #
+    # Contract §3.3a lists `boardAt`/`doj` in this set and says "unchanged",
+    # which is true — v1 has been stripping them from the office all along. So
+    # this is a live defect being fixed rather than a v2 narrowing, and it
+    # WIDENS what the office receives, which is permission policy: named for the
+    # owner in the hand-over rather than slipped in.
+    "rbreviews":    ("pnr", "tin", "seats", "fare", "amount"),
+    "rbcomplaints": ("pnr", "tin", "seats", "fare", "amount"),
 }
 
 
@@ -251,36 +306,59 @@ def never_for(actor):
     return frozenset(never)
 
 
+def own_rows_subject(store, actor):
+    """The value this actor's own rows of `store` must carry, or None.
+
+    None means the actor has no identity for that subject — a driver with no
+    crew-bank record, or one who is on no bus. Both callers then DENY, which is
+    the only safe direction: a driver linked to no crew record owns no trips, and
+    answering "no narrowing" instead would hand them the whole store.
+    """
+    key = _SUBJECT_KEY[OWN_ROWS_SUBJECT.get(store, "user")]
+    val = (actor or {}).get(key)
+    return str(val) if val else None
+
+
 def own_rows_predicate(store, actor, dialect="sqlite"):
     """`(sql_fragment, params)` narrowing `store` to this actor's own rows, or None.
 
-    Returns None when the actor is not restricted, when the store has no
-    ownership field the server can read from a token, or when there is no actor —
-    and `pull()` must add the fragment to BOTH of its statements, or completing a
-    rev group quietly readmits a row the page had just excluded.
+    Returns None only when the actor is not restricted on this store at all, so
+    a caller that gets None may safely read the store whole. When the actor IS
+    restricted but has no identity for the subject, the fragment is one that
+    matches nothing — never None, because None would widen.
+
+    `pull()` must add the fragment to BOTH of its statements, or completing a rev
+    group quietly readmits a row the page had just excluded.
     """
     rule = OWN_ROWS_ONLY.get(store)
     if not rule or not actor:
         return None
     field, roles = rule
-    if actor.get("role") not in roles or not field:
+    if actor.get("role") not in roles:
         return None
-    if dialect == "postgres":
-        return ("(data::jsonb->>'%s') = ?" % field, [actor.get("id")])
-    return ("json_extract(data,'$.%s') = ?" % field, [actor.get("id")])
+    col = ("(data::jsonb->>'%s')" % field) if dialect == "postgres" \
+        else ("json_extract(data,'$.%s')" % field)
+    want = own_rows_subject(store, actor)
+    if want is None:
+        return ("1 = 0", [])          # no identity for this subject: no rows
+    return ("%s = ?" % col, [want])
 
 
 def own_row_ok(store, actor, data):
-    """The same predicate as a backstop on one record, derived from the same map.
+    """The same rule as a backstop on one record, derived from the same map.
 
     `redact_for` enforces it after the SQL has already narrowed the page, because
     a store asked for by name through `?store=` takes a different path through
-    `pull()` and because `triplog` is post-filtered by design.
+    `pull()`, and because a caller that never went through `pull()` at all — an
+    agent route, a test — would otherwise have no narrowing behind it.
     """
     rule = OWN_ROWS_ONLY.get(store)
     if not rule or not actor or not isinstance(data, dict):
         return True
     field, roles = rule
-    if actor.get("role") not in roles or not field:
+    if actor.get("role") not in roles:
         return True
-    return str(data.get(field) or "") == str(actor.get("id") or "")
+    want = own_rows_subject(store, actor)
+    if want is None:
+        return False
+    return str(data.get(field) or "") == want

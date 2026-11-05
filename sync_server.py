@@ -1324,6 +1324,26 @@ def _same_except(a, b, allowed):
     return all(a.get(k) == b.get(k) for k in keys)
 
 
+def _crew_by_id(c, crew_id):
+    """The live crew-bank record with this id.
+
+    `_crew_record_for` below finds a crew member by their LOGIN; this finds one
+    by their crew-bank id. A supervisor-run gate round needs the second: it
+    names the driver taking the bus out, who is not the person signed in.
+    """
+    if c is None or not crew_id or not isinstance(crew_id, str):
+        return None
+    row = c.execute("SELECT data FROM records WHERE store='drivers' AND id=?",
+                    (crew_id,)).fetchone()
+    if not row:
+        return None
+    try:
+        d = json.loads(row[0])
+    except Exception:
+        return None
+    return d if isinstance(d, dict) and not d.get("_deleted") else None
+
+
 def _crew_record_for(c, user_id):
     """The live crew-bank record (drivers store) whose login is this user."""
     if c is None:
@@ -1843,15 +1863,23 @@ def _guard_gatecheck(data, actor, old, manager, c):
     if data.get("_deleted"):
         return "a gate check cannot be deleted"
     status, was = data.get("status"), (old or {}).get("status")
-    if actor["role"] == "driver":
-        crew = _crew_record_for(c, actor["id"])
-        if not crew:
-            return "no crew record is linked to this login"
-        if data.get("driverId") != crew.get("id") or (old and old.get("driverId") != crew.get("id")):
-            return "a driver can only fill in their own gate check"
+    # Filling in a check belongs to whoever STARTED it, not to a role. A driver
+    # fills in their own; a supervisor running the evening's round fills in the
+    # ones they started. The rules below are about the check -- items, the
+    # failed-item record, release and escalation -- and they are identical
+    # either way, so they are reached by both rather than written twice.
+    manager_fill = bool(manager and old and old.get("userId") == actor["id"]
+                        and was in ("open", "held"))
+    if actor["role"] == "driver" or manager_fill:
+        if actor["role"] == "driver":
+            crew = _crew_record_for(c, actor["id"])
+            if not crew:
+                return "no crew record is linked to this login"
+            if data.get("driverId") != crew.get("id") or (old and old.get("driverId") != crew.get("id")):
+                return "a driver can only fill in their own gate check"
         if data.get("decision") != (old or {}).get("decision"):
             return "only the office can approve or hold a bus"
-        if not old:
+        if not old:                                  # a driver starting their own
             if status != "open":
                 return "a gate check starts open"
             if not data.get("busId") or data.get("busId") != crew.get("busId"):
@@ -1889,11 +1917,49 @@ def _guard_gatecheck(data, actor, old, manager, c):
         return "invalid gate check status"
     if not manager:
         return "role may not write this store"
-    # Owner / supervisor: decide go or hold on a check waiting for the office.
+    # Owner / supervisor. Two things: START a round, and decide go or hold.
     if not old:
-        return "a gate check is started by the driver at the bus"
+        # A supervisor-run gate round. The owner's decision of 4 Nov 2026
+        # (DECISIONS.md section 12): drivers have logins and do not use them, so
+        # the departure check is recorded by somebody actually holding a phone --
+        # keeping all ten items, the hold, and the driver's photograph, so the
+        # record still evidences who took which bus out.
+        #
+        # This answered "a gate check is started by the driver at the bus" until
+        # now, which blocked that screen outright. The driver path above is NOT
+        # loosened: a driver still may only check their own bus.
+        if status != "open":
+            return "a gate check starts open"
+        if data.get("decision") is not None:
+            return "a gate check cannot be decided before it exists"
+        at = data.get("startedAt")
+        if not isinstance(at, (int, float)) or at > now_ms() + MAX_FUTURE_SKEW_MS:
+            return "a gate check needs a real start time"
+        bus = data.get("busId")
+        if not bus or not isinstance(bus, str):
+            return "a gate check is for one bus"
+        # The driver has to be named, and has to be the crew on THAT bus, or a
+        # round could attribute a departure to somebody who was not taking it.
+        crew = _crew_by_id(c, data.get("driverId"))
+        if not crew:
+            return "a gate check names the driver taking the bus out"
+        if crew.get("busId") != bus:
+            return "that driver is not crewed to this bus"
+        data["driverName"] = crew.get("name") or data.get("driverName") or ""
+        # `userId` is who DID the check and comes from the token; `driverId` is
+        # who is taking the bus out. In this flow they are two different people
+        # and the record has to say so -- that separation is the whole reason the
+        # photograph still means something.
+        data["userId"] = actor["id"]
+        return None
     if was != "awaiting" or status not in ("approved", "held"):
         return "only a check waiting for the office can be approved or held"
+    # Nobody decides on a check they performed themselves. The same rule as a
+    # job card's second signature, and for the same reason: with drivers out of
+    # this flow, one pair of hands would otherwise do the check, fail it, and
+    # clear it. Another manager or the owner decides.
+    if old.get("userId") == actor["id"]:
+        return "you ran this check \u2014 somebody else decides go or hold"
     keep = {k: v for k, v in old.items()
             if k not in ("status", "decision", "pastDecisions", "updatedAt", "_by", "_byRole", "_org")}
     if any(data.get(k) != v for k, v in keep.items()):
@@ -4124,6 +4190,48 @@ HISTORY_ROLES = {
 }
 
 
+# Which roles own rows by something other than their login id, so the crew-bank
+# read below is skipped entirely for everybody else.
+_CREW_SCOPED_ROLES = frozenset(
+    r for st in v2_perms.OWN_ROWS_SUBJECT for r in v2_perms.OWN_ROWS_ONLY[st][1])
+_CREW_MEMO = {"key": None, "by_user": {}}
+
+
+def _scoped_actor(c, actor):
+    """`actor` plus the ids its own-rows predicates need: `crewId` and `busId`.
+
+    Three different ids hide behind one login. `attendance.userId` is the login
+    id; `trips.driverId` is the CREW-BANK id (`saveStartTrip` writes `d.id`, and
+    the write guard reads it the same way); `triplog.busId` and `routes.busId`
+    are the bus. A predicate built on the wrong one matches nothing and the
+    screen is blank with no error — which is exactly what happened to the v1
+    driver's trip-cash card.
+
+    The read is memoised on the crew store's own (count, max rev), the pattern
+    `_crew_review_index` already uses: /pull runs every four seconds on every
+    device, and scanning 110 crew records on each one to find a single row would
+    be a cost paid for ever. The aggregate that checks the memo is served by the
+    (store, rev) index. `_guard_write` already does this read unmemoised on
+    every driver push, so the pattern is not new here — only the memo is.
+    """
+    if not actor or actor.get("role") not in _CREW_SCOPED_ROLES or c is None:
+        return actor
+    try:
+        key = tuple(c.execute(
+            "SELECT COUNT(*), COALESCE(MAX(rev),0) FROM records WHERE store='drivers'"
+        ).fetchone())
+    except Exception:
+        key = None
+    if key is None or _CREW_MEMO["key"] != key:
+        _CREW_MEMO["key"], _CREW_MEMO["by_user"] = key, {}
+    uid = actor.get("id")
+    if uid not in _CREW_MEMO["by_user"]:
+        crew = _crew_record_for(c, uid) or {}
+        _CREW_MEMO["by_user"][uid] = (crew.get("id"), crew.get("busId"))
+    crew_id, bus_id = _CREW_MEMO["by_user"][uid]
+    return dict(actor, crewId=crew_id, busId=bus_id)
+
+
 def _record_at(d):
     """When a record happened. `at` on the trails, `lastAt` on a usage row, and
     `updatedAt` for anything else — every record carries that one."""
@@ -4194,10 +4302,17 @@ def redact_for(actor, rec):
     if not v2_perms.may_read(role, st):
         return None
     # The per-record ownership rule, as a backstop on the SQL predicate pull()
-    # already applied. It is derived from the same map rather than restated, and
-    # it is the only thing standing behind `?store=` (which takes a different
-    # path through pull()) and behind `triplog`, whose owner is a bus and so is
-    # post-filtered by design.
+    # already applied, derived from the same map rather than restated.
+    #
+    # Every one of the seven own-rows stores is narrowed in SQL now, `triplog`
+    # included: an earlier version of this comment said `triplog` was
+    # "post-filtered by design", and it was not — the rule returned early on a
+    # null field and let every bus's stop times through. A comment claiming a
+    # protection that does not exist is worse than no comment, because the next
+    # reader stops looking. `triplog` and `routes` are keyed on the actor's bus,
+    # which `_scoped_actor` resolves, and this backstop is what stands behind
+    # `?store=` (a different path through pull()) and behind any caller that
+    # never went through pull() at all.
     if not v2_perms.own_row_ok(st, actor, d):
         return None
     # Checked before the PII_ROLES shortcut: this is about volume, and it
@@ -4277,38 +4392,48 @@ def pull(since, limit=None, actor=None, only=None, defer=None):
                     "tableMax": since, "serverTime": now_ms()}
         gap = " AND store IN (%s)" % ",".join(["?"] * len(allow))
         skip = allow
-    # Per-record ownership, in SQL rather than after the page is read.
-    #
-    # `attendance` alone grows ~100 people x 2 x 365 rows a year, and handing a
-    # driver's phone the whole table so redaction can drop 99% of it recreates
-    # exactly the bug the skip list above was written to cure: a new device
-    # spending its first sync on pages that arrive empty. So the narrowing goes
-    # into the query — on BOTH statements, for the same reason the skip list is
-    # on both. Completing a rev group with a different filter would readmit a row
-    # the page had just excluded, and the device would never know.
-    #
-    # The fragments filter a page rather than a table: they are `json_extract` on
-    # an unindexed expression, applied after the `store`/`rev` predicates the
-    # composite index serves. That is a claim, and slice B5 measures it on the
-    # fleet-sized fixture rather than taking it from here.
-    own_sql, own_params = [], []
-    _dialect = "postgres" if _USE_PG else "sqlite"
-    for _st in sorted(v2_perms.OWN_ROWS_ONLY):
-        _pred = v2_perms.own_rows_predicate(_st, actor, _dialect)
-        if not _pred:
-            continue
-        _frag, _args = _pred
-        own_sql.append(" AND (store<>? OR %s)" % _frag)
-        own_params.append(_st)
-        own_params.extend(_args)
-    gap += "".join(own_sql)
-    # One list of bound values for the gap, in the order the placeholders appear.
-    # `skip` stayed the store-name list because the two queries below each splice
-    # it between their own parameters, and a second meaning for the same name is
-    # how a placeholder count comes to disagree with its arguments.
-    gap_args = list(skip) + own_params
     with _lock:
         c = db()
+        # Per-record ownership, in SQL rather than after the page is read.
+        #
+        # `attendance` alone grows ~100 people x 2 x 365 rows a year, and handing
+        # a driver's phone the whole table so redaction can drop 99% of it
+        # recreates exactly the bug the skip list above was written to cure: a new
+        # device spending its first sync on pages that arrive empty. So the
+        # narrowing goes into the query — on BOTH statements, for the same reason
+        # the skip list is on both. Completing a rev group with a different
+        # filter would readmit a row the page had just excluded, and the device
+        # would never know.
+        #
+        # Built here, inside the lock, because three of the predicates are keyed
+        # on the actor's crew record rather than on their login id, and resolving
+        # that needs the connection. `scoped` is what every later step uses,
+        # redaction included, so the SQL filter and the per-record backstop can
+        # never be looking at two different identities.
+        #
+        # The fragments filter a page rather than a table: they are
+        # `json_extract` on an unindexed expression, applied after the
+        # `store`/`rev` predicates the composite index serves. That is a claim,
+        # and slice B5 measures it on the fleet-sized fixture rather than taking
+        # it from here — and it should now also measure the crew read above.
+        scoped = _scoped_actor(c, actor)
+        own_sql, own_params = [], []
+        _dialect = "postgres" if _USE_PG else "sqlite"
+        for _st in sorted(v2_perms.OWN_ROWS_ONLY):
+            _pred = v2_perms.own_rows_predicate(_st, scoped, _dialect)
+            if not _pred:
+                continue
+            _frag, _args = _pred
+            own_sql.append(" AND (store<>? OR %s)" % _frag)
+            own_params.append(_st)
+            own_params.extend(_args)
+        gap += "".join(own_sql)
+        # One list of bound values for the gap, in the order the placeholders
+        # appear. `skip` stays the store-name list, because the two queries below
+        # each splice it between their own parameters and a second meaning for
+        # one name is how a placeholder count comes to disagree with its
+        # arguments.
+        gap_args = list(skip) + own_params
         # The bound is read BEFORE the page and the page is clamped to it. Read the
         # other way round -- which is how this was -- a record committed between the
         # two statements lands inside maxrev but outside the page, and since a page
@@ -4377,7 +4502,11 @@ def pull(since, limit=None, actor=None, only=None, defer=None):
     cursor = maxrev if not full else (recs[-1]["rev"] if recs else maxrev)
     # Redact AFTER the cursor is taken: an omitted record must still count as
     # sent, or the client would ask for the same page forever.
-    recs = [x for x in (redact_for(actor, r) for r in recs) if x is not None]
+    # `scoped`, not `actor`: the per-record backstop has to be asking the same
+    # question the SQL asked. With the bare token it would have no crew id, deny
+    # every own-rows record the query had just correctly selected, and empty the
+    # page — the failure being fixed, one layer down.
+    recs = [x for x in (redact_for(scoped, r) for r in recs) if x is not None]
     return {"records": recs, "maxRev": cursor, "more": cursor < maxrev, "tableMax": maxrev,
             "serverTime": now_ms()}
 
@@ -5455,16 +5584,26 @@ class Handler(BaseHTTPRequestHandler):
     # A connection that stops sending holds a thread; do not wait on it forever.
     timeout = 60
 
-    def _send(self, code, payload=None, raw=None, ctype="application/json", cache=None, retry_after=None):
+    def _send(self, code, payload=None, raw=None, ctype="application/json", cache=None,
+              retry_after=None, cors=True, extra=None):
+        """`cors=False` omits the CORS headers entirely, which is not the same as
+        a restrictive origin: with no Access-Control-Allow-Origin at all, a page
+        on another origin cannot READ the bytes from script. An <img> still
+        renders, because displaying a cross-origin image has never needed CORS --
+        only reading its pixels does, and nothing here does that.
+        """
         if raw is not None:
             body = raw
         else:
             body = json.dumps(payload).encode() if payload is not None else b""
         self.send_response(code)
-        self.send_header("Access-Control-Allow-Origin", cors_origin_for(self.headers.get("Origin")))
-        self.send_header("Vary", "Origin")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+        if cors:
+            self.send_header("Access-Control-Allow-Origin", cors_origin_for(self.headers.get("Origin")))
+            self.send_header("Vary", "Origin")
+            self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+            self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+        for k, v in (extra or {}).items():
+            self.send_header(k, v)
         self.send_header("Content-Type", ctype)
         if cache:
             self.send_header("Cache-Control", cache)
@@ -5655,8 +5794,33 @@ class Handler(BaseHTTPRequestHandler):
             if not _UPLOAD_NAME.match(name):
                 return self._send(404, {"error": "not found"})
             ct = UPLOAD_CTYPES[name.rsplit(".", 1)[1]]
+            # These files are crew identity documents, gate-check selfies and
+            # supplier bills, and this route still authenticates NOTHING -- the
+            # only protection is that the name is 32 random hex characters
+            # (LIVE-ISSUES.md issue 7). Requiring a token here would break every
+            # photograph in the app at once, because all 32 of its image sites
+            # are plain <img src> tags and a plain image request carries no
+            # headers. So the real fix is a client change and is not done here.
+            #
+            # What IS done here is closing the leak paths that cost nothing:
+            #
+            # `private, no-store` because an Aadhaar photograph must never sit in
+            # a shared or intermediate cache, and this route sent no
+            # Cache-Control at all, which left that to heuristics. The service
+            # worker's Cache API is explicit rather than heuristic, so offline
+            # still works.
+            #
+            # `cors=False` so a page on another origin cannot fetch() these and
+            # read the bytes. An <img> is unaffected: displaying a cross-origin
+            # image needs no CORS, and nothing in this app canvas-reads an
+            # uploaded URL -- gradePartWear takes a data URL and already catches
+            # the taint throw.
+            #
+            # `nosniff` so a crafted upload cannot be re-interpreted as markup.
             with open(fp, "rb") as f:
-                return self._send(200, raw=f.read(), ctype=ct)
+                return self._send(200, raw=f.read(), ctype=ct,
+                                  cache="private, no-store", cors=False,
+                                  extra={"X-Content-Type-Options": "nosniff"})
         # The login screen is built from whoever this device knows about, and a
         # device that has never synced knows only the bundled roster. So a person
         # created on the office laptop had no tile on a new phone, and the tile is

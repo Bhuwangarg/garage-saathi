@@ -140,8 +140,15 @@ check("  the passenger lookup store does NOT", not _off.get("itslookup"))
 _rv = next((r["data"] for r in S.pull(0, actor=OFFICE).get("records", []) if r["id"] == "rv-9"), None)
 check("  the office receives the review itself", bool(_rv))
 if _rv:
-    for _f in ("pnr", "tin", "seats", "fare", "boardAt"):
+    # `boardAt` is NOT in this list any more, and that is the point of the fix.
+    # Every office figure -- "last N days", the scorecard, the trace -- is
+    # computed from boarding time, so stripping it made all of them read zero.
+    # A date is not a booking credential; the PNR, seat, fare and ticket id are,
+    # and those still go. See DECISIONS.md section 18.
+    for _f in ("pnr", "tin", "seats", "fare", "amount"):
         check("    %s is stripped from it" % _f, not _rv.get(_f))
+    check("    but the BOARDING TIME survives, or every office figure reads zero",
+          bool(_rv.get("boardAt")))
     check("    but the stars survive", _rv.get("stars") == 1)
     check("    and what the passenger wrote", "rashly" in (_rv.get("comment") or ""))
     check("    and it is marked partial", _rv.get("_redacted") is True)

@@ -70,7 +70,14 @@ def row(store, age_days, extra=None):
 
 check("a stop arrival from last week is sent", S.redact_for(OWNER, row("triplog", 7)) is not None)
 check("one from two years ago is not", S.redact_for(OWNER, row("triplog", 730)) is None)
-check("a driver still gets recent stop arrivals", S.redact_for(DRIVER, row("triplog", 7)) is not None)
+# A stop arrival belongs to a BUS. The driver's own bus arrives; another bus's
+# does not -- which is what the old code claimed to do and did not.
+_own = dict(row("triplog", 7)); _own["data"] = dict(_own["data"], busId="b-driver")
+_other = dict(row("triplog", 7)); _other["data"] = dict(_other["data"], busId="b-elsewhere")
+_scoped = dict(DRIVER, busId="b-driver")
+check("a driver gets their own bus's recent stop arrivals",
+      S.redact_for(_scoped, _own) is not None)
+check("...and not another bus's", S.redact_for(_scoped, _other) is None)
 check("a stock move from last month is sent to the store", S.redact_for(STORE, row("stockmoves", 30)) is not None)
 check("a driver's phone no longer downloads the stock ledger", S.redact_for(DRIVER, row("stockmoves", 30)) is None)
 check("usage rows are for the owner only", S.redact_for(OWNER, row("usage", 10)) is not None

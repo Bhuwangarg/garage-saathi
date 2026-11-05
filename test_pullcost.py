@@ -356,7 +356,7 @@ check("with that predicate on them, the four statement shapes are still answered
 src = open(os.path.join(HERE, "sync_server.py")).read()
 real = MP.real_own_rows_pair(reps=3)
 if real is None:
-    check("no per-record predicate is in sync_server.py yet, so §3.4 is measured as a candidate (above), not as shipped",
+    check("the per-record predicate landed with B1's boundary; this now measures the shipped one, so §3.4 is measured as a candidate (above), not as shipped",
           "json_extract(" not in src and "->>" not in src,
           "sync_server.py now contains a json_extract / ->> predicate but no OWN_ROWS_ONLY map: contract §3.4 names it "
           "that, and real_own_rows_pair() in scripts/measure-pull.py looks for it by that name. Teach it the new name, "
@@ -469,8 +469,8 @@ wants_red("cutting a page mid rev group on the BYTE budget turns the paging chec
 wants_red("trimming an oversize first rev group to nothing turns the paging check red",
           semantics(variant("keep = [r for r in rows if r[4] == first]", "keep = []")))
 wants_red("making redaction hold the cursor turns the paging check red",
-          semantics(variant("    recs = [x for x in (redact_for(actor, r) for r in recs) if x is not None]\n",
-                            "    recs = [x for x in (redact_for(actor, r) for r in recs) if x is not None]\n"
+          semantics(variant("    recs = [x for x in (redact_for(scoped, r) for r in recs) if x is not None]\n",
+                            "    recs = [x for x in (redact_for(scoped, r) for r in recs) if x is not None]\n"
                             "    if not recs:\n        cursor = since\n")))
 
 print("\nRESULT: %d failed%s" % (len(fails), ("; %d NOT MEASURED (%s)" % (len(unmeasured), ", ".join(unmeasured))) if unmeasured else ""))

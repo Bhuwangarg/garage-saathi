@@ -71,7 +71,21 @@ base = {"id": "gc-1", "busId": "bus-1", "regNo": "RJ09PA6141", "driverId": "d-A"
 # Starting a check.
 check("store login cannot write gate checks", push(STORE, "gatechecks", base)["rejected"] == 1)
 check("crew manager cannot write gate checks", push(CREWM, "gatechecks", base)["rejected"] == 1)
-check("owner cannot start a check for the driver", push(OWNER, "gatechecks", base)["rejected"] == 1)
+# An owner or supervisor CAN start a round now -- the owner's decision of
+# 4 Nov 2026 (DECISIONS.md section 12), because drivers have logins and do not
+# use them. On its OWN id: this used to be refused, so it left nothing behind and
+# the driver's create below could reuse `gc-1`. Now it lands, and reusing the id
+# made the driver's "create" an amend that tripped GATE_FIXED -- which is how
+# this test caught my change rather than my change breaking this test.
+check("an owner CAN start a round, naming the driver taking the bus out",
+      push(OWNER, "gatechecks", dict(base, id="gc-own"))["applied"] == 1)
+check("  ...and the record says the OWNER did it, not the driver",
+      stored("gc-own")["userId"] == "u-owner")
+check("  ...while still naming the driver", stored("gc-own")["driverId"] == "d-A")
+check("a round naming a driver crewed to another bus is refused",
+      push(OWNER, "gatechecks", dict(base, id="gc-wrongbus", driverId="d-B"))["rejected"] == 1)
+check("a round naming nobody is refused",
+      push(OWNER, "gatechecks", dict(base, id="gc-nodrv", driverId=""))["rejected"] == 1)
 check("another driver cannot start my check", push(DRV2, "gatechecks", base)["rejected"] == 1)
 check("a driver cannot start a check for a bus that is not theirs",
       push(DRV, "gatechecks", dict(base, id="gc-x", busId="bus-2"))["rejected"] == 1)

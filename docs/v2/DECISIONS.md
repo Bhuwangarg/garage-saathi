@@ -311,3 +311,89 @@ nothing else: no new icon, no new token, no new capability. The owner approved
 
 This is a design judgment made on evidence, not an owner decision, and it is
 recorded here so it can be overruled in one line if he disagrees.
+
+## 16. `gateCheck` loses `driver` in v2's capability table
+
+F1 transcribed v1's 37 capabilities verbatim, as instructed, and then flagged one
+it could not transcribe without creating a leak. It was right, and this records
+why so nobody "restores" it later.
+
+v1 has `gateCheck: ['owner', 'supervisor', 'driver']`. In v2, **both** Duty board
+and Gate round declare `gateCheck` — so a driver holding it reaches both screens.
+That contradicts `DECISIONS.md` §7 and `v2-ux.md` §4.2 and §4.4, which give a
+driver **one slot, Me, and no capabilities at all**. It would have been
+LIVE-ISSUES issue 2's shape — a screen open to a role nobody intended — produced
+by faithful transcription rather than by carelessness.
+
+So v2's table drops `driver` from `gateCheck`. One line, flagged rather than
+done quietly, and it changes nothing on the server: `_guard_gatecheck` still
+lets a driver create their own check, which is v1's live flow and must keep
+working.
+
+**Two v1 capabilities are retired rather than transcribed**, both orphaned in v2
+because no screen declares them: `manageRoutes` (owner, supervisor) and
+`liveMap` (crewmanager). They are in `Caps.RETIRED` with the line of §5.2 that
+retires each, and the check asserts the computed orphan set **equals** that list
+— so a capability that becomes orphaned later cannot drift out of sight, and one
+that stops being orphaned cannot stay listed.
+
+## 17. The thirteen screen titles stay English in `Caps.SCREENS`, and P3 exempts them
+
+F1 raised this as a seam it would not decide alone, which was right.
+
+`Caps.SCREENS` holds thirteen English titles plus "More". P3's rule — no
+capitalised English outside a `W.register` literal — would flag every one.
+
+**Decision: P3 exempts `Caps.SCREENS`'s `title` field specifically**, not
+`caps.js` as a whole. The reason is `screens-shell.md` §1.6: one name, three
+places, never a synonym. That table is the single source of the thirteen names,
+and a check that can see all thirteen in one literal can verify the rule; the
+same names reached through word ids could not be verified in one place.
+
+`word` already exists beside `title` for the Hindi id, so nothing is lost: the
+English is canonical and verifiable, the translation is keyed, and P3's rule
+still binds everywhere else — which is where English actually leaks.
+
+## 18. Pending the owner: the office has never seen a review figure
+
+**This needs a yes or no before it reaches production.** It is in the branch and
+not deployed.
+
+The role walk found the office login showing "Last 7 days 0, — average, — 1★"
+on its own landing screen, every review dated "—", while a crew manager on
+identical data saw "4 / 2.75 average / 25% 1★". The cause is one field:
+`redact_for` strips `boardAt` from `rbreviews`/`rbcomplaints` for the office,
+and **every** office figure — the last-N-days counts, the scorecard, the trace —
+is computed from boarding time. Restoring it in memory made the screens correct,
+which is causation rather than correlation.
+
+**It is not a v2 regression.** v1 strips the same field for the same role and the
+contract's §3.3a called that "unchanged", so this has been true in production
+since the office login existed. It is the **second** time this login has been
+broken by a redaction rule: commit db6101f fixed it receiving no reviews at all,
+and the same screen has been showing zeroes ever since for a different reason.
+
+**Why it is the owner's and not a bug fix.** Restoring the field **widens** what
+a live role receives. The office is deliberately outside `PII_ROLES` — it may
+never hold an Aadhaar, a licence or a salary — and this gives it the time a
+passenger boarded a bus. The argument for is that a date is not a booking
+credential: the PNR, the ticket id, the seat, the fare and the amount are, and
+all five are still withheld. The argument against is that it is still a
+passenger's movement, and the owner may prefer the office to work from stars and
+text alone.
+
+Pick one:
+
+- **Restore `boardAt` for the office.** The screens work. The office learns when
+  passengers boarded buses, and nothing else new.
+- **Leave it stripped and change the screens instead**, so they stop computing
+  from a field the office does not have and say plainly that dates are not
+  available to this login rather than showing zero. More work, and the trace
+  gets weaker, but no widening.
+
+What must not continue is the current state, where the screen shows a number
+that is always zero and reads as "no complaints" rather than "no data".
+
+A wrong fixture helped hide this: `test_office.py` had `boardAt` set to a place
+name, `"Jaipur Sindhi Camp"`, which the date parser rejects — so the test passed
+while asserting nothing about dates at all.
