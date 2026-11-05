@@ -921,3 +921,370 @@
     transition: opacity 200ms ease-out;
   }
 }
+
+/* =====================================================================================================
+ * v2 ADDITIONS: the four primitives v2 needs and ui/ did not have.
+ * Everything above this line is byte-identical to ui/components.css on purpose (DECISIONS.md 14), so a
+ * diff of the two files shows exactly what v2 changed and nothing else. Added lines only: nothing above
+ * is edited, reordered or "tidied".
+ *
+ *   3.3  .num        number entry, markup only, no script
+ *   3.4  .v2row-why  a ranked row whose reason wraps to two lines instead of truncating
+ *   3.5  .photos     the photo grid, its tiles and the capture control (markup from ui/photos.js)
+ *   3.7  .nav        one component, two orientations: a bottom bar at yard, a left rail at desk
+ *
+ * MARKUP CONTRACT, continued
+ *   <label class="num"><span class="num-l">Quantity</span><input class="field num-in" type="text"
+ *       inputmode="numeric" pattern="[0-9]*" autocomplete="off" enterkeyhint="done" data-kind="whole">
+ *       <span class="num-h">hint</span></label>
+ *   <div class="v2row v2row-why [crit|warn|ok]">  (the row kind's mark in .lead takes the colour)
+ *   <div class="photos"><button class="photo"><span class="photo-note"><img class="photo-img">
+ *       <label class="btn photo-add"><input type="file" class="sr-only">   (the capture cell, last)
+ *   <nav class="nav" aria-label="Main"><a class="nav-i" href="#" data-nav="today" aria-current="page">
+ *       <span class="nav-ic">[icon]</span><span class="nav-l">Today</span></a>
+ *
+ * The three new tokens these rules consume (--nav-h, --thumb, --rail-w) carry their arithmetic in
+ * tokens.css. A height or a gap in px here would fail the px check, which is why they exist. */
+
+/* ---------- 3.3 number entry: tapping a count field does exactly ONE thing ----------
+ * A shelf-count field sat inside a pressable row, the row's delegated handler caught the click, and the
+ * storekeeper was thrown off the screen mid-count (predeploy-gate.sh:508-511, and the sweep at :1073).
+ * Two of the three rules are markup, not style, and are stated here because this is where they are read:
+ * a row holding a field is div.v2row and never button/a.v2row, and the screen's one delegated click
+ * listener returns early on ev.target.closest('input, select, textarea, label, .num') BEFORE it reads
+ * [data-act] or [data-nav]. The third rule -- type="text" with inputmode, never type="number" -- is
+ * markup too: a number input puts spinners in a 32px desk row and CHANGES ITS VALUE when the mouse wheel
+ * rolls over it, which on a 200-row desk list is a silent wrong quantity. There are no stepper buttons,
+ * which is also why the icon set was not asked for a minus mark. */
+[data-v2] .num {
+  display: block;
+  margin: 0;
+  padding: 0;
+  color: var(--ink);
+}
+
+[data-v2] .num-l {
+  display: block;
+  color: var(--ink-dim);
+  font-size: var(--t6);
+  line-height: var(--lh);
+}
+
+[data-v2] .num-h {
+  display: block;
+  color: var(--ink-dim);
+  font-size: var(--t6);
+  line-height: var(--lh);
+}
+
+/* A count reads right-to-left against the ones column, like every other figure in the app. The UA font:
+ * shorthand on an input resets font-variant-numeric, and .field is in the control rule above -- but
+ * .num-in says it again rather than depending on a class it does not own. */
+[data-v2] .num-in {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* A field inside a row's .act: the row's third column is `auto`, so a width: 100% field would resolve
+ * against the whole row and leave no title. Two tap targets wide holds five digits at --t5 plus the
+ * field's own --pad on each side. */
+[data-v2] .v2row .num,
+[data-v2] .v2row .num-in {
+  width: calc(var(--tap) * 2);
+}
+
+/* ---------- 3.4 ranked row: the reason wraps, because a truncated reason is a colour and a number ----------
+ * Attention's row IS the reason ("one ranked list, each row carrying the reason and the money or the
+ * safety it represents"). Truncated to an ellipsis the row becomes a colour and a number, which is
+ * `dashboard` again. -webkit-line-clamp is Chrome 6+, well inside the floor. The row keeps
+ * min-height: var(--row-h) from .v2row and GROWS, which is why v2-foundation-ui.md 2.4 forbids
+ * windowing this variant. */
+[data-v2] .v2row-why {
+  padding-top: var(--s2);
+  padding-bottom: var(--s2);
+}
+
+[data-v2] .v2row-why .sub {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  white-space: normal;
+}
+
+/* The row kind's own mark takes the colour -- a coloured MARK, not a coloured tile: six tiles is
+ * decoration, one mark is a signal. Same class names and the same reasoning as screens.css .trow.crit.
+ * Never colour alone: the row also carries the reason in words. */
+[data-v2] .v2row-why.crit > .lead {
+  color: var(--bad);
+}
+
+[data-v2] .v2row-why.warn > .lead {
+  color: var(--warn);
+}
+
+[data-v2] .v2row-why.ok > .lead {
+  color: var(--ok);
+}
+
+/* ---------- 3.5 photos: tiles that are buttons, and a label-wrapped file input ----------
+ * The capture control is a label wrapping a file input because that is the only way to reach a camera on
+ * Chrome 109 without script. The input is .sr-only (clipped, still in the accessibility tree, NEVER
+ * display: none, which would take it out) and the LABEL carries the ring via :focus-within.
+ *
+ * A tile is a button and never an anchor, and there is no "open in new tab", "copy link", "share" or
+ * "download" anywhere: an upload URL is served by a route that authenticates nothing (LIVE-ISSUES 7 and
+ * 7b), so every extra place it can travel is the whole of the exposure. ui/photos.js carries that
+ * reasoning and puts referrerpolicy="no-referrer" on every <img>. */
+[data-v2] .photos {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, var(--thumb));
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  justify-content: start;
+}
+
+[data-v2] .photo {
+  display: block;
+  width: var(--thumb);
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--ink);
+  border: 0;
+  font-size: var(--t6);
+  line-height: var(--lh);
+  text-align: center;
+  cursor: pointer;
+}
+
+[data-v2] .photo-img {
+  display: block;
+  width: var(--thumb);
+  height: var(--thumb);
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  object-fit: cover;
+}
+
+/* A tile whose picture has not been asked for yet: words and a mark, no request. Block 5 of Me lists an
+ * identity document by type and expiry in WORDS and loads no image until an explicit tap, because a
+ * licence photograph nobody asked to see is an unauthenticated request nobody asked for, and it puts the
+ * URL in the cache and history of whatever device is in that person's hand (screens-shell.md 4.9 rule 3). */
+[data-v2] .photo-blank {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-dim);
+}
+
+/* The word comes BEFORE the picture, in the markup and on the screen. */
+[data-v2] .photo-note {
+  display: block;
+  margin-bottom: var(--s1);
+  overflow-wrap: anywhere;
+}
+
+/* "Not sent" does not fit on one line in a 72px pill, let alone a 56px desk one, so it wraps. A badge
+ * clipped to "Not se..." is the failure 3.4 is about, one primitive along. */
+[data-v2] .photo .badge {
+  max-width: 100%;
+  white-space: normal;
+}
+
+[data-v2] .photos-hint {
+  margin: 0;
+  padding-top: var(--s2);
+  color: var(--ink-dim);
+  font-size: var(--t6);
+  line-height: var(--lh);
+}
+
+/* The capture cell: a .btn shaped like a tile, so the grid stays a grid. */
+[data-v2] .photo-add {
+  flex-direction: column;
+  gap: var(--s1);
+  width: var(--thumb);
+  min-width: 0;
+  min-height: var(--thumb);
+  padding: var(--s1);
+  font-size: var(--t6);
+  text-align: center;
+  white-space: normal;
+}
+
+[data-v2] .photo-add:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+[data-v2] .photo:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Full size, inside V2.openSheet -- not a new overlay kind. overlay.js has 100 checks behind its focus,
+ * scroll lock and dismissal, and a second modal mechanism would have none of them. */
+[data-v2] .photo-full {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 70vh;
+  background: var(--surface);
+  border-radius: 8px;
+  object-fit: contain;
+}
+
+/* ---------- 3.7 nav: a bottom bar at yard, a left rail at desk ----------
+ * One component, two orientations, and the label is ALWAYS visible: a 4-slot and a 12-slot nav must read
+ * the same, and an icon-only tab on a Windows 7 machine is how the emoji problem started. A tab a role
+ * does not hold is ABSENT, never disabled; one slot means no nav is drawn at all (ui/nav.js returns the
+ * empty string, and v2-foundation-ui.md 3.7.1 says why: a nav with one item is a lie about there being
+ * somewhere else to go).
+ *
+ * The active bar is 2px of --accent on the edge the nav sits against -- the TOP edge of a bottom-bar item,
+ * the LEADING edge of a rail item -- plus --accent-text and aria-current="page". Colour is never the only
+ * cue, and THE BAR DOES NOT TRANSITION: it is the thing people press most often in the app, and 5.8 says
+ * a frequently repeated action does not animate. */
+[data-v2] .nav {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1;
+  display: flex;
+  height: calc(var(--nav-h) + env(safe-area-inset-bottom));
+  margin: 0;
+  padding: 0;
+  padding-bottom: env(safe-area-inset-bottom);
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+}
+
+[data-v2] .nav-i {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s1);
+  min-width: 0;
+  padding: 0 var(--s1);
+  background: transparent;
+  color: var(--ink-dim);
+  border: 0;
+  border-top: 2px solid transparent;
+  font-size: var(--t6);
+  font-weight: 600;
+  line-height: var(--lh);
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+[data-v2] .nav-ic {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+[data-v2] .nav-l {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-v2] .nav-i[aria-current="page"] {
+  color: var(--accent-text);
+  border-top: 2px solid var(--accent);
+}
+
+[data-v2] .nav-i:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* At desk the label sits BESIDE the mark -- there is width and no thumb -- which is the arithmetic behind
+ * --nav-h desk 44px: max(20, 15 x 1.7) = 25.5 plus --s2 top and bottom. This shape applies at desk
+ * density whether the nav is a bar or the rail below. */
+[data-v2][data-density="desk"] .nav-i,
+[data-v2] [data-density="desk"] .nav-i {
+  flex-direction: row;
+  gap: var(--s2);
+  padding: var(--s2) var(--pad);
+}
+
+/* The rail. Desk density AND at least 1024px wide -- both clauses, each for a reason: a width-only rule
+ * would put a rail on a tablet in landscape, which is also 1024x768, and a desk-density page on a 360px
+ * phone (a supervisor opening the office screen on a phone, which 000c3dd says happens) must not lose 44%
+ * of its width to one. That case keeps the bottom bar, which is why --nav-h's desk value stays alive.
+ * Twelve items at --tap 32px is 384px of a 768px column, so every slot a supervisor holds fits and More
+ * disappears entirely at a desk. */
+@media (min-width: 1024px) {
+  [data-v2][data-density="desk"] .nav,
+  [data-v2] [data-density="desk"] .nav {
+    top: 0;
+    right: auto;
+    bottom: 0;
+    flex-direction: column;
+    width: var(--rail-w);
+    height: auto;
+    padding-bottom: 0;
+    padding-inline-start: env(safe-area-inset-left);
+    border-top: 0;
+    border-inline-end: 1px solid var(--line);
+  }
+
+  [data-v2][data-density="desk"] .nav-i,
+  [data-v2] [data-density="desk"] .nav-i {
+    flex: 0 0 auto;
+    justify-content: flex-start;
+    min-height: var(--tap);
+    border-top: 0;
+    border-inline-start: 2px solid transparent;
+  }
+
+  [data-v2][data-density="desk"] .nav-i[aria-current="page"],
+  [data-v2] [data-density="desk"] .nav-i[aria-current="page"] {
+    border-top: 0;
+    border-inline-start: 2px solid var(--accent);
+  }
+
+  [data-v2][data-density="desk"] .nav-l,
+  [data-v2] [data-density="desk"] .nav-l {
+    text-align: left;
+  }
+}
+
+/* ---------- the new pressables ----------
+ * The press lists above are closed (this file is append-only against ui/components.css), so the photo
+ * tile and the nav item declare the same one press here: scale(0.97) at 120ms. The capture control is
+ * not in this list because it IS a .btn and is already pressed by the rules above; saying it twice is
+ * how two values drift apart. */
+[data-v2] .photo,
+[data-v2] .nav-i {
+  transition: transform 120ms ease-out, opacity 120ms ease-out;
+}
+
+[data-v2] .photo:active,
+[data-v2] .nav-i:active {
+  transform: scale(0.97);
+}
+
+/* ---------- the new pressables under reduced motion: the movement goes, the acknowledgement stays ---------- */
+@media (prefers-reduced-motion: reduce) {
+  [data-v2] .photo,
+  [data-v2] .nav-i {
+    transition: opacity 120ms ease-out;
+  }
+
+  [data-v2] .photo:active,
+  [data-v2] .nav-i:active {
+    transform: none;
+    opacity: 0.8;
+  }
+}

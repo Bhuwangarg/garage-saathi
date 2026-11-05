@@ -63,10 +63,13 @@
 (function (window) {
   'use strict';
 
+  /* `word` is a WORD ID, not a word: v2-foundation-ui.md section 6.3. A toast that says its kind in English to
+   * a Hindi reader is the defect that file names, and a fixed word written here is one nobody is ever told is
+   * missing. The ids are resolved through w() below and their Hindi is in v2/ui/words.js. */
   var KINDS = {
-    ok:   { word: 'Done',    icon: 'ok',   ms: 4000 },
-    warn: { word: 'Warning', icon: 'warn', ms: 7000 },
-    bad:  { word: 'Error',   icon: 'bad',  ms: 10000 }
+    ok:   { word: 'toastOk',   icon: 'ok',   ms: 4000 },
+    warn: { word: 'toastWarn', icon: 'warn', ms: 7000 },
+    bad:  { word: 'toastBad',  icon: 'bad',  ms: 10000 }
   };
   var MAX_TOASTS = 3;
   var SLACK_MS = 30;                   // after the last frame of an exit, before the element is removed
@@ -92,6 +95,44 @@
   }
 
   function has(o, k) { return Object.prototype.hasOwnProperty.call(o, k); }
+
+  /* ---------- the fixed words ---------- */
+
+  /* Every fixed word these three overlays draw, registered under an id. The English half stays in this file
+   * because test_ui_overlay.js pins it to be pure ASCII, comments included, so the Devanagari cannot be here;
+   * the Hindi half is in v2/ui/words.js, which merges the two by id, and test_v2_words.js fails on an id that
+   * has an English half and no Hindi key anywhere. Caller text - a sheet's title, a question, a message - is
+   * never in here: it arrives as an argument, in whatever language the caller passed. */
+  var CHROME = {
+    close: { en: 'Close' },
+    confirm: { en: 'Confirm' },
+    cancel: { en: 'Cancel' },
+    toastOk: { en: 'Done' },
+    toastWarn: { en: 'Warning' },
+    toastBad: { en: 'Error' }
+  };
+  var registered = false;
+
+  // Registered at load when words.js is already on the page, and on first use when it arrives after this
+  // file (index.html's order is not this file's business). Either way the table is in one place.
+  function register() {
+    if (registered || !window.W || typeof window.W.register !== 'function') return;
+    window.W.register(CHROME);
+    registered = true;
+  }
+
+  // words.js, when the page has loaded it. When it is not there - a page that has not opted in, or a test that
+  // loads this file alone - this table is all there is and every word is English, which is not the defect
+  // section 6.3 names: there is no Hindi in the build for a reader to be missing.
+  function lookup() {
+    register();
+    return registered && typeof window.w === 'function' ? window.w : null;
+  }
+
+  function w(id) {
+    var t = lookup();
+    return t ? t(id) : CHROME[id].en;
+  }
 
   /* ---------- skin: the app's theme and density, on a dialog that lives outside the app's tree ---------- */
 
@@ -271,7 +312,7 @@
     var id = 'ov-t' + (++seq);
     var dlg = build('ov-sheet', opener,
       '<div class="ov-panel"><div class="ov-head"><h2 class="ov-title" id="' + id + '">' + esc(title == null ? '' : title) + '</h2>'
-      + '<button type="button" class="btn btn-quiet ov-close">Close</button></div>'
+      + '<button type="button" class="btn btn-quiet ov-close">' + esc(w('close')) + '</button></div>'
       + '<div class="ov-body">' + (html == null ? '' : String(html)) + '</div></div>');
     dlg.setAttribute('aria-labelledby', id);
     var rec = { dlg: dlg, panel: dlg.querySelector('.ov-panel'), scrim: dlg.querySelector('.ov-scrim'), opener: opener, after: opts.onClose };
@@ -293,8 +334,8 @@
     return new Promise(function (resolve) {
       var tid = 'ov-t' + (++seq), qid = 'ov-q' + (++seq), decided = false;
       var hasTitle = opts.title != null && String(opts.title) !== '';
-      var yes = opts.yes == null || String(opts.yes) === '' ? 'Confirm' : String(opts.yes);
-      var no = opts.no == null || String(opts.no) === '' ? 'Cancel' : String(opts.no);
+      var yes = opts.yes == null || String(opts.yes) === '' ? w('confirm') : String(opts.yes);
+      var no = opts.no == null || String(opts.no) === '' ? w('cancel') : String(opts.no);
       var opener = doc().activeElement;
       var dlg = build('ov-confirm', opener,
         '<div class="ov-panel">' + (hasTitle ? '<h2 class="ov-title" id="' + tid + '">' + esc(opts.title) + '</h2>' : '')
@@ -413,9 +454,9 @@
     var el = doc().createElement('dialog');
     el.className = 'ov-toast ov-toast-' + kind;
     el.innerHTML = '<div class="ov-toast-msg"' + (kind === 'bad' ? ' role="alert"' : '') + '>'
-      + '<span class="ov-toast-kind">' + draw(k.icon, 18) + '<span>' + k.word + '</span></span>'
+      + '<span class="ov-toast-kind">' + draw(k.icon, 18) + '<span>' + esc(w(k.word)) + '</span></span>'
       + '<span class="ov-toast-text">' + esc(message) + '</span></div>'
-      + '<button type="button" class="btn btn-quiet ov-toast-close">Close</button>';
+      + '<button type="button" class="btn btn-quiet ov-toast-close">' + esc(w('close')) + '</button>';
     el.setAttribute('open', '');                        // not show(): that runs the focusing steps and would take focus
     t = { key: key, el: el, ms: ms, leaving: false, gone: false };
     toasts.push(t);
@@ -426,6 +467,8 @@
     arm(t);
     return el;
   }
+
+  register();
 
   window.V2 = { openSheet: openSheet, closeSheet: closeSheet, confirmDialog: confirmDialog, toast: toast };
 })(window);

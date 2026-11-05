@@ -397,3 +397,126 @@ that is always zero and reads as "no complaints" rather than "no data".
 A wrong fixture helped hide this: `test_office.py` had `boardAt` set to a place
 name, `"Jaipur Sindhi Camp"`, which the date parser rejects — so the test passed
 while asserting nothing about dates at all.
+
+## 19. The one cost basis, settled where two specs disagreed
+
+The whole point of "one cost basis per bus" is that two screens cannot show
+different numbers for the same thing. Two specs then described it differently,
+which is the same failure one level up.
+
+- `screens-money-people.md` §1.1: **six** parts, trip cash as `trips.expenses[].amount`.
+- `screens-assets.md`: **five** parts, trip cash as allowance minus returned.
+
+**Money's spec wins, and the six parts stand**, for the reason the specs
+themselves give: Money computes and Buses reads, so the computing screen's
+definition is the definition. P2 built it that way and flagged the conflict
+rather than picking quietly.
+
+On trip cash specifically, the six-part version is also the right one under the
+rule the basis is built on — *one rupee, one source record, one part*. Each
+expense is a record. "Allowance minus returned" is a derived figure that happens
+to equal the same number **only when every expense was written down**, and when
+it does not, the two silently disagree and neither says which is short.
+
+**A spec bug came out of the same review and is fixed in the file.** The Parts
+row said `sum(qty × cost)`. In v1, `partsUsed[].cost` is already the line total —
+`app.js:1638` sums it alone and `app.js:7682` accumulates it the same way — so
+`qty × cost` would have multiplied every parts figure by its quantity. Two brake
+pads at ₹900 would have read ₹1,800, on the screen whose job is to reconcile.
+
+**Two smaller resolutions from the same slice**, recorded so they are not
+re-decided:
+
+- A bus with no trips returns `0` with `n: 0`, not `null`, so a screen can say
+  "no trips recorded" without withholding the whole total. `null` is reserved
+  for *unknown*, which is a different thing from *none* (`v2-foundation-ui.md`
+  §3.6).
+- Component send-out and return entries carry no `busId` in v1, so the
+  component's own `busId` is used. That is an inference, and if a component is
+  moved between buses mid-repair it attributes the cost to where it ended up.
+
+## 20. The row budget, measured at last — and what it already decides
+
+§9 recorded that "200 dense desk rows inside 250 ms" was a placeholder taken
+from a developer's Mac. M1 built the instrument and took real readings. The
+placeholder is still not the office's number, but it is no longer the only
+number.
+
+**On an i9-9880H, Chrome 156 headless, 1024×768, load 0.23 per core.** All three
+runs, never the best, because two beds disagree with themselves:
+
+| Bed | Run 1 | Run 2 | Run 3 |
+|---|---|---|---|
+| 200 desk rows | 51.3 ms | 42.8 ms | 42.7 ms |
+| 200 Attention reason rows (wrap rule, scratch) | 56.5 ms | 43.1 ms | 42.2 ms |
+| **2,384 catalogue rows, all drawn** | **619.4 ms** | **525.7 ms** | **409.6 ms** |
+| 2,384 windowed, first draw | 18.6 ms | 6.9 ms | 9.3 ms |
+| 2,384 windowed, 10 scroll steps | 88.9 ms | 84.5 ms | 87.1 ms |
+
+**What this already decides: the Store catalogue must be windowed, and that is
+no longer a preference.** Drawing all 2,384 rows costs 410–619 ms on a fast
+machine with sixteen cores. The office runs Core 2 Duos, where this class of DOM
+work is commonly five to ten times slower — so the full draw is plausibly two to
+six seconds there, and the windowed draw stays in the tens of milliseconds. The
+Store designer wrote that its desk catalogue "rests on three compounded
+guesses"; one of the three is now a measurement, and it says do not draw them
+all.
+
+**200 rows is comfortable** — about 43 ms against a 250 ms placeholder, roughly
+six times of headroom on this machine. That is reassuring and it is not proof:
+the headroom is on the wrong hardware.
+
+**What the instrument does not model**, printed in its own output so nobody
+over-reads it: the Core 2 Duo, Chrome 109 and Windows 7; paint and compositing;
+scroll smoothness; Hindi fonts; real data; the 864 px desk width; memory
+pressure. Two beds vary by 1.5× and 2.7× run to run, and it flags that rather
+than averaging it away.
+
+**It asserts no time threshold**, by design. It exits 1 only when a bed draws too
+few rows or a row is missing a part — proven by breaking a scratch copy two ways
+— and exits 0 with a loud NOT MEASURED banner when load per core exceeds 0.7 or
+the steadiness probe wobbles. A test that hard-codes today's milliseconds fails
+on a busy machine and teaches people to delete it.
+
+**To get the office's number** (five minutes, needs no developer): copy `v2/ui`
+to a Windows 7 machine, open `gallery.html`, type the machine's name in the box,
+press each Draw button once on a fresh page, photograph the screen. The gate
+threshold is then a one-line edit, and it is mine, not a builder's.
+
+One honest gap: bed 2 cannot measure the real Attention row yet, because
+`.v2row-why` does not exist until P1 lands. M1 measured a scratch copy with the
+wrap rule added and reported both numbers rather than the convenient one.
+
+## 21. Pending the owner: the Hindi. 28 words now, about 130 by the end
+
+**You are the only Hindi speaker on this project.** Every Hindi string in v2 has
+to come from you, and this records exactly what is needed so it is a short task
+rather than an open-ended one.
+
+**Where it stands:** 21 chrome words — the frame, the nav, the states, the
+buttons — are **done and translated**. An empty Hindi value on any one of them
+fails the test run, so they cannot rot. 28 screen labels are registered with
+English only and are **pending**. The total will be roughly 130 by the time
+thirteen screens are built.
+
+**What a pending label looks like to a Hindi reader, right now:** `Me [meTitle]`
+— the English, with its id in brackets. Always, not in a developer mode. v2 has
+no build step, so a mark only developers see is a mark nobody acts on. It is
+deliberately ugly, because the alternative is a Hindi user seeing clean English
+and assuming that is the design. That is the defect `v2-foundation-ui.md` §6.3
+records.
+
+**Why this matters more than it looks.** The owner's answer that drivers and
+conductors do not use their logins collapsed the trip-cash Hindi estimate from
+about five hours a week to zero, and the ranking was honestly withdrawn. The
+*mechanism* did not collapse with it: it now points at **Me**, which for a
+driver and a conductor is their entire application. A Hindi gap there is worse
+than it was on one screen.
+
+**How to supply them.** `test_v2_words.js` prints the pending ids on every run,
+pass or fail, with the English beside each. Give that list back with the Hindi
+and it goes straight into `v2/ui/words.js`. Nobody has to interpret anything.
+
+**The target is zero, and the count is the measure.** If it never falls, the
+mechanism has become the fallback it was built to replace — which P3 said about
+its own design before anyone else could, and it was right to.

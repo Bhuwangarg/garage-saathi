@@ -1,0 +1,407 @@
+<!doctype html>
+<!--
+  Garage Saathi v2 - the row-budget page.
+
+  WHAT IT IS FOR. DECISIONS.md section 9: "200 dense desk rows inside 250 ms" is a placeholder taken from a developer's
+  Mac, not a measurement, and every density rule in plan/v2-foundation-ui.md is sized against it. The office runs Windows 7
+  with Chrome 109 and some of those machines are Core 2 Duos. Nobody in the build pipeline has one. This page is the
+  instrument that turns the placeholder into a number when somebody does:
+
+    1. open this file in Chrome on the office PC (double-click it; nothing is served, nothing is sent, nothing is saved),
+    2. type the machine's make and model in the box (so the screen itself says whose number it is),
+    3. press each Draw button once and read the three runs it prints,
+    4. photograph the screen and send it back.
+
+  It asserts NOTHING about time. It prints what it saw. The threshold in scripts/predeploy-gate.sh is changed by the lead,
+  by hand, with a reading beside the change; this page never edits, passes or fails it. scripts/measure-v2-rows.sh drives
+  this same page headless on a developer machine and prints the same three runs with that machine's name beside them.
+
+  THREE BEDS, each a desk-density container that starts EMPTY, each drawn the way the shipping screens draw: the whole list
+  built as ONE string and set with ONE insertAdjacentHTML (v2-foundation-ui.md 2.3 rule 1), and the clock stopped only after
+  a forced layout, because appending nodes is nearly free and the cost an old PC pays is style and layout.
+    1. 200 dense desk rows: a drawing, a figure, a badge and a button on every row, or bare divs would time nothing.
+    2. 200 .v2row-why rows: the Attention shape (screens-shell.md 3.2): a coloured mark, a reason set to wrap onto TWO
+       lines, and a figure. It is taller and dearer than bed 1, and nobody had timed it.
+    3. The 2,384-row parts catalogue, which is the real figure from the seed and twelve times the placeholder. Drawn
+       whole (unwindowed), and drawn windowed (the rows that fit plus a margin, then ten page-sized scroll steps).
+
+  The rows are built from the real primitives: icon() from icons.js, figure() from states.js, the .v2row / .badge / .btn
+  rules from components.css. Nothing here is a mock-up of the rows, so a change to those files changes this reading.
+
+  THE FOUR THINGS THE SCRIPT CHECKS AFTER THE CLOCK HAS STOPPED (so they add nothing to the time): each bed drew as many
+  rows as it was asked for; every row holds all of its parts; the .v2row-why reasons really wrapped to two lines (if
+  .v2row-why has no CSS yet, they cannot, and the reading says so); and the rows are as tall as the --row-h token says.
+
+  THE ONE RULE OF THE PAGE (as in ui/gallery.html): it loads tokens.css and components.css and the two ui scripts, and
+  NOTHING from the live app. data-v2 sits on <html>, which is safe only because no live stylesheet is here.
+
+  Plain ES5 from bare tags: no arrow, no backtick, no const or let. Pure ASCII, no emoji.
+-->
+<html lang="en" data-v2>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Garage Saathi v2 row budget</title>
+<script>
+/* First on the page, so it hears everything after it: a script that throws or a file that does not load would otherwise
+   just leave the page looking wrong. It says so on screen (#g-errors) and keeps a list for the driving script. */
+window.__errors = [];
+function galleryShowErrors() {
+  var el = document.getElementById('g-errors');
+  if (el && window.__errors.length) { el.textContent = 'Script errors on this page: ' + window.__errors.join(' | '); el.hidden = false; }
+}
+window.addEventListener('error', function (e) {
+  var t = e && e.target, what;
+  if (t && t !== window && (t.src || t.href)) what = 'could not load ' + String(t.src || t.href).split('/').pop();
+  else what = (e && e.message ? e.message : 'error') + (e && e.filename ? ' (' + String(e.filename).split('/').pop() + ':' + e.lineno + ')' : '');
+  window.__errors.push(what);
+  galleryShowErrors();
+}, true);
+document.addEventListener('DOMContentLoaded', galleryShowErrors);
+</script>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="components.css">
+<style>
+/* Page furniture only. Colours, sizes and fonts all come from tokens.css; nothing here is a new value. */
+html[data-v2] { color-scheme: light dark; }
+body { margin: 0; }
+.g-wrap { max-width: 72rem; margin: 0 auto; padding: 0 var(--s4) var(--s8); }
+.g-head { padding: var(--s6) 0 var(--s4); }
+.g-head h1 { margin: 0 0 var(--s2); font-size: var(--t2); line-height: var(--lh); }
+.g-lede { margin: 0 0 var(--s2); max-width: 48rem; color: var(--ink-dim); }
+.g-device { margin: 0 0 var(--s2); color: var(--ink-dim); font-size: var(--t6); overflow-wrap: anywhere; }
+.g-errors { margin: var(--s2) 0 0; padding: var(--s2) var(--s3); border: 1px solid var(--bad); border-radius: 8px; color: var(--bad); font-weight: 600; overflow-wrap: anywhere; }
+.g-lbl { display: block; max-width: 32rem; }
+.g-lbl > span { display: block; margin-bottom: var(--s1); color: var(--ink-dim); font-size: var(--t6); }
+.g-sec { margin: var(--s7) 0 0; }
+.g-sec > h2 { margin: 0; font-size: var(--t3); line-height: var(--lh); }
+.g-note { margin: var(--s1) 0 var(--s3); color: var(--ink-dim); font-size: var(--t6); max-width: 48rem; }
+.g-cluster { display: flex; flex-wrap: wrap; gap: var(--s2); align-items: center; }
+.g-readout { margin: var(--s2) 0 0; font-weight: 600; overflow-wrap: anywhere; }
+.g-bed { margin-top: var(--s3); border: 1px solid var(--line); border-radius: 8px; background: var(--surface-raised); }
+.g-bed:empty { display: none; }
+/* The windowed bed is a fixed-height viewport: 18 rows tall, written in the row token so it follows the density. */
+.g-bed-win { height: calc(var(--row-h) * 18); overflow-y: auto; }
+.g-bed-win:empty { display: block; }
+.g-bad { color: var(--bad); }
+.g-warn { color: var(--warn); }
+.g-ok { color: var(--ok); }
+</style>
+</head>
+<body>
+<div class="g-wrap">
+  <header class="g-head">
+    <h1>Garage Saathi v2 row budget</h1>
+    <p class="g-lede">How long the screen takes to draw a long list on THIS computer. It is a measuring page: it has no pass and no fail, and it shows what it saw. Press each Draw button once, then read the three runs under it. Nothing here is saved or sent.</p>
+    <p class="g-device" id="g-device">This device: reading...</p>
+    <label class="g-lbl"><span>Write this computer's make, model and CPU here (it is printed beside every reading, so a photo of the screen says whose numbers they are)</span><input type="text" id="g-machine" autocomplete="off" maxlength="120"></label>
+    <p class="g-errors" id="g-errors" role="alert" hidden></p>
+  </header>
+
+  <section class="g-sec" aria-labelledby="g-desk-h">
+    <h2 id="g-desk-h">Bed 1: 200 dense desk rows</h2>
+    <p class="g-note">Each row has a drawing, two lines, a figure, a badge and a button. The time includes the browser laying the rows out.</p>
+    <div class="g-cluster">
+      <button type="button" class="btn btn-primary" data-draw="desk">Draw 200 desk rows</button>
+      <button type="button" class="btn" data-clear="desk">Clear</button>
+    </div>
+    <p class="g-readout" id="out-desk" role="status">Not run yet.</p>
+    <div class="g-bed" id="bed-desk" data-density="desk"></div>
+  </section>
+
+  <section class="g-sec" aria-labelledby="g-why-h">
+    <h2 id="g-why-h">Bed 2: 200 reason rows (the Attention row)</h2>
+    <p class="g-note">Each row has a coloured mark, a reason long enough to wrap onto two lines, and a figure. This is the heaviest row in the app.</p>
+    <div class="g-cluster">
+      <button type="button" class="btn btn-primary" data-draw="why">Draw 200 reason rows</button>
+      <button type="button" class="btn" data-clear="why">Clear</button>
+    </div>
+    <p class="g-readout" id="out-why" role="status">Not run yet.</p>
+    <div class="g-bed" id="bed-why" data-density="desk"></div>
+  </section>
+
+  <section class="g-sec" aria-labelledby="g-cat-h">
+    <h2 id="g-cat-h">Bed 3: the 2,384-row parts catalogue</h2>
+    <p class="g-note">The real number of parts in the seed, twelve times the placeholder. Press the first button to draw all of them at once, and the second to draw only the rows that fit on screen and then scroll ten pages down.</p>
+    <div class="g-cluster">
+      <button type="button" class="btn btn-primary" data-draw="cat">Draw all 2,384 rows</button>
+      <button type="button" class="btn btn-primary" data-draw="catw">Draw windowed, then scroll</button>
+      <button type="button" class="btn" data-clear="cat">Clear</button>
+    </div>
+    <p class="g-readout" id="out-cat" role="status">Not run yet (all rows).</p>
+    <p class="g-readout" id="out-catw" role="status">Not run yet (windowed).</p>
+    <div class="g-bed" id="bed-cat" data-density="desk"></div>
+    <div class="g-bed g-bed-win" id="bed-catw" data-density="desk"></div>
+  </section>
+
+  <section class="g-sec" aria-labelledby="g-not-h">
+    <h2 id="g-not-h">What this does not measure</h2>
+    <p class="g-note">Painting and compositing (the clock stops after layout), scrolling smoothness, the real Hindi font, the real data and the code that reads it, hover, other programs running, and any width other than this window's. The rows are stand-ins with the same parts as the real ones, built by the real drawing, figure and row styles. A reading from here is the cost of drawing a list on this computer and nothing wider.</p>
+  </section>
+</div>
+
+<script src="icons.js"></script>
+<script src="states.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  var N_DESK = 200, N_WHY = 200, N_CAT = 2384;
+  var WIN_VIEW_ROWS = 18;       // must match .g-bed-win above: the viewport is this many rows tall
+  var WIN_OVERSCAN = 8;         // rows kept drawn above and below the viewport
+  var WIN_STEPS = 10;           // page-sized scroll steps timed after the first window is drawn
+  var RUNS = 3;
+
+  function ic(name, size) { return icon(name, { size: size }); }
+  function pad(n, w) { var s = String(n); while (s.length < w) s = '0' + s; return s; }
+
+  /* ---------- the three row shapes ---------- */
+
+  // Bed 1. A drawing, two lines, a figure, a badge and a button: the shape of ui/gallery.html's demo row, in the v2 primitives.
+  function deskRow(i) {
+    var kind = i % 3, badge = kind === 0 ? '<span class="badge badge-ok">' + ic('ok', 16) + ' Done</span>'
+      : (kind === 1 ? '<span class="badge badge-warn">' + ic('warn', 16) + ' In progress</span>' : '<span class="badge badge-bad">' + ic('bad', 16) + ' Overdue</span>');
+    return '<div class="v2row"><span class="lead">' + ic('bus', 16) + '</span><div class="txt"><div class="t">RJ14 PA ' + (1000 + i) + '</div>'
+      + '<div class="sub">Brake pads, front axle, job ' + (i + 1) + '</div></div>'
+      + '<div class="act">' + figure(48210 + i, { unit: 'km' }) + badge + '<button type="button" class="btn btn-quiet">Open</button></div></div>';
+  }
+
+  // Bed 2. Attention's row (screens-shell.md 3.2): a.v2row.v2row-why, .lead the kind's own mark in its colour, .t the thing,
+  // .sub the reason, .act a figure and nothing else (no badge, no button: the row IS the link). Reasons are 150 to 190
+  // characters so that they take two lines at desk widths and are not the one-liners the existing demo rows are. No `at` on
+  // the figure: a list states its freshness once, in its header (v2-foundation-ui.md 2.3 rule 4).
+  var WHY = [
+    { mark: 'gate', tone: 'g-bad', t: 'Bus {n} held at the gate', unit: 'h', r: 'Brake light failed the 20:00 departure check. Nobody has decided whether the bus may run. The check has been standing for hours and the driver is waiting at the gate.' },
+    { mark: 'ok', tone: 'g-ok', t: 'Bus {n} - clutch', unit: 'd', r: 'Closed 2 days ago by the mechanic and still needs a second signature before the job card counts as done. The owner cannot sign his own close, so someone else must.' },
+    { mark: 'doc', tone: 'g-warn', t: 'Bus {n} - fitness', unit: 'd', r: 'Expires in 9 days. The renewal has not been started, the old certificate is not on file, and the inspection centre needs two working days of notice to book a slot.' },
+    { mark: 'challan', tone: 'g-bad', t: 'Bus {n} - 2 unpaid challans', unit: '', r: 'The oldest is from 12 August and has been unpaid for three months. Checked 3 days ago. An unpaid challan can hold the bus at a checkpoint and stop it running that day.' },
+    { mark: 'count', tone: 'g-bad', t: 'Brake pad set {n} - 6 missing', unit: '', r: 'The shelf count on Tuesday was 6 under the book. Nobody has explained it. The last issue against this part was a week ago and no job card was opened for that issue.' },
+    { mark: 'part', tone: 'g-bad', t: 'Ramesh - parts off the book {n}', unit: '', r: '11 issues with no job card in 30 days, against a team average of 2. The parts were all small items, but the same hand signed for every one of them in the evening.' },
+    { mark: 'warn', tone: 'g-bad', t: 'Bus {n} - brakes', unit: 'd', r: 'Reported by the driver 2 days ago as pulling to the left under braking. No job card has been opened yet, and the bus ran both days since the report was made.' },
+    { mark: 'bus', tone: 'g-warn', t: 'Bus {n} - 4 breakdowns', unit: '', r: 'Four in 30 days, all electrical, all on the evening run. The fleet average is one. The same alternator was refitted twice and the wiring has not been looked at.' },
+    { mark: 'seat', tone: 'g-warn', t: 'Bus {n} - no conductor', unit: 'seats', r: 'Picked to run tonight at 21:30 and one seat is still empty. The duty board shows the driver but nobody has been put on as conductor, and two reserves are on leave.' }
+  ];
+
+  function whyRow(i) {
+    var w = WHY[i % WHY.length], n = 1 + (i % 89);
+    return '<a class="v2row v2row-why" href="#"><span class="lead ' + w.tone + '">' + ic(w.mark, 16) + '</span><div class="txt"><div class="t">' + w.t.replace('{n}', n) + '</div>'
+      + '<div class="sub">' + w.r + '</div></div>'
+      + '<div class="act">' + figure(1 + (i % 12) * 3, w.unit ? { unit: w.unit } : {}) + '</div></a>';
+  }
+
+  // Bed 3. The Store catalogue's one-line row (screens-assets.md 2.5): a mark, the name as stored (upper case, not title-cased),
+  // a figure, a badge and a button. It has NO .sub: a windowed list may only use the one-line row. The seed has every part
+  // uncounted, which the real screen shows as figure(null); a value is drawn here instead, because that is the heavier of the
+  // two and a reading that errs high is the safe error.
+  var PARTS = ['FULE FILTER', 'BRAKE PAD SET', 'CLUTCH PLATE', 'AIR FILTER', 'OIL FILTER 15W40', 'WHEEL NUT', 'TYRE 10.00 R20', 'HEAD LAMP BULB',
+    'BATTERY 12V 150AH', 'FAN BELT', 'RADIATOR HOSE', 'LEAF SPRING BUSH', 'SELF STARTER', 'KING PIN KIT', 'GEARBOX OIL 80W90', 'WIPER BLADE'];
+
+  function catRow(i) {
+    var kind = i % 3, badge = kind === 0 ? '<span class="badge badge-warn">' + ic('count', 16) + ' Not counted</span>'
+      : (kind === 1 ? '<span class="badge badge-ok">' + ic('ok', 16) + ' In stock</span>' : '<span class="badge badge-bad">' + ic('bad', 16) + ' Low</span>');
+    return '<div class="v2row" data-i="' + i + '"><span class="lead">' + ic('part', 16) + '</span><div class="txt"><div class="t">' + PARTS[i % PARTS.length] + ' ' + pad(i + 1, 4) + '</div></div>'
+      + '<div class="act">' + figure(i % 40, { unit: 'pcs' }) + badge + '<button type="button" class="btn btn-quiet">Count</button></div></div>';
+  }
+
+  /* ---------- what a row must hold ---------- */
+
+  // Returns the names of the parts the row is missing, so the failure says which part and not merely "bad row".
+  function missingDesk(r) {
+    var m = [];
+    if (!r.classList.contains('v2row')) m.push('v2row');
+    if (!r.querySelector('svg')) m.push('mark');
+    if (!r.querySelector('.figure')) m.push('figure');
+    if (!r.querySelector('.badge')) m.push('badge');
+    if (!r.querySelector('.btn')) m.push('button');
+    return m;
+  }
+  function missingWhy(r) {
+    var m = [];
+    if (!r.classList.contains('v2row') || !r.classList.contains('v2row-why')) m.push('v2row-why');
+    if (!r.querySelector('.lead svg')) m.push('mark');
+    if (!r.querySelector('.sub')) m.push('reason');
+    if (!r.querySelector('.act .figure')) m.push('figure');
+    if (r.querySelector('.figure-note')) m.push('NO-figure-note-allowed');
+    return m;
+  }
+
+  var BEDS = {
+    desk: { label: 'Bed 1: 200 dense desk rows', id: 'bed-desk', out: 'out-desk', asked: N_DESK, row: deskRow, missing: missingDesk, windowed: false },
+    why: { label: 'Bed 2: 200 v2row-why rows (the Attention row)', id: 'bed-why', out: 'out-why', asked: N_WHY, row: whyRow, missing: missingWhy, windowed: false, wrap: true },
+    cat: { label: 'Bed 3a: the 2,384-row catalogue, all drawn (unwindowed)', id: 'bed-cat', out: 'out-cat', asked: N_CAT, row: catRow, missing: missingDesk, windowed: false },
+    catw: { label: 'Bed 3b: the 2,384-row catalogue, windowed', id: 'bed-catw', out: 'out-catw', asked: N_CAT, row: catRow, missing: missingDesk, windowed: true }
+  };
+
+  function round1(x) { return Math.round(x * 10) / 10; }
+
+  /* ---------- one timed draw of a flat bed ---------- */
+
+  function drawFlat(def) {
+    var bed = document.getElementById(def.id), html = '', i, t, h, ms;
+    bed.innerHTML = '';
+    void bed.offsetHeight;                       // start every run from a laid-out, empty bed, outside the clock
+    t = performance.now();
+    for (i = 0; i < def.asked; i++) html += def.row(i);
+    bed.insertAdjacentHTML('beforeend', html);
+    h = bed.offsetHeight;                        // forces style and layout inside the timed region
+    ms = performance.now() - t;
+    return { ms: ms, height: h };
+  }
+
+  /* ---------- one timed draw of the windowed bed ---------- */
+
+  // The window is the rows that fit plus WIN_OVERSCAN either side. The spacing above and below is padding computed from the
+  // row token ALONE (read once, before the clock): nothing here measures a row (v2-foundation-ui.md 2.3 rules 2 and 6).
+  function windowHtml(def, first, rowH) {
+    var span = WIN_VIEW_ROWS + 2 * WIN_OVERSCAN, last = Math.min(def.asked, first + span), html = '', i;
+    for (i = first; i < last; i++) html += def.row(i);
+    return '<div class="g-win-in" style="padding:' + (first * rowH) + 'px 0 ' + ((def.asked - last) * rowH) + 'px">' + html + '</div>';
+  }
+  function firstFor(def, scrollTop, rowH) {
+    var span = WIN_VIEW_ROWS + 2 * WIN_OVERSCAN, f = Math.floor(scrollTop / rowH) - WIN_OVERSCAN;
+    return Math.max(0, Math.min(def.asked - span, f));
+  }
+
+  function drawWindowed(def) {
+    var bed = document.getElementById(def.id), rowH = parseFloat(getComputedStyle(bed).getPropertyValue('--row-h')), k, t, ms, ms2, first, drawnFirst, scrollH0;
+    if (!(rowH > 0)) rowH = 32;
+    bed.innerHTML = '';
+    bed.scrollTop = 0;
+    void bed.offsetHeight;
+    t = performance.now();
+    bed.innerHTML = windowHtml(def, 0, rowH);
+    scrollH0 = bed.scrollHeight;                 // forces layout
+    ms = performance.now() - t;
+    drawnFirst = bed.querySelectorAll('.v2row').length;
+    t = performance.now();
+    for (k = 1; k <= WIN_STEPS; k++) {
+      bed.scrollTop = k * WIN_VIEW_ROWS * rowH;
+      first = firstFor(def, bed.scrollTop, rowH);
+      bed.innerHTML = windowHtml(def, first, rowH);
+      void bed.scrollHeight;
+    }
+    ms2 = performance.now() - t;
+    return { ms: ms, ms2: ms2, height: scrollH0, rowH: rowH, drawnFirst: drawnFirst, lastFirst: first };
+  }
+
+  /* ---------- the walk that happens after the clock has stopped ---------- */
+
+  function inspect(def, last) {
+    var bed = document.getElementById(def.id), rows = [].slice.call(bed.querySelectorAll('.v2row')), full = 0, miss = {}, i, j, m, o = {};
+    for (i = 0; i < rows.length; i++) {
+      m = def.missing(rows[i]);
+      if (!m.length) full++;
+      for (j = 0; j < m.length; j++) miss[m[j]] = (miss[m[j]] || 0) + 1;
+    }
+    o.drawn = rows.length; o.full = full; o.missing = miss;
+    if (def.windowed) {
+      o.expectedDrawn = WIN_VIEW_ROWS + 2 * WIN_OVERSCAN;
+      o.scrollHeight = last.height; o.expectedScrollHeight = def.asked * last.rowH; o.rowH = last.rowH;
+      o.firstIndexShown = rows.length ? Number(rows[0].getAttribute('data-i')) : -1; o.firstIndexExpected = last.lastFirst;
+    } else {
+      o.expectedDrawn = def.asked;
+      o.rowPx = rows.length ? last.height / rows.length : 0;       // the whole bed's height over its rows, one read, not one per row
+      o.tokenPx = parseFloat(getComputedStyle(bed).getPropertyValue('--row-h'));
+    }
+    if (def.wrap && rows.length) o.wrap = inspectWrap(rows);
+    return o;
+  }
+
+  // How many of the reasons actually took two lines. Reads each reason's height once, after the clock; the line height comes
+  // from one computed style. If v2row-why has no CSS the reasons stay on one line and every one of them reports it.
+  function inspectWrap(rows) {
+    var first = rows[0].querySelector('.sub'), cs = getComputedStyle(first), lh = parseFloat(cs.lineHeight), i, h, lines = {}, two = 0, k;
+    if (!(lh > 0)) lh = parseFloat(cs.fontSize) * 1.4;
+    for (i = 0; i < rows.length; i++) {
+      h = rows[i].querySelector('.sub').offsetHeight;
+      k = Math.max(1, Math.round(h / lh));
+      lines[k] = (lines[k] || 0) + 1;
+      if (k === 2) two++;
+    }
+    return { clamp: cs.webkitLineClamp || cs.getPropertyValue('-webkit-line-clamp') || 'none', twoLine: two, of: rows.length, histogram: lines };
+  }
+
+  /* ---------- running a bed: three runs, all kept ---------- */
+
+  function runBed(key) {
+    var def = BEDS[key], runs = [], r, d, info;
+    for (r = 0; r < RUNS; r++) {
+      d = def.windowed ? drawWindowed(def) : drawFlat(def);
+      runs.push({ ms: round1(d.ms), ms2: d.ms2 === undefined ? null : round1(d.ms2) });
+      if (r === RUNS - 1) info = inspect(def, d);
+    }
+    return { key: key, label: def.label, asked: def.asked, windowed: def.windowed, runs: runs, info: info, width: document.getElementById(def.id).clientWidth, errors: window.__errors.slice() };
+  }
+
+  function describe(res) {
+    var parts = [], i;
+    for (i = 0; i < res.runs.length; i++) {
+      parts.push('run ' + (i + 1) + ' ' + res.runs[i].ms + ' ms' + (res.runs[i].ms2 === null ? '' : ' + scroll ' + res.runs[i].ms2 + ' ms'));
+    }
+    return parts.join(', ');
+  }
+
+  function machine() {
+    var v = document.getElementById('g-machine');
+    return v && v.value ? v.value.replace(/^\s+|\s+$/g, '') : '';
+  }
+
+  function show(key) {
+    var res = runBed(key), info = res.info, def = BEDS[key], out = document.getElementById(def.out), line = res.label + ': ' + describe(res) + '.', warn = '';
+    if (info.drawn !== info.expectedDrawn) warn += ' DREW ' + info.drawn + ' OF ' + info.expectedDrawn + ' ROWS.';
+    if (info.full !== info.drawn) warn += ' ' + (info.drawn - info.full) + ' rows are missing a part.';
+    if (info.wrap && info.wrap.twoLine !== info.wrap.of) warn += ' Only ' + info.wrap.twoLine + ' of ' + info.wrap.of + ' reasons wrapped to two lines (is .v2row-why in components.css?).';
+    out.textContent = (machine() ? machine() + ' - ' : '') + line + warn;
+    return res;
+  }
+
+  /* ---------- the device line ---------- */
+
+  function describeDevice() {
+    var nav = navigator, mem = nav.deviceMemory ? ', ' + nav.deviceMemory + ' GB (rounded down by the browser)' : '';
+    document.getElementById('g-device').textContent = 'This browser: ' + nav.userAgent + '. Window ' + window.innerWidth + ' x ' + window.innerHeight + ' px, pixel ratio '
+      + (window.devicePixelRatio || 1) + ', ' + (nav.hardwareConcurrency || '?') + ' logical processors' + mem + '.';
+  }
+
+  /* ---------- steadiness probe, for the driving script ---------- */
+
+  // A fixed bit of arithmetic timed a few times. It says nothing about speed; it says whether this machine is holding still
+  // long enough for a reading to mean anything. The first three passes are thrown away: the engine is still compiling the
+  // loop and the CPU is still ramping its clock, which is a property of every machine and not a sign of load.
+  function steady() {
+    var out = [], r, t, i, x = 0;
+    for (r = 0; r < 8; r++) {
+      t = performance.now();
+      for (i = 0; i < 8000000; i++) x += Math.sqrt(i) * 1.0000001;
+      out.push(performance.now() - t);
+    }
+    window.__sink = x;
+    return out.slice(3).map(round1);
+  }
+
+  /* ---------- buttons ---------- */
+
+  document.addEventListener('click', function (ev) {
+    var t = ev.target, el, key, k;
+    if (!t || !t.closest) return;
+    if ((el = t.closest('[data-draw]'))) { show(el.getAttribute('data-draw')); return; }
+    if ((el = t.closest('[data-clear]'))) {
+      key = el.getAttribute('data-clear');
+      for (k in BEDS) {
+        if (key === k || (key === 'cat' && k === 'catw')) {
+          document.getElementById(BEDS[k].id).innerHTML = '';
+          document.getElementById(BEDS[k].out).textContent = 'Cleared.';
+        }
+      }
+      return;
+    }
+    if ((el = t.closest('a[href="#"]'))) ev.preventDefault();
+  });
+
+  window.RowBeds = { run: runBed, show: show, steady: steady, keys: ['desk', 'why', 'cat', 'catw'] };
+  describeDevice();
+  window.addEventListener('resize', describeDevice);
+})();
+</script>
+</body>
+</html>

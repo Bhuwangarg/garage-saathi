@@ -100,3 +100,33 @@ Two checks asserting different spellings of one rule is worse than one check,
 because the pair cannot both be right. Fixed. The reason it survived is that I
 had never run the browser gate on `launch-v2` — only the other three checks —
 which is exactly the gap `PIPELINE.md` now warns about.
+
+---
+
+## From wave 2 of the frontend build
+
+**13. Reader-facing English lives in `v2/sync.js`, which no slice owns.** P3's
+literal scan covers the v2 files that *draw*; `sync.js` holds roughly ten
+sentences a person actually reads — "No connection to the server" and its
+siblings — and they are hard-coded English. That is the same defect §6.3
+records, in a file the Hindi slice does not own. For a driver or conductor, whose
+whole app is one screen, a sync refusal is one of the few sentences they will
+ever see. Move them into `W.register` when a slice next owns that file.
+
+**14. One English literal is deliberately pinned, and must stay.**
+`test_ui_states.js`'s mutant patches the exact text `'Updated ' + age`, so that
+string cannot move into the word table without emptying the mutant. It is a
+pinned list of exactly one, with the reason beside it. If somebody "finishes the
+translation" by moving it, that suite stops proving anything.
+
+**15. Two existing suites still read v1's `ui/`, not v2's copies.** P3's suite
+spawns the states one against v2, but `test_ui_overlay.js` must be run by hand
+for v2:
+`OVERLAY_JS=v2/ui/overlay.js COMPONENTS_CSS=v2/ui/components.css node test_ui_overlay.js`
+(84s). Nothing in `run-tests.py` points either suite at v2, so v2's overlay and
+components are **not** covered by the automatic run. This is the gap the tokens
+builder first reported in wave 1 of the backend work, now narrowed to one suite.
+
+**16. The shell must compose the nav's count badges.** `nav(items, activeId)` has
+nowhere to put "Me (3)" — P1 says the shell composes it into `label`. S1 owns
+that.

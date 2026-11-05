@@ -43,9 +43,10 @@
  *              invents no threshold). It is emphasis, not the switch for the age: the note turns --warn,
  *              data-state becomes "stale", and with no `at` it says "May be out of date".
  *
- * WORDS. English only for now; the callers' own text (emptyState, errorState) is whatever language they pass.
- * Wiring the fixed words (Offline, Loading, Retry, No data, Updated ... ago) to the app's translator is a
- * migration step, not done here.
+ * WORDS. Every fixed word this file draws is an id, read through w(id, n); the table is below and the Hindi is
+ * in v2/ui/words.js. The callers' own text (emptyState, errorState) is whatever language they pass, and this
+ * file does not touch it. v2-foundation-ui.md section 6.3 is why: a fixed word hard-coded here is a word no Hindi
+ * reader is ever told is missing, and that is how a whole screen stayed English with every test passing.
  *
  * RETRY. A markup string cannot carry a function, so errorState() registers onRetry under a number, writes that
  * number into the button (data-state-retry), and one click listener on document finds it again. The registry is
@@ -73,6 +74,61 @@
   // A drawing, or nothing when icons.js is not loaded: the words never depend on it.
   function draw(name, size) {
     return typeof window.icon === 'function' ? window.icon(name, { size: size }) : '';
+  }
+
+  /* ---------- the fixed words ---------- */
+
+  /* Every fixed word this file draws, registered under an id. v2-foundation-ui.md section 6.3: no fixed English word
+   * may sit outside a register literal, because one that does is one no Hindi reader is ever told is missing.
+   * The English half stays in this file and the Hindi half is in v2/ui/words.js, which is not a choice -
+   * test_ui_states.js pins this file to be pure ASCII, comments included, so Devanagari cannot live here.
+   * words.js merges the two halves by id, and test_v2_words.js fails on an id that has an English half and no
+   * Hindi key anywhere, so the split cannot hide a missing translation. Nothing below is caller text: all of
+   * that arrives as an argument and is in whatever language the caller passed. */
+  var CHROME = {
+    nothingToShow: { en: 'Nothing to show' },
+    somethingWrong: { en: 'Something went wrong' },
+    retry: { en: 'Retry' },
+    reloadToRetry: { en: 'Reload the page to retry' },
+    offline: { en: 'Offline' },
+    offlineHint: { en: 'No connection. What you see may be out of date.' },
+    loading: { en: 'Loading' },
+    noData: { en: 'No data' },
+    updatedAgo: { en: 'Updated {0}' },
+    justNow: { en: 'just now' },
+    minutesAgo: { en: { one: '{n} minute ago', other: '{n} minutes ago' } },
+    hoursAgo: { en: { one: '{n} hour ago', other: '{n} hours ago' } },
+    daysAgo: { en: { one: '{n} day ago', other: '{n} days ago' } },
+    mayBeOld: { en: 'May be out of date' },
+    timeUnknown: { en: 'Updated time unknown' }
+  };
+  var registered = false;
+
+  // Registered at load when words.js is already on the page, and on first use when it arrives after this
+  // file (index.html's order is not this file's business). Either way the table is in one place.
+  function register() {
+    if (registered || !window.W || typeof window.W.register !== 'function') return;
+    window.W.register(CHROME);
+    registered = true;
+  }
+
+  // words.js, when the page has loaded it: it holds the Hindi, the pending count and the build checks. When it
+  // is not there - a page that has not opted in, or a test that loads this file alone - this table is all there
+  // is and every word is English. That is not the section 6.3 defect; there is no Hindi in the build to be missing.
+  function lookup() {
+    register();
+    return registered && typeof window.w === 'function' ? window.w : null;
+  }
+
+  // The one or other form, with {n} filled in. Only used when words.js is absent; it does the same there.
+  function form(v, n) {
+    var s = typeof v === 'string' ? v : (n === 1 ? v.one : v.other);
+    return String(s).replace(/\{n\}/g, n === null || n === undefined ? '' : String(n));
+  }
+
+  function w(id, n) {
+    var t = lookup();
+    return t ? t(id, n) : form(CHROME[id].en, n);
   }
 
   // Text the caller supplied: shown escaped, with a fallback so a state is never an empty box.
@@ -106,21 +162,32 @@
     return ms < 0 ? 0 : ms;            // a few seconds of skew is "just now"
   }
 
-  function plural(n, one) { return n + ' ' + one + (n === 1 ? '' : 's') + ' ago'; }
-
   function ageWords(ms) {
     var m = Math.floor(ms / 60000);
-    if (m < 1) return 'just now';
-    if (m < 60) return plural(m, 'minute');
+    if (m < 1) return w('justNow');
+    if (m < 60) return w('minutesAgo', m);
     var h = Math.floor(m / 60);
-    if (h < 24) return plural(h, 'hour');
-    return plural(Math.floor(h / 24), 'day');
+    if (h < 24) return w('hoursAgo', h);
+    return w('daysAgo', Math.floor(h / 24));
+  }
+
+  /* The age phrase with its prefix. This is the ONE place in v2 where a fixed English word is written outside
+   * a register literal, and the reason is a check rather than a preference: test_ui_states.js's mutant "the age
+   * is dropped from a stale figure" patches the exact expression `'Updated ' + age` to prove the age reaches
+   * the screen, and an expression that is no longer in the file is a mutant that cannot apply. Deleting it
+   * would be weakening an existing check to make this slice pass. So the English concatenation stays on the
+   * live path, Hindi is read from the table - where {0} puts the age FIRST, which an English prefix glued on
+   * by the caller cannot do - and test_v2_words.js pins the two to say the same thing. */
+  function updated(age) {
+    if (window.W && window.W.lang() === 'hi') return w('updatedAgo').replace('{0}', age);
+    return 'Updated ' + age;
   }
 
   function unknownFigure() {
-    return '<span class="figure" data-state="unknown" title="No data">'
+    var none = esc(w('noData'));
+    return '<span class="figure" data-state="unknown" title="' + none + '">'
       + '<span class="figure-none" aria-hidden="true">' + DASH + '</span>'
-      + '<span class="sr-only">No data</span></span>';
+      + '<span class="sr-only">' + none + '</span></span>';
   }
 
   function figure(value, opts) {
@@ -135,7 +202,7 @@
       var ms = ageMs(opts.at);
       var age = ms === null ? null : ageWords(ms);
       // An `at` always shows its age. An `at` that cannot be read says so; only a caller who gives no `at` gets silence.
-      var text = age !== null ? 'Updated ' + age : (opts.stale ? 'May be out of date' : 'Updated time unknown');
+      var text = age !== null ? updated(age) : (opts.stale ? w('mayBeOld') : w('timeUnknown'));
       note = '<span class="figure-note' + (opts.stale ? ' figure-note-stale' : '') + '">' + draw('clock', 14) + ' ' + esc(text) + '</span>';
       if (opts.stale) state = 'stale';
     }
@@ -168,7 +235,7 @@
       if (retryList[i].id === id) { retryList[i].fn.call(btn, ev); return; }
     }
     btn.disabled = true;               // its handler was evicted: do not stay a button that does nothing
-    btn.textContent = 'Reload the page to retry';
+    btn.textContent = w('reloadToRetry');
   }
 
   function listen() {
@@ -183,20 +250,20 @@
     opts = opts || {};
     var hint = (opts.hint == null || /^\s*$/.test(String(opts.hint))) ? '' : '<p class="state-hint">' + esc(opts.hint) + '</p>';
     return '<div class="state empty" role="status">' + draw(opts.icon == null ? 'doc' : opts.icon, 32)
-      + '<p class="state-text">' + words(text, 'Nothing to show') + '</p>' + hint + '</div>';
+      + '<p class="state-text">' + words(text, w('nothingToShow')) + '</p>' + hint + '</div>';
   }
 
   function errorState(text, onRetry) {
     var btn = typeof onRetry === 'function'
-      ? '<button type="button" class="btn" data-state-retry="' + retryId(onRetry) + '">Retry</button>' : '';
+      ? '<button type="button" class="btn" data-state-retry="' + retryId(onRetry) + '">' + esc(w('retry')) + '</button>' : '';
     return '<div class="state state-error" role="alert" aria-live="assertive">' + draw('bad', 32)
-      + '<p class="state-text">' + words(text, 'Something went wrong') + '</p>' + btn + '</div>';
+      + '<p class="state-text">' + words(text, w('somethingWrong')) + '</p>' + btn + '</div>';
   }
 
   function offlineState() {
     return '<div class="state state-offline" role="status">' + draw('offline', 32)
-      + '<p class="state-text">Offline</p>'
-      + '<p class="state-hint">No connection. What you see may be out of date.</p></div>';
+      + '<p class="state-text">' + esc(w('offline')) + '</p>'
+      + '<p class="state-hint">' + esc(w('offlineHint')) + '</p></div>';
   }
 
   function skeleton(rows) {
@@ -206,8 +273,10 @@
     var row = '<div class="skeleton-row" aria-hidden="true"><span class="skeleton-bar"></span><span class="skeleton-bar skeleton-bar-short"></span></div>';
     var out = '', i;
     for (i = 0; i < n; i++) out += row;
-    return '<div class="skeleton" role="status" aria-busy="true"><span class="skeleton-label">Loading</span>' + out + '</div>';
+    return '<div class="skeleton" role="status" aria-busy="true"><span class="skeleton-label">' + esc(w('loading')) + '</span>' + out + '</div>';
   }
+
+  register();
 
   window.emptyState = emptyState;
   window.errorState = errorState;

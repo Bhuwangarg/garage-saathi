@@ -115,7 +115,7 @@ so no rupee can land in two parts and none can go missing.
 | Part | Source records | Exactly |
 |---|---|---|
 | **Fuel & AdBlue** | `fuel`, `def` | `sum(cost)` where `busId` matches and `at` is inside the period |
-| **Parts** | `jobcards.partsUsed` | `sum(qty × cost)` on cards whose `jobDate` is inside the period, after `reconcileJobParts` has healed `partsUsed` from `ledger` — the ledger is the record, the card is the copy |
+| **Parts** | `jobcards.partsUsed` | `sum(cost)` on cards whose `jobDate` is inside the period, after `reconcileJobParts` has healed `partsUsed` from `ledger` — the ledger is the record, the card is the copy. **`cost` is the LINE TOTAL, not a unit price**: `app.js:1638` sums it alone (`reduce((s, l) => s + l.cost, 0)`) and `app.js:7682` accumulates it the same way. This said `sum(qty × cost)` until P2 refused to implement it — that would have multiplied every parts figure by its quantity, so two pads at ₹900 would have read ₹1,800. |
 | **Labour** | `jobcards.labourHours`, `meta.garage.labourRate` | `sum(labourHours) × labourRate` on the same cards |
 | **Outside work** | `jobcards.externalCost`; `components.history[].cost` where `type` is `send-out` or `return` | summed. Rotables sent out carry a cost with no job card, which is why the second source is here |
 | **Trip cash** | `trips.expenses[].amount` | every expense on trips of that bus whose `startedAt` is inside the period, **every category including road-side diesel** — that rupee is not in `fuel`, because `fuel` is the pump log |

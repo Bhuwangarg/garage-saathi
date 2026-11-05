@@ -1,17 +1,89 @@
 <!doctype html>
-<html lang="en">
+<!-- `data-v2`, `data-density` and (when the person picks one) `data-theme` all sit
+     on THIS element. tokens.css requires it: its dark guard is
+     `[data-v2]:not([data-theme="light"])`, which only ever sees `data-theme`
+     where `data-v2` is, so the two on different elements is a light theme that
+     cannot be turned on. `data-density` ships as `yard` because yard is the safe
+     failure — a 64px row on a desk is roomy, a 32px row in a yard is unusable —
+     and boot.js corrects it from the machine's own answer before first paint. -->
+<html lang="en" data-v2 data-density="yard">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Garage Saathi</title>
-<!-- The v2 app root. Its contents are written by the build stage of the
-     pipeline, from the UX and UI documents in docs/v2/plan/. Nothing here
-     makes a design decision; this file exists so the serving path, the worker
-     scope and their gate checks can be proved before any screen is built. -->
+<!-- The v2 app root. No styles.css: v2 has its own design system under ui/ and
+     reaches outside /v2/ for nothing (the isolation gate checks that). -->
+<link rel="stylesheet" href="ui/tokens.css">
+<link rel="stylesheet" href="ui/components.css">
+<link rel="stylesheet" href="ui/screens.css">
+<link rel="stylesheet" href="ui/login.css">
 </head>
 <body>
 <noscript>This app needs JavaScript.</noscript>
 <div id="app"></div>
+
+<!-- ===================================================================== -->
+<!-- THE SCRIPT ORDER, AND WHY IT IS AN ORDER                               -->
+<!--                                                                        -->
+<!-- These are classic scripts declaring top-level `const`s. They are not    -->
+<!-- modules, there is no import graph, and nothing here is deferred: the    -->
+<!-- parser runs them in exactly this sequence, and a file placed above      -->
+<!-- something it needs is one console error and a blank page. So the order  -->
+<!-- is a dependency order and not a preference, and it is declared as data  -->
+<!-- in test_v2_boot.js (ORDER and DEPS) so that reordering two lines here   -->
+<!-- turns a check red instead of turning a screen white.                    -->
+<!--                                                                        -->
+<!-- Every module resolves its neighbours at CALL time rather than capturing -->
+<!-- them at load (see v2/night.js's db(), v2/router.js's caps()), which is  -->
+<!-- what keeps a single mistake here recoverable rather than fatal. That is -->
+<!-- a reason to keep the order honest, not a reason to stop caring about    -->
+<!-- it: boot.js runs at the bottom of this document and calls into all of   -->
+<!-- them, and by then every one of them has to have declared itself.        -->
+<!--                                                                        -->
+<!-- This list and sw.js's precache list are THE SAME LIST. A file served    -->
+<!-- here but not precached there works perfectly until the yard goes        -->
+<!-- offline at 20:00, and nothing else in the repo would notice; one slice  -->
+<!-- owns both files and test_v2_boot.js compares them entry for entry.      -->
+<!--                                                                        -->
+<!-- Not yet on disk, and each goes in at the position its dependencies say  -->
+<!-- (add it HERE and in sw.js, or the check that compares the two lists     -->
+<!-- against the directory goes red, which is the point of it):              -->
+<!--   ui/shell.css  with the other stylesheets, any order                    -->
+<!--   shell.js      after cache.js, before the screens                      -->
+<!--   screens/*.js  after shell.js, before boot.js, any order between them: -->
+<!--                 each registers itself with Router at load and draws      -->
+<!--                 nothing until Shell.mount asks                          -->
+<!-- ===================================================================== -->
+
+<!-- icon()/ICONS first: states.js, overlay.js, photos.js and the nav all build
+     markup around an icon, and nothing builds an icon. words.js next, because
+     every one of them puts a word in that markup. -->
+<script src="ui/icons.js"></script>
+<script src="ui/words.js"></script>
+<script src="ui/states.js"></script>
+<script src="ui/overlay.js"></script>
+<script src="ui/photos.js"></script>
+<script src="ui/nav.js"></script>
+
+<!-- The data layer. db.js declares DB; sync.js, pullapply.js and night.js all
+     read it. -->
+<script src="db.js"></script>
+<script src="sync.js"></script>
+<script src="pullapply.js"></script>
+<script src="night.js"></script>
+
+<!-- Pure formatters, no dependents among the three, so any order between them. -->
+<script src="fmt.js"></script>
+<script src="odo.js"></script>
+<script src="cost.js"></script>
+
+<!-- caps.js is the capability table; router.js enforces it; cache.js reads the
+     stores; boot.js is last and is the only script that calls anything. -->
+<script src="caps.js"></script>
+<script src="router.js"></script>
+<script src="cache.js"></script>
+<script src="boot.js"></script>
+
 <script>
   /* Registered with no scope override, and from inside /v2/, so the browser
    * caps this worker's scope at /v2/ and it can never claim the live app at /.

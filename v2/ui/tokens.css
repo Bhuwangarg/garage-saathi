@@ -154,6 +154,9 @@
   --thumb: 56px;
   /* Desk only: the left rail that replaces the bottom bar at >= 1024px. --pad 8 +
    * mark 20 + --s2 8 + label (~84 Latin, wider in Devanagari) + --pad 8, so 160
-   * leaves 32 of slack. Yard has no rail, hence no yard value. */
+   * leaves 32 of slack. Yard has no rail, hence no yard value.
+   * Vertically: twelve items at --tap 32px is 384px of a 768px office screen, so
+   * every slot a supervisor or an owner holds fits and More disappears entirely
+   * at a desk. Content keeps 1024 - 160 = 864px. */
   --rail-w: 160px;
 }
