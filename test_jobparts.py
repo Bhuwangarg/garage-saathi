@@ -92,8 +92,12 @@ check("a deleted card is not resurrected with parts", stored("jobcards", "j1").g
 
 print("Correcting the bus on a verified card is the owner's alone")
 VERIFIED = dict(CARD, status="verified", busId="b1", partsUsed=[{"partId": "p-clutch", "qty": 2, "cost": 900}])
+# Two people to reach "verified": the supervisor closes, the owner signs off.
+# This went straight to verified in one push until 4 Nov 2026, when the server
+# stopped letting anybody sign off their own close.
 push(SUP, "jobcards", "j2", dict(CARD, busId="b1"))
-push(SUP, "jobcards", "j2", VERIFIED)
+push(SUP, "jobcards", "j2", dict(VERIFIED, status="done"))
+push(OWNER, "jobcards", "j2", VERIFIED)
 check("the card is verified on b1", stored("jobcards", "j2")["busId"] == "b1")
 
 r = push(SUP, "jobcards", "j2", dict(VERIFIED, busId="b9"))

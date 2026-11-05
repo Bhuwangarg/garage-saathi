@@ -718,13 +718,56 @@ jck "fines are counted once per bus" \
 # Ids are names that already exist: they keep the stored spelling.
 jck "record ids keep the stored spelling"   "_regIdKey('MP44 ZD 471')" "MP44ZD471"
 
-# 2i) The supervisor's own work signs itself off; the owner's does not.
-jck "supervisor closes = signed off"        "String(selfSignsOff('supervisor'))" "true"
-jck "owner still needs a second person"     "String(selfSignsOff('owner'))" "false"
+# 2i) Nobody signs off their own close -- one rule for every role.
+#
+# These two asserted the opposite until 4 Nov 2026. From 15 Sep a supervisor's
+# own work signed itself off, on the owner's instruction; he reversed it after
+# being shown that the same pair of hands had come to hold the parts, the cash
+# reconciliation and the departure record too.
+jck "nobody's close signs itself off: supervisor" "String(selfSignsOff('supervisor'))" "false"
+jck "nobody's close signs itself off: owner"      "String(selfSignsOff('owner'))" "false"
 login supervisor u-sup 2 2 2 2
 j "window.__sv='';(async function(){var b=S.cache.buses[0],n=Date.now();await DB.put('jobcards',{id:'g-sv',busId:b.id,problem:'Gate supervisor close',status:'open',priority:'low',createdAt:n,updatedAt:n,assignedTo:'u-m1',beforePhotos:['b'],afterPhotos:['a'],partsUsed:[]});await load();await markDone('g-sv');var j=byId(S.cache.jobs,'g-sv');window.__sv=j.status+'/'+j.verifiedBy+'/'+j.closedBy})().catch(function(e){window.__sv='ERR '+e.message})" >/dev/null
-settle "window.__sv||''" "verified/u-sup/u-sup" 30 >/dev/null
-jck "a supervisor's close is verified in the same step" "window.__sv" "verified/u-sup/u-sup"
+settle "window.__sv||''" "done/undefined/u-sup" 30 >/dev/null
+# status/verifiedBy/closedBy. Closed, NOT verified, and the record still says who
+# closed it -- a refusal that lost the close would be worse than no rule at all.
+jck "a supervisor's close waits for somebody else" "window.__sv" "done/undefined/u-sup"
+
+# 2i2) Logging a service has to produce a card the SERVER will take.
+#
+# It did not, for eight weeks. confirmLogService wrote a photoless card straight
+# at `verified`, which _guard_write has refused since 10 Sep 2026, while the
+# separate push updating the bus's service date was accepted -- so the service
+# looked logged and its cost never left the phone. The tests in
+# test_servicelog.py pin what the server accepts; these pin what the CLIENT
+# sends, which is the half that was wrong.
+login supervisor u-sup 2 2 2 2
+j "window.__svc='';(async function(){var b=S.cache.buses[0],n=(S.cache.jobs||[]).length;
+   logService(b.id);
+   _svBefore=''; _svAfter='';
+   await confirmLogService(b.id);
+   var after=(S.cache.jobs||[]).length;
+   window.__svc=(after===n?'nothing-written':'WROTE-'+(after-n))+'/'+(document.querySelector('.sheetwrap')?'sheet-open':'sheet-gone')
+  })().catch(function(e){window.__svc='ERR '+e.message})" >/dev/null
+settle "window.__svc||''" "nothing-written/sheet-open" 30 >/dev/null
+# Nothing written AND the sheet stays open: the person is told what is missing
+# while the photo is still takeable. The old code wrote the bus first, so a
+# refusal left a service date behind with no cost against it.
+jck "a service with no photos writes nothing and keeps the sheet open" "window.__svc" "nothing-written/sheet-open"
+
+j "window.__svc2='';(async function(){var b=S.cache.buses[0];
+   logService(b.id);
+   _svBefore='data:image/jpeg;base64,b4'; _svAfter='data:image/jpeg;base64,af';
+   await confirmLogService(b.id);
+   var j2=(S.cache.jobs||[]).filter(function(x){return /Scheduled service/.test(x.problem||'')})
+            .sort(function(a,c){return (c.createdAt||0)-(a.createdAt||0)})[0]||{};
+   window.__svc2=j2.status+'/'+((j2.beforePhotos||[]).length)+((j2.afterPhotos||[]).length)+'/'+(j2.verifiedBy||'none')
+  })().catch(function(e){window.__svc2='ERR '+e.message})" >/dev/null
+settle "window.__svc2||''" "done/11/none" 30 >/dev/null
+# status / before+after photo counts / verifiedBy. `done` and not `verified`: a
+# service is work somebody did, so it waits for a second signature like any
+# other work, and nobody signs off their own close.
+jck "a service with both photos is written as done, unsigned" "window.__svc2" "done/11/none"
 
 # 2j) A bus away at a workshop in another city is NOT standing in our yard, and
 # a card made by mistake can be removed — but never by losing the parts on it.

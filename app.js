@@ -1077,7 +1077,8 @@ function closeSheet() {
   const w = $('.sheetwrap'); if (w) w.remove();
   // Reset pending photo captures so a dismissed sheet can't leak its photo
   // into the next incident/bill (these are module-level scratch vars).
-  _incPhoto = ''; _billPhoto = ''; _docPhoto = ''; _stopLat = null; _stopLng = null;
+  _incPhoto = ''; _billPhoto = ''; _docPhoto = ''; _stopLat = null; _stopLng = null
+  _svBefore = ''; _svAfter = '';
 }
 
 /* ------------------------------ Data ops ---------------------------------- */
@@ -3860,17 +3861,25 @@ function isVerifierRole() { return can(S.user.role, 'verifyJob'); }
 
 /* Whose work needs a SECOND person to sign it off.
  *
- * The two-person rule — nobody verifies a job they closed — is kept for the
- * owner, and was dropped for the supervisor on the owner's instruction
- * (15 Sep 2026): Vajid's closed work needs no separate verification. When a
- * supervisor closes a job it is signed off in the same step, and a supervisor
- * may verify a job they closed earlier.
+ * Nobody's own. Every role, the owner included: you cannot verify a job you
+ * closed, and closing never signs off in the same step.
  *
- * This is by ROLE, not by name, so it covers Latif too if he is added as a
- * supervisor. The proof rule is untouched: before and after photos (or a
- * vendor bill) are still required to close — what went is only the second
- * signature, not the evidence. */
-const selfSignsOff = (role) => role === 'supervisor';
+ * From 15 Sep 2026 the supervisor was exempt, on the owner's instruction, and
+ * this read `role === 'supervisor'`. The owner reversed it on 4 Nov 2026 after
+ * being shown what the exemption had come to sit beside -- one pair of hands
+ * now holds the parts, the cash reconciliation and the departure record, and
+ * the signature on their own closed work was the fourth.
+ *
+ * Kept as a function rather than deleted because the five call sites already
+ * branch on it and were written for both answers; one line at the single point
+ * of truth is a smaller change than five edits, and the name still says what
+ * the question is. The server refuses a self-verify now whatever this returns
+ * (sync_server: "you closed this job — someone else must verify it"), so this
+ * only decides whether the app offers a button that would be refused.
+ *
+ * The proof rule is untouched and always was: before and after photos, or a
+ * vendor bill, are still required to close. */
+const selfSignsOff = () => false;
 // Closing a card belongs to the supervisor or the owner — never to the mechanic
 // on it, however much of it is theirs. The server refuses any other close
 // (sync_server: "only an owner or supervisor may close a job"), so a close the
@@ -9353,16 +9362,47 @@ async function showGps(busId) {
     </div>
     <button class="btn ghost" data-act="gps" data-bus="${esc(b.id)}">↻ Refresh</button>`;
 }
+/* Photographs for the service sheet, held until it is submitted.
+ *
+ * Module-level and cleared by closeSheet(), like _incPhoto and the rest: a
+ * dismissed sheet must not leak its photo into the next thing somebody logs. */
+let _svBefore = '';
+let _svAfter = '';
+
+/* Log a scheduled service.
+ *
+ * This asks for evidence, which it did not until now, and that is the whole
+ * point. A service carries labour hours and a parts cost, so it is money
+ * claimed for work -- the same thing every other job card has needed proof of
+ * since 10 Sep 2026 (2299533). This sheet did not ask, the card it wrote was
+ * refused by the server for eight weeks, and because the bus's own service date
+ * was written by a separate accepted push, it looked done. See LIVE-ISSUES 8.
+ *
+ * Proof is the same rule as anywhere else, and read from the same function
+ * (photoGateReady) rather than restated here: a named outside garage needs one
+ * photo of the bill, work done in-house needs a before and an after. */
 function logService(busId) {
   if (!can(S.user.role, 'logService')) return toast(t('cbNotAllowed'));
   const b = byId(S.cache.buses, busId);
+  _svBefore = ''; _svAfter = '';
   openSheet('Log service done', `
     <div class="grid2">
       <label class="field"><span class="lbl">Odometer now (km)</span><input id="f-svodo" type="number" inputmode="numeric" value="${b.odometer || 0}"></label>
       <label class="field"><span class="lbl">Labour hours</span><input id="f-svhrs" type="number" inputmode="decimal" value="2"></label>
     </div>
     <label class="field"><span class="lbl">Parts / external cost (₹, optional)</span><input id="f-svcost" type="number" inputmode="numeric"></label>
+    <label class="field"><span class="lbl">Outside garage (leave empty if done here)</span><input id="f-svvendor" placeholder="e.g. Sharma Auto Works"></label>
     <label class="field"><span class="lbl">Notes</span><input id="f-svnote" placeholder="e.g. oil + filter changed"></label>
+    <div class="hr"></div>
+    <div class="lbl">Photos</div>
+    <div class="tiny muted">Done here: one before and one after. Outside garage: one photo of the bill is enough.</div>
+    <div class="btnrow" style="margin:8px 0">
+      <button class="btn" data-act="svPhotoBefore">${icon('camera')} Before / bill</button>
+      <button class="btn" data-act="svPhotoAfter">${icon('camera')} After</button>
+    </div>
+    <div class="thumbs"><span id="f-svbprev"></span><span id="f-svaprev"></span></div>
+    <div class="hr"></div>
+    <div class="tiny muted">Logging this leaves it waiting for somebody else to sign off, like any other job.</div>
     <button class="btn primary" data-act="confirmLogService" data-bus="${esc(busId)}">${icon('ok')} Log service</button>`);
 }
 async function confirmLogService(busId) {
@@ -9371,18 +9411,40 @@ async function confirmLogService(busId) {
   const odo = Number($('#f-svodo').value) || b.odometer || 0;
   const hrs = Number($('#f-svhrs').value) || 0;
   const cost = Number($('#f-svcost').value) || 0;
-  b.odometer = Math.max(b.odometer || 0, odo);   // never let a reading go backwards
-  b.lastServiceOdo = odo; b.lastServiceDate = Date.now();
-  await DB.put('buses', b);
-  // Record it in the bus history so cost & audit trail stay complete.
-  await DB.put('jobcards', {
+  const vendor = ($('#f-svvendor') ? $('#f-svvendor').value.trim() : '');
+  const now = Date.now();
+  const card = {
     id: uid('j-'), busId, problem: `Scheduled service @ ${odo.toLocaleString('en-IN')} km (every ${(b.serviceIntervalKm || SERVICE_INTERVAL_KM).toLocaleString('en-IN')} km)`,
-    priority: 'low', status: 'verified', reportedBy: S.user.id, assignedTo: S.user.id,
-    beforePhotos: [], afterPhotos: [], partsUsed: [], labourHours: hrs, externalVendor: '', externalCost: cost,
-    notes: ($('#f-svnote').value.trim() || 'Preventive service logged'), createdAt: Date.now(), closedAt: Date.now(),
-    verifiedBy: S.user.id, verifiedAt: Date.now(),
-  });
-  await load(); closeSheet(); toast('Service logged'); rerender();
+    priority: 'low',
+    // `done`, never `verified`. A service is work somebody did, so it waits for
+    // a second signature like any other work -- and nobody signs off their own
+    // close any more (the owner's decision, 4 Nov 2026). Writing `verified`
+    // here was half of why the server refused this card for eight weeks.
+    status: 'done', reportedBy: S.user.id, assignedTo: S.user.id,
+    beforePhotos: _svBefore ? [_svBefore] : [], afterPhotos: _svAfter ? [_svAfter] : [],
+    partsUsed: [], labourHours: hrs, externalVendor: vendor, externalCost: cost,
+    notes: ($('#f-svnote').value.trim() || 'Preventive service logged'),
+    createdAt: now, closedAt: now,
+  };
+  /* Check the proof BEFORE writing anything.
+   *
+   * The old order wrote the bus first and the card second, so when the server
+   * refused the card the bus still carried a new service date -- the service
+   * looked logged and its cost was gone. Both records now land or neither does,
+   * and the person is told what is missing while the sheet is still open and
+   * the photo is still takeable. */
+  if (!photoGateReady(card)) {
+    return toast(vendor
+      ? 'Add one photo of the outside garage\u2019s bill'
+      : 'A service done here needs one before photo and one after photo');
+  }
+  b.odometer = Math.max(b.odometer || 0, odo);   // never let a reading go backwards
+  b.lastServiceOdo = odo; b.lastServiceDate = now;
+  await DB.put('buses', b);
+  await DB.put('jobcards', card);                // the cost and audit trail
+  _svBefore = ''; _svAfter = '';
+  await load(); closeSheet();
+  toast('Service logged \u2014 waiting for sign-off'); rerender();
 }
 
 /* ------------------------------- Drivers ---------------------------------- */
@@ -13271,6 +13333,8 @@ const _dispatchClick = async (e) => {
       case 'saveAssignDriver': return saveAssignDriver(el.getAttribute('data-bus'), el.getAttribute('data-role'), Number(el.getAttribute('data-slot')) || null);
       case 'addIncident': return can(S.user.role, 'logIncident') ? sheetIncident(el.getAttribute('data-driver')) : toast(t('cbNotAllowed'));
       case 'saveIncident': return saveIncident(el.getAttribute('data-driver'));
+      case 'svPhotoBefore': { const d = await capturePhoto(); if (d) { _svBefore = await Sync.uploadPhoto(d) || d; const el = $('#f-svbprev'); if (el) el.innerHTML = `<img class="thumb" src="${_svBefore}">`; } return; }
+      case 'svPhotoAfter': { const d = await capturePhoto(); if (d) { _svAfter = await Sync.uploadPhoto(d) || d; const el = $('#f-svaprev'); if (el) el.innerHTML = `<img class="thumb" src="${_svAfter}">`; } return; }
       case 'incidentPhoto': { const d = await capturePhoto(); if (d) { _incPhoto = await Sync.uploadPhoto(d) || d; $('#f-iphoto').innerHTML = `<img class="thumb" src="${_incPhoto}">`; } return; }
       case 'reportProblem': return sheetTripReport(el.getAttribute('data-bus'), el.getAttribute('data-driver'));
       case 'saveReport': return saveReport(el.getAttribute('data-bus'), el.getAttribute('data-driver'));

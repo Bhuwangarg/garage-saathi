@@ -1754,18 +1754,30 @@ def _guard_rules(store, rid, data, actor, existing, c=None):
             # somebody signing off and must not be refused as if it were.
             if actor["role"] not in ("owner", "supervisor"):
                 return "only an owner or supervisor may verify"
+            # Signing off is a SECOND act, on a card somebody has already
+            # closed. A single write that goes from open straight to verified is
+            # one person doing both, and it was also the way around the rule
+            # below: on that path `closedBy` is not server-stamped, it falls back
+            # to the request body a few lines up, so a crafted push could name
+            # somebody else as the closer and then sign the card itself. Requiring
+            # a close first removes the transition and both holes with it.
+            if prev != "done":
+                return "a job must be closed before it can be signed off"
+            # Nobody signs off their own close. ONE RULE FOR EVERY ROLE, the
+            # owner included.
+            #
+            # From 15 Sep 2026 the supervisor was exempt -- the owner's decision
+            # at the time, and the reason this read `and actor["role"] !=
+            # "supervisor"`. The owner reversed it on 4 Nov 2026, having been
+            # shown what it had come to sit beside: the same pair of hands holds
+            # the parts, the cash reconciliation and the departure record, and
+            # this was the signature on their own closed work as well.
+            #
+            # Because prev is now always "done" here, `closedBy` was stamped from
+            # the token on that close and cannot have come from a body.
             closer = old.get("closedBy") or data.get("closedBy")
-            # The supervisor's own work needs no second signature — the owner's
-            # decision, 15 Sep 2026. The OWNER still may not sign off what the
-            # owner closed. Photos are still required above; only the second
-            # person is gone.
-            if closer and closer == actor["id"] and actor["role"] != "supervisor":
+            if closer and closer == actor["id"]:
                 return "you closed this job — someone else must verify it"
-            if actor["role"] == "supervisor" and prev not in ("done", "verified"):
-                # Closed and signed off in one write: record who closed it from
-                # the token, not the body, so the record still says who did it.
-                data["closedBy"] = actor["id"]
-                data["closedAt"] = old.get("closedAt") or data.get("closedAt") or now_ms()
             # Signing off is an identity claim; take it from the token.
             data["verifiedBy"] = actor["id"]
             data["verifiedAt"] = now_ms()
