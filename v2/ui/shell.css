@@ -1,0 +1,169 @@
+/* Garage Saathi v2 — the app frame's layout. Four elements, thirteen screens.
+ *
+ * The foundation's §7.2 item 2 permits one screen-level stylesheet; this is it,
+ * except that it belongs to all thirteen screens rather than to one. So it
+ * DECLARES NO COLOUR AND NO SIZE OF ITS OWN: every length below is one of the
+ * 33 tokens or a calc() of them plus a safe-area inset, and every colour is a
+ * token reference. That is the rule that keeps thirteen screens coherent, and
+ * it is the rule a well-meaning builder breaks first — a 900px here and a 12px
+ * there is how desk and yard drift apart.
+ *
+ * Chrome 109 is the ceiling (Windows 7 office PCs): no oklch(), no
+ * color-mix(), no nesting, no @starting-style, no subgrid, no text-wrap:
+ * balance. A px literal appears only inside a border, outline or box-shadow
+ * value, which is `PX_OK_PROP`, and this file has none of those either.
+ *
+ * Every selector starts with [data-v2], like the rest of the system, so the
+ * file is inert anywhere the v2 attribute is absent — v1 is live for about a
+ * hundred people and shares the document for the whole migration.
+ *
+ * WHAT IS NOT HERE, AND WHY.
+ *
+ * `.nav` — the bar, the rail, their items, their press, their focus ring and
+ * their active bar are all in `ui/components.css` §3.7 already. The nav is the
+ * ONE fixed layer in the app, and its one `position: fixed` rule lives there,
+ * so this file declares no `position` at all. `.apphead` is therefore NOT
+ * sticky and nothing here is: the header scrolls away with the content, and a
+ * 200-row list on a Core 2 Duo pays for one promoted layer, not two.
+ *
+ * No overflow, no height on `body`, no inner scroller. `body` IS the scroll
+ * container, and that is not a preference: `ui/overlay.js` locks the page by
+ * setting `documentElement.style.overflow` and restoring it exactly (100 checks
+ * behind it), and an inner scroller is not locked by that — a sheet would open
+ * over a list that still scrolls behind the scrim, and the scrim is the only
+ * thing that says the page behind is inert. Two further reasons, both measured
+ * in this repo rather than guessed: 100vh on an Android phone is taller than
+ * the visible viewport, so the last row would sit under the bar however correct
+ * the padding is; and an inner scroller loses Chrome's scroll anchoring, which
+ * is what stops a 200-row desk list jumping when the 4-second sync tick applies
+ * a record.
+ */
+
+/* ---------- the scroll container -------------------------------------------
+ * `:not(.lg)` is the signed-out handover. `login.css`'s `[data-v2].lg` sets
+ * min-height: 100vh and owns the whole viewport; the signed-out document has no
+ * header, no nav and NO SCROLL CONTAINER PADDING, so these rules step aside
+ * rather than fight it.
+ *
+ * The inline padding carries the left and right safe-area insets, and the top
+ * inset is on the frame rather than on the header, so the header's
+ * calc(var(--tap) + var(--s2) * 2) arithmetic is unchanged on a notched phone.
+ */
+[data-v2]:not(.lg) body {
+  margin: 0;
+  background: var(--surface);
+  padding-top: env(safe-area-inset-top);
+  padding-inline: calc(var(--pad) + env(safe-area-inset-left)) calc(var(--pad) + env(safe-area-inset-right));
+  /* THE SECOND HALF of the bottom rule, and the default: no nav, no bar, and
+   * --nav-h is NOT CONSUMED. Default because yard-with-no-bar is the safe
+   * failure — a screen that reserves a bar's height for a bar that is not
+   * there is 56px of nothing at the end of every list. */
+  padding-bottom: calc(var(--pad) + env(safe-area-inset-bottom));
+}
+
+/* THE FIRST HALF. The bar's own box is
+ * `calc(var(--nav-h) + env(safe-area-inset-bottom))` with
+ * `padding-bottom: env(safe-area-inset-bottom)` (components.css §3.7), so these
+ * two are the same number and the last row clears the bar exactly.
+ * A BUILDER WHO CHANGES ONE MUST CHANGE THE OTHER — test_v2_shell.js reads all
+ * three expressions and fails when they stop matching. */
+[data-v2][data-frame="bar"]:not(.lg) body {
+  padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom));
+}
+
+/* The rail is the no-nav half too: it takes the inline edge, not the bottom
+ * one. Both clauses of the rail's condition, matching components.css exactly —
+ * desk density AND at least 1024px wide, because a width-only rule would put a
+ * rail on a tablet in landscape (also 1024x768, held in two hands) and a
+ * desk-density page on a 360px phone must not lose 44% of its width to one.
+ * `padding-inline-start: var(--rail-w)` replaces the left inset rather than
+ * adding to it, because the rail already covers that edge. */
+@media (min-width: 1024px) {
+  [data-v2][data-density="desk"][data-frame="bar"]:not(.lg) body {
+    padding-bottom: calc(var(--pad) + env(safe-area-inset-bottom));
+    padding-inline-start: var(--rail-w);
+  }
+}
+
+/* ---------- the header -----------------------------------------------------
+ * Three columns: the back control, the title, the trailing slot. The title's
+ * column is `minmax(0, 1fr)` and it truncates, so the title does not reflow
+ * when the offline button appears — the slot is the only thing that changes
+ * width. `minmax(0, …)` and not `1fr` alone: a bare 1fr has `min-width: auto`,
+ * so a long Hindi title would push the slot off the end instead of ellipsing.
+ *
+ * min-height is 64px at yard and 48px at desk, from --tap and --s2. The
+ * background is the page's: this is not a bar, it is the top of the page, so
+ * there is no border and no shadow. */
+[data-v2] .apphead {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--s2);
+  min-height: calc(var(--tap) + var(--s2) * 2);
+  background: var(--surface);
+}
+
+/* No side padding of its own: the gutter is the scroll container's, so the
+ * title shares one left edge with every row below it. §1.1's table gives
+ * `.apphead { padding-inline: var(--pad) }` while §1.5 puts the same --pad on
+ * `body`; applying both insets the title twice and misaligns it with the body
+ * on all thirteen screens, and the header needs no bleed of its own because its
+ * background IS the page's and it has no edge. */
+[data-v2] .apphead h1 {
+  margin: 0;
+  font-size: var(--t3);
+  font-weight: 650;
+  /* -0.01em at --t3 is the -0.2px the spec asks for at yard, stated as a ratio
+   * because a px literal outside a border, outline or shadow is the rule this
+   * file is checked against — and because desk's --t3 is 20px, where a fixed
+   * -0.2px is a slightly different tightening of a different size. */
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-v2] .apphead-lead,
+[data-v2] .apphead-trail {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+[data-v2] .apphead-trail {
+  justify-content: flex-end;
+}
+
+/* The persistent offline indicator. `.btn-quiet` already has the box, the
+ * press and the focus ring; what is added is the word's colour and the one
+ * transition.
+ *
+ * Two classes deep (`.btn.apphead-off`) on purpose: `[data-v2] .btn-quiet`
+ * sets a colour at the same specificity, and the stylesheet order between
+ * components.css and this file is free, so a tie would be decided by whichever
+ * link happens to come first in index.html.
+ *
+ * opacity 0 -> 1 in 150 ms, and NO MOVEMENT: a line that appears without a
+ * transition reads as a redraw, and on this app's history a redraw means
+ * something broke. The height is never animated — the layout shift happens at
+ * once. `data-on` is set by shell.js one frame after the button lands, which is
+ * what makes this a change between two frames rather than a first style. */
+[data-v2] .btn.apphead-off {
+  color: var(--warn);
+  opacity: 0;
+  transition: opacity 150ms ease-out;
+}
+
+[data-v2] .btn.apphead-off[data-on] {
+  opacity: 1;
+}
+
+/* ---------- the body -------------------------------------------------------
+ * Side padding is the scroll container's, so a full-bleed list can still reach
+ * the edge by negative-margining --pad, which only Attention's desk table does.
+ * No position, no overflow, no height: see the header of this file. */
+[data-v2] .appbody {
+  padding-top: var(--s6);
+}

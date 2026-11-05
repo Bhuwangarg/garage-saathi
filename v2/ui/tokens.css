@@ -159,4 +159,16 @@
    * every slot a supervisor or an owner holds fits and More disappears entirely
    * at a desk. Content keeps 1024 - 160 = 864px. */
   --rail-w: 160px;
+    /* The widest a column of prose or rows gets at a desk, so a 1366px screen
+     * does not stretch one sentence across the whole of it. Consumed by Today
+     * and Me, which are the two reading screens; every other desk screen is a
+     * table and wants the width.
+     *
+     * A token rather than the 900px literal screens-shell.md asked for: a px
+     * literal is allowed only in border, outline and box-shadow
+     * (test_ui_components.js PX_OK_PROP), so a literal here would fail the
+     * suite -- which is why the three size tokens exist at all. S1 omitted the
+     * rule rather than inline the literal and escalated it; this is the answer.
+     * 900px is about 90 characters at --t3, which is a readable measure. */
+    --read-w: 900px;
 }

@@ -59,6 +59,7 @@ const SHELL = [
   'ui/tokens.css',
   'ui/components.css',
   'ui/screens.css',
+  'ui/shell.css',
   'ui/login.css',
   'ui/icons.js',
   'ui/words.js',
@@ -76,6 +77,7 @@ const SHELL = [
   'caps.js',
   'router.js',
   'cache.js',
+  'shell.js',
   'boot.js',
 ];
 
