@@ -249,7 +249,14 @@ function open(o) {
   let loading = true;             // true while the page's scripts are still running
   const readsWhileLoading = [];
   function patchDB() {
-  win.DB = inCtx('DB');
+  /* NOT `win.DB = inCtx('DB')` any more, and that line was the whole reason this
+     harness could not see the defect it exists to catch. `db.js` publishes
+     itself to the global object now, exactly as the real page does, so READING
+     it off `window` here is what proves the publish is there. Hanging it on
+     `window` ourselves manufactured the one condition nine screens depend on,
+     which is the same trap this file already avoided, two comments below, for
+     `STORES`. If the publish is ever removed this throws instead of passing. */
+  if (!win.DB) throw new Error('db.js did not publish window.DB — nine screens reach root.DB and every write behind it is a silent no-op on the page');
   /* `STORES` is DELIBERATELY NOT hung on `window`. `cache.js` resolves it as a
    * bare name first and falls back to `root.STORES`, so a copy here would take
    * a branch the real page never takes — and it quietly neutered section 8's
@@ -288,7 +295,8 @@ function open(o) {
   const syncStarts = [];
   const resets = [];
   function patchSync() {
-  win.Sync = inCtx('Sync');
+  // Read, not assigned, for the reason given above `win.DB`.
+  if (!win.Sync) throw new Error('sync.js did not publish window.Sync — the screens that reach root.Sync get nothing');
   win.Sync.start = function (cb) { syncStarts.push(cb); return true; };
   win.Sync.tick = function () { return Promise.resolve(); };
   win.Sync.reset = function () { resets.push(Date.now()); return Promise.resolve(); };

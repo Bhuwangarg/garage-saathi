@@ -772,3 +772,22 @@ async function seedIfEmpty(demo) {
   await DB.put('meta', { key: 'garage', lat: 26.9124, lng: 75.7873, radiusM: 200, locSet: false, name: 'Mahalaxmi Travels Garage, Jaipur', biz: 'Mahalaxmi Travels', labourRate: 250 });
   await DB.put('meta', { key: 'seeded', value: true });
 }
+
+/* DB joins the global object, which every other module in v2 already does and
+ * this file did not.
+ *
+ * `const DB` at the top level of a classic script goes into the global LEXICAL
+ * environment, not onto `window`. So a bare `DB` resolved and `window.DB` was
+ * `undefined` -- measured in Chrome: `typeof DB` "object", `typeof window.DB`
+ * "undefined", while Cache, Shell, Boot and Caps all answered. Ten modules
+ * resolve this one as `(typeof DB !== 'undefined' && DB) || root.DB` and were
+ * fine. NINE screens go straight to `root.DB`, and every write behind that
+ * reference was a silent no-op on the real page: a storekeeper issued a part
+ * and the book never moved, a mechanic tapped "I have started" and nothing was
+ * stamped, a supervisor saved a job card that was never created. No error, no
+ * toast, no console line -- the guards read `if (!root.DB) return;`.
+ *
+ * Publishing here rather than rewriting sixty-six call sites, because the nine
+ * screens are not wrong about the idiom: every other v2 module IS on the global
+ * object, and this file and `sync.js` were the two outliers. */
+if (typeof window !== 'undefined') window.DB = DB;

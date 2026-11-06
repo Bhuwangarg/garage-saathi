@@ -1427,3 +1427,8 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
            queuePhoto, uploadError, remove, clearQuarantine, subscribePush, pushTest, flagOn, flagList,
            get status() { return status; } };
 })();
+
+// Sync joins the global object, for the reason written at the foot of `db.js`:
+// a top-level `const` in a classic script is not a property of `window`, and
+// the screens that reach `root.Sync` were reaching for nothing.
+if (typeof window !== 'undefined') window.Sync = Sync;
