@@ -33,7 +33,7 @@
  * a document that is not there), but it cannot close it: see the report's note
  * on the headless browser run, which is the other half of the proof.
  *
- * MUTANTS. Section 9 breaks each rule above in the source, reloads, and asserts
+ * MUTANTS. Section 10 breaks each rule above in the source, reloads, and asserts
  * that the check for it goes red. A check that cannot fail is decoration, and
  * this repo has shipped a bug behind one.
  */
@@ -130,6 +130,10 @@ function fakeHtml() {
  *   o.recent    the ids in 'gs-recent'
  *   o.token     the user id a persisted token names, '' for none
  *   o.lang      the document language
+ *   o.roster    what `Sync.roster()` answers: an array resolves, 'hang' never
+ *               answers at all, and ABSENT REJECTS — which is a device with no
+ *               network, and so is the default a case gets unless it says
+ *               otherwise.
  */
 function load(o) {
   o = o || {};
@@ -150,6 +154,8 @@ function load(o) {
 
   const timers = [];
   const logins = [];
+  const rosters = [];
+  const bulkPuts = [];
   const warms = [];
   const actors = [];
   const logouts = [];
@@ -170,6 +176,15 @@ function load(o) {
       return Promise.resolve(a);
     },
     warmUp: function () { warms.push(Date.now()); },
+    /* The untokened roster. It takes no arguments and is handed no token by the
+     * stub on purpose: a case that could pass one would be a case that could
+     * hide the whole point of this endpoint. */
+    roster: function () {
+      rosters.push(Date.now());
+      if (o.roster === 'hang') return new Promise(function () {});
+      if (o.roster === undefined) return Promise.reject(new Error('offline'));
+      return Promise.resolve(o.roster);
+    },
     setActor: function (id) { actors.push(id); },
     logout: function () { logouts.push(1); token = ''; },
     tokenUser: function () { return token; },
@@ -177,13 +192,31 @@ function load(o) {
     start: function (opts) { syncStarts++; syncOpts = opts; return true; },
   };
 
+  /* Live, not tombstoned. `DB.all` hides a deleted record and `DB._rawAll` does
+   * not, and the difference is the whole of "a removed account must stay
+   * removed": a stub where the two agreed would make that rule untestable. */
+  const live = (store) => ((o.db && o.db[store]) || []).filter((r) => r && !r._deleted);
+
   const DB = {
     get: function (store, id) {
-      const rows = (o.db && o.db[store]) || [];
+      const rows = live(store);
       for (let i = 0; i < rows.length; i++) if (rows[i].id === id) return Promise.resolve(rows[i]);
       return Promise.resolve(null);
     },
-    all: function (store) { return Promise.resolve(((o.db && o.db[store]) || []).slice()); },
+    all: function (store) { return Promise.resolve(live(store).slice()); },
+    // Tombstones included — see `live` above.
+    _rawAll: function (store) { return Promise.resolve(((o.db && o.db[store]) || []).slice()); },
+    /* The write the roster takes. The arguments are RECORDED as well as applied,
+     * because `notify` and `stamp` being false is the difference between a row
+     * the first real pull overrules and a row that is pushed back at the server
+     * as this device's own work. */
+    bulkPut: function (store, arr, notify, stamp) {
+      bulkPuts.push({ store: store, rows: (arr || []).slice(), notify: notify, stamp: stamp });
+      if (!o.db) o.db = {};
+      if (!o.db[store]) o.db[store] = [];
+      (arr || []).forEach(function (r) { o.db[store].push(r); });
+      return Promise.resolve((arr || []).length);
+    },
     dirtySnapshot: function () { return new Set(); },
     clearDirty: function () {},
   };
@@ -234,7 +267,7 @@ function load(o) {
          * is how a read-per-redraw mutant survived the first run of this. */
         return Promise.resolve().then(function () {
           (names || []).forEach(function (n) {
-            if (sandbox.S) sandbox.S.cache[n] = ((o.db && o.db[n]) || []).slice();
+            if (sandbox.S) sandbox.S.cache[n] = live(n).slice();
           });
           return sandbox.S ? sandbox.S.cache : {};
         });
@@ -274,6 +307,9 @@ function load(o) {
     app: app,
     ls: ls,
     logins: logins,
+    rosters: rosters,
+    bulkPuts: bulkPuts,
+    rows: function (store) { return ((o.db && o.db[store]) || []).slice(); },
     warms: warms,
     actors: actors,
     logouts: logouts,
@@ -350,23 +386,75 @@ test('the login lives beside boot.js and shell.js, not in v2/screens/', () => {
  * points at the real line — the reason scripts/check-floor.py gives, and the
  * reason it matters here: this file's header explains both absences in prose,
  * and a check that cannot tell a call from a note about one blocks honest
- * comments and teaches people to delete checks. */
+ * comments and teaches people to delete checks.
+ *
+ * IT HAS TO UNDERSTAND REGEX LITERALS, and that is not tidiness.
+ *
+ * It tracked strings and not regexes, and `esc()` holds `.replace(/"/g, …)`.
+ * That quote read as the start of a string, so the scanner went blind from
+ * there to the next `"` anywhere in the file — about 180 lines, which is most
+ * of this screen. Everything in that window was invisible to the three checks
+ * built on `CODE`, including the one that says nothing in the login may read
+ * the capability table. It was not caught earlier because the window happened
+ * to fall between the things those checks were looking for; adding a paragraph
+ * of prose inside it is what moved it. A check with a blind spot that moves
+ * when a comment is edited is worse than no check, so the fixture below proves
+ * both halves: a mention inside a comment after a regex is still stripped, and
+ * a real read after one is still found.
+ *
+ * `/` is a regex only where a value cannot be: after an operator, an opening
+ * bracket, a separator, or one of the keywords. After an identifier, a number
+ * or a closing bracket it is division. */
+const RE_AFTER = /[(,=:[!&|?{};+\-*%~^<>]/;
+const RE_AFTER_WORD = /(?:^|[^\w$])(?:return|typeof|case|in|of|new|delete|void|do|else|yield|await|instanceof)$/;
+
 function stripComments(src) {
   const out = src.split('');
-  let i = 0, line = false, block = false, str = false, q = '';
+  let i = 0, line = false, block = false, str = false, re = false, cls = false, q = '';
+  // The code seen so far, with strings, regexes and comments left out of it:
+  // what the `/` below has to be judged against.
+  let code = '';
   while (i < src.length) {
     const two = src.slice(i, i + 2);
     if (line) { if (src[i] === '\n') line = false; else out[i] = ' '; i++; continue; }
     if (block) { if (two === '*/') { out[i] = out[i + 1] = ' '; block = false; i += 2; continue; }
                  if (src[i] !== '\n') out[i] = ' '; i++; continue; }
     if (str) { if (src[i] === '\\') { i += 2; continue; } if (src[i] === q) str = false; i++; continue; }
+    if (re) {
+      // A character class may hold an unescaped `/`, so `[...]` is tracked too.
+      if (src[i] === '\\') { i += 2; continue; }
+      if (src[i] === '[') cls = true;
+      else if (src[i] === ']') cls = false;
+      else if (src[i] === '/' && !cls) re = false;
+      i++; continue;
+    }
     if (two === '//') { line = true; out[i] = out[i + 1] = ' '; i += 2; continue; }
     if (two === '/*') { block = true; out[i] = out[i + 1] = ' '; i += 2; continue; }
+    if (src[i] === '/') {
+      const before = code.replace(/\s+$/, '');
+      if (before === '' || RE_AFTER.test(before.slice(-1)) || RE_AFTER_WORD.test(before)) {
+        re = true; cls = false; i++; continue;
+      }
+    }
     if (src[i] === '"' || src[i] === "'" || src[i] === '`') { str = true; q = src[i]; i++; continue; }
+    code += src[i];
     i++;
   }
   return out.join('');
 }
+
+test('the comment stripper is not blinded by a quote inside a regex literal', () => {
+  // The exact shape of esc(), followed by the two things the checks below look
+  // for. Before the regex pass, everything after that first regex was unread.
+  const fixture = ['function esc(s) { return String(s).replace(/"/g, "&quot;"); }',
+                   '/* a comment mentioning Caps and Router.register */',
+                   'var x = Caps.screensFor("owner");',
+                   'var n = total / 2 / 3;'].join('\n');
+  const out = stripComments(fixture);
+  assert.strictEqual(out.indexOf('a comment mentioning'), -1, 'the comment is still stripped');
+  assert(/\bCaps\s*\.\s*screensFor/.test(out), 'and a real read after a regex is still found');
+  assert(out.indexOf('total / 2 / 3') >= 0, 'division is not a regex: ' + JSON.stringify(out));
+});
 
 const CODE = stripComments(SOURCE);
 
@@ -469,17 +557,29 @@ test('…with the count of people in that role on the row', () => {
   assert(row.indexOf('<span class="badge">9</span>') >= 0, 'nine drivers: ' + row);
 });
 
-test('the users store still filling draws a skeleton, not an empty list', () => {
-  // The whole of §3.6 on the one screen where the difference is the app looking
-  // broken: `undefined` is "not read yet" and `[]` is "nobody is here".
-  const l = load();
+test('the users store still filling draws a skeleton, and asks the STORE rather than the server', () => {
+  /* The whole of §3.6 on the one screen where the difference is the app looking
+   * broken: `undefined` is "not read yet" and `[]` is "nobody is here".
+   *
+   * The second half is what keeps the two apart now that both draw a skeleton
+   * (see section 9): a store nobody has finished reading is read, and the
+   * untokened roster request is NOT sent for it. Collapsing `undefined` into
+   * `[]` sends that request on the first paint of every device in the garage. */
+  const l = load({ roster: roster() });
   const filling = l.Login.render(model({ cache: {} }));
   assert(filling.indexOf('aria-busy="true"') >= 0, 'still filling must draw the skeleton');
   assert.strictEqual(count(filling, /data-act="role"/g), 0);
+  assert.strictEqual(l.loaded.length, 1, 'the local store is read');
+  assert.strictEqual(l.rosters.length, 0,
+                     'and the server is not asked for a store this device has not finished reading');
 });
 
-test('…and a device that genuinely holds nobody says so in a sentence', () => {
+test('…and a device that genuinely holds nobody says so in a sentence, once it has asked', async () => {
+  // No `roster` answer in the options, so the ask rejects: a phone with no
+  // network. The sentence is what it lands on, and only after the asking.
   const l = load();
+  l.Login.render(model({ cache: { users: [] } }));
+  await flush(); await flush();
   const none = l.Login.render(model({ cache: { users: [] } }));
   assert(none.indexOf('aria-busy="true"') < 0, 'empty is not loading');
   assert(none.indexOf('class="state empty"') >= 0, 'zero must be a sentence, not a blank space');
@@ -1227,7 +1327,240 @@ test('…and signing straight back in works, with no second density watcher', as
 });
 
 /* ===================================================================================================
- * 9. MUTANTS — every rule above, broken on purpose
+ * 9. THE DEVICE THAT HAS NEVER SYNCED
+ *
+ * The circle: the roster arrives with a pull, a pull needs a token, a token needs a login, and the
+ * login is built from the roster. `Sync.roster()` is the one request in this app that carries no
+ * token and exists to break it; `v2/db.js`'s `seedIfEmpty` is the other thing that was never called,
+ * and the last case here is why it must stay that way.
+ *
+ * Every case below is a face of one property:
+ *
+ *     A PHONE OUT OF THE BOX REACHES A LOGIN IT CAN USE, AND NOTHING THAT ARRIVES WITHOUT A TOKEN
+ *     IS TRUSTED WITH ANYTHING MORE THAN A LIST OF NAMES.
+ *
+ * Which is three separate things to get wrong, all of them invisible when they are right:
+ *
+ *  1. The screen telling somebody there are no accounts when the truth is that it could not ask.
+ *     Zero, unknown and finding-out are THREE states and two of them draw a skeleton, so the thing
+ *     that keeps them apart is no longer the markup — it is which request goes out.
+ *  2. An untokened answer being written as though it were authoritative: stamped now so it outranks
+ *     the server, or notified so it is pushed back as this device's own work, or copied field for
+ *     field so whatever the answer carried is now on the phone.
+ *  3. A skeleton with no end. The request has no abort, so the SCREEN is what has to be bounded.
+ * =================================================================================================== */
+
+test('a device that holds nobody asks the untokened roster, and the names become doors', async () => {
+  const l = load({ roster: roster() });
+  const m = model({ cache: { users: [] } });
+  assert(l.Login.render(m).indexOf('aria-busy="true"') >= 0, 'it does not claim to know yet');
+  assert.strictEqual(l.rosters.length, 1, 'and it asks');
+  await flush(); await flush(); await flush();
+  const html = l.Login.render(model({ cache: l.S ? l.S.cache : {} }));
+  assert.strictEqual(count(html, /data-act="role"/g), 7,
+                     'seven of the eight roles have somebody in this roster, so a person can start: '
+                     + html.slice(0, 200));
+  assert.strictEqual(l.logins.length, 0, 'and nothing was signed in to get it');
+});
+
+test('…and it asks ONCE, not on every paint of a screen the frame re-mounts every four seconds', async () => {
+  const l = load({ roster: 'hang' });
+  const m = model({ cache: { users: [] } });
+  l.Login.render(m); l.Login.render(m); l.Login.render(m);
+  await flush();
+  l.Login.render(m);
+  assert.strictEqual(l.rosters.length, 1, 'four paints, one untokened request');
+});
+
+test('…and a device that already has a roster never asks at all', async () => {
+  const l = load({ roster: roster() });
+  l.Login.render(model({ cache: { users: roster() } }));
+  await flush(); await flush();
+  assert.strictEqual(l.rosters.length, 0,
+                     'the pull keeps a synced device current; asking again is an untokened request '
+                     + 'for an answer it already has from a source that can be trusted with it');
+});
+
+test('the row written is three named columns, low-stamped and never pushed', async () => {
+  /* The server sends id, name and role. This is the one answer in the app with
+   * nothing vouching for it, so the row is BUILT rather than copied: a field
+   * nobody here named must not reach the device because a server, or something
+   * standing in for one, added it. `surprise` stands in for that field, and the
+   * server's own `updatedAt` stands in for a stamp that would outrank a pull. */
+  const l = load({ roster: [{ id: 'u-d1', name: 'Driver 1', role: 'driver',
+                              surprise: 'x', updatedAt: 4102444800000 }] });
+  l.Login.render(model({ cache: { users: [] } }));
+  await flush(); await flush(); await flush();
+  assert.strictEqual(l.bulkPuts.length, 1, 'one write');
+  const put = l.bulkPuts[0];
+  assert.strictEqual(put.store, 'users');
+  assert.strictEqual(put.notify, false,
+                     'notified, this enters the outbox and is pushed back as this device\'s work');
+  assert.strictEqual(put.stamp, false);
+  assert.deepStrictEqual(Object.keys(put.rows[0]).sort(), ['id', 'name', 'role', 'updatedAt'],
+                         'exactly the three columns and the stamp: ' + JSON.stringify(put.rows[0]));
+  assert.strictEqual(put.rows[0].updatedAt, 1,
+                     'the first real pull must outrank it, or it is a record nobody can correct');
+  const html = l.Login.render(model({ cache: l.S.cache }));
+  assert.strictEqual(html.indexOf('surprise'), -1, 'and nothing unnamed is drawn either');
+});
+
+test('an account removed on this device is not re-created by the roster', async () => {
+  /* `DB.all` hides a tombstone, so the store reads as empty and the ask goes
+   * out — but a deleted record is KNOWN, and an account somebody removed here
+   * must stay removed. The known set is therefore the RAW rows. */
+  const l = load({ db: { users: [{ id: 'u-d1', _deleted: true, updatedAt: 1 }] },
+                   roster: [{ id: 'u-d1', name: 'Driver 1', role: 'driver' }] });
+  l.Login.render(model({ cache: { users: [] } }));
+  await flush(); await flush(); await flush();
+  assert.strictEqual(l.rosters.length, 1, 'a device whose only row is a tombstone holds nobody');
+  assert.strictEqual(l.bulkPuts.length, 0, 'and the removed account is not written back');
+  const html = l.Login.render(model({ cache: l.S.cache }));
+  assert(html.indexOf('class="state empty"') >= 0, 'it says so instead');
+});
+
+test('an empty roster is a failure wearing a success suit, not a device with no accounts', async () => {
+  const l = load({ roster: [] });
+  l.Login.render(model({ cache: { users: [] } }));
+  await flush(); await flush(); await flush();
+  assert.strictEqual(l.bulkPuts.length, 0, 'nothing is written');
+  assert.strictEqual(l.loaded.length, 0,
+                     'and the device is not touched at all: an answer already known to be bad is '
+                     + 'not read against the store and then read back out of it');
+  const html = l.Login.render(model({ cache: { users: [] } }));
+  assert(html.indexOf('class="state empty"') >= 0,
+         'and it lands exactly where a timeout lands, because operationally it is one');
+});
+
+test('no network is the honest sentence and never an endless skeleton', async () => {
+  const l = load();                               // the ask rejects
+  l.Login.render(model({ cache: { users: [] } }));
+  await flush(); await flush();
+  const html = l.Login.render(model({ cache: { users: [] } }));
+  assert(html.indexOf('aria-busy="true"') < 0, 'the skeleton has ended');
+  assert(html.indexOf('class="state empty"') >= 0);
+  assert(html.indexOf('server could not be reached') >= 0,
+         'and it names the reason rather than guessing at it: ' + html.slice(-400));
+  assert.strictEqual(l.Login._step().ask, 'done');
+});
+
+test('…and a throw out of Sync.roster is the same answer, not a skeleton nobody comes off', async () => {
+  // `Sync.roster()` catches nothing of its own. A throw that got out would
+  // leave both timers running and the screen on a skeleton for ever.
+  const l = load({ roster: roster() });
+  l.win.Sync.roster = function () { throw new Error('no network stack'); };
+  l.Login.render(model({ cache: { users: [] } }));
+  await flush(); await flush();
+  assert.strictEqual(l.Login._step().ask, 'done');
+  assert(l.Login.render(model({ cache: { users: [] } })).indexOf('class="state empty"') >= 0);
+});
+
+test('a wait long enough to notice says what it is waiting for', async () => {
+  const l = load({ roster: 'hang' });
+  const m = model({ cache: { users: [] } });
+  l.Login.render(m);
+  assert.strictEqual(l.Login._step().ask, 'asking');
+  l.run(5000);                                    // the timer the screen sets
+  assert.strictEqual(l.Login._step().ask, 'waking');
+  const html = l.Login.render(m);
+  assert(html.indexOf('aria-busy="true"') >= 0, 'it still does not know');
+  assert(html.indexOf('half a minute') >= 0,
+         'a phone in this state has nothing to fall back on and a cold container is 30-36 s, '
+         + 'so silence here is what "is it broken?" looks like: ' + html.slice(0, 400));
+});
+
+test('…and the WAIT is bounded even though the request is not', async () => {
+  // `Sync.roster()` takes no abort, so the screen is what has to end. A minute
+  // of "Loading" is the spinner this screen may not have.
+  const l = load({ roster: 'hang' });
+  const m = model({ cache: { users: [] } });
+  l.Login.render(m);
+  l.run(60000);
+  const html = l.Login.render(m);
+  assert(html.indexOf('aria-busy="true"') < 0, 'it stopped waiting');
+  assert(html.indexOf('class="state empty"') >= 0);
+});
+
+test('…and an answer that lands after that is still taken, not thrown away for being late', async () => {
+  /* Stop WAITING is not stop listening. The request has no abort, so a roster
+   * that arrives at forty seconds is a roster — refusing it would mean a phone
+   * sitting in front of a usable login being told to go and find a network. */
+  let hand;
+  const l = load({ roster: 'hang' });
+  l.win.Sync.roster = function () { return new Promise(function (r) { hand = r; }); };
+  const m = model({ cache: { users: [] } });
+  l.Login.render(m);
+  l.run(60000);
+  assert(l.Login.render(m).indexOf('class="state empty"') >= 0, 'it had given up waiting');
+  hand(roster());
+  await flush(); await flush(); await flush();
+  const html = l.Login.render(model({ cache: l.S.cache }));
+  assert.strictEqual(count(html, /data-act="role"/g), 7, 'the late answer still draws the login');
+});
+
+test('a roster is a list of names and grants nothing — the server still decides', async () => {
+  /* Deny-by-default, on the path this slice opens. Somebody who got onto the
+   * screen from the roster has no device PIN on a phone that has never synced,
+   * so for every one of them the login IS one server request, and a refusal is
+   * final. Nothing here reads or writes the capability table. */
+  const l = load({ roster: roster(), answers: [{ rejected: true, known: true }] });
+  l.Login.render(model({ cache: { users: [] } }));
+  await flush(); await flush(); await flush();
+  assert(l.ls.getItem('creds') === null, 'the roster wrote no credential of any kind');
+  l.Login._goto('pin', 'owner', person('u-owner', 'Ramesh Gupta', 'owner'));
+  await type(l, GOOD);
+  assert.strictEqual(l.S.user, null, 'a refusal is a refusal');
+  assert.strictEqual(l.ls.writes.indexOf('creds'), -1, 'and nothing was kept for next time');
+  assert(!/\bCaps\b/.test(CODE), 'and the capability table is still untouched by this file');
+});
+
+/* v2 must never call `seedIfEmpty`, and this is the check rather than the comment, for the reason
+ * `scripts/check-v2-isolation.sh` learnt on its own invariant 3: a check that trips on prose about
+ * itself teaches people to delete checks. Comments are stripped, the definition is allowed, a CALL
+ * is not.
+ *
+ * Why it is not the answer to the circle above: it writes seven fictional people with `DB.put`,
+ * which stamps `updatedAt` NOW and notifies the outbox — so the demo roster outranks the server and
+ * is pushed to it, which is the defect `bulkPut`'s own comment was written about. Worse, on a real
+ * phone it replaces an honest dead end with eight doors that none of the hundred people can open:
+ * every name on it is one the server has never heard of, so every PIN is refused and there is no
+ * device PIN behind it. It also writes a `meta.garage` row, which is where this screen reads the
+ * business name from. The roster above is the answer; this is the trap beside it. */
+function seedCallers(srcs) {
+  const out = [];
+  Object.keys(srcs).forEach(function (f) {
+    const code = stripComments(srcs[f]);
+    // The definition in v2/db.js is allowed; a call is not.
+    const calls = code.replace(/function\s+seedIfEmpty\s*\(/g, 'function _defined(');
+    if (/\bseedIfEmpty\s*\(/.test(calls)) out.push(f);
+  });
+  return out;
+}
+
+function v2Sources() {
+  const out = {};
+  const walk = function (dir) {
+    fs.readdirSync(dir).forEach(function (n) {
+      const p = path.join(dir, n);
+      if (fs.statSync(p).isDirectory()) return walk(p);
+      if (/\.js$/.test(n)) out[path.relative(ROOT, p)] = read(p);
+    });
+  };
+  walk(V2());
+  return out;
+}
+
+test('nothing in v2 calls seedIfEmpty — the demo roster is a trap, not the bootstrap', () => {
+  const srcs = v2Sources();
+  assert(Object.keys(srcs).length > 20, 'the walk found the v2 sources: ' + Object.keys(srcs).length);
+  assert(/function seedIfEmpty/.test(srcs['v2/db.js']), 'the definition is where this check expects it');
+  assert.deepStrictEqual(seedCallers(srcs), [],
+                         'a stamped, notified demo roster outranks the server and is pushed to it, '
+                         + 'and every name on it is one no PIN can open');
+});
+
+/* ===================================================================================================
+ * 10. MUTANTS — every rule above, broken on purpose
  * =================================================================================================== */
 
 /* `reddens(name, run)` asserts that `run` THROWS. `run` is the check for one
@@ -1326,11 +1659,20 @@ reddens('the field guard runs after the data-act read', async () => {
   assert(guard >= 0 && guard < act, 'guard=' + guard + ' act=' + act);
 });
 
-// 7. Zero and unknown collapsed into one, which is the blank-screen defect.
+/* 7. Zero and unknown collapsed into one, which is the blank-screen defect.
+ *
+ * The observable moved when section 9 landed: a device that holds nobody now
+ * draws a skeleton too, while it asks the server, so the markup no longer tells
+ * the two apart on its own. What does is WHICH REQUEST GOES OUT — a store
+ * nobody has finished reading is read, not asked about — and collapsing the two
+ * sends an untokened request on the first paint of every device in the garage. */
 reddens('a store still filling is drawn as a device holding nobody', async () => {
-  const l = load({ src: mutant('if (u === undefined) return null;', 'if (u === undefined) return [];') });
+  const l = load({ src: mutant('if (u === undefined) return null;', 'if (u === undefined) return [];'),
+                   roster: roster() });
   const filling = l.Login.render(model({ cache: {} }));
   assert(filling.indexOf('aria-busy="true"') >= 0);
+  assert.strictEqual(l.loaded.length, 1, 'the local store is read');
+  assert.strictEqual(l.rosters.length, 0, 'and the server is not asked');
 });
 
 // 8. The search box over a list that does not need one.
@@ -1490,7 +1832,11 @@ reddens('a role label is hard-coded instead of registered', async () => {
 // 22. The login not reading its own roster, which leaves it on a skeleton
 //     after every sign-out.
 reddens('the login waits for somebody else to read the roster', async () => {
-  const l = load({ src: mutant('    if (people(m) === null) readRoster();\n', ''),
+  // Both lines, because the second is the `else` of the first: removing one and
+  // leaving the other is a syntax error, and a mutant that cannot parse proves
+  // nothing about the check it is pointed at.
+  const l = load({ src: mutant('    if (people(m) === null) readRoster();\n'
+                               + '    else if (!people(m).length) askRoster();\n', ''),
                    db: { users: roster() }, token: 'u-sup' });
   l.open();
   await l.Boot.start();
@@ -1610,6 +1956,150 @@ reddens('a class the stylesheet does not define is drawn', async () => {
                                'lead', 't', 'sub', 'act'].indexOf(c) < 0;
   });
   assert.deepStrictEqual(orphans, []);
+});
+
+/* ---- the never-synced device ------------------------------------------------------------------- */
+
+// 31. The ask never made, which is the dead end this slice exists to end.
+reddens('a device that holds nobody never asks the server', async () => {
+  const l = load({ src: mutant('    else if (!people(m).length) askRoster();\n', ''),
+                   roster: roster() });
+  l.Login.render(model({ cache: { users: [] } }));
+  await flush(); await flush(); await flush();
+  assert.strictEqual(l.rosters.length, 1);
+  const html = l.Login.render(model({ cache: l.S.cache }));
+  assert.strictEqual(count(html, /data-act="role"/g), 7);
+});
+
+// 32. …and the ask made on every paint, which is an untokened request every
+//     four seconds for the whole time anybody is looking at this screen.
+reddens('the roster is asked for again on every paint', async () => {
+  const l = load({ src: mutant('    if (asked) return;\n', ''), roster: 'hang' });
+  const m = model({ cache: { users: [] } });
+  l.Login.render(m); l.Login.render(m); l.Login.render(m);
+  await flush();
+  l.Login.render(m);
+  assert.strictEqual(l.rosters.length, 1);
+});
+
+// 33. …and asked by a device that already has one.
+reddens('a device that already has a roster asks anyway', async () => {
+  const l = load({ src: mutant('    else if (!people(m).length) askRoster();',
+                               '    else askRoster();'),
+                   roster: roster() });
+  l.Login.render(model({ cache: { users: roster() } }));
+  await flush(); await flush();
+  assert.strictEqual(l.rosters.length, 0);
+});
+
+// 34. The answer copied instead of built, so a field nobody named reaches the
+//     device. This is the rule that keeps a credential off the phone on the one
+//     path that has no token behind it.
+reddens('the roster answer is written as it arrived', async () => {
+  const l = load({ src: mutant("        add.push({ id: String(u.id),", '        add.push(u); if (false) add.push({ id: String(u.id),'),
+                   roster: [{ id: 'u-d1', name: 'Driver 1', role: 'driver', surprise: 'x' }] });
+  l.Login.render(model({ cache: { users: [] } }));
+  await flush(); await flush(); await flush();
+  assert.deepStrictEqual(Object.keys(l.bulkPuts[0].rows[0]).sort(),
+                         ['id', 'name', 'role', 'updatedAt']);
+});
+
+// 35. …and stamped now, so a seed outranks the server for ever.
+reddens('the roster row is stamped as though it were newer than the server\'s', async () => {
+  const l = load({ src: mutant('                   updatedAt: 1 });', '                   updatedAt: Date.now() });'),
+                   roster: [{ id: 'u-d1', name: 'Driver 1', role: 'driver' }] });
+  l.Login.render(model({ cache: { users: [] } }));
+  await flush(); await flush(); await flush();
+  assert.strictEqual(l.bulkPuts[0].rows[0].updatedAt, 1);
+});
+
+// 36. …and notified, so it enters the outbox and is pushed back at the server as
+//     this device's own work.
+reddens('the roster row is pushed back at the server', async () => {
+  const l = load({ src: mutant("await d.bulkPut('users', add, false, false);", "await d.bulkPut('users', add, true, true);"),
+                   roster: [{ id: 'u-d1', name: 'Driver 1', role: 'driver' }] });
+  l.Login.render(model({ cache: { users: [] } }));
+  await flush(); await flush(); await flush();
+  assert.strictEqual(l.bulkPuts[0].notify, false);
+  assert.strictEqual(l.bulkPuts[0].stamp, false);
+});
+
+// 37. The known set read from the live rows, so a tombstone is invisible and a
+//     removed account comes back.
+reddens('an account removed on this device is re-created by the roster', async () => {
+  const l = load({ src: mutant("(await d._rawAll('users'))", "(await d.all('users'))"),
+                   db: { users: [{ id: 'u-d1', _deleted: true, updatedAt: 1 }] },
+                   roster: [{ id: 'u-d1', name: 'Driver 1', role: 'driver' }] });
+  l.Login.render(model({ cache: { users: [] } }));
+  await flush(); await flush(); await flush();
+  assert.strictEqual(l.bulkPuts.length, 0);
+});
+
+// 38. Finding out drawn as nobody being here, which is the whole §3.6 defect
+//     moved to the one state this slice adds.
+reddens('a device still asking is drawn as a device with no accounts', async () => {
+  const l = load({ src: mutant("      if (ask === 'asking' || ask === 'waking') {", "      if (ask === 'waking') {"),
+                   roster: 'hang' });
+  assert(l.Login.render(model({ cache: { users: [] } })).indexOf('aria-busy="true"') >= 0);
+});
+
+// 39. The wait that never says what it is waiting for.
+reddens('the screen never admits what it is waiting for', async () => {
+  const l = load({ src: mutant("          + (ask === 'waking' ? '<p class=\"lg-tag\" role=\"status\">' + esc(say('lgWaking')) + '</p>' : '')\n", ''),
+                   roster: 'hang' });
+  const m = model({ cache: { users: [] } });
+  l.Login.render(m);
+  l.run(5000);
+  assert(l.Login.render(m).indexOf('half a minute') >= 0);
+});
+
+// 40. The unbounded wait: a request with no abort, behind a screen with no end.
+reddens('the skeleton waits for ever on a request that never answers', async () => {
+  const l = load({ src: mutant('    giveUpTimer = setTimeout(function () {\n      giveUpTimer = null;\n      ask = \'done\';\n      paint();\n    }, WAIT_SLOW_MS);\n', ''),
+                   roster: 'hang' });
+  const m = model({ cache: { users: [] } });
+  l.Login.render(m);
+  l.run(60000);
+  assert(l.Login.render(m).indexOf('class="state empty"') >= 0);
+});
+
+// 41. A throw out of the roster request, left to escape.
+reddens('a throw out of Sync.roster strands the screen on a skeleton', async () => {
+  const l = load({ src: mutant('    try {\n      s.roster().then(function (users) { done(); keepRoster(users); },\n'
+                               + '                      function () { done(); paint(); });\n    } catch (e) { done(); paint(); }',
+                               '    s.roster().then(function (users) { done(); keepRoster(users); },\n'
+                               + '                    function () { done(); paint(); });') });
+  l.win.Sync.roster = function () { throw new Error('no network stack'); };
+  l.Login.render(model({ cache: { users: [] } }));
+  await flush(); await flush();
+  assert.strictEqual(l.Login._step().ask, 'done');
+});
+
+/* 42. An empty answer taken as an answer.
+ *
+ * This one is over-determined and the mutant below proves only half of it: the
+ * write is add-only, so an empty roster adds nothing whether the guard is there
+ * or not, and no check can tell. What the guard does carry is that an answer
+ * already known to be bad is not then read against the store and read back out
+ * of it — and it is where v1's rule is written down, which is what matters if
+ * anybody ever ports v1's other half, the one that REMOVES names. That half is
+ * what an empty roster would empty. */
+reddens('an empty roster answer is taken as an answer', async () => {
+  const l = load({ src: mutant('if (!Array.isArray(users) || !users.length) { paint(); return; }',
+                               'if (!Array.isArray(users)) { paint(); return; }'),
+                   roster: [] });
+  l.Login.render(model({ cache: { users: [] } }));
+  await flush(); await flush(); await flush();
+  assert.strictEqual(l.bulkPuts.length, 0);
+  assert.strictEqual(l.loaded.length, 0);
+});
+
+// 43. v2 wired to the demo seed, which is the trap beside the fix: eight doors
+//     that no PIN opens, stamped newer than the server and pushed to it.
+reddens('a v2 file calls seedIfEmpty', async () => {
+  const srcs = v2Sources();
+  srcs['v2/boot.js'] = srcs['v2/boot.js'] + '\nseedIfEmpty(false);\n';
+  assert.deepStrictEqual(seedCallers(srcs), []);
 });
 
 /* ===================================================================================================

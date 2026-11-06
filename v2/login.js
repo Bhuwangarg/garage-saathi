@@ -17,7 +17,7 @@
  * THREE STEPS, as v1 has them (app.js:13509 renderLogin -> :13562
  * renderRolePick -> :13602 renderPin): role tiles, then names, then the pad.
  *
- * FOUR THINGS HERE THAT ARE NOT PREFERENCES
+ * FIVE THINGS HERE THAT ARE NOT PREFERENCES
  *
  * 1. `known: true` NEVER falls back to the device PIN. That is the whole point
  *    of the flag: a wrong PIN the server is sure about stays wrong offline. The
@@ -46,6 +46,19 @@
  *    genuinely holds nobody; the first draws a skeleton and the second says so
  *    in a sentence. "No recent users on this phone" is a sentence too, not an
  *    empty list drawn as nothing.
+ *
+ * 5. A DEVICE THAT HOLDS NOBODY ASKS THE SERVER, because otherwise it is stuck
+ *    for good. The roster comes down with a pull, a pull needs a token, a token
+ *    needs a login, and the login is built from the roster — so a phone out of
+ *    the box drew an honest sentence that was also a dead end. `Sync.roster()`
+ *    is the one request in this app with no token and it exists to break that
+ *    circle; until now nothing called it. See askRoster() for the three guards
+ *    that make it safe: it is asked only when this device holds nobody, an
+ *    empty answer is treated as a failure and never written, and the row
+ *    written is three named columns and never a copy of what arrived. And
+ *    because the answer may be slow or may never come, that wait is a THIRD
+ *    state alongside note 4's two: finding out, which is not the same as not
+ *    read yet and is not the same as nobody is here.
  *
  * The markup is `v2/ui/login.css`'s, which shipped a whole wave before this
  * file: the `.lg*` family, `.v2row` rows in a `.lg-list`, and the pad's own
@@ -174,8 +187,15 @@
     lgPickName: { en: 'Find your name', hi: '' },
     lgSearchName: { en: 'Search for your name', hi: '' },
     lgNoMatch: { en: 'No name matches that', hi: '' },
+    /* The hint names WHY there is nobody, and it is the reason rather than a
+     * guess about it. This screen only draws this state after it has asked the
+     * server for the roster and come away without one (see askRoster), so the
+     * honest sentence is that the server could not be reached — not that the
+     * phone has never synced, which it may well have done. A device that really
+     * had nobody to show would be a garage with no staff, and an empty answer
+     * from the server is read as a failure here for exactly that reason. */
     lgNoUsers: { en: 'No accounts on this phone yet', hi: '' },
-    lgNoUsersHint: { en: 'This phone has never synced. Put it on the network and open this page again.', hi: '' },
+    lgNoUsersHint: { en: 'The server could not be reached, so there is nobody to show. Put this phone on the network and open this page again.', hi: '' },
     lgEnterPin: { en: 'Enter your PIN', hi: '' },
     // The COUNT of digits entered, which is what the dots show. Never the
     // digits: see note 3 in the header.
@@ -210,6 +230,7 @@
    * does not exist yet when these lines run. */
   function words() { return typeof root.w === 'function' ? root.w : null; }
   function sync() { return (typeof Sync !== 'undefined' && Sync) || root.Sync || null; }
+  function db() { return (typeof DB !== 'undefined' && DB) || root.DB || null; }
   function shell() { return (typeof Shell !== 'undefined' && Shell) || root.Shell || null; }
   function boot() { return root.Boot || null; }
   function doc() { return (typeof document !== 'undefined' && document) || root.document || null; }
@@ -356,6 +377,160 @@
                         function () { reading = false; });
   }
 
+  /* ---------- the roster this device does not have yet --------------------
+   *
+   * The circle, and it is a real one: the roster arrives with a pull, a pull
+   * needs a token, a token needs a login, and the login is built from the
+   * roster. A phone out of the box therefore drew a correct sentence that was
+   * also the end of the road. `Sync.roster()` (v2/sync.js:389) is the one
+   * request in this app that carries no token, and breaking that circle is the
+   * whole reason it exists; nothing had ever called it.
+   *
+   * It is asked HERE rather than from boot.js for the reason readRoster gives
+   * above: boot would need its own list of the stores this screen draws from,
+   * and a second such list is a second one to forget. It goes through the same
+   * guarded `Cache.load` path on the way back, so there is still exactly one
+   * read of the roster in this file.
+   *
+   * THREE GUARDS, and none of them is a preference.
+   *
+   * 1. ONLY WHEN THIS DEVICE HOLDS NOBODY, and only once. A device that has a
+   *    roster keeps it current through the pull (`users` is in FIRST_STORES),
+   *    so asking again would be an untokened request on every paint of a screen
+   *    the frame re-mounts every four seconds — for an answer the device
+   *    already has from a source that can be trusted with it.
+   *
+   * 2. AN EMPTY ROSTER IS A FAILURE WEARING A SUCCESS SUIT. v1's words
+   *    (app.js:13480) and v1's rule: a 200 carrying no users is never written
+   *    and never allowed to read as "this phone has no accounts". It lands
+   *    exactly where a timeout lands, because operationally it is one.
+   *
+   *    Say plainly what this line is worth today: the write below is ADD-ONLY,
+   *    so an empty answer adds nothing whether this guard is here or not, and
+   *    the suite's mutant for it can only observe that a bad answer is not then
+   *    read against the store and read back out of it. It is kept because this
+   *    is where v1's rule is written down, and the thing it really guards is
+   *    v1's other half — the one that removes names, which an empty roster
+   *    would use to remove all of them. Port that half and this line is the
+   *    only thing between a network blip and a phone nobody can sign in on.
+   *
+   * 3. THE ROW IS THREE NAMED COLUMNS, built one field at a time. The server's
+   *    /roster sends id, name and role and its own comment promises no PIN,
+   *    hash or salt — but this is the one answer in the app that arrives with
+   *    nothing vouching for it, so a copy of whatever came back is a copy of
+   *    whatever a future server, or something standing in for one, decided to
+   *    add. Written with `updatedAt: 1` and `stamp: false` so the first real
+   *    pull outranks it, and `notify: false` so it never enters the outbox and
+   *    is never pushed back as though this device had authored it (v1 does both,
+   *    app.js:13485; a stamped seed that outranks the server is a record nobody
+   *    can correct).
+   *
+   * What this deliberately does NOT do is v1's other half — tombstoning the
+   * names that have VANISHED from the roster (app.js:13494). That half is for a
+   * device whose cached tiles have gone stale, which v2 does not have: the
+   * ask happens only when there are no tiles, so there is nothing to take away.
+   * Porting it would mean an untokened answer could remove a login from a
+   * device, which is a larger door than this circle needs opened.
+   *
+   * And nothing here grants anything. A roster is a list of names; every one of
+   * them still goes through `Sync.login` or a device PIN, and a device in this
+   * state has no device PIN for anybody, so for everybody on it the login IS
+   * one server request. `Caps.screensFor` decides the rest, exactly as before.
+   */
+
+  /* The wait, as four values rather than a boolean, because three of them are
+   * different things to say:
+   *   'idle'    nothing asked (this device has a roster, or there is no Sync)
+   *   'asking'  away, and not long enough to doubt the app
+   *   'waking'  away long enough that the screen owes an explanation
+   *   'done'    an answer came, or we stopped waiting for one
+   * 'asking' and 'waking' are note 4's third state: finding out. They draw the
+   * skeleton, because that is honestly what they are. */
+  var ask = 'idle';
+  var asked = false;              // one ask per load of this page, ever
+  var wakeTimer = null;
+  var giveUpTimer = null;
+
+  function stopWaiting() {
+    if (wakeTimer) { clearTimeout(wakeTimer); wakeTimer = null; }
+    if (giveUpTimer) { clearTimeout(giveUpTimer); giveUpTimer = null; }
+  }
+
+  function askRoster() {
+    if (asked) return;
+    var s = sync();
+    var d = db();
+    // Nothing to ask, or nowhere to put the answer. 'done' and not 'idle': the
+    // screen has finished finding out, and what it found out is nothing.
+    if (!s || typeof s.roster !== 'function' || !d || typeof d.bulkPut !== 'function') {
+      asked = true; ask = 'done';
+      return;
+    }
+    asked = true;
+    ask = 'asking';
+
+    /* Said out loud after five seconds, with the same sentence the pad uses: a
+     * phone in this state has nothing to fall back on and a cold container is
+     * 30-36 seconds, so silence here is what "is it broken?" looks like. */
+    wakeTimer = setTimeout(function () {
+      wakeTimer = null;
+      if (ask !== 'asking') return;
+      ask = 'waking';
+      paint();
+    }, SAY_WAKING_MS);
+
+    /* Stop WAITING, which is not the same as stop listening. A minute of
+     * "Loading" is the spinner that never ends, so the honest sentence goes up
+     * — and the request is still away, so an answer that lands after this still
+     * draws the roster rather than being thrown away for being late. */
+    giveUpTimer = setTimeout(function () {
+      giveUpTimer = null;
+      ask = 'done';
+      paint();
+    }, WAIT_SLOW_MS);
+
+    /* The try is not decoration. `Sync.roster()` catches nothing of its own —
+     * it throws on a non-200 and on a dead network alike — and a throw that got
+     * out of here would leave the two timers running and the screen on a
+     * skeleton it never comes off, which is the one thing this whole section
+     * exists to prevent. Same shape, same reason, as attempt()'s. */
+    var done = function () { stopWaiting(); ask = 'done'; };
+    try {
+      s.roster().then(function (users) { done(); keepRoster(users); },
+                      function () { done(); paint(); });
+    } catch (e) { done(); paint(); }
+  }
+
+  /* Write what came back, then read it the one way this file reads anything.
+   * Guards 2 and 3 above live here. */
+  async function keepRoster(users) {
+    // Guard 2. Nothing is written, and the screen says what a timeout says.
+    if (!Array.isArray(users) || !users.length) { paint(); return; }
+    var d = db();
+    try {
+      /* The RAW rows, tombstones included. `DB.all` hides a deleted record and
+       * a deleted record is KNOWN: an account somebody removed here must stay
+       * removed rather than be re-created by the next roster read. */
+      var known = {};
+      var rows = (d && typeof d._rawAll === 'function') ? (await d._rawAll('users')) : [];
+      rows.forEach(function (u) { if (u && u.id != null) known[String(u.id)] = true; });
+
+      // Guard 3.
+      var add = [];
+      users.forEach(function (u) {
+        if (!u || u.id == null || known[String(u.id)]) return;
+        add.push({ id: String(u.id),
+                   name: u.name == null ? '' : String(u.name),
+                   role: u.role == null ? '' : String(u.role),
+                   updatedAt: 1 });
+      });
+      if (add.length) await d.bulkPut('users', add, false, false);
+    } catch (e) { /* the store refused it; the sentence below is still honest */ }
+    // bulkPut marked the store dirty, so this re-reads it and repaints. A write
+    // that added nothing still repaints, off the skeleton and onto the sentence.
+    readRoster();
+  }
+
   /* `undefined` until the roster has been read, `[]` when this device holds
    * nobody. The caller must be able to tell those apart — see note 4. */
   function people(m) {
@@ -396,7 +571,19 @@
       return out + (typeof root.skeleton === 'function' ? root.skeleton(SEARCH_AT) : '');
     }
 
+    /* Nobody on this device — which is three states and not one, and the whole
+     * of note 5. While the server is being asked this screen does not know yet,
+     * so it draws what not-knowing draws: `skeleton()` already carries
+     * `role="status"` and says it is loading. Past five seconds it says what it
+     * is waiting for, because by then somebody is wondering. Only once the
+     * asking is over does the sentence go up, and the sentence names the reason
+     * rather than guessing at it. */
     if (!list.length) {
+      if (ask === 'asking' || ask === 'waking') {
+        return out
+          + (ask === 'waking' ? '<p class="lg-tag" role="status">' + esc(say('lgWaking')) + '</p>' : '')
+          + (typeof root.skeleton === 'function' ? root.skeleton(SEARCH_AT) : '');
+      }
       return out + (typeof root.emptyState === 'function'
         ? root.emptyState(say('lgNoUsers'), { icon: 'person', hint: say('lgNoUsersHint') })
         : '');
@@ -611,9 +798,19 @@
    * and the reason the DOM wiring is all in mount(). */
   function render(m) {
     var inner;
-    // Not in hand yet: ask for it, draw the skeleton this time round, and the
-    // read's own repaint draws the list. See readRoster for why it is here.
+    /* Not in hand yet: ask the store for it, draw the skeleton this time round,
+     * and the read's own repaint draws the list. See readRoster for why it is
+     * here.
+     *
+     * And if the store had nobody in it, ask the SERVER, in the same pass and
+     * before the pane is built rather than after. askRoster() moves the wait
+     * state synchronously when it decides to go, so the pane below never sees
+     * the one frame in which this device holds nobody and nothing has been
+     * asked yet — which would flash the sentence for a tick and then replace it
+     * with a skeleton, telling somebody the app is empty just before admitting
+     * it does not know. */
     if (people(m) === null) readRoster();
+    else if (!people(m).length) askRoster();
     if (step === 'pin' && pickedUser) inner = pinPane();
     else if (step === 'who' && pickedRole) inner = whoPane(m, people(m));
     else inner = rolePane(m, people(m));
@@ -948,11 +1145,18 @@
     // Test seams only, the shape of Router._reset: a node suite cannot reload a
     // classic script per case, and the step a screen is on is otherwise only
     // reachable through a click.
-    _reset: function () { bound = false; clear(); },
+    // Back to the state this file is in at load, which `clear()` is not: the
+    // roster ask belongs to the DEVICE and not to the step somebody is on, so
+    // walking back a step must not re-ask the server. Only the seam resets it.
+    _reset: function () {
+      bound = false; clear();
+      stopWaiting(); ask = 'idle'; asked = false; reading = false;
+    },
     _step: function () { return { step: step, role: pickedRole,
                                   who: pickedUser ? pickedUser.id : null,
                                   digits: pin.length, working: working, locked: locked,
-                                  note: note ? note.id : null, query: query }; },
+                                  note: note ? note.id : null, query: query,
+                                  ask: ask, asked: asked }; },
     _goto: function (s, role, user) { clear(); step = s; pickedRole = role || null; pickedUser = user || null; },
     _key: key,
     _onKey: onKey

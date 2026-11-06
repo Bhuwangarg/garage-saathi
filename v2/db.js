@@ -576,6 +576,28 @@ function uid(prefix = '') {
 // demo=true seeds the full demo dataset (local/dev). On production (demo=false)
 // we seed ONLY the staff roster (so the login screen has names) + a default
 // garage config — never demo buses/jobs/drivers. Stops test data on real devices.
+
+/* NOTHING IN V2 CALLS THIS, AND NOTHING SHOULD. It is v1's, carried over with
+ * the rest of this file, and it is not v2's answer to an empty login screen —
+ * it is the trap beside that answer. Three reasons, and the first is the one
+ * that gets noticed last:
+ *
+ *  1. It writes with `DB.put`, which stamps `updatedAt` NOW and notifies the
+ *    outbox. So the bundled roster outranks the server and is then pushed to
+ *    it: exactly the defect `bulkPut`'s `stamp: false` comment above was
+ *    written about, on the one store that decides who can sign in.
+ *  2. Every name on it is fictional. On a real phone it replaces an honest dead
+ *    end with eight doors that none of the hundred people can open, because the
+ *    server has never heard of any of them and there is no device PIN behind
+ *    them either. A sentence somebody can act on beats a login that refuses.
+ *  3. It writes a `meta.garage` row with a placeholder geofence and a
+ *    hard-coded business name, which is the row `v2/login.js` draws the name at
+ *    the top of the login from.
+ *
+ * What an empty login screen on a never-synced device needs is the untokened
+ * roster: `v2/sync.js`'s `roster()`, asked by `v2/login.js`'s `askRoster()`.
+ * `test_v2_login.js` section 9 holds the check that keeps this uncalled — a
+ * grep for a CALL, with comments stripped, so this paragraph does not trip it. */
 async function seedIfEmpty(demo) {
   const seeded = await DB.get('meta', 'seeded');
   if (seeded) return;
