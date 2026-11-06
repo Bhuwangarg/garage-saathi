@@ -1,9 +1,12 @@
 /* Garage Saathi v2 — the device's in-memory copy of the stores, and how long
  * history is kept on the device at all.
  *
- * Two jobs that look unrelated and are the same job: deciding what this device
+ * Four jobs that look unrelated and are the same job: deciding what this device
  * holds. `load()` decides what it holds in memory right now; `prune()` decides
- * what it holds on disk at all.
+ * what it holds on disk at all; `unread()` is how it says "could not read this"
+ * without saying "there is nothing here"; and `scopeTo()` decides WHOSE the
+ * rows on the disk are, which is the question `load()` never asked and
+ * REV-AUTH F1 is the cost of.
  *
  * ## Retention
  *
@@ -127,6 +130,277 @@
   // assert on it; nothing in the app reads it.
   let reads = 0;
 
+  /* ---------- "could not read" is a third answer, not the empty one -------
+   *
+   * `load()` turns a failed read into `[]` when the store had nothing, and that
+   * line's own comment names the problem it then walks into: *"a failed read is
+   * neither"* not-loaded nor empty — and it stores it as empty anyway. So one
+   * layer below all thirteen screens, "this store could not be read" and "this
+   * store has no rows" were the same value, which is `v2-ux.md §4.1` #7 broken
+   * at the foundation: *"'unknown' and 'zero' must never look alike"*.
+   *
+   * `undefined` is not the fix. A screen reads `undefined` as "still loading"
+   * and draws a skeleton, so a permanently failing store would skeleton for
+   * ever — the blanking failure this repo has been bitten by most. The fix is a
+   * THIRD place to put the fact:
+   *
+   *   S.cache[name]   unchanged: the rows, or `[]`, or `undefined` if unread
+   *   Cache.unread()  the names whose last read attempt failed or was refused
+   *
+   * And it is load-bearing rather than available: `Boot.replica()` ANDs
+   * `complete` with "nothing is unread", so a store that could not be read
+   * makes this device incomplete, which is §1.8's rule — no aggregate figure
+   * may be drawn without `stale: true` — firing on every screen at once. */
+  const _unread = Object.create(null);
+
+  function unread() { return Object.keys(_unread); }
+  function isUnread(name) { return !!_unread[name]; }
+  function markUnread(name, why) { _unread[name] = String(why || 'read failed'); }
+  function clearUnread(name) { delete _unread[name]; }
+
+  /* ---------- whose replica is on this disk ------------------------------
+   *
+   * REV-AUTH F1. `boot.js`'s `signOut()` leaves IndexedDB alone and says why —
+   * *"a sign-out is not a device wipe, and the next `Cache.load` re-reads them
+   * under whoever is signed in then"*. The second half of that sentence was the
+   * protection, and it was stated in words the code did not provide:
+   * `Cache.load` takes no role, does `db().all(store)` and puts every row into
+   * `S.cache`. So a yard phone that an owner filled handed the next person —
+   * measured: a conductor holding zero capabilities, signed in offline —
+   * another crew member's salary, licence, Aadhaar URL, crew notes and
+   * gate-check selfies, including a `crewnotes` row about a driver sitting in
+   * that driver's own cache, which is the one rule the product states outright.
+   *
+   * THE FIX IS A PURGE, NOT A FILTER, and that is the decision worth arguing.
+   * A role-scoped read here would be a second copy of `v2_perms.redact_for` and
+   * `OWN_ROWS_ONLY` living on the device, and it would be the copy that drifts:
+   * `caps.js` says the narrowing belongs *"IN THE QUERY, not in the view"*, and
+   * the query is the server's. Worse, the client cannot express the rules it
+   * would need — `crewnotes` must be withheld from the person it is ABOUT,
+   * which is not a row-ownership filter but its inverse — so a filter would
+   * either leak or blank, and it could not tell you which. Rows fetched under
+   * one person's entitlement are simply not the next person's to hold.
+   *
+   * So the replica belongs to ONE person, this records who, and when that
+   * changes the replica is rebuilt under the new one.
+   *
+   * KEPT THROUGH A REBUILD, two stores, each for a reason that is not comfort:
+   *
+   *   users       the login roster. Purging it locks the next person OUT — the
+   *               role and name picker reads it and `askRoster()` needs the
+   *               network. It carries `{id, name, role, updatedAt}` and nothing
+   *               else (REV-AUTH verified it: no salt, no hash), and `/roster`
+   *               publishes the same names unauthenticated.
+   *   outboxbase  device-local, never synced: what a pending change is measured
+   *               against (`v2/db.js:82`). Dropping it would make every
+   *               unpushed edit unrebaseable.
+   *
+   * Everything else goes, which is deny-by-default applied to retention: a
+   * store added to `v2/db.js` tomorrow is purged without anyone remembering to
+   * list it, and the gate checks that this list stays two names long. */
+  const KEEP_THROUGH_REBUILD = ['users', 'outboxbase'];
+
+  // Who the rows on this disk were fetched for. localStorage, like `sync.js`'s
+  // own `lastRev` and `pullScope`: a `meta` row would be pushed to the server,
+  // and this is the device's business and nobody else's.
+  const OWNER_KEY = 'v2ReplicaFor';
+
+  function ls() {
+    const l = (root && root.localStorage) || null;
+    return (l && typeof l.getItem === 'function') ? l : null;
+  }
+  function sync() { return (typeof Sync !== 'undefined' && Sync) || (root && root.Sync) || null; }
+
+  function replicaFor() {
+    const l = ls();
+    if (!l) return null;
+    try { const v = l.getItem(OWNER_KEY); return v ? String(v) : null; } catch (e) { return null; }
+  }
+
+  /* Every store db.js knows about, minus the two above. Read from `db.js`'s own
+   * table rather than restated here: a second list of the stores is a second
+   * list to forget, which is the lesson `index.html` and `sw.js` already carry.
+   * `STORES` is a top-level const in a classic script, so it is in scope here
+   * in the browser; under node the suites hand it over on the DB stub. */
+  function replicaStores() {
+    let table = null;
+    if (typeof STORES !== 'undefined' && STORES) table = STORES;
+    else if (root && root.STORES) table = root.STORES;
+    else { const d = db(); table = (d && d._STORES) || null; }
+    /* THROWS rather than returning an empty list, and that is the whole point
+     * of this line. An empty list would mean "there is nothing to purge", the
+     * rebuild would record itself as finished, and the next person would read
+     * the last person's rows with every check green — a fail-OPEN on the worst
+     * finding in the authorization pass. `scopeTo` turns this throw into a
+     * device that reads nothing at all. */
+    if (!table) throw new Error('cache: cannot see v2/db.js STORES — the replica cannot be scoped');
+    return Object.keys(table).filter(function (n) { return KEEP_THROUGH_REBUILD.indexOf(n) < 0; });
+  }
+
+  /* The scope could not be decided AT ALL, so nothing on this disk may be read.
+   *
+   * Distinct from a sealed store, which is one name this device knows is the
+   * previous person's. This is not knowing — and "not knowing whose these rows
+   * are" has exactly one safe answer. Every screen then draws an incomplete
+   * replica off an empty cache, which is loud, honest, and not a leak. It is
+   * cleared by a scope check that reaches an answer. */
+  let unscoped = false;
+
+  /* Drop one store's rows with the API db.js already exposes. `pruneBefore`
+   * deletes every row older than a cutoff in ONE transaction per store, which
+   * is the same call `prune()` below makes and the reason this needs no new
+   * data-layer function: a cutoff in the future is every row that carries a
+   * timestamp, and every synced row does — the server stamps `updatedAt` on
+   * push. It marks the store dirty itself, so the in-memory copy is re-read
+   * rather than left showing rows that are no longer on disk. */
+  async function dropStore(name) {
+    const d = db();
+    await d.pruneBefore(name, Date.now() + DAY_MS);
+    /* AND THEN IT CHECKS. `pruneBefore` deletes by timestamp and skips a row
+     * that carries none (`v2/db.js`: `if (!at) continue`), and although every
+     * row that reaches this disk is stamped — `bulkPut` writes
+     * `updatedAt || 1`, and the server stamps on push — "should be stamped" is
+     * not a thing to take on trust when what is left behind is somebody's
+     * Aadhaar URL. So the drop reads the store back, and a store that is not
+     * empty afterwards THROWS, which the caller turns into a sealed store:
+     * nothing read, nothing invented, and the marker not written, so the next
+     * sign-in tries again. Fail closed. */
+    const left = await d.all(name);
+    if (left && left.length) {
+      throw new Error('cache: ' + name + ' still holds ' + left.length + ' row(s) after a rebuild');
+    }
+    return true;
+  }
+
+  /* Declare whose entitlement may fill this device, and rebuild if it changed.
+   *
+   * Returns `{action, dropped, kept}`. `action` is one of:
+   *   'same'     the same person: nothing is touched
+   *   'claimed'  no pull has ever come back, so there is nothing to have
+   *              belonged to anybody — the marker is simply written
+   *   'rebuilt'  somebody else's rows were here and are gone; the cursor is
+   *              rewound so the next pull refetches them under this person
+   *   'held'     a rebuild was needed and could not finish, because a store
+   *              still holds work this device owes the server. Those stores are
+   *              marked UNREAD rather than read, so nothing of the previous
+   *              person's reaches memory, and the marker is NOT written — the
+   *              next sign-in tries again.
+   *
+   * 'held' is the one that needs its reason. `sync.js`'s push reads the row from
+   * the store at push time and drops the outbox key when the row has vanished
+   * (`recordForKey` -> `dropKey`), so purging a store with a pending row throws
+   * away the previous person's unsent work silently. A shelf count or a gate
+   * check is worth more than one handover's delay, and a sealed store leaks
+   * nothing while it waits.
+   *
+   * CALLED WITHOUT BEING AWAITED, and awaited later — see `boot.js`'s `enter`.
+   * Everything down to the seal below is SYNCHRONOUS, which is what makes that
+   * safe: between the call and the await, `Shell.mount` runs the first screen's
+   * `mount()`, and three screens kick a `Cache.load` from there. A seal that
+   * landed one microtask later would be a seal the first screen read straight
+   * past. Holding the first paint behind the rebuild instead is forty IndexedDB
+   * transactions in front of the frame, which is a white page on a Core 2 Duo
+   * and the thing §1.8's order exists to prevent.
+   *
+   * It NEVER REJECTS, for the same reason: a promise nobody is awaiting yet
+   * must not be able to become an unhandled rejection. A scope it cannot decide
+   * comes back as `action: 'unscoped'`, with the device sealed. */
+  const UNKNOWN_SCOPE = 'the scope of this device is unknown';
+
+  async function scopeTo(userId) {
+    const who = userId == null || userId === '' ? null : String(userId);
+    if (!who) return { action: 'same', dropped: [], kept: [] };
+    const held = replicaFor();
+    if (held === who) {
+      /* The rows ARE this person's, so any seal left over from a rebuild
+       * attempted for somebody else in this session comes off. Without this, a
+       * handover that was held for unsent work and then handed BACK would leave
+       * the owner's own store sealed until the page reloaded. */
+      unscoped = false;
+      unread().forEach(function (n) { if (sealed(n)) clearUnread(n); });
+      return { action: 'same', dropped: [], kept: [] };
+    }
+
+    /* No marker is NOT "nothing was ever here": every device in the yard on the
+     * deploy that lands this has a full replica and no marker. So the honest
+     * question is whether anything was ever FETCHED, which `lastRev` answers —
+     * a cursor at zero means no pull has come back and the bundled seed is all
+     * there is. Anything else is a replica of unknown provenance and is rebuilt
+     * once, which is the shape `sync.js`'s own `healOnce` already uses. */
+    if (held === null && !everPulled()) {
+      write(who);
+      unscoped = false;
+      return { action: 'claimed', dropped: [], kept: [] };
+    }
+
+    // THE SEAL, and it is the last synchronous statement before the first await.
+    unscoped = true;
+    state().cache = {};
+
+    let names;
+    try { names = replicaStores(); } catch (e) {
+      // Nothing is known about what is here, so nothing here is read, and the
+      // device stays sealed. `boot.js` writes the reason down once.
+      return { action: 'unscoped', dropped: [], kept: [], why: String(e && e.message) };
+    }
+    const dropped = [], kept = [];
+    for (let i = 0; i < names.length; i++) {
+      const n = names[i];
+      /* Sealed, and the in-memory copy goes TOO. The rows stay on disk because
+       * this store holds unsent work; what must not survive is the copy a
+       * previous `Cache.load` already put in `S.cache` — a signed-out boot
+       * reads nothing now (see `boot.js`'s `enter`), but a sealed store that
+       * was read earlier in this session would otherwise sit in memory for the
+       * next person with nothing to take it out. */
+      if (owes(n)) {
+        kept.push(n);
+        markUnread(n, 'belongs to the previous person');
+        delete state().cache[n];
+        continue;
+      }
+      try { await dropStore(n); dropped.push(n); clearUnread(n); delete state().cache[n]; }
+      catch (e) { kept.push(n); markUnread(n, 'could not be rebuilt'); }
+    }
+    /* The cursor is rewound either way: the stores that WERE dropped have to be
+     * refetched, and a partial rebuild that left the cursor ahead would leave
+     * them empty for ever. `reset()` is not awaited — it ends in a `tick()`,
+     * which is a network round trip nobody here is waiting for. */
+    try { const s = sync(); if (s && s.reset) Promise.resolve(s.reset()).catch(function () {}); }
+    catch (e) { /* offline: the 4 s tick picks it up */ }
+    if (!kept.length) write(who);
+    unscoped = false;
+    /* The stores a read SKIPPED while the device was sealed were never tried,
+     * so they are not unread — they are just unloaded, and the next `load()`
+     * reads them. The ones genuinely held are marked in the loop above and stay
+     * marked. Leaving these behind would keep `replica().complete` false for
+     * the rest of the session over stores that are perfectly readable. */
+    unread().forEach(function (n) { if (_unread[n] === UNKNOWN_SCOPE) clearUnread(n); });
+    return { action: kept.length ? 'held' : 'rebuilt', dropped: dropped, kept: kept };
+  }
+
+  /* Has anything ever been fetched onto this device? `lastRev` and `tableMax`
+   * both zero means no pull has come back and the bundled seed is all there is,
+   * so there is nothing that could have belonged to anybody. Unanswerable reads
+   * as "yes, there is something here", which is the conservative way round. */
+  function everPulled() {
+    const s = sync();
+    try { const i = s && s.info ? s.info() : null; return !!(i && (i.lastRev || i.tableMax)); }
+    catch (e) { return true; }
+  }
+
+  // Ids in this store this device has changed and not yet pushed.
+  function owes(name) {
+    const s = sync();
+    if (!s || typeof s.pendingIds !== 'function') return false;
+    try { const ids = s.pendingIds(name); return !!(ids && ids.length); } catch (e) { return false; }
+  }
+
+  function write(who) {
+    const l = ls();
+    if (!l || typeof l.setItem !== 'function') return false;
+    try { l.setItem(OWNER_KEY, who); return true; } catch (e) { return false; }
+  }
+
   /* Read the named stores into `S.cache`, skipping any that cannot have changed.
    *
    * A store is re-read when it has no copy yet, or when `v2/db.js` marked it
@@ -142,7 +416,15 @@
    *
    * A store that fails to read is left with whatever it had, or an empty list if
    * it had nothing — never left `undefined`, because `undefined` is how a screen
-   * tells "not loaded" from "empty" and a failed read is neither. */
+   * tells "not loaded" from "empty". That is kept, and it is not the whole
+   * answer: a failed read is NEITHER of those two things, so the name also goes
+   * into `unread()`, which is the third answer and the one `Boot.replica()`
+   * reads. See the block above it.
+   *
+   * A store that is UNREAD because it belongs to the previous person is not
+   * read at all, and is not given an empty list either: reading it is the leak,
+   * and `[]` would tell a screen there is nothing when the truth is that this
+   * device may not look. REV-AUTH F1. */
   async function load(names) {
     const s = state();
     const want = (names && names.length) ? names : Object.keys(s.cache);
@@ -151,6 +433,11 @@
     for (let i = 0; i < want.length; i++) {
       const n = want[i];
       if (todo.indexOf(n) >= 0) continue;                 // the same store twice
+      /* SEALED: the rebuild for this store has not finished, so its rows are
+       * still the previous person's. Fails CLOSED — nothing is read and nothing
+       * is invented — and stays in `unread()`, which keeps this device
+       * incomplete and every figure on every screen marked stale. */
+      if (sealed(n)) { markUnread(n, _unread[n] || UNKNOWN_SCOPE); continue; }
       if (s.cache[n] !== undefined && !dirty.has(n)) continue;
       todo.push(n);
     }
@@ -162,14 +449,25 @@
         reads++;
         const had = s.cache[n];
         s.cache[n] = (had !== undefined && storeSig(had) === storeSig(rows)) ? had : rows;
+        clearUnread(n);
         done.add(n);
       } catch (e) {
         if (s.cache[n] === undefined) s.cache[n] = [];
+        markUnread(n, 'read failed');
         // Not added to `done`: the store stays dirty so the next load retries it.
       }
     }
     if (done.size) db().clearDirty(done);
     return s.cache;
+  }
+
+  /* Sealed, not merely unread. A read that failed is retried on the next load
+   * — the device is trying and the rows are its own. A store whose rows belong
+   * to the previous person must not be retried until the rebuild clears it. */
+  function sealed(name) {
+    if (unscoped) return true;
+    return _unread[name] === 'belongs to the previous person'
+      || _unread[name] === 'could not be rebuilt';
   }
 
   /* Drop history older than this device keeps.
@@ -195,12 +493,29 @@
 
   const api = {
     LOCAL_HISTORY_DAYS: LOCAL_HISTORY_DAYS,
+    KEEP_THROUGH_REBUILD: KEEP_THROUGH_REBUILD,
+    OWNER_KEY: OWNER_KEY,
     load: load,
     prune: prune,
     reads: function () { return reads; },
     storeSig: storeSig,
     sig: sig,
     sigOf: sigOf,
+    // The third answer, and who the replica belongs to. See the two blocks
+    // above `load()`.
+    unread: unread,
+    isUnread: isUnread,
+    scopeTo: scopeTo,
+    replicaFor: replicaFor,
+    replicaStores: replicaStores,
+    // Test seam only, the shape of `Router._reset`: a node suite cannot reload
+    // a classic script per case.
+    _reset: function () {
+      reads = 0;
+      unscoped = false;
+      Object.keys(_unread).forEach(function (k) { delete _unread[k]; });
+      Object.keys(_sigSeen).forEach(function (k) { delete _sigSeen[k]; });
+    },
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Cache = api;

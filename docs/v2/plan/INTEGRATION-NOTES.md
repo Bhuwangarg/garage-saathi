@@ -135,6 +135,18 @@ that.
 
 ## 17. THE TOP INTEGRATION ITEM: screen listeners are never removed
 
+> **CLOSED by stage 4 — `docs/v2/plan/lifecycle-assembly.md`.** All three steps,
+> in this note's order: `Shell.mount` calls the outgoing screen's `unmount` and
+> the incoming one's `mount`; twelve screens implement `unmount` and gate's now
+> removes its seven listeners; and the gate check came last, after step 2 was
+> green, so it has never failed thirteen times. The correction below was right
+> about the state of the files and the note was right about the fix. **Two things
+> neither of them had:** the count is nine screens calling `mount()` at load, not
+> eight or thirteen — and the four that did NOT (duty, gate, me, today) therefore
+> had no listener at all, because `Shell.mount` never called `mount()` either.
+> Me is a driver's and a conductor's whole app.
+
+
 **Found by slice MO while reviewing its own draft, then measured across all
 thirteen screens. This is the one defect in wave 4 and 5 that no single slice
 could see, and it is exactly what stage 4 exists for.**

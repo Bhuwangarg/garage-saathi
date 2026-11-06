@@ -865,8 +865,16 @@
      * problem today, where the duty lookup linked a crew manager into a screen
      * needing a capability they do not hold. */
     if (opts.navTo && c) {
-      return '<button type="button" class="v2row dt-gate" data-nav="' + esc(opts.navTo)
-        + '" data-check="' + esc(c.id) + '">' + inner
+      /* `data-act`, NOT `data-nav`, and the reason is `attention.js:1116`'s:
+       * "the frame's own listener owns `[data-nav]` and would route it with no
+       * params, so the row's destination would lose the bus it is about". This
+       * row carries `data-check`, and it was the one screen in the thirteen
+       * reading `[data-nav]` in its own handler — which worked only while every
+       * screen's listener happened to be installed before the frame's. The
+       * frame now owns `[data-nav]` alone and nothing that carries it carries a
+       * param; the gate checks that no screen reads it. */
+      return '<button type="button" class="v2row dt-gate" data-act="gate"'
+        + ' data-check="' + esc(c.id) + '" data-to="' + esc(opts.navTo) + '">' + inner
         + '<span class="act">' + draw('back', 20) + '</span></button>';
     }
     return '<div class="v2row dt-gate" data-gate="' + st + '">' + inner + '<span class="act"></span></div>';
@@ -1166,20 +1174,21 @@
 
     if (!t.closest('[data-screen="' + ID + '"]') && !t.closest('.dt-sheet-list')) return;
 
-    var nav = t.closest('[data-nav]');
-    if (nav) {
-      var R = (typeof Router !== 'undefined' && Router) || root.Router;
-      if (R && typeof R.go === 'function') R.go(nav.getAttribute('data-nav'),
-        { check: nav.getAttribute('data-check') });
-      return;
-    }
-
     var el = t.closest('[data-act]');
     if (!el) return;
     var act = el.getAttribute('data-act');
     var p = paramsNow();
 
-    if (act === 'tab') {
+    if (act === 'gate') {
+      /* The gate round, carrying the check it is about. `Router.go` checks the
+       * capability like any route, so a crew manager who does not hold
+       * `gateCheck` goes nowhere and is told nothing — which is `01 §1.3`'s
+       * reachability finding answered by the router rather than by this row. */
+      var R = (typeof Router !== 'undefined' && Router) || root.Router;
+      if (R && typeof R.go === 'function') {
+        R.go(el.getAttribute('data-to'), { check: el.getAttribute('data-check') });
+      }
+    } else if (act === 'tab') {
       go({ tab: el.getAttribute('data-tab'), bus: p.bus, date: p.date });
     } else if (act === 'entry') {
       go({ tab: 'tonight', entry: 1 });
@@ -1354,6 +1363,26 @@
     return true;
   }
 
+  /* The other half of `mount()`, and INTEGRATION-NOTES 17's step 2. `Shell.mount`
+   * calls it when it mounts a different screen, so what `mount()` added comes
+   * off exactly when this screen stops being the one on the page.
+   *
+   * It removes the SAME function references `mount()` registered — every handler
+   * here is a named module-level function for that reason: `removeEventListener`
+   * matches on identity, and a fresh closure per mount would remove nothing
+   * while looking exactly like this. The flag goes back with them, or the screen
+   * would never re-arm. */
+  function unmount() {
+    var d = doc();
+    if (bound && d && typeof d.removeEventListener === 'function') {
+      d.removeEventListener('click', onClick);
+      d.removeEventListener('input', onField);
+      d.removeEventListener('change', onField);
+    }
+    bound = false;
+    return true;
+  }
+
   /* ---------- registration ------------------------------------------------ */
 
   if (root.W && typeof root.W.register === 'function') root.W.register(WORDS);
@@ -1365,6 +1394,7 @@
     save: save,
     seatSheet: seatSheet,
     mount: mount,
+    unmount: unmount,
     // Test seam only, the shape of Router._reset: a node suite cannot reload a
     // classic script per case.
     _reset: function () { bound = false; }

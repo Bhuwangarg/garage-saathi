@@ -301,6 +301,16 @@ function load(o) {
   sandbox.DB = fakeDb(o.data || {}, asked);
   const ctx = vm.createContext(sandbox);
   for (const f of SRC) vm.runInContext(read(V2(f)), ctx, { filename: V2(f) });
+  /* THE SHELL MOUNTS THE SCREEN, so the suite does too.
+   *
+   * Until INTEGRATION-NOTES 17 was fixed, `attention.js` called its own `mount()`
+   * at script load and this loader relied on that: the listener was simply
+   * there. That load-time call WAS the defect — a listener installed before
+   * `boot.js` had created `S`, and never removed for the whole session — so
+   * `Shell.mount` now calls `mount()` on the way in and `unmount()` on the way
+   * out, and a screen's load registers and nothing more. This line stands where
+   * the frame's call stands. The checks below are unchanged. */
+  if (sandbox.Attention && typeof sandbox.Attention.mount === 'function') sandbox.Attention.mount();
   // Each source is loaded once per context, so the module-level state inside
   // attention.js is fresh here; _reset is belt and braces for a case that
   // re-enters it.

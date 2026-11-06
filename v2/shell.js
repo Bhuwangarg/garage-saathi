@@ -5,7 +5,11 @@
  * every screen crosses, so everything below is written to be the same on all
  * thirteen rather than convenient on one.
  *
- *   Shell.mount(screenId, params)   head + body + nav; calls the screen's render
+ *   Shell.mount(screenId, params)   head + body + nav; calls the screen's render,
+ *                                   then the OUTGOING screen's unmount() and the
+ *                                   incoming one's mount() — see "the screen
+ *                                   lifecycle" below, which is this file's half of
+ *                                   INTEGRATION-NOTES 17
  *   Shell.head(title, opts)         opts {back: bool, trailing: html} -> string
  *   Shell.body(html)                ONE insertAdjacentHTML into #screen
  *   Shell.offline(on)               the trailing-slot button, opacity 0->1, 150ms
@@ -88,6 +92,7 @@
   function boot() { return (typeof Boot !== 'undefined' && Boot) || (root && root.Boot) || null; }
   function sync() { return (typeof Sync !== 'undefined' && Sync) || (root && root.Sync) || null; }
   function state() { return (typeof S !== 'undefined' && S) || (root && root.S) || null; }
+  function cache() { return (typeof Cache !== 'undefined' && Cache) || (root && root.Cache) || null; }
   function doc() { return (root && root.document) || null; }
 
   function has(o, k) { return Object.prototype.hasOwnProperty.call(o, k); }
@@ -402,6 +407,21 @@
    * and never told "denied". */
   function refused(r, id) {
     warn('no permission: role=' + (r || '-') + ' screen=' + id);
+    return nobody();
+  }
+
+  /* Signed in and holding NOTHING — a different fact from the one above, and it
+   * is reachable rather than a disagreement: a `users` row on the device with
+   * no role makes `firstScreen()` answer null (`boot.js:267`). The BODY is
+   * §1.10's, because what the person needs to be told is the same; the dev line
+   * is not, because the cause is not. Drawing the login here instead is
+   * REV-AUTH F7: a lockout over a session that is actually valid. */
+  function nothingHeld(r) {
+    warn('signed in holding nothing: role=' + (r || '-'));
+    return nobody();
+  }
+
+  function nobody() {
     return typeof root.emptyState === 'function'
       ? root.emptyState(say('notOpen'), { icon: 'warn', hint: say('notOpenHint') })
       : '';
@@ -448,8 +468,19 @@
       cache: s.cache || {},
       replica: rep,
       stale: rep.complete !== true,
+      /* The stores this device could not read, so a screen can draw "could not
+       * read this" instead of "there is nothing here" — `v2-ux.md §4.1` #7,
+       * "'unknown' and 'zero' must never look alike". `cache[name]` is still
+       * `[]` for a failed read, which is what every screen already handles;
+       * this is the fact that was lost one layer below all thirteen of them. */
+      unread: unreadNames(),
       offline: isOffline()
     };
+  }
+
+  function unreadNames() {
+    const c = cache();
+    try { return (c && c.unread) ? c.unread() : []; } catch (e) { return []; }
   }
 
   function current() {
@@ -612,7 +643,23 @@
     const app = appEl();
     if (!app) return false;
     const id = screenId == null || String(screenId) === '' ? null : String(screenId);
-    if (id === null || id === LOGIN) return signedOut();
+
+    /* THE LIFECYCLE, AND IT IS THIS FUNCTION'S. Before anything is drawn, the
+     * screen that WAS live stops being live. See `live` below for why the
+     * Shell owns both halves and why neither can be left to the screens. */
+    leave(id);
+
+    if (id === LOGIN) return signedOut();
+    /* `null` is NOT the login (`boot.js:256`: "Null means signed in and holding
+     * nothing, which is a real state with its own frame and must not be quietly
+     * turned into the login screen"). Only a device with nobody on it is sent
+     * to `signedOut()`; a signed-in person holding nothing falls through to the
+     * normal frame and gets §1.10's no-permission body, which is REV-AUTH F7.
+     * Routing "holding nothing" and "nobody is here" to one function is what
+     * made a lockout reachable: a person with a valid session read "Sign in to
+     * carry on", and offline the next PIN could not heal it. */
+    const s0 = state();
+    if (id === null && !(s0 && s0.user)) return signedOut();
     signedIn();
 
     const r = role();
@@ -646,12 +693,14 @@
     const back = !!(up && r2 && r2.reachable && r2.reachable(up));
 
     const sig = sigOf(id, items);
-    const bodyHtml = allowed ? renderBody(id, params) : refused(r, id);
+    const bodyHtml = allowed ? renderBody(id, params)
+      : (id === null ? nothingHeld(r) : refused(r, id));
 
     if (sig === lastSig && screenEl()) {
       offline(off);                  // the slot is already there: fade, do not rebuild
       body(bodyHtml);
       pad();
+      if (allowed) enter(id);
       return true;
     }
     lastSig = sig;
@@ -664,7 +713,86 @@
         + SCREEN + '"></main>' + bar);
     body(bodyHtml);
     pad();
+    /* The screen's own listeners BEFORE the frame's, so that on the first paint
+     * the order on `document` is the one every screen was written against: a
+     * row that carries both a screen attribute and the frame's is read by the
+     * screen first. `listen()` installs the frame's exactly once, so from the
+     * second screen onwards the frame's is already in front — which is why
+     * `[data-nav]` is the frame's alone and never carries a param (the rule
+     * `attention.js:1116` states and `duty.js` was the one screen breaking). */
+    if (allowed) enter(id);
     listen();
+    return true;
+  }
+
+  /* ---------- the screen lifecycle --------------------------------------- */
+
+  /* INTEGRATION-NOTES 17, and the seam the thirteen slices could not see.
+   *
+   * `Shell.mount` used to render and nothing else, so a screen's own
+   * script-load `mount()` was the only thing that ever installed its delegated
+   * `document` listener. Two defects fell out of that and they are opposite
+   * halves of one hole:
+   *
+   *   - the NINE screens that did call `mount()` at load installed a listener
+   *     that outlived the screen. 42 `addEventListener` across the thirteen,
+   *     zero `removeEventListener`: after Store, People and Reviews, THREE live
+   *     handlers were reading `data-tab`, and all thirteen share `data-act`.
+   *     Three of them (store, fuel, attention) also kicked a `Cache.load` from
+   *     there — before `boot.js` had created `S`, which is the uncaught
+   *     rejection `store.js` shipped with.
+   *   - the FOUR that did not (duty, gate, me, today) had no listener at all.
+   *     Me is a driver's and a conductor's whole app and Today is the owner's
+   *     front door, and in a browser neither answered a tap. No node suite
+   *     could see it: every screen is exercised through `module.exports`, and
+   *     this is the `else` branch.
+   *
+   * So the lifecycle is the Shell's, both ends of it, and a screen's load does
+   * nothing but register. `Router.register` already stores the module whole
+   * (`v2/router.js:87`) and validates only `render`, so `unmount` is reachable
+   * from here with no router change.
+   *
+   * `mounted` is the id whose module is live, and it is the ONE piece of state
+   * that makes this correct: `enter` is called when it changes and not on every
+   * redraw, because `boot.js` re-mounts on each sync tick and re-entering a
+   * screen forty times a minute would re-kick its store read forty times. */
+  let mounted = null;
+
+  function hook(id, name) {
+    const r = router();
+    const mod = (id && r && r.moduleFor) ? r.moduleFor(id) : null;
+    const fn = mod && typeof mod[name] === 'function' ? mod[name] : null;
+    if (!fn) {
+      /* Said once per screen, not swallowed. A screen with listeners and no
+       * `unmount` is note 17 coming back, and the gate checks for it — but a
+       * gate runs on a push and this runs on the device. */
+      warn('screen ' + id + ' has no ' + name + '()');
+      return false;
+    }
+    try { fn(); return true; } catch (e) {
+      if (typeof console !== 'undefined' && console.error) {
+        console.error('[v2] screen ' + name + ' failed for ' + id, e);
+      }
+      return false;
+    }
+  }
+
+  // The outgoing screen stops being live. Called with the id coming IN, so
+  // re-mounting the same screen is not a teardown and the login is.
+  function leave(next) {
+    if (mounted === null || mounted === next) return false;
+    const was = mounted;
+    mounted = null;                  // cleared FIRST: a throwing unmount must
+    hook(was, 'unmount');            // not leave a screen recorded as live
+    return true;
+  }
+
+  // The incoming screen becomes live, after its body is in the DOM: a mount
+  // that queried for an element would find nothing if it ran before `body()`.
+  function enter(id) {
+    if (id === null || mounted === id) return false;
+    mounted = id;
+    hook(id, 'mount');
     return true;
   }
 
@@ -757,8 +885,12 @@
     // a classic script per case.
     _reset: function () {
       lastSig = null; lastLogin = null; barDrawn = false; offShown = false; trailHtml = ''; moreItems = [];
+      mounted = null;
       Object.keys(said).forEach(function (k) { delete said[k]; });
-    }
+    },
+    // Which screen's module is live, for the suite that counts listeners across
+    // a route change. Nothing in the app reads it.
+    _mounted: function () { return mounted; }
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Shell = api;

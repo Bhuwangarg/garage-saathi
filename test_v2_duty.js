@@ -161,6 +161,16 @@ function load(o) {
   sandbox.window = sandbox;
   const ctx = vm.createContext(sandbox);
   for (const f of SRC) vm.runInContext(read(V2(f)), ctx, { filename: V2(f) });
+  /* THE SHELL MOUNTS THE SCREEN, so the suite does too.
+   *
+   * Until INTEGRATION-NOTES 17 was fixed, `duty.js` called its own `mount()`
+   * at script load and this loader relied on that: the listener was simply
+   * there. That load-time call WAS the defect — a listener installed before
+   * `boot.js` had created `S`, and never removed for the whole session — so
+   * `Shell.mount` now calls `mount()` on the way in and `unmount()` on the way
+   * out, and a screen's load registers and nothing more. This line stands where
+   * the frame's call stands. The checks below are unchanged. */
+  if (sandbox.Duty && typeof sandbox.Duty.mount === 'function') sandbox.Duty.mount();
   // The real Router.go would need a Caps role; the screen only ever moves its
   // own params, so the move is recorded rather than performed.
   const realGo = sandbox.Router.go;
@@ -323,9 +333,17 @@ test('the delegated listener returns early on a field BEFORE it reads data-act o
   // is proving an early return and not a handler that never worked.
   clickOn(l, {
     '[data-screen="duty"]': { 'data-screen': 'duty' },
-    '[data-nav]': { 'data-nav': 'gate', 'data-check': 'gc-1' },
+    '[data-act]': { 'data-act': 'gate', 'data-to': 'gate', 'data-check': 'gc-1' },
   });
   assert.strictEqual(l.gone.length, 1, 'the delegated listener does nothing at all');
+  /* `data-act`, not `data-nav`, and that is the point rather than an accident of
+   * this fixture: `[data-nav]` is the FRAME's attribute and the frame routes it
+   * with no params, so a row that carries a param may not use it
+   * (`attention.js:1116`). This row was the one place in the thirteen that did,
+   * and it only worked while every screen's listener happened to be installed
+   * before the frame's. The route still arrives carrying the check. */
+  assert.deepEqual(l.gone[0].params, { check: 'gc-1' },
+    'the gate row lost the check it is about');
 });
 
 /* ===================================================================================================
@@ -717,11 +735,17 @@ test('the lookup\'s link into the gate round is absent without gateCheck (01 §1
   const params = { tab: 'lookup', bus: 'b1', date: DATE };
   l.win.Caps.can = (role, cap) => cap === 'assignDriver';
   const crewman = l.Duty.render(shell({ cache: cache, role: 'crewmanager', params: params }));
-  assert.strictEqual(count(crewman, /data-nav="gate"/g), 0,
+  /* `data-act="gate"`, because the frame owns `[data-nav]` and would route it
+   * with no params — see the early-return case above. What is being checked is
+   * unchanged: the row is ABSENT for a role that does not hold gateCheck. */
+  assert.strictEqual(count(crewman, /data-act="gate"/g), 0,
     'the duty lookup linked a crew manager into a screen needing a capability they do not hold');
   l.win.Caps.can = () => true;
   const sup = l.Duty.render(shell({ cache: cache, role: 'supervisor', params: params }));
-  assert.strictEqual(count(sup, /data-nav="gate"/g), 1);
+  assert.strictEqual(count(sup, /data-act="gate"/g), 1);
+  // And the frame's attribute is nowhere on this screen at all.
+  assert.strictEqual(count(sup, /data-nav=/g), 0,
+    '[data-nav] is the frame\'s and a screen that draws it loses its params');
 });
 
 /* ===================================================================================================

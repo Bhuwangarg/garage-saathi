@@ -160,7 +160,20 @@
     const s = sync();
     const i = (s && s.info) ? s.info() : {};
     if (!pa || !pa.replicaState) return { behind: 0, complete: false };
-    return pa.replicaState(i.lastRev, i.tableMax, i.notStored);
+    const r = pa.replicaState(i.lastRev, i.tableMax, i.notStored);
+    /* AND a store this device could not read, which is the other half of being
+     * short and the one the server's cursor cannot see. `Cache.unread()` holds
+     * the names: a read that failed, or a store still belonging to the previous
+     * person and therefore sealed (`v2/cache.js`). Either way the in-memory
+     * picture has a hole in it, so `complete` is false — which is §1.8's rule
+     * reaching all thirteen screens at once: no aggregate figure is drawn
+     * without `stale: true`. It is also what makes `unread()` load-bearing
+     * rather than a field nobody reads. */
+    const c = cache();
+    let held = [];
+    try { held = (c && c.unread) ? c.unread() : []; } catch (e) { held = []; }
+    if (!held.length) return r;
+    return { behind: r.behind, complete: false };
   }
 
   /* ===== Drawing, which is Shell's ======================================= */
@@ -187,7 +200,13 @@
        * console line is the half that matters — a swallowed exception with
        * nothing written down is how a screen stops redrawing and nobody finds
        * out (`v2/router.js:111` learnt the same thing about its listeners). */
-      try { sh.mount(cur && cur.id ? cur.id : S.route); } catch (e) {
+      /* The PARAMS go with the id. Without them every sync tick re-mounted the
+       * current screen with `params: null`, so a Job card lost the card it is
+       * about and Duty's lookup tab lost its entry — four seconds after you
+       * opened it, on a screen nobody had touched. `jobcard.js:827` and
+       * `duty.js:525` read `m.params`; the route still has them, so dropping
+       * them here was the frame being handed less than the router held. */
+      try { sh.mount(cur && cur.id ? cur.id : S.route, cur ? cur.params : null); } catch (e) {
         if (typeof console !== 'undefined' && console.error) {
           console.error('[v2] Shell.mount failed for ' + (cur && cur.id), e);
         }
@@ -334,6 +353,29 @@
     if (user && user.id) S.user = user;
     else await restoreSession();
 
+    /* WHOSE REPLICA IS THIS? Asked here because this is the one moment it can
+     * change, and answered before a single store is read.
+     *
+     * REV-AUTH F1: `signOut()` leaves IndexedDB alone, `Cache.load` has no role
+     * parameter, and a shared yard phone therefore handed the next person the
+     * last person's rows — measured, a conductor holding zero capabilities
+     * reading another crew member's salary, licence and Aadhaar URL. The
+     * sentence in `signOut()` below promised that *"the next `Cache.load`
+     * re-reads them under whoever is signed in then"*; this is the code that
+     * makes it true. `v2/cache.js`'s `scopeTo` argues why it is a rebuild and
+     * not a filter.
+     *
+     * STARTED HERE AND AWAITED BELOW, which is the one subtle thing in this
+     * function. `scopeTo` seals the device synchronously — before its own first
+     * `await` — and only then spends up to forty IndexedDB transactions
+     * emptying stores. So this line is what makes the next person's rows
+     * unreadable, and it costs nothing; awaiting it HERE would put the rebuild
+     * in front of the frame and the nav, which is §1.8's order backwards and a
+     * white page on a Core 2 Duo. It is awaited before anything reads a store,
+     * which is what actually matters. */
+    const ch = cache();
+    const scoping = (ch && ch.scopeTo && S.user && S.user.id) ? ch.scopeTo(S.user.id) : null;
+
     // First paint: the frame, the nav and a skeleton body. No store read has
     // happened yet beyond the one get above, and none is waited on.
     const r = router();
@@ -347,12 +389,44 @@
 
     wireSync();
 
+    /* AND NOW the rebuild is waited for, because the line after it reads
+     * stores. A screen's own `mount()` may already have asked for some: those
+     * reads found the device sealed, read nothing, and will be retried by the
+     * load below and by the screen's next route change. */
+    if (scoping) {
+      let out = null;
+      try { out = await scoping; } catch (e) {
+        out = { action: 'unscoped', dropped: [], kept: [], why: String(e && e.message) };
+      }
+      if (typeof console !== 'undefined') {
+        if (out && out.action === 'unscoped' && console.error) {
+          /* The fail-closed state, and it has to be loud: the device is sealed
+           * and every screen will be empty and marked stale until a reload. The
+           * alternative — deciding there was nothing to purge — is the next
+           * person reading the last person's records with every check green. */
+          console.error('[v2] this device cannot be scoped to a person, so it reads nothing: '
+            + (out.why || 'reason unknown'));
+        } else if (out && out.action !== 'same' && out.action !== 'claimed' && console.info) {
+          console.info('[v2] replica rebuilt for this person: ' + out.action
+            + ', ' + out.dropped.length + ' store(s) dropped'
+            + (out.kept.length ? ', ' + out.kept.length + ' held for unsent work' : ''));
+        }
+      }
+    }
+
     // Then the data the first screen draws from. FIRST_STORES is
     // `v2/pullapply.js`'s list, deliberately short, and is reused rather than
     // restated: a second list of first stores is a second list to forget.
     const pa = pullApply();
     const c = cache();
-    if (c && pa && pa.FIRST_STORES) await c.load(pa.FIRST_STORES).catch(function () {});
+    /* AND ONLY WHEN SOMEBODY IS SIGNED IN. A signed-out device used to read all
+     * sixteen FIRST_STORES into `S.cache` on every boot, for a login screen
+     * that reads `users` and `meta` itself (`login.js`'s `readRoster`, which
+     * exists because the roster has to arrive both on the first paint and after
+     * a sign-out). On a shared phone that put the last person's rows into
+     * memory with nobody signed in to hold them — the same shape as REV-AUTH
+     * F1, one step earlier — and it bought the login nothing. */
+    if (c && pa && pa.FIRST_STORES && S.user) await c.load(pa.FIRST_STORES).catch(function () {});
     redraw();
     return S.user;
   }
@@ -372,6 +446,15 @@
    * may not be shown. The stores on disk are untouched: a sign-out is not a
    * device wipe, and the next `Cache.load` re-reads them under whoever is
    * signed in then.
+   *
+   * THAT LAST CLAUSE WAS NOT TRUE WHEN IT WAS WRITTEN — `Cache.load` had no
+   * role and read every row on disk into whoever's `S.cache` was there, which
+   * is REV-AUTH F1 and the worst thing in the authorization pass. It is true
+   * now, and `enter()` above is where: the replica carries the id of the person
+   * it was fetched for, and a different person at the next sign-in rebuilds it.
+   * The marker is deliberately NOT cleared here. It describes the disk, the
+   * disk survives a sign-out, and clearing it would make the next sign-in look
+   * like a device that had never pulled.
    */
   function signOut() {
     const s = sync();

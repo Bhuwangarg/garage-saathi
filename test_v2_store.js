@@ -258,6 +258,16 @@ function load(o) {
   sandbox.window = sandbox;
   const ctx = vm.createContext(sandbox);
   for (const f of srcList(o.screen)) vm.runInContext(read(f), ctx, { filename: f });
+  /* THE SHELL MOUNTS THE SCREEN, so the suite does too.
+   *
+   * Until INTEGRATION-NOTES 17 was fixed, `store.js` called its own `mount()`
+   * at script load and this loader relied on that: the listener was simply
+   * there. That load-time call WAS the defect — a listener installed before
+   * `boot.js` had created `S`, and never removed for the whole session — so
+   * `Shell.mount` now calls `mount()` on the way in and `unmount()` on the way
+   * out, and a screen's load registers and nothing more. This line stands where
+   * the frame's call stands. The checks below are unchanged. */
+  if (sandbox.Store && typeof sandbox.Store.mount === 'function') sandbox.Store.mount();
   return { win: sandbox, db: db, root: html, clicks: clicks, inputs: inputs, scrolls: scrolls,
            logs: logs, sheets: sheets, toasts: toasts, confirms: confirms, mounts: mounts,
            loaded: loaded, sheetBody: sheetBody };

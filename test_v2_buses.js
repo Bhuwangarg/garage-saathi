@@ -165,7 +165,24 @@ function load(o) {
   };
   sandbox.window = sandbox;
   const ctx = vm.createContext(sandbox);
-  for (const f of SRC) vm.runInContext(read(V2(f)), ctx, { filename: V2(f) });
+  /* `o.src` replaces buses.js with a changed copy of itself, which is the
+   * mutation seam A9's two mutants need: the memo and the filter order are
+   * both invisible in the markup, so the only way to show their checks can
+   * fail is to load the screen without them. */
+  for (const f of SRC) {
+    const src = (o.src && f === 'screens/buses.js') ? o.src : read(V2(f));
+    vm.runInContext(src, ctx, { filename: V2(f) });
+  }
+  /* THE SHELL MOUNTS THE SCREEN, so the suite does too.
+   *
+   * Until INTEGRATION-NOTES 17 was fixed, `buses.js` called its own `mount()`
+   * at script load and this loader relied on that: the listener was simply
+   * there. That load-time call WAS the defect — a listener installed before
+   * `boot.js` had created `S`, and never removed for the whole session — so
+   * `Shell.mount` now calls `mount()` on the way in and `unmount()` on the way
+   * out, and a screen's load registers and nothing more. This line stands where
+   * the frame's call stands. The checks below are unchanged. */
+  if (sandbox.Buses && typeof sandbox.Buses.mount === 'function') sandbox.Buses.mount();
   sandbox.Router.go = function (id, params) { gone.push({ id, params }); return true; };
   sandbox.S = { user: o.user || null, cache: o.cache || {}, route: null, stack: [] };
   return { win: sandbox, Buses: sandbox.Buses, db, clicks, inputs, sheets, confirms, toasts, gone };
@@ -390,6 +407,131 @@ test('A8 nothing measures a row', () => {
   [/offsetHeight/, /getBoundingClientRect/, /getComputedStyle/].forEach((re) => {
     assert(!re.test(CODE), 'measuring a row is the shape that cost 277 ms a page: ' + re);
   });
+});
+
+/* ===================================================================================================
+ * A9. THE COST SORT IS PAID ONCE PER DATA CHANGE, NOT ONCE PER REDRAW
+ *
+ * REV-FLOOR finding 2, measured: 89 buses on the fleet fixture, sorting by
+ * running cost took 80-95 ms against 15 ms for registration, and 60 ms of it
+ * was 89 `Cost.forBus` calls walking the money stores end to end. `boot.js`
+ * re-mounts on every sync status change and the poller ticks every four
+ * seconds, so it was re-paid every four seconds for as long as the owner left
+ * that sort on — an estimated 320-480 ms of blocked main thread per tick on a
+ * Core 2 Duo, against §9's 250 ms screen budget.
+ *
+ * Measured again after the memo, same fixture and machine, node, model build
+ * only (no DOM): first build 116.5-119.2 ms either way, and the REDRAW
+ * 33.1-41.3 ms with the memo against 109.4-126.4 ms without it. Narrowed to one
+ * registration: 0.6-2.0 ms against 73.5-87.6 ms.
+ *
+ * CHECKED BY COUNTING THE CALLS, not by timing, because a timing check on a
+ * shared machine passes or fails by how busy the machine is. The count is the
+ * thing the measurement was about.
+ * =================================================================================================== */
+
+/* A Cache whose `sigOf` behaves like the real one: it moves when the content
+ * moves and not otherwise. `cache.js`'s own signature is `rows.length + ':' +
+ * newest updatedAt`, which is what makes it safe to key a memo on. */
+function countingCost(o) {
+  o = o || {};
+  const buses = o.buses || Array.from({ length: 12 }, (_, i) => seedBus(i));
+  const cache = freshCache(buses);
+  const l = load({ cache: cache, src: o.src });
+  const calls = [];
+  l.win.Cost = {
+    forBus: (id) => { calls.push(id); return costResult(1000 + calls.length, [1000, 0, 0, 0, 0, 0]); },
+    reconciles: () => true,
+  };
+  l.win.Cache = {
+    load: () => Promise.resolve({}),
+    sig: () => '',
+    sigOf: function () {
+      const names = Array.prototype.slice.call(arguments);
+      return names.map((n) => {
+        const a = cache[n] || [];
+        let max = 0;
+        for (let i = 0; i < a.length; i++) {
+          const t = (a[i] && (a[i].updatedAt || a[i].at)) || 0;
+          if (t > max) max = t;
+        }
+        return a.length + ':' + max;
+      }).join('|');
+    },
+  };
+  return { l: l, cache: cache, calls: calls, buses: buses };
+}
+
+test('A9 a second redraw of the cost sort asks Cost for nothing: the memo is the data signature', () => {
+  const c = countingCost();
+  c.l.Buses.sort('cost');
+  c.l.Buses.model(shell({ cache: c.cache }));
+  const first = c.calls.length;
+  assert.strictEqual(first, c.buses.length,
+    'expected one forBus per bus on the first build, got ' + first);
+  /* The redraw a sync tick causes: same screen, same data, nothing touched.
+   * `now` moves — it is `Date.now()` on every build — and the review said a
+   * memo "would not help" for exactly that reason, which is why the window end
+   * is quantised into the key rather than left out of it. */
+  c.l.Buses.model(shell({ cache: c.cache }));
+  c.l.Buses.model(shell({ cache: c.cache }));
+  assert.strictEqual(c.calls.length, first,
+    'the cost sort was recomputed on a redraw: ' + (c.calls.length - first)
+    + ' extra Cost.forBus call(s) for data nobody changed');
+});
+
+test('A9 a write to a money store DOES recompute it, or the figure would freeze', () => {
+  const c = countingCost();
+  c.l.Buses.sort('cost');
+  c.l.Buses.model(shell({ cache: c.cache }));
+  const first = c.calls.length;
+  // One new fill. The signature moves, so the answer has to be rebuilt — a memo
+  // that held through this would draw a cost that is quietly out of date, which
+  // is worse than paying for it.
+  c.cache.fuel.push({ id: 'f-new', busId: c.buses[0].id, litres: 100, amount: 9000,
+                      at: T - DAY, updatedAt: T });
+  c.l.Buses.model(shell({ cache: c.cache }));
+  assert.strictEqual(c.calls.length, first * 2,
+    'a new fuel fill did not move the memo key: the drawn cost would be stale');
+});
+
+test('A9 the search filter runs FIRST, so narrowing to one registration costs one call', () => {
+  const c = countingCost();
+  c.l.Buses.sort('cost');
+  c.l.Buses.search(c.buses[3].regNo);
+  c.l.Buses.model(shell({ cache: c.cache }));
+  /* `costTotals` used to be handed the whole fleet before anything was filtered
+   * out, so searching down to one bus still cost 89 full passes over the money
+   * stores. Measured: 76 ms for one row. */
+  assert.strictEqual(c.calls.length, 1,
+    'searching for one registration asked Cost about ' + c.calls.length + ' buses');
+});
+
+test('A9 MUTANT must fail: the memo is dropped and every redraw pays again', () => {
+  const src = SCREEN.replace(
+    '    var by = (key !== null && costMemo.key === key && costMemo.by) ? costMemo.by : {};',
+    '    var by = {};');
+  assert.notStrictEqual(src, SCREEN, 'the memo mutation did not apply');
+  const c = countingCost({ src: src });
+  c.l.Buses.sort('cost');
+  c.l.Buses.model(shell({ cache: c.cache }));
+  const first = c.calls.length;
+  c.l.Buses.model(shell({ cache: c.cache }));
+  assert(c.calls.length > first,
+    'the mutant still answered from a memo: this check cannot fail');
+});
+
+test('A9 MUTANT must fail: the totals are computed before the search filter again', () => {
+  const src = SCREEN.replace(
+    "    var totals = sort === 'cost' ? costTotals(shown, m, now) : {};",
+    "    var totals = sort === 'cost' ? costTotals(buses, m, now) : {};");
+  assert.notStrictEqual(src, SCREEN, 'the filter mutation did not apply');
+  const c = countingCost({ src: src });
+  c.l.Buses.sort('cost');
+  c.l.Buses.search(c.buses[3].regNo);
+  c.l.Buses.model(shell({ cache: c.cache }));
+  assert(c.calls.length > 1,
+    'the mutant asked Cost about one bus: this check cannot fail');
 });
 
 /* ===================================================================================================

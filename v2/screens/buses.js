@@ -580,26 +580,90 @@
 
   /* THE TOTAL IS NOT COMPUTED HERE, and the sort does not compute it either: it
    * asks Cost once per bus and keys on what came back. A comparator that called
-   * forBus would call it O(n log n) times for one answer. */
+   * forBus would call it O(n log n) times for one answer.
+   *
+   * REV-FLOOR finding 2, measured: on the fleet fixture (83,884 rows, 89 buses)
+   * sorting by running cost took 80-95 ms against 15 ms for registration, of
+   * which 60 ms was 89 `Cost.forBus` calls walking the money stores end to end
+   * — and `boot.js` re-mounts on every sync status change, so a 4 s poller
+   * re-paid it every 4 s for as long as the owner left that sort on. Estimated
+   * 320-480 ms per tick on a Core 2 Duo, against a 250 ms screen budget.
+   *
+   * TWO CHANGES, and the review named both:
+   *
+   * 1. MEMOISED on the data it reads. `Cache.sigOf` over the seven stores
+   *    `costRows` hands to Cost is the key, and it is the right one for the
+   *    reason `cache.js` gives: a signature moves whenever a record is added,
+   *    removed or written, because every write in this app stamps `updatedAt`.
+   *    `cost.js` needs nothing.
+   *
+   * 2. `now` is QUANTISED into the key rather than left out of it. The review
+   *    says a memo "would not help: `now = Date.now()` is a fresh argument each
+   *    time", and that is true of a memo keyed on data alone — so the window
+   *    end is rounded down to the minute and the ROUNDED value is what Cost is
+   *    given. The figure is then exact for the instant it claims, rather than
+   *    approximately right for now: a 30-day window ending at most 60 s ago,
+   *    recomputed when the minute turns or when a row changes. Not a day key —
+   *    a fill entered at 20:01 must show up before midnight.
+   *
+   * The memo is one object and one map, replaced wholesale: a stale entry
+   * cannot outlive its key, which is the shape `attention.js` uses for its
+   * index and `me.js` for its usage table. */
+  var COST_BUCKET_MS = 60000;
+  var costMemo = { key: null, by: null };
+
+  function costKey(m, bucket) {
+    var c = root.Cache;
+    var sig = (c && typeof c.sigOf === 'function') ? c.sigOf.apply(c, COST_STORES) : null;
+    // No Cache (a node suite with none, or a load-order fault): no memo rather
+    // than a memo keyed on nothing, which would freeze the first answer for
+    // ever. `null` never equals `null` through the `key === null` test below.
+    if (sig === null) return null;
+    return sig + '|' + COST_DAYS + '|' + bucket;
+  }
+
+  /* `buses` here is the list AFTER the search filter, which is the review's
+   * second half: `costTotals` ran over all 89 before the filter, so narrowing
+   * to one registration still cost 89 full passes over the money stores. */
   function costTotals(buses, m, now) {
-    var C = root.Cost, by = {}, i;
-    if (!C || typeof C.forBus !== 'function') return by;
-    var rows = costRows(m);
+    var C = root.Cost, i;
+    if (!C || typeof C.forBus !== 'function') return {};
+    /* `now - now % BUCKET` rather than `Math.floor(now / BUCKET) * BUCKET`, and
+     * not as a flourish: this file may contain no divisor it did not write
+     * itself, because a quotient over a figure off a record is 8db78e7 — and
+     * `test_v2_buses.js` A6 names every `/` in the source to keep it that way.
+     * The remainder is the same arithmetic with nothing to argue about. */
+    var bucket = now - (now % COST_BUCKET_MS);
+    var key = costKey(m, bucket);
+    var by = (key !== null && costMemo.key === key && costMemo.by) ? costMemo.by : {};
+    var rows = null;
     for (i = 0; i < buses.length; i++) {
+      var id = buses[i].id;
+      if (has(by, id)) continue;                  // this key already answered it
+      if (rows === null) rows = costRows(m);      // built once, and only if asked
       try {
-        var r = C.forBus(buses[i].id, COST_DAYS, rows, now);
-        by[buses[i].id] = (typeof C.reconciles === 'function' && !C.reconciles(r)) ? null : r.total;
-      } catch (e) { by[buses[i].id] = null; }
+        var r = C.forBus(id, COST_DAYS, rows, bucket);
+        by[id] = (typeof C.reconciles === 'function' && !C.reconciles(r)) ? null : r.total;
+      } catch (e) { by[id] = null; }
     }
+    if (key !== null) { costMemo.key = key; costMemo.by = by; }
     return by;
   }
+
+  function has(o, k) { return Object.prototype.hasOwnProperty.call(o, k); }
+
+  /* The seven stores Cost reads, in ONE place, because `costRows` hands them
+   * over and `costKey` takes their signature: two lists would be a memo keyed
+   * on six stores while the answer depends on seven, which is a figure that
+   * stops moving when one of them changes. */
+  var COST_STORES = ['fuel', 'def', 'jobcards', 'ledger', 'trips', 'incidents', 'components'];
 
   /* Everything Cost.forBus reads, handed over whole. A store this device has
    * not read yet is left OUT rather than passed as an empty array: Cost treats
    * an absent store as "could not be read" and withholds the part, and passing
    * `[]` would tell it there are no fills when nobody has looked. */
   function costRows(m) {
-    var names = ['fuel', 'def', 'jobcards', 'ledger', 'trips', 'incidents', 'components'];
+    var names = COST_STORES;
     var out = {}, i;
     for (i = 0; i < names.length; i++) {
       var a = m && m.cache && m.cache[names[i]];
@@ -624,11 +688,17 @@
       reportai: live(rowsOf(m, 'reportai')),
       mayChallans: can(role, 'challans')
     };
-    var totals = sort === 'cost' ? costTotals(buses, m, now) : {};
-    var rows = [], i;
-    for (i = 0; i < buses.length; i++) {
-      var b = buses[i];
-      if (!matchesSearch(b, search)) continue;
+    /* THE SEARCH FILTER FIRST, then the totals for what survived it. The other
+     * way round — which is how this read until REV-FLOOR measured it — made
+     * narrowing to one registration cost 89 full passes over the money stores,
+     * because `costTotals` was handed the whole fleet before anything was
+     * filtered out. */
+    var shown = [], i;
+    for (i = 0; i < buses.length; i++) if (matchesSearch(buses[i], search)) shown.push(buses[i]);
+    var totals = sort === 'cost' ? costTotals(shown, m, now) : {};
+    var rows = [];
+    for (i = 0; i < shown.length; i++) {
+      var b = shown[i];
       var srv = sort === 'service' ? serviceOf(b, now) : null;
       rows.push({
         id: b.id, reg: String(b.regNo || b.id), sub: subOf(b, ctx),
@@ -1498,6 +1568,25 @@
     return onClick;
   }
 
+  /* The other half of `mount()`, and INTEGRATION-NOTES 17's step 2. `Shell.mount`
+   * calls it when it mounts a different screen, so what `mount()` added comes
+   * off exactly when this screen stops being the one on the page.
+   *
+   * It removes the SAME function references `mount()` registered — every handler
+   * here is a named module-level function for that reason: `removeEventListener`
+   * matches on identity, and a fresh closure per mount would remove nothing
+   * while looking exactly like this. The flag goes back with them, or the screen
+   * would never re-arm. */
+  function unmount() {
+    var d = root.document;
+    if (bound && d && typeof d.removeEventListener === 'function') {
+      d.removeEventListener('click', onClick);
+      d.removeEventListener('input', onInput);
+    }
+    bound = false;
+    return true;
+  }
+
   function onClick(ev) {
     var t = ev && ev.target;
     if (!t || typeof t.closest !== 'function') return;
@@ -1902,17 +1991,34 @@
   register();
 
   var api = {
-    render: render, model: registerModel, busModel: busModel, mount: mount,
+    render: render, model: registerModel, busModel: busModel, mount: mount, unmount: unmount,
     search: setSearch, sort: setSort,
     papersOf: papersOf, serviceOf: serviceOf, crewOf: crewOf,
     addSheet: addSheet, serviceSheet: serviceSheet, jobSheet: jobSheet, sortSheet: sortSheet,
     createBus: createBus, serviceCard: serviceCard, jobFromReport: jobFromReport,
     // Test seam only, the shape of Router._reset: a node suite cannot reload a
     // classic script per case.
-    _reset: function () { bound = false; search = ''; sort = 'reg'; }
+    _reset: function () {
+      bound = false; search = ''; sort = 'reg';
+      costMemo = { key: null, by: null };
+    },
+    /* The memo's KEY, for the perf check. §3.4's rule — "built once per content
+     * signature, never from a draw function" — cannot be read off the markup,
+     * because a recomputed total draws exactly the same list. The key is what
+     * says whether it was recomputed. */
+    _costKey: function () { return costMemo.key; }
   };
 
   if (root.Router && typeof root.Router.register === 'function') root.Router.register(ID, api);
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
-  else { root.Buses = api; mount(); }
+  else {
+    root.Buses = api;
+    /* NO `mount()` here. The listener used to go on at script load, which was
+     * the only thing that ever installed it (`Shell.mount` rendered and nothing
+     * else), and it then outlived the screen for the whole session —
+     * INTEGRATION-NOTES 17. `Shell.mount` now calls `mount()` on the way in and
+     * `unmount()` on the way out, so a screen's listeners exist exactly while
+     * the screen is the one on the page. A screen's load registers and nothing
+     * more, which is what `index.html`'s script order has always claimed. */
+  }
 })(typeof window !== 'undefined' ? window : this);

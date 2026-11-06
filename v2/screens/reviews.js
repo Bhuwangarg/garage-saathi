@@ -1099,6 +1099,30 @@
     return handler;
   }
 
+  /* The other half of `mount()`, and INTEGRATION-NOTES 17's step 2. `Shell.mount`
+   * calls it when it mounts a different screen, so what `mount()` added comes
+   * off exactly when this screen stops being the one on the page.
+   *
+   * It removes the SAME function reference `mount()` registered — every handler
+   * here is a named module-level function for that reason: `removeEventListener`
+   * matches on identity, and a fresh closure per mount would remove nothing
+   * while looking exactly like this. `handler` goes back to null with it, or the
+   * screen would never re-arm. */
+  function unmount() {
+    var d = root.document;
+    if (handler && d && typeof d.removeEventListener === 'function') {
+      d.removeEventListener('click', handler);
+      d.removeEventListener('input', onInput);
+      /* `true` AGAIN. The scroll listener was registered in the CAPTURE phase,
+       * and a removal that leaves the third argument off is matching a
+       * different listener: it removes nothing and reports nothing. */
+      if (scroller) d.removeEventListener('scroll', scroller, true);
+    }
+    handler = null;
+    scroller = null;
+    return true;
+  }
+
   function onClick(ev) {
     var t = ev && ev.target;
     if (!t || typeof t.closest !== 'function') return;
@@ -1491,7 +1515,7 @@
   register();
 
   var api = {
-    render: render, model: model, mount: mount,
+    render: render, model: model, mount: mount, unmount: unmount,
     tab: pick, filter: filter, search: search, windowFirst: window_,
     aliasId: aliasId, normReg: normReg, normName: normName, parseLocal: parseLocal,
     openAt: function (id) { if (id !== undefined) openId = id; return openId; },
@@ -1506,6 +1530,12 @@
   else {
     root.Reviews = api;
     if (root.Router && typeof root.Router.register === 'function') root.Router.register(ID, api);
-    mount();
+    /* NO `mount()` here. The listener used to go on at script load, which was
+     * the only thing that ever installed it (`Shell.mount` rendered and nothing
+     * else), and it then outlived the screen for the whole session —
+     * INTEGRATION-NOTES 17. `Shell.mount` now calls `mount()` on the way in and
+     * `unmount()` on the way out, so a screen's listeners exist exactly while
+     * the screen is the one on the page. A screen's load registers and nothing
+     * more, which is what `index.html`'s script order has always claimed. */
   }
 })(typeof window !== 'undefined' ? window : this);

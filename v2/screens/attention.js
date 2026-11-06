@@ -1258,6 +1258,33 @@
     return true;
   }
 
+  /* The other half of `mount()`, and INTEGRATION-NOTES 17's step 2. `Shell.mount`
+   * calls it when it mounts a different screen, so what `mount()` added comes
+   * off exactly when this screen stops being the one on the page. The flag goes
+   * back with the listeners: a screen that forgot it would never re-arm.
+   *
+   * It removes the SAME function references `mount()` registered, which is why
+   * every handler here is a named module-level function and not a closure built
+   * per mount — `removeEventListener` matches on identity, and a fresh arrow
+   * would remove nothing while looking exactly like this. */
+  function unmount() {
+    const d = doc();
+    if (listening && d && typeof d.removeEventListener === 'function') {
+      d.removeEventListener('click', onClick);
+    }
+    listening = false;
+    /* `watching` is NOT cleared and the route subscription is NOT removed:
+     * `Router.onChange` has no counterpart and `onRoute` returns on any route
+     * that is not this one, so it is one guarded, inert subscription for the
+     * session rather than a leak. Clearing the flag without removing the
+     * listener would stack a second one on the next mount, which is the leak.
+     *
+     * `loading` is NOT cleared either, and that is deliberate: a read in flight
+     * clears it itself when it settles, and clearing it here would let the next
+     * mount kick a second `Cache.load` over the top of the first. */
+    return true;
+  }
+
   function onRoute(cur) {
     if (!cur || cur.id !== ID) return;
     load(me());
@@ -1355,6 +1382,7 @@
     render: render,
     trailing: trailing,
     mount: mount,
+    unmount: unmount,
     stores: stores,
     compare: compare,
     KINDS: KINDS,
@@ -1379,11 +1407,19 @@
     root.Attention = api;
     /* Registers itself at load, which is what index.html's script order means
      * by "each registers itself with Router and draws nothing until Shell.mount
-     * asks". The listener goes on at the same moment, BEFORE the frame installs
-     * its own, so a row's destination keeps the params the frame's handler does
-     * not carry. */
+     * asks". And ONLY registers: the listener goes on when the frame mounts
+     * this screen, and comes off when it mounts another. On the first paint the
+     * Shell calls `mount()` before installing its own handler, so a row is
+     * still read by this screen first — which is why `drawRow` uses `data-act`
+     * rather than `data-nav` and keeps the bus it is about. */
     const rt = router();
     if (rt && typeof rt.register === 'function') rt.register(ID, api);
-    if (doc()) mount();
+    /* NO `mount()` here. The listener used to go on at script load, which was
+     * the only thing that ever installed it (`Shell.mount` rendered and nothing
+     * else), and it then outlived the screen for the whole session —
+     * INTEGRATION-NOTES 17. `Shell.mount` now calls `mount()` on the way in and
+     * `unmount()` on the way out, so a screen's listeners exist exactly while
+     * the screen is the one on the page. A screen's load registers and nothing
+     * more, which is what `index.html`'s script order has always claimed. */
   }
 })(typeof window !== 'undefined' ? window : this);

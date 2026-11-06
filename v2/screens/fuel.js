@@ -1362,6 +1362,30 @@
     return true;
   }
 
+  /* The other half of `mount()`, and INTEGRATION-NOTES 17's step 2. `Shell.mount`
+   * calls it when it mounts a different screen, so what `mount()` added comes
+   * off exactly when this screen stops being the one on the page.
+   *
+   * It removes the SAME function references `mount()` registered — every handler
+   * here is a named module-level function for that reason: `removeEventListener`
+   * matches on identity, and a fresh closure per mount would remove nothing
+   * while looking exactly like this. The flag goes back with them, or the screen
+   * would never re-arm. */
+  function unmount() {
+    var d = doc();
+    if (bound && d && typeof d.removeEventListener === 'function') {
+      d.removeEventListener('click', onClick);
+      d.removeEventListener('input', onField);
+      d.removeEventListener('change', onField);
+    }
+    bound = false;
+    /* `watching` stays set and the route subscription stays on, for the reason
+     * `attention.js`'s unmount gives: `Router.onChange` has no counterpart and
+     * `onRoute` returns on any route that is not this one. Clearing the flag
+     * without removing the listener is what would stack a second one. */
+    return true;
+  }
+
   function me() {
     var s = state();
     return s && s.user ? s.user : null;
@@ -1713,6 +1737,7 @@
     render: render,
     model: model,
     mount: mount,
+    unmount: unmount,
     stores: stores,
     tab: tab,
     // The decisions, pure, for the tests and for the sheets.
@@ -1747,6 +1772,12 @@
     root.Fuel = api;
     var rt = router();
     if (rt && typeof rt.register === 'function') rt.register(ID, api);
-    if (doc()) mount();
+    /* NO `mount()` here. The listener used to go on at script load, which was
+     * the only thing that ever installed it (`Shell.mount` rendered and nothing
+     * else), and it then outlived the screen for the whole session —
+     * INTEGRATION-NOTES 17. `Shell.mount` now calls `mount()` on the way in and
+     * `unmount()` on the way out, so a screen's listeners exist exactly while
+     * the screen is the one on the page. A screen's load registers and nothing
+     * more, which is what `index.html`'s script order has always claimed. */
   }
 })(typeof window !== 'undefined' ? window : this);

@@ -1154,15 +1154,37 @@
       d.addEventListener('change', onChange);
       d.addEventListener('pointerdown', holdStart);
       d.addEventListener('keydown', holdStart);
-      ['pointerup', 'pointercancel', 'pointerleave', 'keyup', 'blur'].forEach(function (e) {
-        d.addEventListener(e, holdStop);
-      });
+      HOLD_STOP.forEach(function (e) { d.addEventListener(e, holdStop); });
     }
     reload();
     return true;
   }
 
+  /* This screen already had an `unmount`, and nothing ever called it — so the
+   * one path that handles navigating away MID-HOLD was dead code
+   * (INTEGRATION-NOTES 17's fourth item). `Shell.mount` calls it now, which is
+   * what makes the `clearTimeout` below a live guard: hold the release control,
+   * leave the screen before HOLD_MS, and the 1.5-second timer used to fire
+   * against a screen that was no longer mounted.
+   *
+   * It also removed no listeners, which was the other half. SEVEN come off
+   * here, and the five `holdStop` types are removed by the SAME iteration over
+   * the SAME array `mount()` adds them with: `removeEventListener` matches on
+   * type plus function identity, `holdStop` is one module-level function, and
+   * the two lists being one literal is what keeps them from drifting apart. */
+  const HOLD_STOP = ['pointerup', 'pointercancel', 'pointerleave', 'keyup', 'blur'];
+
   function unmount() {
+    const d = doc();
+    if (listening && d && typeof d.removeEventListener === 'function') {
+      d.removeEventListener('click', onClick);
+      d.removeEventListener('change', onFile);
+      d.removeEventListener('change', onChange);
+      d.removeEventListener('pointerdown', holdStart);
+      d.removeEventListener('keydown', holdStart);
+      HOLD_STOP.forEach(function (e) { d.removeEventListener(e, holdStop); });
+    }
+    listening = false;
     if (timer !== null) { root.clearTimeout(timer); timer = null; }
     ui.busId = null; ui.selfie = ''; ui.driverId = null;
     ui.uploadFailed = false; ui.itemFailed = ''; ui.problem = ''; ui.busy = '';

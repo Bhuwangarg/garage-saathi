@@ -1784,6 +1784,24 @@
     return true;
   }
 
+  /* The other half of `mount()`, and INTEGRATION-NOTES 17's step 2. `Shell.mount`
+   * calls it when it mounts a different screen, so what `mount()` added comes
+   * off exactly when this screen stops being the one on the page.
+   *
+   * It removes the SAME function references `mount()` registered — every handler
+   * here is a named module-level function for that reason: `removeEventListener`
+   * matches on identity, and a fresh closure per mount would remove nothing
+   * while looking exactly like this. The flag goes back with them, or the screen
+   * would never re-arm. */
+  function unmount() {
+    var d = doc();
+    if (mounted && d && typeof d.removeEventListener === 'function') {
+      d.removeEventListener('click', onClick);
+    }
+    mounted = false;
+    return true;
+  }
+
   function sheet(title, html) {
     var v = V();
     if (!v || typeof v.openSheet !== 'function') return false;
@@ -1836,6 +1854,7 @@
     render: render,
     model: model,
     mount: mount,
+    unmount: unmount,
     // Test seams only, the shape of Router._reset and Shell._reset: a node
     // suite cannot reload a classic script per case.
     _reset: function () {
