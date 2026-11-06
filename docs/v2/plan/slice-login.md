@@ -118,7 +118,9 @@ Three things that are easy to get wrong and are not negotiable:
   `scripts/check-floor.py` enforces it.
 - **Never render a PIN.** Not in the DOM, not in a title, not in a log, not in a
   test fixture's expected output. The dots are a count, never the digits.
-- **Zero and unknown must never look alike** (`v2-foundation-ui.md §3.6`) — "no
+- **Zero and unknown must never look alike** (`v2-ux.md §4.1` #7 is the rule's
+  home; `v2-foundation-ui.md §3.6` only quotes it in passing, in a table about the
+  filter strip's loading state — I cited the quotation rather than the rule) — "no
   recent users on this device" is not an empty list drawn as nothing.
 - The field-guard rule every screen carries: declare the field selector and guard
   a field **before** reading `data-act`. The gate checks both per file.
