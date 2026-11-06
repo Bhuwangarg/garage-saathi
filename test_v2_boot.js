@@ -57,6 +57,11 @@ const ORDER = [
   'db.js', 'sync.js', 'pullapply.js', 'night.js',
   'fmt.js', 'odo.js', 'cost.js',
   'caps.js', 'router.js', 'cache.js', 'shell.js',
+  /* The login, which is NOT a screen and is deliberately not in screens/: it
+   * must be reachable holding no capability, so it can never appear in
+   * Caps.SCREENS -- the list SCREENS_SLOT is checked against. It sits with the
+   * frame rather than inside the slot so the thirteen stay contiguous. */
+  'login.js',
   SCREENS_SLOT,
   'boot.js',
 ];
@@ -95,18 +100,36 @@ const DEPS = {
   'router.js': ['caps.js'],
   'cache.js': ['db.js'],
   'shell.js': ['ui/icons.js', 'ui/states.js', 'caps.js', 'router.js', 'cache.js'],
+  // The login draws with the ui builders, authenticates through Sync and asks
+  // the frame for its own re-mount. It needs NEITHER caps.js nor router.js --
+  // it registers with no route and reads no capability -- and not boot.js
+  // either, which loads after it and is resolved at call time.
+  'login.js': ['ui/icons.js', 'ui/words.js', 'ui/states.js', 'sync.js', 'shell.js'],
   'boot.js': ['db.js', 'sync.js', 'pullapply.js', 'caps.js', 'router.js', 'cache.js'],
 };
 
 /* The global names a file declares, read OUT OF THE FILE rather than from a
  * table here. A table would be a second place to forget, and the first time a
  * slice named its export something else this suite would have gone green on a
- * file it never actually loaded. */
+ * file it never actually loaded.
+ *
+ * `=(?!=)` IS LOAD-BEARING AND WAS MISSING. Every v2 module resolves a
+ * neighbour by testing for it — `typeof root.icon === 'function'` — and an
+ * assignment pattern that stops at the first `=` reads the `===` in that test
+ * as one. So shell.js was credited with DECLARING `icon`, `skeleton`,
+ * `emptyState`, `errorState`, `offlineState`, `nav` and `getComputedStyle`,
+ * all seven of which it only ever READS. Six of those seven are declared
+ * earlier in the order by ui/icons.js and ui/states.js, so the swap check
+ * below — which asks whether ANY of a dependency's names was already defined —
+ * found one and reported the swap as fine. Any new dependency edge onto
+ * shell.js was therefore untestable, and the existing cache.js <-> shell.js
+ * edge was one such `typeof` line in cache.js away from going quiet too.
+ * Strengthened here rather than worked around in the load order. */
 function providedBy(src) {
   const names = new Set();
   const pats = [
-    /\broot\.([A-Za-z][A-Za-z0-9]*)\s*=\s*/g,
-    /\bwindow\.([A-Za-z][A-Za-z0-9]*)\s*=\s*/g,
+    /\broot\.([A-Za-z][A-Za-z0-9]*)\s*=(?!=)\s*/g,
+    /\bwindow\.([A-Za-z][A-Za-z0-9]*)\s*=(?!=)\s*/g,
     /^const ([A-Z][A-Za-z0-9]*) = [{(]/gm,
   ];
   for (const re of pats) { let m; while ((m = re.exec(src))) names.add(m[1]); }

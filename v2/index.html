@@ -96,6 +96,10 @@
 <script src="router.js"></script>
 <script src="cache.js"></script>
 <script src="shell.js"></script>
+<!-- The login, beside the frame and not in screens/: it is reached holding no
+     capability at all, so it can never be in Caps.SCREENS, and the checks that
+     compare v2/screens/ against that table would be at odds with a file there. -->
+<script src="login.js"></script>
 <script src="screens/attention.js"></script>
 <script src="screens/buses.js"></script>
 <script src="screens/duty.js"></script>

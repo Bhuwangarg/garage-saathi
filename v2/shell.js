@@ -496,6 +496,10 @@
 
   /* ---------- signed out ------------------------------------------------- */
 
+  /* The markup last put on the login, so an unchanged one is not redrawn. See
+   * the short-circuit in `signedOut`. */
+  let lastLogin = null;
+
   /* The handover, and it has three parts: no header, no nav and no scroll
    * container padding. `login.css`'s `[data-v2].lg` sets `min-height: 100vh`
    * and owns the whole viewport, and `shell.css`'s body rules all exclude
@@ -511,16 +515,74 @@
     // The frame goes, all four elements of it. A nav on the login is a lie
     // about there being somewhere to go, and so is a header over a keypad.
     const app = appEl();
+    /* THE OTHER SIDE OF THE HANDOVER, and the frame's only job here.
+     *
+     * Everything above gets out of the way; this puts the login on the other
+     * side of it. Without it `/v2` is a white page — the frame tore itself down
+     * correctly and nothing drew, which is INTEGRATION-NOTES 18. The shape is
+     * `renderBody`'s: ask for the module, draw what it returns, and when there
+     * is none behave EXACTLY as before. A throw in it is one dev line and an
+     * empty body, never an exception out of `mount`.
+     *
+     * `login.js` is not a route and registers nothing with `Router`, so it is
+     * resolved by name rather than through `moduleFor` — the router's registry
+     * is the capability-guarded set and the login is reached holding no
+     * capability at all. */
+    const html = loginHtml();
+    /* The same short-circuit, for the same reason, as `mount`'s signature check
+     * below: `boot.js` re-mounts on every sync status change and `tick()` runs
+     * every four seconds whether or not there is a token, so rebuilding this
+     * screen each time would take the caret out of the name search and the
+     * focus ring off the keypad every four seconds. Identical markup means
+     * nothing on it changed, so nothing is replaced. */
+    if (app && html !== '' && html === lastLogin) {
+      barDrawn = false;
+      lastSig = null;
+      title(null);
+      return true;
+    }
+    lastLogin = html;
     if (app) app.innerHTML = '';
+    if (app && html !== '') put(app, html);
     barDrawn = false;
     lastSig = null;
     title(null);
     return true;
   }
 
+  /* The login's markup, or '' when no login module is on the page. Spelled out
+   * as its own named resolver rather than through a `pick(name)` helper, for the
+   * reason at the top of this file: a module name in a string is a capitalised
+   * English word to the scan that keeps reader-facing English in the word
+   * table, and an allowlist there would be an allowlist that grows until it
+   * means nothing. */
+  function login() { return (typeof Login !== 'undefined' && Login) || (root && root.Login) || null; }
+
+  function loginHtml() {
+    const mod = login();
+    if (!mod || typeof mod.render !== 'function') return '';
+    try {
+      const html = mod.render(model(LOGIN, null));
+      return html == null ? '' : String(html);
+    } catch (e) {
+      // The same rule as renderBody: one dev line, and a body rather than a
+      // blank app. A login that throws is the one screen nobody can route away
+      // from, so the reason has to reach a console.
+      if (typeof console !== 'undefined' && console.error) {
+        console.error('[v2] login render failed', e);
+      }
+      return '';
+    }
+  }
+
   function signedIn() {
     const el = rootEl();
     if (el && el.classList && el.classList.remove) el.classList.remove(LG);
+    /* The login's markup is gone from `#app` the moment a real screen mounts, so
+     * the cached copy above must not out-live it: without this, signing out
+     * after a sign-in would find `html === lastLogin` and skip the one draw that
+     * was actually needed. */
+    lastLogin = null;
   }
 
   /* ---------- mount ------------------------------------------------------ */
@@ -694,7 +756,7 @@
     // Test seam only, the shape of `Router._reset`: a node suite cannot reload
     // a classic script per case.
     _reset: function () {
-      lastSig = null; barDrawn = false; offShown = false; trailHtml = ''; moreItems = [];
+      lastSig = null; lastLogin = null; barDrawn = false; offShown = false; trailHtml = ''; moreItems = [];
       Object.keys(said).forEach(function (k) { delete said[k]; });
     }
   };

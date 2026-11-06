@@ -90,6 +90,7 @@ const SHELL = [
   'router.js',
   'cache.js',
   'shell.js',
+  'login.js',
   'screens/attention.js',
   'screens/buses.js',
   'screens/duty.js',

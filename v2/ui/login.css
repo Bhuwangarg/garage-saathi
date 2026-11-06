@@ -132,7 +132,15 @@
   [data-v2].lg {
     width: min(460px, 92vw);
     min-height: auto;
+    /* `align-self` does nothing here and is kept only as the record of what this
+       rule meant: `signedOut()` puts `lg` on the ROOT element (shell.js:509 via
+       rootEl()), and a root element has no flex parent to align within. Measured
+       in Chrome at 1366x768 -- the office's own desktop size -- the card was
+       460px wide at left:0 with 906px of empty screen beside it. `margin-inline`
+       is what centres a root-level box, and it is Chrome 87, inside the 109
+       floor. */
     align-self: center;
+    margin-inline: auto;
     padding: var(--s8) var(--s7);
     background: var(--surface-raised);
     border: 1px solid var(--line);

@@ -172,7 +172,16 @@
       redrawTimer = null;
       const sh = shell();
       if (!sh || typeof sh.mount !== 'function') return;
-      const cur = router() && router().current ? router().current() : null;
+      /* The router's own route, but only while there is a session to have one.
+       *
+       * `go()` is the only thing that moves `Router.current()` and it cannot
+       * move to the login, which is not in the capability table — so the route
+       * a person was last on OUTLIVES their sign-out. Without this clause
+       * `signOut()` would re-mount that screen, `Caps.holds(null, id)` would
+       * refuse it, and the person would be left reading "this is not open to
+       * you" where the login should be. A signed-out device holds no screen
+       * (`v2/router.js`'s own header), so it is `S.route` that answers here. */
+      const cur = S.user ? (router() && router().current ? router().current() : null) : null;
       /* A screen that throws must not stop the next redraw: the timer has
        * already been cleared, so swallowing this leaves the app drawing. The
        * console line is the half that matters — a swallowed exception with
@@ -289,10 +298,45 @@
       });
     }
 
-    await restoreSession();
+    await enter();
+
+    // Housekeeping last, and on a timer: see PRUNE_DELAY_MS.
+    const c = cache();
+    setTimeout(function () { if (c) c.prune().catch(function () {}); }, PRUNE_DELAY_MS);
+  }
+
+  /* ===== Entering the app, which happens twice =========================== */
+
+  /* The post-session half of the sequence above, and the reason it is a
+   * function of its own rather than four lines inside `start()`.
+   *
+   * `start()` opens with `if (started) return` and must keep doing so: a second
+   * full boot would install a second density watcher and a second
+   * `Router.onChange` subscription, and the only thing that guard ever cost is
+   * that there was no supported way back INTO the app once somebody signed in.
+   * v1 had `enterApp(user)` for exactly this (app.js:13947). This is v2's, and
+   * `start()` and the login SHARE this body rather than one of them re-running
+   * the other — a second copy of the §1.8 order is a second copy to forget.
+   *
+   * `user` is the person the login has just authenticated, and it is passed in
+   * rather than read back out of the token because two things both have to
+   * work: the device-PIN path has no token at all, and a device that has never
+   * synced has no `users` row for `restoreSession()` to find. Called with no
+   * argument — which is what the first boot does — it reads the session from
+   * the token, as it always has.
+   *
+   * Every step below is idempotent on a second call: `Router.go` to the same id
+   * re-notifies without moving the stack, `wireSync` replaces its four
+   * callbacks and resets the one poll timer, and `Cache.load` skips a store
+   * that cannot have changed.
+   */
+  async function enter(user) {
+    if (user && user.id) S.user = user;
+    else await restoreSession();
 
     // First paint: the frame, the nav and a skeleton body. No store read has
     // happened yet beyond the one get above, and none is waited on.
+    const r = router();
     const first = firstScreen();
     if (first && first !== LOGIN && r && r.go && r.go(first)) {
       // Router.onChange redrew it.
@@ -310,9 +354,36 @@
     const c = cache();
     if (c && pa && pa.FIRST_STORES) await c.load(pa.FIRST_STORES).catch(function () {});
     redraw();
+    return S.user;
+  }
 
-    // Housekeeping last, and on a timer: see PRUNE_DELAY_MS.
-    setTimeout(function () { if (c) c.prune().catch(function () {}); }, PRUNE_DELAY_MS);
+  /* The mirror of it, and NO document reload.
+   *
+   * A reload would be the easy way and it is the wrong one: it re-runs the
+   * whole boot — the bundled seed check, the migrations, the first paint — on a
+   * Core 2 Duo, to reach a screen the app can draw in one redraw. v1 reloads
+   * (app.js:7093) and it is one of the places the office waits for no reason.
+   *
+   * `S.cache` goes with the session, and that is the part worth stating: the
+   * copies in it were read under the PREVIOUS person's entitlement — staff
+   * below manager receive other crew's records with their private fields
+   * removed, which is what `v2/sync.js`'s `pullScope` is tracking — so leaving
+   * them in memory is the next person's screen drawn from rows their own role
+   * may not be shown. The stores on disk are untouched: a sign-out is not a
+   * device wipe, and the next `Cache.load` re-reads them under whoever is
+   * signed in then.
+   */
+  function signOut() {
+    const s = sync();
+    if (s && typeof s.logout === 'function') s.logout();
+    // The actor signs local edits. Left behind, the next person's work would go
+    // out under the last person's name (`v2/sync.js:187` is the same bug).
+    if (s && typeof s.setActor === 'function') s.setActor('');
+    S.user = null;
+    S.cache = {};
+    S.route = LOGIN;
+    redraw();
+    return true;
   }
 
   const api = {
@@ -323,6 +394,10 @@
     density: density,
     replica: replica,
     start: start,
+    // The two ends of the session, which `v2/login.js` is the only caller of.
+    // `start()` stays self-guarded; neither of these touches that guard.
+    enter: enter,
+    signOut: signOut,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else { root.S = S; root.Boot = api; }

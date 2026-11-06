@@ -1591,8 +1591,16 @@
     V.confirmDialog(say('meSignOutBody'), { title: say('meSignOut'), yes: say('meSignOut'),
                                             no: say('meStay'), danger: true })
       .then(function (yes) {
+        if (!yes) return;
+        /* `Sync.logout()` alone drops the token and leaves `S.user` set, so the
+         * person stayed inside the app holding no session -- a dead control.
+         * `Boot.signOut()` is the mirror of `Boot.enter()`: it clears the actor
+         * and the cache and returns the document to the login without a reload.
+         * The `Sync.logout()` fallback stays for a boot that predates it. */
+        const b = root.Boot;
+        if (b && typeof b.signOut === 'function') { b.signOut(); return; }
         const s = sync();
-        if (yes && s && typeof s.logout === 'function') s.logout();
+        if (s && typeof s.logout === 'function') s.logout();
       });
   }
 
