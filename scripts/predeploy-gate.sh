@@ -1428,6 +1428,123 @@ for _f in v2/screens/*.js; do
   fi
 done
 
+# ===========================================================================
+# THE SCREEN LIFECYCLE — INTEGRATION-NOTES 17, step 3
+#
+# Every screen installs a delegated listener on `document`. For five waves of
+# the build, nothing ever removed one: 42 `addEventListener` across the thirteen
+# and zero `removeEventListener`, so after visiting Store, People and Reviews
+# there were THREE live handlers all reading `data-tab`, and `data-act` is
+# shared by all thirteen. The other half of the same hole was worse and quieter:
+# four screens -- duty, gate, me, today -- never called their own `mount()` at
+# load and nothing else called it either, so in a browser they had NO listener
+# at all. Me is a driver's and a conductor's whole app.
+#
+# Note 17's own step 3 says this check comes LAST, and the ordering is binding:
+# "Do not add that check before step 2 -- it would fail thirteen times and block
+# every push, which is how a gate gets bypassed." It is added here because step
+# 2 is done: all thirteen screens implement and export `unmount`, and
+# `Shell.mount` calls it. Break any one of them and this reddens; it was run
+# against each break before it was committed.
+#
+# STATIC, like the field-guard sweep above, and for the same reason: this gate
+# never opens /v2, and `test_v2_browserpath.js` is the half that does -- it
+# loads index.html's whole script list in one context and counts the listeners
+# on the document across a walk of all thirteen. A grep can see a missing
+# `removeEventListener`; only the page can see a listener that is still live.
+echo "── v2 screen lifecycle ──"
+for _f in v2/screens/*.js; do
+  [ -f "$_f" ] || continue
+  _n="$(basename "$_f")"
+  # NO COMMENT STRIPPING, and the patterns earn that instead.
+  #
+  # The first version of this block stripped comments with sed and tr, and the
+  # strip itself was the bug: it mangled buses.js's export line and reported a
+  # file with three listeners as installing none -- a check wrong in the
+  # direction that passes. So every pattern below is written to tell code from
+  # prose on its own: a leading DOT (`.removeEventListener(`), a line-anchored
+  # STATEMENT (`^  mount();`), or a full CALL (`closest('[data-nav]')`). The
+  # comments in these files name all of these words and match none of the
+  # patterns, which was checked file by file -- and it matters, because a check
+  # that trips on prose about itself teaches people to delete checks
+  # (check-v2-isolation.sh learnt that on its own invariant 3).
+  if grep -qE '\.addEventListener\(' "$_f"; then
+    # EVERY TYPE IT ADDS, not "at least one removal somewhere in the file".
+    #
+    # Found by mutation testing this check: the first version asked whether the
+    # file contained any `removeEventListener` at all, and a mutant that deleted
+    # store.js's click, input and change removals SURVIVED, because its scroll
+    # removal was still there. A check that cannot tell four-of-four from
+    # one-of-four is decoration with a tick beside it. The sorted type lists are
+    # the property; `gate.js` adds two `change` listeners and has to remove two.
+    _at="$(grep -oE "\.addEventListener\('[a-z]+'" "$_f" | grep -oE "'[a-z]+'" | sort | tr '\n' ' ')"
+    _rt="$(grep -oE "\.removeEventListener\('[a-z]+'" "$_f" | grep -oE "'[a-z]+'" | sort | tr '\n' ' ')"
+    ck "$_n removes every event type it adds" "$_at" "$_rt"
+    # And the types registered through a loop over a shared list, which is how
+    # gate.js installs its five hold-stop handlers. One literal, two passes.
+    _af="$(grep -cE "addEventListener\(e, [A-Za-z]+\)" "$_f" || true)"
+    _rf="$(grep -cE "removeEventListener\(e, [A-Za-z]+\)" "$_f" || true)"
+    ck "$_n removes the listeners it adds in a loop" "${_af:-0}/${_rf:-0}" "${_af:-0}/${_af:-0}"
+    ck "$_n exports unmount, so the frame can call it" \
+       "$(grep -cE 'unmount:[[:space:]]*unmount' "$_f" | awk '{print ($1>0)?"yes":"no"}')" "yes"
+    # A capture-phase listener removed without the phase removes NOTHING, and
+    # reports nothing. The counts have to match, or one of them is a no-op.
+    _ac="$(grep -cE "\.addEventListener\([^)]*,[[:space:]]*true\)" "$_f" || true)"
+    _rc="$(grep -cE "\.removeEventListener\([^)]*,[[:space:]]*true\)" "$_f" || true)"
+    ck "$_n removes its capture-phase listeners in the capture phase" \
+       "${_ac:-0}/${_rc:-0}" "${_ac:-0}/${_ac:-0}"
+  else
+    ck "$_n installs no listener, so it needs no unmount" "n/a" "n/a"
+  fi
+  # A screen's load REGISTERS and nothing else. The load-time `mount()` is what
+  # installed a listener before `boot.js` had created `S` -- which is the
+  # uncaught rejection store.js shipped with -- and what made the listener
+  # outlive the screen. Anchored to the start of a line, so the comments that
+  # explain all this are prose and a bare statement is the call.
+  ck "$_n does not call its own mount() at load" \
+     "$(grep -cE '^[[:space:]]*mount\(\);' "$_f" | awk '{print ($1>0)?"calls it":"no"}')" "no"
+  # `[data-nav]` is the FRAME's attribute and the frame routes it with no
+  # params, so a screen that reads it is a screen whose row loses the bus or the
+  # check it is about (`attention.js`'s own comment says so). Drawing one is
+  # fine -- jobcard has a plain "back to Jobs" button; reading one is not.
+  ck "$_n leaves [data-nav] to the frame" \
+     "$(grep -cE "closest\([[:space:]]*'\[data-nav\]'" "$_f" | awk '{print ($1>0)?"reads it":"no"}')" "no"
+done
+
+# And the frame's half of it, which is one line in one file and the thing all
+# twelve `unmount`s are useless without.
+ck "shell.js calls the outgoing screen's unmount" \
+   "$(grep -cE "hook\(was, 'unmount'\)" v2/shell.js)" "1"
+ck "shell.js calls the incoming screen's mount" \
+   "$(grep -cE "hook\(id, 'mount'\)" v2/shell.js)" "1"
+ck "shell.js tracks which screen is live, so it mounts on a CHANGE and not per redraw" \
+   "$(grep -cE "mounted === id" v2/shell.js)" "1"
+
+# THE REPLICA'S OWNER — REV-AUTH F1.
+#
+# `signOut()` leaves IndexedDB alone and said in its own comment that "the next
+# `Cache.load` re-reads them under whoever is signed in then". It did not:
+# `Cache.load` took no role. A yard phone an owner had filled handed the next
+# person -- measured, a conductor holding zero capabilities signed in offline --
+# another crew member's salary, licence, Aadhaar URL, crew notes and gate-check
+# selfies. Two names keep that closed, and both of them are one edit from gone.
+ck "cache.js scopes the replica to one person" \
+   "$(grep -cE 'function scopeTo\(' v2/cache.js)" "1"
+ck "boot.js asks whose replica this is before the first paint" \
+   "$(grep -cE 'ch\.scopeTo\(S\.user\.id\)' v2/boot.js)" "1"
+ck "…and waits for the rebuild before it reads a store" \
+   "$(grep -cE 'await scoping' v2/boot.js)" "1"
+# The keep-list is the ONE place a store can be exempted from the rebuild, and
+# every name on it is a store the next person inherits. Two, each with its
+# reason written beside it in cache.js. A third needs an argument, not a commit.
+ck "the rebuild exempts exactly two stores" \
+   "$(grep -oE "KEEP_THROUGH_REBUILD = \[[^]]*\]" v2/cache.js | head -1 | grep -oE "'[a-z]+'" | wc -l | tr -d ' ')" "2"
+# "could not read this store" and "this store is empty" must not be one value.
+ck "cache.js can say a store could not be read" \
+   "$(grep -cE 'function unread\(' v2/cache.js)" "1"
+ck "…and an unread store keeps this device incomplete" \
+   "$(grep -cE 'c\.unread\(\)' v2/boot.js)" "1"
+
 echo "──"
 echo "RESULT: $PASS passed, $FAIL failed"
 if [ "$FAIL" -ne 0 ]; then
