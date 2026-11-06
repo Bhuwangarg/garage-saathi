@@ -1554,7 +1554,61 @@
 
   var bound = false;
 
+  /* THE STORES THIS SCREEN READS, MINUS ONE. The seven `COST_STORES` plus the
+   * six it reads on its own account; `dutylog` and `reportai` are in no other
+   * load list in v2, and `def`, `trips` and `ledger` are reachable only through
+   * Fuel & tyres, Store or Attention. That is REV-FLOW F3 on this screen: a
+   * per-bus running cost built out of stores nothing had asked IndexedDB for,
+   * which `Cost.forBus` correctly passes through as `undefined` rather than
+   * inventing a zero — so the figure read `— No data` and stayed there.
+   *
+   * `gpsevents` IS READ BY THIS SCREEN AND IS DELIBERATELY NOT HERE, and the
+   * reason is that the cost of putting it here cannot be measured from node.
+   * `lastSeen()` uses it for the "last seen" plate. It is also the one store
+   * `pullapply.js`'s `DEFERRED_STORES` holds back from the first sync, on the
+   * measured ground that it "is an order of magnitude bigger than everything
+   * else put together" — 40,000 rows against 700 for the rest. In node the
+   * in-memory part of holding it is ~1 ms (one `storeSig` pass over 40,000
+   * rows), but the dominant cost is the `getAll` and the structured clone out
+   * of IndexedDB, which no node suite can run, and the floor here is a Core 2
+   * Duo. So the plate keeps arriving the way it does today — on `boot.js`'s
+   * tick, once the pull's deferred cursor has brought the rows down — and
+   * putting a 40,000-row read in front of this screen's first paint is a change
+   * that needs a number from a real browser first. It is not one of REV-FLOW
+   * F3's twelve stores. */
+  var STORES = COST_STORES.concat(['buses', 'drivers', 'driverreports', 'challans',
+                                   'dutylog', 'reportai', 'meta']);
+
+  /* The read, and the only place this screen asks IndexedDB for anything. From
+   * `mount()` and nowhere else; the `.then` is what puts the rows on screen
+   * without waiting for `boot.js`'s next four-second tick, and `loading` keeps
+   * a mount that lands mid-read from stacking a second one over the first. */
+  var loading = false;
+
+  /* `c`, not `C`: in this file `C` is `Cost`, and `test_v2_buses.js`'s A3 check
+   * reads `\bC\.<name>` as a call into Cost to prove this screen only ever asks
+   * it for `forBus` and `reconciles`. A local named `C` for the cache made
+   * `C.load` look like a third one. The check is right and the name was wrong;
+   * line 616 already uses lowercase `c` for exactly this. */
+  function load() {
+    var c = root.Cache;
+    if (loading || !c || typeof c.load !== 'function') return null;
+    loading = true;
+    return c.load(STORES).then(function () { loading = false; reread(); },
+                               function () { loading = false; });
+  }
+
+  // Only while this is still the screen on the page.
+  function reread() {
+    var c = root.Router && root.Router.current ? root.Router.current() : null;
+    if (!c || c.id !== ID) return;
+    remount();
+  }
+
   function mount() {
+    // The read is the first statement, above the listener guard. `duty.js`'s
+    // mount says why the position and not the guard is the point.
+    load();
     if (bound) return onClick;
     bound = true;
     var d = root.document;

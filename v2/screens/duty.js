@@ -193,6 +193,29 @@
 
   function has(o, k) { return o != null && Object.prototype.hasOwnProperty.call(o, k); }
 
+  /* THE STORES THIS SCREEN READS, in one place, read by three callers: the
+   * model's loaded test, the mount-time read, and the error state's Retry.
+   *
+   * It was written down ONCE before, inside `retry()` — and `retry()` is only
+   * reachable from the error state, while a screen with nothing in its cache is
+   * in the LOADING state and draws a skeleton with no button on it. So the one
+   * list in the file was in the one function the screen could not get to, the
+   * only other caller of `Cache.load` for `nightlist` and `dutylog` in all of
+   * v2 was `attention.js`'s seat row kind, and the crew manager holds no
+   * Attention (`Caps.screensFor('crewmanager')`). For the one role whose job
+   * this screen IS, it was a permanent skeleton with no sequence of taps that
+   * changed it — REV-FLOW F2, and §3.6 steps 1, 2, 3 and 5 with it.
+   *
+   * TWO LISTS AND NOT ONE, because the two questions are different. `STORES` is
+   * what the model WAITS for — the five it cannot draw a board without. `READS`
+   * is what the mount asks IndexedDB for, and it carries `users` as well:
+   * `nameFinder` below turns the id in `savedBy` into a name, and the comment
+   * there is explicit that this screen must NOT hold the whole board behind the
+   * roster. So the roster is fetched and not waited for, which is the only
+   * combination that honours both. */
+  var STORES = ['nightlist', 'buses', 'drivers', 'dutylog', 'gatechecks'];
+  var READS = STORES.concat(['users']);
+
   /* Resolved at call time rather than captured at load, the shape v2/night.js's
    * db() uses: these are classic scripts declaring top-level bindings, and a
    * module that captured a neighbour at load would make index.html's order fatal
@@ -537,7 +560,7 @@
     // is the only error this screen can honestly detect: Cache.load leaves `[]`
     // behind a failure, so "the list is empty" and "the read failed" are the
     // same value and must not be guessed apart.
-    var names = ['nightlist', 'buses', 'drivers', 'dutylog', 'gatechecks'];
+    var names = STORES;
     var i, v, loaded = true;
     for (i = 0; i < names.length; i++) {
       v = cache[names[i]];
@@ -980,13 +1003,43 @@
       + '<div class="dt-pane" role="tabpanel">' + pane + '</div></section>';
   }
 
+  /* The read, and the only place this screen asks IndexedDB for anything.
+   *
+   * KICKED FROM `mount()` and from the error state's Retry, never from a render
+   * — `Cache.reads()` must not move between two draws of the same data, and a
+   * screen that fetched from its draw function is `computeInsights()` at 386 ms
+   * per render wearing a different name (`attention.js`'s load says the same).
+   *
+   * AND IT REDRAWS WHEN IT LANDS. Without the `.then`, the screen only catches
+   * up on `boot.js`'s next four-second sync tick, which on a Core 2 Duo is one
+   * tick or two of skeleton over rows that are already in memory. `in flight`
+   * is tracked so a mount that arrives while a read is settling does not stack
+   * a second one over the top of the first. */
+  var loading = false;
+
+  function load() {
+    var c = root.Cache;
+    if (loading || !c || typeof c.load !== 'function') return null;
+    loading = true;
+    return c.load(READS).then(function () { loading = false; redraw(); },
+                              function () { loading = false; });
+  }
+
+  /* Only when this screen is still the one on the page: a read that settles
+   * after the person has walked to another tab must not mount this one over the
+   * top of theirs. */
+  function redraw() {
+    var R = (typeof Router !== 'undefined' && Router) || root.Router;
+    var c = R && R.current ? R.current() : null;
+    if (!c || c.id !== ID) return;
+    var sh = root.Shell;
+    if (sh && typeof sh.mount === 'function') sh.mount(ID, c.params || null);
+  }
+
   // A named function rather than an inline arrow, because errorState's registry
   // is keyed on the function and an inline one would leak an entry per redraw
   // (ui/states.js's RETRY note).
-  function retry() {
-    var C = root.Cache;
-    if (C && typeof C.load === 'function') C.load(['nightlist', 'buses', 'drivers', 'dutylog', 'gatechecks']);
-  }
+  function retry() { load(); }
 
   /* ---------- the seat sheet ---------------------------------------------- */
 
@@ -1349,6 +1402,21 @@
   }
 
   function mount() {
+    /* THE READ IS THE FIRST STATEMENT, above the listener guard, and the
+     * reason is independence rather than a live defect. `Shell.mount` calls
+     * `unmount()` on the way out and every `unmount()` here clears that guard,
+     * so a read placed below it does in fact run on each entry today — a
+     * mutant that moved this line down survived, which is how that was
+     * established rather than assumed. What the position buys is that the read
+     * no longer DEPENDS on the teardown having run: a screen whose `unmount`
+     * is skipped, or whose guard is reset on a different path tomorrow, would
+     * otherwise silently stop re-reading, and the symptom would be a figure
+     * one tick stale rather than anything that looks like a bug.
+     *
+     * Asking on every entry is cheap: `Cache.load` skips a store that cannot
+     * have changed since the last read (`v2/db.js`'s dirty marks), so this
+     * costs a dirty-flag lookup and no `getAll` when nothing has moved. */
+    load();
     var d = doc();
     if (!d || typeof d.addEventListener !== 'function') return false;
     if (bound) return true;
@@ -1397,7 +1465,7 @@
     unmount: unmount,
     // Test seam only, the shape of Router._reset: a node suite cannot reload a
     // classic script per case.
-    _reset: function () { bound = false; }
+    _reset: function () { bound = false; loading = false; }
   };
 
   if (root.Router && typeof root.Router.register === 'function') root.Router.register(ID, api);

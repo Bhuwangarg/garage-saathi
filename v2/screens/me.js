@@ -247,6 +247,15 @@
     meRecords: { en: 'Records on this phone', hi: '' },
     // {0} is what this phone holds, {1} what it would hold complete.
     meHolds: { en: 'This phone holds {0} of {1} records', hi: '' },
+    /* The same fact when the SHORTFALL IS NOT KNOWN, which is REV-FLOW F6's
+     * other half. `replicaState` returns `behind: 0` both when this device is
+     * caught up and when no pull has ever come back, and says so in its own
+     * comment — "an unknown must not be announced as a shortfall". So on a
+     * phone that has never synced, `meHolds` drew "{held} of {held + 0}":
+     * measured, "This phone holds 91 of 91 records", which is the one sentence
+     * on this screen that exists ONLY to say the replica is short, reporting
+     * that nothing is missing. A denominator nobody knows is not a denominator. */
+    meHoldsUnknown: { en: 'This phone holds {0} records. It has not finished filling up.', hi: '' },
     // NOT "rejected", NOT "payload refused" (§4.6).
     meRefused: { en: { one: '{n} record the server would not take', other: '{n} records the server would not take' }, hi: '' },
     // Three clauses: what happened, what is kept, the one next thing.
@@ -897,9 +906,16 @@
      * list. */
     body += drow('offline', say('meLastSent'), fig(sent, { at: i.lastSyncAt == null ? null : i.lastSyncAt }));
     body += drow('count', say('meRecords'), count(held));
+    /* The total is only drawn when there IS one. `behind` of 0 under an
+     * incomplete replica means the shortfall is unknown — a device that has
+     * never pulled, or one whose store could not be read — and adding 0 to what
+     * is held manufactured a denominator equal to the numerator. See
+     * `meHoldsUnknown`. */
     if (rep.complete !== true) {
       const behind = Number(rep.behind) || 0;
-      body += '<p class="photos-hint">' + esc(fill('meHolds', group(held), group(held + behind))) + '</p>';
+      body += '<p class="photos-hint">' + esc(behind > 0
+        ? fill('meHolds', group(held), group(held + behind))
+        : fill('meHoldsUnknown', group(held))) + '</p>';
     }
     return body;
   }
@@ -1265,9 +1281,48 @@
   let writing = false;                 // a check-in or a report is in flight
   let pendingPhoto = '';               // the last capture, waiting for its write
 
+  /* THE STORES THIS SCREEN READS. `users`, `drivers`, `jobcards`, `attendance`
+   * and `meta` are in `PullApply.FIRST_STORES` and so arrive behind the first
+   * paint; `usage` and `coachai` are in no load list in all of v2, and that is
+   * REV-FLOW F3 on this screen. Measured: the owner's "who opened what" block
+   * read `— No data` for ever, because nothing had ever asked IndexedDB for
+   * `usage`. `driverreports` is written here (the driver's one write) and not
+   * read back, so it is not in this list. */
+  const STORES = ['users', 'drivers', 'jobcards', 'attendance', 'usage', 'coachai', 'meta'];
+
+  /* The read, and the only place this screen asks IndexedDB for anything.
+   *
+   * From `mount()` and nowhere else; `Cache.reads()` must not move between two
+   * draws of the same data. The `.then` is what puts the rows on screen without
+   * waiting for `boot.js`'s next four-second tick, and `loading` keeps a mount
+   * that lands mid-read from stacking a second one over the first. */
+  let loading = false;
+
+  function load() {
+    const c = cacheMod();
+    if (loading || !c || typeof c.load !== 'function') return null;
+    loading = true;
+    return c.load(STORES).then(function () { loading = false; reread(); },
+                               function () { loading = false; });
+  }
+
+  /* Only while Me is still the screen on the page. For a driver and a conductor
+   * it always is — it is their whole app — but the owner reaches it from six
+   * other tabs and a read that settled after he left must not pull him back. */
+  function reread() {
+    const r = router();
+    const c = (r && r.current) ? r.current() : null;
+    if (!c || c.id !== ME) return;
+    redraw();
+  }
+
   /* ONE delegated click listener, on the document, installed once. A listener
    * per row is half of the 277 ms a page used to cost. */
   function mount() {
+    /* The read is the first statement, above the listener guard. See `duty.js`'s
+     * mount: it runs on each entry either way because `unmount()` clears the
+     * guard, and the position is what keeps it from depending on that. */
+    load();
     const d = doc();
     if (listening || !d || typeof d.addEventListener !== 'function') return false;
     listening = true;

@@ -1131,6 +1131,23 @@
    * every day before somebody picks. */
   function emptySeats(q) {
     if (!can(q.role, 'assignDriver')) return null;
+    /* NOT LOADED IS NOT NOT PICKED, and conflating them is REV-FLOW F2's second
+     * half. `seats()` returns null for both, because `tonight(q)` returns null
+     * when `q.rows.nightlist` is absent AND when there is no record for
+     * tonight — three answers folded into two. So with six buses ticked for
+     * tonight sitting on disk and nothing having read them, the crew
+     * manager's own front door said:
+     *
+     *     "Tonight's buses are not picked yet"
+     *     "Open the Duty board and tick tonight's buses off the register."
+     *     [ Pick tonight's buses ]
+     *
+     * Every word false, and the button led to the Duty board's own permanent
+     * skeleton. `notesToApprove` below already has the right shape for this —
+     * `if (!rows) return loading(...)` — and this is the same one. The loading
+     * card is a skeleton of the block's cap, which is honest: it says nothing
+     * rather than saying the wrong thing, and the read is one tick away. */
+    if (!q.rows.nightlist || !q.rows.drivers) return loading('seats', say('cardEmptySeats'), q);
     var s = seats(q);
     if (s === null) {
       return { kind: 'card', id: 'seats', title: say('cardEmptySeats'), rows: [],
@@ -1726,10 +1743,20 @@
    * 200, so an inline arrow on a screen that redraws every few seconds would
    * add an entry a tick — the leak that cap exists to bound rather than a use
    * of it. */
-  function retry() {
-    var r = router();
-    if (r && typeof r.go === 'function') r.go(ID);
-  }
+  /* THE SAME DEFECT AS MONEY'S FIVE RETRY BUTTONS, found by the gate check
+   * written for those and not by the review that measured them.
+   *
+   * This called `Router.go(ID)` — a route to the screen the person is already
+   * on, which `Shell.go` treats as a no-op (§1.11) and which `Router.go`
+   * answers by re-notifying with no params. Either way the screen was redrawn
+   * from the same in-memory cache, so a block that said "could not read this"
+   * said it again, identically, and the only affordance under it did nothing.
+   * REV-FLOW F5 named `money.js:862`; this is the same line on the screen four
+   * of the eight roles land on.
+   *
+   * `load()` keeps the route alone and re-reads, and redraws itself when the
+   * read lands. */
+  function retry() { load(); }
   function errState(text) {
     return typeof root.errorState === 'function' ? root.errorState(text, retry) : '';
   }
@@ -1776,7 +1803,55 @@
     if (act === 'howcounted') { if (ev.preventDefault) ev.preventDefault(); openHowCounted(); }
   }
 
+  /* THE READ, and the only place this screen asks IndexedDB for anything.
+   *
+   * `SIG_STORES` is reused and not retyped: its own comment calls it "one
+   * signature over every store this screen reads", so it is already the answer
+   * to "what should be loaded" and a second copy would be a second copy to
+   * forget. Eight of its eighteen names are in no other load list in v2 —
+   * `trips`, `coachai`, `digest`, `rbalias`, `nightlist`, `ledger`,
+   * `purchases`, `def` — and that is REV-FLOW F3 on the screen four of the
+   * eight roles land on. Measured at 6.40am as the owner:
+   *
+   *     Repair cost, 30 days  — No data   (needs ledger, trips, def)
+   *     Owed to suppliers     — No data   (needs purchases)
+   *     Buses on road  20 of 24           ✓
+   *     In shop        4                  ✓
+   *
+   * Two of his four numbers, on the one screen he opens before anything else.
+   * The supervisor's "Going out tonight" was a permanent skeleton unless he had
+   * first tapped Attention, which loads `nightlist` for its own seat row.
+   *
+   * From `mount()` and nowhere else: `Cache.reads()` must not move between two
+   * draws of the same data, which is the rule `computeInsights()` broke at
+   * 386 ms a render. The `.then` is what fills the blocks without waiting for
+   * `boot.js`'s next four-second tick, and `loading` keeps a mount that lands
+   * mid-read from stacking a second one over the first. */
+  var loading = false;
+
+  function load() {
+    var c = cache();
+    if (loading || !c || typeof c.load !== 'function') return null;
+    loading = true;
+    return c.load(SIG_STORES).then(function () { loading = false; reread(); },
+                                   function () { loading = false; });
+  }
+
+  // Only while Today is still the screen on the page: a read that settles after
+  // the person has walked to another tab must not mount this one over theirs.
+  function reread() {
+    var R = router();
+    var c = R && R.current ? R.current() : null;
+    if (!c || c.id !== ID) return;
+    var sh = root.Shell;
+    if (sh && typeof sh.mount === 'function') sh.mount(ID, c.params || null);
+  }
+
   function mount() {
+    /* The read is the first statement, above the listener guard. See `duty.js`'s
+     * mount: it runs on each entry either way because `unmount()` clears the
+     * guard, and the position is what keeps it from depending on that. */
+    load();
     var d = doc();
     if (mounted || !d || typeof d.addEventListener !== 'function') return false;
     mounted = true;
@@ -1855,10 +1930,17 @@
     model: model,
     mount: mount,
     unmount: unmount,
+    /* The stores this screen declares it reads, for the suite that asks whether
+     * everything it draws was actually asked for. Handed over rather than
+     * retyped in the test, so a nineteenth store added to `SIG_STORES` and not
+     * to the load is caught by the check rather than by a reviewer. Nothing in
+     * the app reads it. */
+    _stores: function () { return SIG_STORES.slice(); },
     // Test seams only, the shape of Router._reset and Shell._reset: a node
     // suite cannot reload a classic script per case.
     _reset: function () {
       mounted = false;
+      loading = false;
       _costMemo = {};
       Object.keys(said).forEach(function (k) { delete said[k]; });
     },

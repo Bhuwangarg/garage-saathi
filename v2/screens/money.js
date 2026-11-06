@@ -125,6 +125,22 @@
    * is the `|| 0` that invents money. */
   var COST_STORES = ['fuel', 'def', 'jobcards', 'ledger', 'trips', 'incidents', 'components'];
 
+  /* Every store this screen reads, which is the seven above plus the four it
+   * reads on its own account: `buses` (the per-bus table and every registration
+   * on it), `purchases` (owed to suppliers), `challans` (the fine liability,
+   * which is deliberately NOT one of the six parts) and `meta` (the garage).
+   *
+   * It did not exist, and that is the whole of REV-FLOW F3 on this screen. Of
+   * the seven cost stores only `fuel`, `jobcards`, `incidents` and `components`
+   * are in `PullApply.FIRST_STORES`, nothing else in v2 loads `trips` at all,
+   * and `ledger`, `purchases` and `def` arrive only through Store, Attention or
+   * Fuel & tyres — screens the owner may not have opened. Measured on the
+   * screen: `Running cost, this month — No data`, `Trip cash — No data
+   * "Could not read the trip cash"`, and a total that was never shown because
+   * one of its six parts was permanently absent. Refusing the total was
+   * correct; having nothing to total was not. */
+  var STORES = COST_STORES.concat(['buses', 'purchases', 'challans', 'meta']);
+
   var PERIODS = ['this', 'last', 'm3', 'year', 'dates'];
 
   var WORDS = {
@@ -269,6 +285,14 @@
     moErrMisc: { en: 'Could not read the incidents', hi: '' },
     moErrBills: { en: 'Could not read the supplier bills', hi: '' },
     moOffline: { en: 'No connection since {time}. Figures may be out of date.', hi: '' },
+    /* AND THE SAME SENTENCE WITH NO TIME IN IT, because a phone that has never
+     * sent anything has no "since". REV-FLOW F6 was `lastSyncAt` seeded to 0
+     * rather than null, so the epoch rendered as a clock time and this read
+     * "No connection since 05:30" on a device that had never synced. With the honest
+     * null the one above would render with an empty slot instead — a dangling
+     * sentence, which is the same defect wearing better manners — so there are
+     * two words for the two facts. */
+    moOfflineEver: { en: 'This phone has not sent anything yet. Figures may be out of date.', hi: '' },
     moNeedsNet: { en: 'Needs a connection', hi: '' },
     moNotSent: { en: 'Not sent. The entry is saved on this phone. It will send when there is signal.', hi: '' }
   };
@@ -858,10 +882,18 @@
   }
   /* ONE hoisted retry and not a fresh closure per render: `ui/states.js` keys
    * its handlers by function identity and caps the list at 200, so a new arrow
-   * function per redraw would evict a handler that is still on screen. */
-  function retry() {
-    if (root.Shell && typeof root.Shell.mount === 'function') root.Shell.mount(ID, null);
-  }
+   * function per redraw would evict a handler that is still on screen.
+   *
+   * IT RE-READS, AND IT DID NOT. This called `Shell.mount` and nothing else, so
+   * it redrew the screen from the same in-memory cache — which produced the
+   * identical sentence, byte for byte. Five of these are drawn on this screen
+   * at once, each under a *"Could not read the…"* line and each the only
+   * affordance the owner is given, and all five did nothing (REV-FLOW F5,
+   * measured: the screen text was unchanged after clicking every one). A button
+   * that redraws the sentence saying the read failed, without retrying the
+   * read, teaches its user that the screen is simply broken. `duty.js` had the
+   * right shape for this and this is now the same one. */
+  function retry() { load(); }
   function errorBox(text) {
     return typeof root.errorState === 'function' ? root.errorState(text, retry) : '';
   }
@@ -886,8 +918,9 @@
 
   function fresh(v) {
     if (v.offline) {
+      var t = hhmm(v.at);
       return '<p class="mo-fresh mo-fresh-off">' + draw('offline', 16) + ' '
-        + esc(say('moOffline', { time: hhmm(v.at) })) + '</p>';
+        + esc(t === '' ? say('moOfflineEver') : say('moOffline', { time: t })) + '</p>';
     }
     if (!isNum(v.at)) return '';
     return '<p class="mo-fresh">' + draw('clock', 16) + ' '
@@ -1448,8 +1481,39 @@
    * ====================================================================== */
 
   var handler = null;
+  var loading = false;
+
+  /* The read, and the only place this screen asks IndexedDB for anything.
+   *
+   * From `mount()` and from the error state's Retry, never from a render:
+   * `Cache.reads()` must not move between two draws of the same data. The
+   * `.then` is what makes the figures arrive without waiting for `boot.js`'s
+   * next four-second tick, and `loading` keeps a mount that lands mid-read from
+   * stacking a second one over the first. */
+  function load() {
+    var c = root.Cache;
+    if (loading || !c || typeof c.load !== 'function') return null;
+    loading = true;
+    return c.load(STORES).then(function () { loading = false; reread(); },
+                               function () { loading = false; });
+  }
+
+  /* Only while this is still the screen on the page: a read that settles after
+   * the person has walked to another tab must not mount this one over theirs.
+   * `redraw()` below is the same call without the test, because every caller of
+   * it is a tap on this screen and therefore already the answer. */
+  function reread() {
+    var R = root.Router;
+    var c = R && R.current ? R.current() : null;
+    if (!c || c.id !== ID) return;
+    redraw();
+  }
 
   function mount() {
+    /* The read is the first statement, above the listener guard. See `duty.js`'s
+     * mount: it runs on each entry either way because `unmount()` clears the
+     * guard, and the position is what keeps it from depending on that. */
+    load();
     if (handler) return handler;
     handler = onClick;
     if (root.document && typeof root.document.addEventListener === 'function') {
@@ -1845,7 +1909,17 @@
               windowOf: windowOf, daysOf: daysOf, aggregate: aggregate,
               allowanceSheet: allowanceSheet, expensesSheet: expensesSheet,
               datesSheet: datesSheet, expenseRow: expenseRow, create: create,
-              arith: arith, PARTS: PARTS, WORDS: WORDS };
+              arith: arith, PARTS: PARTS, WORDS: WORDS,
+              /* The function the five Retry buttons are wired to, so a suite can
+               * ask whether pressing one reaches IndexedDB rather than only
+               * whether the markup has a button on it. `ui/states.js` keys its
+               * handlers by identity and the markup carries an id, not a name,
+               * so there is no other handle on it. Nothing in the app reads it.
+               *
+               * `_stores` likewise: what this screen declares it reads, for the
+               * check that compares that against what it asked for. */
+              _retry: retry,
+              _stores: function () { return STORES.slice(); } };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else {

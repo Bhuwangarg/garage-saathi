@@ -248,7 +248,47 @@
    * append-only with a 365-day window and its only consumer is the historical
    * "who was on bus X on date Y" lookup, which nobody asks on arrival; adding it
    * would slow the first screen to serve a query that is not a first-screen
-   * question.
+   * question. REV-FLOW F2 reads its absence here as part of the Duty board's
+   * permanent skeleton; that screen's own mount-time read is the fix for it, and
+   * this paragraph's reasoning is unchanged by it.
+   *
+   * ONE NAME WAS ADDED FOR REV-FLOW F3, and the other four were measured and
+   * left out. THIS LIST IS A SERVER PULL ORDER, NOT A CACHE READ, which is the
+   * distinction the review's "FIRST_STORES growing by the handful that Today
+   * and Money need" runs past: what Today and Money were missing is an
+   * in-memory copy of rows that were already ON DISK, and that is fixed by each
+   * screen reading its own stores when the frame mounts it. All this list
+   * changes is how soon the SERVER sends them on a device's first sync.
+   *
+   *   nightlist   IN. The supervisor's "Going out tonight" and the crew
+   *               manager's two tiles are the first thing those two roles see,
+   *               and it is the narrowing that lets both counts reach zero —
+   *               without it there is no denominator and the block has no
+   *               shape at all (`duty.js`'s header; [E] ba274f6). One record
+   *               per night, so it is the cheapest row in the schema.
+   *
+   *   ledger      OUT, and this is the measured one. `scripts/measure-pull.py
+   *               --quick --reps 3` on the 80,700-row fixture, this machine:
+   *               the owner's first-screen pass is 174.9 ms / 5,775 work / 10
+   *               requests as the list stands, 180.1 ms / 10 requests with
+   *               `nightlist` added, and 269.6 ms / 8,380 work / 13 requests
+   *               with `ledger` as well — +90 ms and THREE more round trips in
+   *               front of the first paint, taking the pass from 0.9x to 1.4x
+   *               `03 §8`'s recorded 195 ms. It is the parts trail and it is
+   *               the size of one.
+   *   trips       OUT (+18 ms), `def` OUT (no rows in the fixture, so its cost
+   *   def         is unmeasured rather than zero), `purchases` OUT (+12 ms).
+   *   purchases   None of the three costs a request, so any of them could go in
+   *               on a different judgement. They are out because what they feed
+   *               is an AGGREGATE — the owner's repair cost and his owed-to-
+   *               suppliers figure — and §1.8 already has the right answer for
+   *               an aggregate on a device that has not finished filling: it is
+   *               not drawn, the figure reads `— No data`, and the replica says
+   *               it is short. A number that is late and says so is the rule
+   *               here; a first paint three round trips further away is not.
+   *
+   * So the read side is where F3 is fixed and this is one name. `dutylog` and
+   * `gpsevents` stay out for the reasons above and beside them.
    *
    * One cost that is not obvious and is not ours to fix: `gatechecks` has no
    * server send window at all -- stored forever, and absent from HISTORY_DAYS --
@@ -263,7 +303,7 @@
   const FIRST_STORES = ['meta', 'users', 'buses', 'parts', 'jobcards', 'drivers',
                         'challans', 'fuel', 'rbreviews', 'incidents', 'routes',
                         'vendors', 'components', 'attendance', 'stockmoves', 'breakdowns',
-                        'gatechecks', 'driverreports', 'crewnotes'];
+                        'gatechecks', 'driverreports', 'crewnotes', 'nightlist'];
 
   const api = { decidePage: decidePage, byStore: byStore, drainPlan: drainPlan,
                 FIRST_STORES: FIRST_STORES,

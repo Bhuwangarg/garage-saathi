@@ -300,9 +300,32 @@ function open(o) {
   win.Sync.start = function (cb) { syncStarts.push(cb); return true; };
   win.Sync.tick = function () { return Promise.resolve(); };
   win.Sync.reset = function () { resets.push(Date.now()); return Promise.resolve(); };
-  win.Sync.info = function () { return Object.assign({
-    lastRev: 0, tableMax: 0, notStored: 0, pending: 0, status: 'idle', authed: false,
-  }, o.info || {}); };
+  /* `info()` is LAYERED OVER THE REAL ONE, not swapped for it, and that
+   * distinction is this file's whole subject applied to itself.
+   *
+   * `info()` reaches neither IndexedDB nor the network — it is bookkeeping over
+   * `localStorage` and the outbox — so by this harness's own rule it should
+   * never have been replaced outright. Replacing it meant no case here could
+   * observe a field sync.js computes for itself, and `lastSyncAt` is one:
+   * REV-FLOW F6 is `lastSyncAt` seeded from `ls.getItem('lastSyncAt') || '0'`,
+   * so a phone that had never synced held the EPOCH and rendered it as 05:30 —
+   * and a suite that handed the page its own `info()` could not have seen that
+   * however many cases it had. Same shape as the `win.DB = inCtx('DB')` that
+   * used to stand above it and is now a throw, for exactly this reason:
+   * the harness manufacturing the condition it exists to interrogate.
+   *
+   * So the real answer comes first, the defaults the suites were written
+   * against sit over it, and `o.info` sits over both. A field no default names
+   * — `lastSyncAt`, `lastError`, `clockOffset` — now comes from sync.js. */
+  const realInfo = win.Sync.info;
+  win.Sync.info = function () {
+    let base = {};
+    try { base = (typeof realInfo === 'function' && realInfo.call(win.Sync)) || {}; }
+    catch (e) { base = {}; }
+    return Object.assign({}, base, {
+      lastRev: 0, tableMax: 0, notStored: 0, pending: 0, status: 'idle', authed: false,
+    }, o.info || {});
+  };
   win.Sync.pendingIds = function (store) { return ((o.pending || {})[store] || []).slice(); };
   win.Sync.tokenUser = function () { return o.token || ''; };
   win.Sync.logout = function () {};
@@ -759,6 +782,18 @@ test('a redraw re-mounts the screen WITH its params: a job card does not lose it
    * fails on the prototype rather than on the contents. */
   assert.strictEqual(JSON.stringify(last.params), JSON.stringify({ id: 'jc-7' }),
     'the redraw dropped the route params: ' + JSON.stringify(seen.slice(-3)));
+  /* EVERY mount of this route, not only the last one, and the difference is a
+   * mutant that came back alive. `jobcard.js`'s mount-time `Cache.load` redraws
+   * when it lands, and its own redraw passes `{ id: here() }` — read from the
+   * Router, which still holds the params whatever `boot.js` did with them. So
+   * with boot.js mutated to drop them, the LAST call was still right and the
+   * check reported green over a frame that had just drawn a card for no card.
+   * Asserting on the last of several calls is the same shape of decoration as
+   * asking whether a file contains at least one `removeEventListener`. */
+  const dropped = seen.filter((s) => s.id === 'jobcard'
+                                     && JSON.stringify(s.params) !== JSON.stringify({ id: 'jc-7' }));
+  assert.deepStrictEqual(dropped.map((s) => String(s.params)), [],
+    'some mount of the card arrived without its params: ' + JSON.stringify(seen));
   p.close();
 });
 
@@ -1021,6 +1056,508 @@ test('the stores kept through a rebuild are two, named, and everything else goes
 });
 
 /* ===================================================================================================
+ * 10. WHAT A MOUNTED SCREEN READS — REV-FLOW F2, F3, F4, F5, F6, F8
+ *
+ * The lifecycle landed first and this is what it made possible. `Shell.mount`
+ * calls the incoming screen's `mount()`, so a screen finally has one place to
+ * ask IndexedDB for its own data — and before this slice, EIGHT of the thirteen
+ * never asked at all. Twelve stores were loaded by nothing in the whole of v2.
+ *
+ * The cost of that, all of it measured on the screen by REV-FLOW:
+ *
+ *   F2  the crew manager's Duty board was a permanent skeleton. The only list
+ *       of its stores in the file was inside `retry()`, which is reachable only
+ *       from the ERROR state while the screen sits in the LOADING state, and
+ *       the only other loader of `nightlist`/`dutylog` in v2 was Attention's
+ *       seat row — a screen that role does not hold.
+ *   F3  the owner got two of his four 6.40am numbers; Money never showed a
+ *       total and Trip cash read "Could not read the trip cash" for ever;
+ *       Reviews drew `Complaints 0` as a hard zero over a store nothing had
+ *       read; the owner's "who opened what" was `— No data`.
+ *   F4  Attention reported six buses as "no crew, 2 seats still empty",
+ *       including one with all three seats filled, off a `dutylog` it could not
+ *       read — [E] ba274f6 as a load defect rather than a narrowing one.
+ *   F5  Money's five Retry buttons called `Shell.mount` and never `Cache.load`,
+ *       so the screen text was byte-identical after clicking all five.
+ *   F6  a phone that had never synced said "Last sent 05:30" and "This phone
+ *       holds 91 of 91 records".
+ *   F8  Store opened on "0 parts" and a skeleton for 3.3 seconds, every visit,
+ *       because `load()` discarded its promise and waited for the 4 s tick.
+ *
+ * THIS IS THE FILE THAT CAN SEE IT, for the reason the header gives: every
+ * other suite hands a screen a rows bag and asks what it draws, which answers
+ * "would this screen draw the right thing IF the rows were there". The question
+ * here is whether anything ever puts them there, and only a loaded page has an
+ * answer.
+ * =================================================================================================== */
+
+/* One fixture, every role, one row per store that matters — enough that a store
+ * which IS read is visibly non-empty, so "read it" and "drew it" can be told
+ * apart. `updatedAt: 1` on everything, for the reason OWNER carries one.
+ *
+ * It deliberately does NOT cover every store: a store absent from here still
+ * gets a `getAll`, which is what `p.reads` records, and asking what was READ is
+ * the question — not what came back. */
+const CREWMGR = { id: 'u-cm', role: 'crewmanager', name: 'Crew manager', updatedAt: 1 };
+const DRIVER = { id: 'u-drv', role: 'driver', name: 'Ramlal', updatedAt: 1 };
+const STOREMAN = { id: 'u-st', role: 'store', name: 'Storekeeper', updatedAt: 1 };
+
+// Today's key in the shape `nightlist` is keyed by (`nl-<YYYY-MM-DD>`), on the
+// page's own clock: a fixture with yesterday's key is a fixture with no record
+// for tonight, which is a different state and the one F2 is NOT about.
+function todayKey() {
+  const d = new Date();
+  const m = d.getMonth() + 1, day = d.getDate();
+  return d.getFullYear() + '-' + (m < 10 ? '0' : '') + m + '-' + (day < 10 ? '0' : '') + day;
+}
+
+function yardRows(users) {
+  const key = 'nl-' + todayKey();
+  const now = Date.now();
+  return {
+    users: users,
+    buses: [{ id: 'b1', regNo: 'RJ14 PA 1023', updatedAt: 1 },
+            { id: 'b2', regNo: 'RJ14 PB 4567', updatedAt: 1 }],
+    drivers: [{ id: 'c1', name: 'Ramlal', status: 'active', busId: 'b1', driverSlot: 1,
+                crewRole: 'driver', updatedAt: 1 },
+              { id: 'c2', name: 'Suresh', status: 'active', busId: 'b1',
+                crewRole: 'conductor', updatedAt: 1 }],
+    // b1 has a driver and a conductor; b2 has nobody. So a correctly-read board
+    // reports ONE bus short and not two, which is the whole of F4's measurement.
+    dutylog: [{ id: 'dl1', crewId: 'c1', busId: 'b1', seat: 'd1', role: 'driver', at: now - 3600000, updatedAt: 1 },
+              { id: 'dl2', crewId: 'c2', busId: 'b1', seat: 'con', role: 'conductor', at: now - 3600000, updatedAt: 1 }],
+    nightlist: [{ id: key, date: todayKey(), buses: { b1: { running: true }, b2: { running: true } },
+                  at: now - 7200000, updatedAt: 1 }],
+    parts: [{ id: 'p1', name: 'Brake Pad Set', partNo: 'BP-1', unit: 'set', qty: 12, reorderLevel: 4, updatedAt: 1 }],
+    jobcards: [{ id: 'j1', busId: 'b1', status: 'open', at: now - 1000, updatedAt: 1 }],
+    ledger: [{ id: 'l1', jobId: 'j1', partId: 'p1', qty: 2, at: now - 2000, updatedAt: 1 }],
+    purchases: [{ id: 'pu1', supplier: 'Acme', amount: 5000, paymentStatus: 'due', at: now - 3000, updatedAt: 1 }],
+    trips: [{ id: 't1', busId: 'b1', startedAt: now - 4000, allowance: 2000, expenses: [], updatedAt: 1 }],
+    def: [{ id: 'd1', busId: 'b1', litres: 10, amount: 900, at: now - 5000, updatedAt: 1 }],
+    audits: [{ id: 'a1', partId: 'p1', counted: 12, at: now - 6000, updatedAt: 1 }],
+    usage: [{ id: 'u1', userId: 'u-owner', day: todayKey(), screens: { today: 3 }, updatedAt: 1 }],
+    coachai: [{ id: 'ca1', crewId: 'c1', status: 'draft', at: now - 7000, updatedAt: 1 }],
+    digest: [{ id: 'dg1', week: '2026-W45', headline: 'A quiet week', sections: [], updatedAt: 1 }],
+    rbcomplaints: [{ id: 'rc1', status: 'open', at: now - 8000, updatedAt: 1 }],
+    rbalias: [{ id: 'ra1', name: 'RAMLAL', status: 'typed', updatedAt: 1 }],
+    vendors: [], components: [], incidents: [], fuel: [], challans: [], gatechecks: [],
+    attendance: [], crewnotes: [], stockmoves: [], breakdowns: [], driverreports: [],
+    routes: [], gatepasses: [], rbservices: [], rbreviews: [], rbassign: [],
+    rbreviewai: [], rbaliasai: [], reportai: [], meta: [],
+  };
+}
+
+// A page already belonging to this person, already fully synced: so the only
+// thing that can leave a store unread here is a screen that never asked for it.
+function yard(user, extra) {
+  const o = {
+    token: user.id,
+    rows: yardRows([user]),
+    ls: { v2ReplicaFor: user.id },
+    info: { lastRev: 9, tableMax: 9, notStored: 0, pending: 0, lastSyncAt: Date.now() - 60000 },
+  };
+  Object.keys(extra || {}).forEach((k) => {
+    if (k === 'rows') Object.assign(o.rows, extra.rows);
+    else if (k === 'info') Object.assign(o.info, extra.info);
+    else o[k] = extra[k];
+  });
+  return o;
+}
+
+/* WHAT A SCREEN ASKED FOR, which is `Cache.load` and NOT `DB.all`.
+ *
+ * `p.reads` records `getAll`s, and `Cache.load` deliberately skips a store that
+ * cannot have changed since the last read — so a screen whose stores are
+ * already in hand correctly performs no `getAll`, and that is indistinguishable
+ * from a screen that never asked. The asking is the property; `Cache.load` is
+ * where it happens. Installed AFTER sign-in, so `boot.js`'s own FIRST_STORES
+ * read is not counted as a screen's. */
+function watchAsks(p) {
+  const asked = [];
+  const real = p.win.Cache.load;
+  p.win.Cache.load = function (names) {
+    (names || []).forEach((n) => asked.push(String(n)));
+    return real.call(p.win.Cache, names);
+  };
+  return asked;
+}
+
+/* THE UNIFORM RULE, and the reason it is uniform. "Every screen asks for its
+ * own stores when the frame mounts it" is a property all thirteen can be held
+ * to; "every screen that happens to need it does" is a property whose
+ * exceptions have to be remembered, and the eight screens that were missing a
+ * read were missing it because nobody was holding a list. `jobs.js` and
+ * `jobcard.js` read only stores that are already in FIRST_STORES and ask
+ * anyway, so that this check has no exceptions to carve out. */
+test('every one of the thirteen asks for its own stores when the frame mounts it', async () => {
+  const silent = [];
+  for (const user of [OWNER, CREWMGR, STOREMAN, DRIVER]) {
+    const p = open(yard(user));
+    await p.run(0);
+    await p.win.Boot.enter(user);
+    await p.run(300);
+    const asked = watchAsks(p);
+    for (const id of Object.keys(p.win.Caps.SCREENS)) {
+      if (!p.win.Caps.holds(user.role, id)) continue;
+      if (!p.win.Router.go(id)) continue;          // unroutable is section 3's subject
+      await p.run(300);
+      if (p.win.Shell._mounted() !== id) continue; // likewise
+      /* RE-ENTERED THROUGH THE FRAME, not by routing somewhere else and back.
+       * `Shell.enter` fires on a CHANGE of screen and not per redraw — the line
+       * that keeps a four-second sync tick from re-kicking a store read forty
+       * times a minute — so `mount()` only runs again after something else has
+       * been mounted. Routing elsewhere cannot do that for a DRIVER or a
+       * CONDUCTOR, who hold exactly one screen, and Me is their whole app:
+       * the first draft of this case excused `driver/me` for that reason and
+       * would have excused a genuinely silent Me with it. `Shell.mount(null)`
+       * over a live session is §5's no-permission body, which unmounts without
+       * needing a second screen to exist. */
+      const n = asked.length;
+      p.win.Shell.mount(null, null);
+      assert.strictEqual(p.win.Shell._mounted(), null,
+        'mount(null) left ' + id + ' recorded as live, so the re-entry below is not one');
+      p.win.Shell.mount(id, null);
+      await p.run(300);
+      if (asked.length === n) silent.push(user.role + '/' + id);
+    }
+    p.close();
+  }
+  assert.deepStrictEqual(silent, [],
+    'screens that were mounted and never asked the cache for anything');
+});
+
+/* ---- F2: the crew manager's Duty board ---- */
+
+test('F2 the crew manager opens the Duty board and it FILLS — it was a permanent skeleton', async () => {
+  const p = open(yard(CREWMGR));
+  await p.run(0);
+  await p.win.Boot.enter(CREWMGR);
+  await p.run(300);
+  assert(p.win.Caps.holds('crewmanager', 'duty'), 'the fixture should give this role the board');
+  assert.strictEqual(p.win.Caps.holds('crewmanager', 'attention'), false,
+    'the premise of F2 is that this role holds no Attention, which was the only other loader');
+  assert(p.win.Router.go('duty'), 'could not reach the duty board');
+  await p.run(300);
+  assert.strictEqual(p.win.Shell._mounted(), 'duty', 'the board was not mounted');
+  /* THE TWO STORES. Before this, `p.reads` held neither for this role at any
+   * point in the session, and `S.cache.nightlist` stayed `undefined` for ever —
+   * which `duty.js:539` correctly refuses to guess past, so the screen drew a
+   * skeleton and there was no sequence of taps that changed it. */
+  for (const n of ['nightlist', 'dutylog', 'buses', 'drivers', 'gatechecks']) {
+    assert(p.reads.indexOf(n) >= 0, 'the board never asked IndexedDB for ' + n);
+    assert(Array.isArray(p.win.S.cache[n]), n + ' is still ' + typeof p.win.S.cache[n] + ' in the cache');
+  }
+  // And the model is out of `loading`, which is the fact the person sees.
+  const m = p.win.Duty.model({ role: 'crewmanager', cache: p.win.S.cache, params: null });
+  assert.notStrictEqual(m.kind, 'loading', 'the board is still in its loading state');
+  assert.strictEqual(m.total, 2, 'the denominator should be tonight\'s two buses');
+  assert.strictEqual(m.need, 1, 'b1 is crewed and b2 is not, so exactly one bus needs somebody');
+  assert(/RJ14 PB 4567/.test(p.body()), 'the board drew no bus at all:\n' + p.body().slice(0, 400));
+  p.close();
+});
+
+test('F2 …and the crew manager\'s Today no longer says tonight is not picked when it is', async () => {
+  const p = open(yard(CREWMGR));
+  await p.run(0);
+  await p.win.Boot.enter(CREWMGR);
+  await p.run(300);
+  assert.strictEqual(p.win.Shell._mounted(), 'today', 'the crew manager should land on Today');
+  /* `tonight(q)` returns null both when `nightlist` is unloaded and when there
+   * is no record for tonight, and the crew manager's block 2 could not tell
+   * them apart — so with six buses ticked it read "Tonight's buses are not
+   * picked yet" and offered a button to the skeleton above. */
+  const body = p.body();
+  assert(!/not picked yet/i.test(body),
+    'Today still says tonight is not picked, with tonight\'s record on disk:\n' + body.slice(0, 600));
+  assert(p.reads.indexOf('nightlist') >= 0, 'Today never asked for nightlist');
+  p.close();
+});
+
+/* ---- F3: the stores nothing loaded ---- */
+
+/* The twelve, each against the screen whose figure REV-FLOW measured as missing.
+ * Driven as a table rather than twelve cases because the property is one
+ * property, and a table is the thing that reddens when a thirteenth store is
+ * added to a screen and nobody wires it up. */
+const F3 = [
+  { role: 'owner', user: OWNER, screen: 'today',
+    stores: ['ledger', 'trips', 'def', 'purchases', 'digest', 'coachai', 'nightlist', 'rbalias'],
+    why: 'the owner\'s 6.40am numbers: he got two of four' },
+  { role: 'owner', user: OWNER, screen: 'money',
+    stores: ['trips', 'ledger', 'def', 'purchases', 'challans'],
+    why: 'Money never showed a total and Trip cash read "Could not read the trip cash"' },
+  { role: 'owner', user: OWNER, screen: 'reviews',
+    stores: ['rbcomplaints', 'rbalias'],
+    why: 'Complaints 0 and Names to confirm 0, drawn as hard zeros' },
+  { role: 'owner', user: OWNER, screen: 'me',
+    stores: ['usage', 'coachai'],
+    why: 'the owner\'s "who opened what" read — No data' },
+  { role: 'owner', user: OWNER, screen: 'people',
+    stores: ['dutylog', 'coachai', 'crewnotes'],
+    why: 'dutylog reached this screen only through Attention' },
+  { role: 'owner', user: OWNER, screen: 'buses',
+    stores: ['dutylog', 'def', 'trips', 'ledger', 'reportai'],
+    why: 'a per-bus running cost built out of stores nothing had read' },
+  { role: 'store', user: STOREMAN, screen: 'store',
+    stores: ['audits', 'purchases', 'ledger'],
+    why: 'the anti-pilferage trail, loaded by this screen alone' },
+  { role: 'crewmanager', user: CREWMGR, screen: 'duty',
+    stores: ['nightlist', 'dutylog'],
+    why: 'F2' },
+];
+
+for (const row of F3) {
+  test('F3 ' + row.screen + ' asks for the stores it draws (' + row.why + ')', async () => {
+    const p = open(yard(row.user));
+    await p.run(0);
+    await p.win.Boot.enter(row.user);
+    await p.run(300);
+    assert(p.win.Caps.holds(row.role, row.screen),
+      row.role + ' does not hold ' + row.screen + ', so this row is testing nothing');
+    assert(p.win.Router.go(row.screen), 'could not reach ' + row.screen);
+    await p.run(300);
+    assert.strictEqual(p.win.Shell._mounted(), row.screen, row.screen + ' was not mounted');
+    const missed = row.stores.filter((n) => p.reads.indexOf(n) < 0);
+    assert.deepStrictEqual(missed, [],
+      row.screen + ' drew ' + missed.join(', ') + ' without ever reading ' + (missed.length === 1 ? 'it' : 'them'));
+    // Read is not enough: it has to have reached the cache as a LIST, because
+    // `undefined` is what every screen reads as "still loading".
+    const unloaded = row.stores.filter((n) => !Array.isArray(p.win.S.cache[n]));
+    assert.deepStrictEqual(unloaded, [], 'read but not in the cache: ' + unloaded.join(', '));
+    p.close();
+  });
+}
+
+test('F3 the owner\'s Today has every one of its eighteen stores in hand after one mount', async () => {
+  const p = open(yard(OWNER));
+  await p.run(0);
+  await p.win.Boot.enter(OWNER);
+  await p.run(300);
+  assert.strictEqual(p.win.Shell._mounted(), 'today', 'the owner should land on Today');
+  /* `today.js` reuses its own `SIG_STORES` as its read list, so this is the
+   * screen's own declaration of what it draws, checked against what it asked
+   * for. Taken from the module rather than retyped: a nineteenth store added to
+   * the screen and not to the list reddens here. */
+  /* `.slice()`d into THIS realm first. The page is a separate vm context, so an
+   * array that comes back from it is another realm's Array and
+   * `deepStrictEqual` fails on the prototype rather than on the contents —
+   * the same trap section 6 names for the route params. */
+  const want = Array.prototype.slice.call(p.win.Today._stores());
+  assert(want.length >= 18, 'expected Today to declare its stores, got ' + JSON.stringify(want));
+  const missed = want.filter((n) => !Array.isArray(p.win.S.cache[n]));
+  assert.deepStrictEqual(missed, [], 'Today drew with these stores still unloaded: ' + missed.join(', '));
+  p.close();
+});
+
+/* ---- F4: no count off a replica that cannot be read ---- */
+
+/* The seat kind's row ids, in THIS realm. Both halves of the index are read:
+ * a row whose basis cannot be worked out is `unranked` rather than absent, and
+ * a check that looked only at `rows` would pass a version that drew six wrong
+ * rows in the remainder line. */
+function seatIdsOf(idx) {
+  const all = Array.prototype.slice.call(idx.rows)
+    .concat(Array.prototype.slice.call(idx.unranked));
+  return all.filter((r) => r.kind === 'seat').map((r) => String(r.id));
+}
+
+test('F4 Attention draws NO seat count when dutylog could not be read, rather than six wrong ones', async () => {
+  /* `nightlist` readable, `dutylog` NOT — the state REV-FLOW proved by loading
+   * the two one at a time. A failed read is left as `[]` by `Cache.load` and
+   * named in `Cache.unread()`, so "no dutylog on this device" and "nobody is
+   * assigned to any bus" arrive at `seatRows` as the same value, and it
+   * reported both of tonight's buses as having no crew — one of them fully
+   * crewed. [E] ba274f6 with a new cause. */
+  const p = open(yard(OWNER, { rows: { dutylog: 'throws' } }));
+  await p.run(0);
+  await p.win.Boot.enter(OWNER);
+  await p.run(300);
+  assert(p.win.Router.go('attention'), 'could not reach Attention');
+  await p.run(300);
+  assert(p.win.Cache.isUnread('dutylog'), 'the fixture should leave dutylog unread');
+  assert(Array.isArray(p.win.S.cache.nightlist) && p.win.S.cache.nightlist.length,
+    'the fixture should leave nightlist readable, or this proves nothing');
+  const idx = p.win.Attention.index(p.win.S.cache, { id: 'u-owner', role: 'owner' },
+                                    Date.now(), p.win.Cache.unread());
+  const seats = seatIdsOf(idx);
+  assert.deepStrictEqual(seats, [],
+    'Attention invented ' + seats.length + ' seat row(s) off a dutylog it could not read');
+  assert(idx.skipped.indexOf('seat') >= 0,
+    'the kind was dropped but not recorded as skipped: ' + JSON.stringify(idx.skipped));
+  // And the kinds that CAN see their stores are untouched: this removes one
+  // kind, not the screen.
+  assert.strictEqual(idx.skipped.indexOf('busPaper'), -1,
+    'a kind whose stores were readable was dropped too');
+  p.close();
+});
+
+test('F4 …and with both readable the same fixture reports the ONE bus that is short', async () => {
+  const p = open(yard(OWNER));
+  await p.run(0);
+  await p.win.Boot.enter(OWNER);
+  await p.run(300);
+  assert(p.win.Router.go('attention'), 'could not reach Attention');
+  await p.run(300);
+  assert.strictEqual(p.win.Cache.isUnread('dutylog'), false, 'dutylog should be readable here');
+  const idx = p.win.Attention.index(p.win.S.cache, { id: 'u-owner', role: 'owner' },
+                                    Date.now(), p.win.Cache.unread());
+  const seats = seatIdsOf(idx);
+  /* ONE, and it is b2. b1 carries a driver and a conductor in `dutylog`, and
+   * the half-read replica reported it as having "no crew, 2 seats still empty".
+   * This is the pair of numbers F4 is: six wrong rows against one right one.
+   * The row id carries its kind (`seat:b2`), which is `row()`'s own shape. */
+  assert.deepStrictEqual(seats, ['seat:b2'],
+    'expected exactly the uncrewed bus, got ' + JSON.stringify(seats));
+  assert.deepStrictEqual(Array.prototype.slice.call(idx.skipped), [],
+    'nothing should be skipped on a readable replica');
+  p.close();
+});
+
+/* ---- F5: Money's Retry ---- */
+
+test('F5 Money\'s Retry asks IndexedDB again — it called Shell.mount and nothing else', async () => {
+  const p = open(yard(OWNER));
+  await p.run(0);
+  await p.win.Boot.enter(OWNER);
+  await p.run(300);
+  assert(p.win.Router.go('money'), 'could not reach Money');
+  await p.run(300);
+  assert.strictEqual(p.win.Shell._mounted(), 'money', 'Money was not mounted');
+  /* Watched at `Cache.load`, not at `getAll`: `Cache.load` skips a store that
+   * cannot have changed, so a Retry on a screen whose stores are in hand
+   * correctly performs no `getAll` — and a check on `getAll` would then report
+   * the FIXED code as broken and the broken code as fixed. The question is
+   * whether the button asks the cache at all. */
+  const asked = watchAsks(p);
+  p.win.Money._retry();
+  await p.run(300);
+  const want = Array.prototype.slice.call(p.win.Money._stores());
+  const missed = want.filter((n) => asked.indexOf(n) < 0);
+  assert.deepStrictEqual(missed, [],
+    'Retry asked for none of ' + missed.join(', ') + ': it redrew the same cache, which is the '
+    + 'identical sentence. ' + (asked.length ? 'It asked for: ' + asked.join(', ') : 'It asked for nothing.'));
+  p.close();
+});
+
+/* ---- F6: a phone that has never synced ---- */
+
+test('F6 a never-synced phone reports no last-sent time at all, not the epoch', async () => {
+  // No `lastSyncAt` in localStorage: a device straight out of the box.
+  const p = open({ token: 'u-drv', rows: yardRows([DRIVER]), ls: {} });
+  await p.run(0);
+  /* `parseInt(ls.getItem('lastSyncAt') || '0', 10)` gave 0, and 0 is a
+   * perfectly good timestamp — the epoch. Every reader guards on `== null` or
+   * `isNum`, and 0 passes both, so IST rendered it as 05:30: "Last sent 05:30",
+   * "Updated 20763 days ago", "No signal since 05:30", on a phone that had
+   * never sent anything. */
+  assert.strictEqual(p.win.Sync.info().lastSyncAt, null,
+    'a device that has never synced reports ' + JSON.stringify(p.win.Sync.info().lastSyncAt));
+  p.close();
+});
+
+test('F6 …and a device that HAS synced still reports the time it synced', async () => {
+  const when = 1762400000000;
+  const p = open({ token: 'u-drv', rows: yardRows([DRIVER]), ls: { lastSyncAt: String(when) } });
+  await p.run(0);
+  assert.strictEqual(p.win.Sync.info().lastSyncAt, when,
+    'the honest null swallowed a real timestamp as well');
+  p.close();
+});
+
+test('F6 …and Me does not tell a never-synced phone it holds n of n records', async () => {
+  const p = open({ token: 'u-drv', rows: yardRows([DRIVER]), ls: {},
+                   info: { lastRev: 0, tableMax: 0, notStored: 0, pending: 0, lastSyncAt: null } });
+  await p.run(0);
+  await p.win.Boot.enter(DRIVER);
+  await p.run(300);
+  assert.deepStrictEqual(screensOf(p.win, 'driver'), ['me'], 'a driver should hold exactly Me');
+  assert.strictEqual(p.win.Shell._mounted(), 'me', 'Me was not mounted');
+  const rep = p.win.Boot.replica();
+  assert.strictEqual(rep.complete, false, 'a device that has never pulled claims a complete replica');
+  assert.strictEqual(rep.behind, 0, 'the premise: the shortfall is UNKNOWN, which reads as 0');
+  /* `meHolds` is drawn ONLY when the replica is incomplete — it is the sentence
+   * that exists to say what is missing — and it printed `held` of `held + 0`.
+   * Measured: "This phone holds 91 of 91 records". A denominator nobody knows
+   * is not a denominator. */
+  const body = p.body();
+  const nOfN = /holds\s+([\d,]+)\s+of\s+([\d,]+)\s+records/.exec(body);
+  assert.strictEqual(nOfN && nOfN[1] === nOfN[2] ? nOfN[0] : null, null,
+    'Me still reports "' + (nOfN && nOfN[0]) + '" on a phone that has never synced');
+  p.close();
+});
+
+/* ---- F8: Store's first paint ---- */
+
+test('F8 Store\'s read redraws when it lands, without waiting for the four-second tick', async () => {
+  /* THE SHELF STARTS EMPTY, and that is what makes this measurable.
+   *
+   * Getting the screen mounted at all needs a timer — `boot.js`'s redraw is on
+   * 120 ms — so "mount it and look" cannot tell the fixed code from the broken
+   * code: `p.run()` fires that timer AND flushes the microtasks the read
+   * settles on, in one call. So the shelf is empty for the first paint, a part
+   * arrives on disk afterwards, and the question becomes whether the screen
+   * catches up on ITS OWN read landing with NO further timer fired. Before
+   * this, `load()` fired `Cache.load(STORES)` and discarded the promise, so the
+   * answer was "on the next four-second sync tick" — measured in a real browser
+   * as 3.3 seconds of "0 parts … Loading" over a shelf holding seven lines. */
+  const p = open(yard(STOREMAN, { rows: { parts: [] } }));
+  await p.run(0);
+  await p.win.Boot.enter(STOREMAN);
+  await p.run(300);
+  assert(p.win.Router.go('store'), 'could not reach Store');
+  await p.run(300);
+  assert.strictEqual(p.win.Shell._mounted(), 'store', 'Store was not mounted');
+  assert(!/Brake Pad Set/.test(p.body()), 'the shelf should start empty, or this proves nothing');
+
+  // A part lands on disk. `DB.put` marks the store dirty, exactly as a pull
+  // applying a record does, so the next `Cache.load` has something to re-read.
+  await p.win.DB.put('parts', { id: 'p1', name: 'Brake Pad Set', partNo: 'BP-1',
+                                unit: 'set', qty: 12, reorderLevel: 4, updatedAt: 2 });
+  const timersBefore = p.timers.filter((t) => !t.dead).length;
+  p.win.Store.mount();                 // what `Shell.mount` calls on an entry
+  /* NO `p.run()`. Microtasks only: `Cache.load` awaits one `getAll` per store
+   * and this screen reads nine, so the redraw sits nine promises deep. */
+  for (let i = 0; i < 60; i++) await flush();
+  assert(/Brake Pad Set/.test(p.body()),
+    'Store drew no part after its own read landed, with no timer fired:\n' + p.body().slice(0, 400));
+  /* And it got there WITHOUT a tick: no timer that was pending before the read
+   * has been fired, because nothing here fires one. Stated as an assertion
+   * rather than left implicit, so a future `p.run()` creeping into this case
+   * cannot quietly turn it back into a check that passes either way. */
+  assert.strictEqual(p.timers.filter((t) => !t.dead).length >= timersBefore, true,
+    'a timer was consumed, so this case no longer proves the redraw was the read\'s own');
+  p.close();
+});
+
+test('F8 …and the headline never says "0 parts" over a shelf it has not read', async () => {
+  /* The loading model, straight from the module: `counts.parts` is `null` until
+   * the shelf is read, and `header()` drew `say('stPartsN', { c: … || 0 }, 0)`
+   * — so for the whole of the loading state the storekeeper's own first line
+   * read "0 parts", in plain text, as a settled figure. `v2-ux.md §4.1` #7
+   * broken in the one place a storekeeper looks first. */
+  const p = open(yard(STOREMAN));
+  await p.run(0);
+  const loadingHtml = p.win.Store.render({ role: 'store', cache: {}, params: null,
+                                           user: STOREMAN, replica: { behind: 0, complete: false },
+                                           stale: true, unread: [], offline: false });
+  assert(!/\b0 parts\b/.test(loadingHtml),
+    'the loading headline still reads "0 parts":\n' + loadingHtml.slice(0, 300));
+  assert(/data-state="unknown"/.test(loadingHtml),
+    'an unknown count should draw the dash figure() already owns for it');
+  // And a shelf that really IS empty still reads as a real zero, so the two do
+  // not blur the other way round.
+  const emptyShelf = {};
+  ['parts', 'ledger', 'jobcards', 'audits', 'purchases', 'vendors', 'components', 'buses', 'users']
+    .forEach((n) => { emptyShelf[n] = []; });
+  const emptyHtml = p.win.Store.render({ role: 'store', cache: emptyShelf, params: null,
+                                         user: STOREMAN, replica: { behind: 0, complete: true },
+                                         stale: false, unread: [], offline: false });
+  assert(/\b0 parts\b/.test(emptyHtml),
+    'a shelf that was read and found empty must still say 0:\n' + emptyHtml.slice(0, 300));
+  p.close();
+});
+
+/* ===================================================================================================
  * 9. MUTANTS. Every check above, broken on purpose.
  * =================================================================================================== */
 
@@ -1171,11 +1708,16 @@ test('MUTANT must fail: the redraw drops the route params again', async () => {
       await signIn(p, OWNER);
       const seen = [];
       const real = p.win.Shell.mount;
-      p.win.Shell.mount = function (id, params) { seen.push(params); return real(id, params); };
+      p.win.Shell.mount = function (id, params) { seen.push({ id: id, params: params }); return real(id, params); };
       p.win.Router.go('jobcard', { id: 'jc-7' });
       await p.run(200);
-      assert.strictEqual(JSON.stringify(seen[seen.length - 1]), JSON.stringify({ id: 'jc-7' }),
-        'the redraw dropped the params');
+      // EVERY call, for the reason the positive case above now states at
+      // length: the screen's own redraw re-supplies the params from the Router,
+      // so the last call is right even when boot.js's is not.
+      const dropped = seen.filter((s) => s.id === 'jobcard'
+                                         && JSON.stringify(s.params) !== JSON.stringify({ id: 'jc-7' }));
+      assert.deepStrictEqual(dropped.map((s) => String(s.params)), [],
+        'some mount of the card arrived without its params');
     });
 });
 
@@ -1270,6 +1812,222 @@ test('MUTANT must fail: the roster is purged with everything else', async () => 
   } catch (e) { threw = e; }
   p.close();
   if (!threw) throw new Error('the mutant passed: the roster can be purged');
+});
+
+/* ===================================================================================================
+ * 11. MUTANTS FOR SECTION 10. Every read-side rule, broken on purpose.
+ *
+ * `mustFail` takes its own fixture here rather than section 9's bare owner page,
+ * because every rule above needs rows on disk to be wrong about. Same contract:
+ * ONE file replaced by a changed copy of itself, the replacement asserted to
+ * have happened, nothing on disk touched.
+ * =================================================================================================== */
+
+async function mustFailOn(name, src, o, check) {
+  let threw = null;
+  const p = open(Object.assign({}, o, { src: src }));
+  try { await check(p); } catch (e) { threw = e; }
+  p.close();
+  if (!threw) throw new Error('the mutant passed: ' + name);
+}
+
+test('MUTANT must fail: the Duty board goes back to its store list living inside retry()', async () => {
+  await mustFailOn('duty does not read on mount',
+    mutate('screens/duty.js', '    load();\n    var d = doc();', '    var d = doc();'),
+    yard(CREWMGR),
+    async (p) => {
+      await p.run(0);
+      await p.win.Boot.enter(CREWMGR);
+      await p.run(300);
+      assert(p.win.Router.go('duty'));
+      await p.run(300);
+      for (const n of ['nightlist', 'dutylog']) {
+        assert(Array.isArray(p.win.S.cache[n]), n + ' is ' + typeof p.win.S.cache[n]);
+      }
+      const m = p.win.Duty.model({ role: 'crewmanager', cache: p.win.S.cache, params: null });
+      assert.notStrictEqual(m.kind, 'loading', 'the board is still a skeleton');
+    });
+});
+
+/* ONE MUTANT IS NOT HERE, AND THE REASON IS WORTH MORE THAN THE CHECK.
+ *
+ * Every `mount()` in this slice puts its `load()` above the screen's listener
+ * guard, and the first version of that change said in nine comments that a read
+ * below the guard "would happen on the first visit of a session and never
+ * again". So a mutant was written to move `store.js`'s read back down — and it
+ * SURVIVED. `Shell.mount` calls `unmount()` on the way out, every `unmount()`
+ * in v2 clears its own guard (`store.js:1535`), so the guard is false again by
+ * the next entry and a read below it runs exactly as often. The comments were
+ * wrong and have been rewritten; the position is defence against a teardown
+ * that is skipped or changed, not a fix for a live defect.
+ *
+ * The check is not kept in a weakened form. A mutant that cannot redden is the
+ * decoration CLAUDE.md names, and leaving it green beside eleven real ones
+ * would be worse than not having it: it would read as evidence for a claim that
+ * had just been shown to be false. What the position actually buys has no
+ * observable symptom today, so it gets a comment and no check.
+ */
+
+test('MUTANT must fail: Today stops reading, so the owner gets two of his four numbers again', async () => {
+  await mustFailOn('today does not read on mount',
+    mutate('screens/today.js', '    load();\n    var d = doc();', '    var d = doc();'),
+    yard(OWNER),
+    async (p) => {
+      await p.run(0);
+      await p.win.Boot.enter(OWNER);
+      await p.run(300);
+      const want = Array.prototype.slice.call(p.win.Today._stores());
+      const missed = want.filter((n) => !Array.isArray(p.win.S.cache[n]));
+      assert.deepStrictEqual(missed, [], 'unloaded: ' + missed.join(', '));
+    });
+});
+
+test('MUTANT must fail: Money\'s Retry goes back to redrawing the same cache', async () => {
+  await mustFailOn('money retry does not reload',
+    mutate('screens/money.js', '  function retry() { load(); }',
+           '  function retry() { redraw(); }'),
+    yard(OWNER),
+    async (p) => {
+      await p.run(0);
+      await p.win.Boot.enter(OWNER);
+      await p.run(300);
+      assert(p.win.Router.go('money'));
+      await p.run(300);
+      const asked = watchAsks(p);
+      p.win.Money._retry();
+      await p.run(300);
+      const want = Array.prototype.slice.call(p.win.Money._stores());
+      const missed = want.filter((n) => asked.indexOf(n) < 0);
+      assert.deepStrictEqual(missed, [], 'Retry asked for none of ' + missed.join(', '));
+    });
+});
+
+test('MUTANT must fail: Store discards its load promise again, so the shelf waits for a tick', async () => {
+  await mustFailOn('store discards the promise',
+    mutate('screens/store.js',
+           "    return c.load(STORES).then(function () { loading = false; reread(); },\n                               function () { loading = false; });",
+           '    c.load(STORES);\n    loading = false;\n    return null;'),
+    yard(STOREMAN, { rows: { parts: [] } }),
+    async (p) => {
+      await p.run(0);
+      await p.win.Boot.enter(STOREMAN);
+      await p.run(300);
+      assert(p.win.Router.go('store'));
+      await p.run(300);
+      await p.win.DB.put('parts', { id: 'p1', name: 'Brake Pad Set', unit: 'set', qty: 12,
+                                    reorderLevel: 4, updatedAt: 2 });
+      p.win.Store.mount();
+      for (let i = 0; i < 60; i++) await flush();
+      assert(/Brake Pad Set/.test(p.body()), 'the shelf did not fill on its own read');
+    });
+});
+
+test('MUTANT must fail: the "0 parts" headline comes back', async () => {
+  await mustFailOn('store headline reads 0 over an unread shelf',
+    mutate('screens/store.js',
+           "    var known = v.counts.parts != null;",
+           '    var known = true;'),
+    yard(STOREMAN),
+    async (p) => {
+      await p.run(0);
+      const html = p.win.Store.render({ role: 'store', cache: {}, params: null, user: STOREMAN,
+                                        replica: { behind: 0, complete: false }, stale: true,
+                                        unread: [], offline: false });
+      assert(!/\b0 parts\b/.test(html), 'the loading headline reads "0 parts"');
+    });
+});
+
+test('MUTANT must fail: Attention builds a kind off stores it could not read', async () => {
+  await mustFailOn('attention ignores unread',
+    mutate('screens/attention.js',
+           '      const missing = unreadableFor(k, rows, unreadSet);\n      if (missing.length) { skipped.push(k.key); continue; }\n',
+           ''),
+    yard(OWNER, { rows: { dutylog: 'throws' } }),
+    async (p) => {
+      await p.run(0);
+      await p.win.Boot.enter(OWNER);
+      await p.run(300);
+      assert(p.win.Router.go('attention'));
+      await p.run(300);
+      assert(p.win.Cache.isUnread('dutylog'), 'the fixture should leave dutylog unread');
+      const idx = p.win.Attention.index(p.win.S.cache, { id: 'u-owner', role: 'owner' },
+                                        Date.now(), p.win.Cache.unread());
+      assert.deepStrictEqual(seatIdsOf(idx), [], 'seat rows were invented off an unread dutylog');
+    });
+});
+
+test('MUTANT must fail: Attention looks only at `undefined` and misses the failed read', async () => {
+  /* THE HALF THAT SURVIVES A WEAKER CHECK, and the whole reason `unreadableFor`
+   * reads two facts rather than one. `Cache.load` leaves `[]` behind a FAILED
+   * read — not `undefined` — so a readability test that asks only whether the
+   * store has a copy passes a store that could not be read, which is exactly
+   * the state F4 was measured in. */
+  await mustFailOn('attention tests undefined alone',
+    mutate('screens/attention.js',
+           "      if (rows && rows[n] !== undefined && !(unreadSet && unreadSet[n])) continue;",
+           '      if (rows && rows[n] !== undefined) continue;'),
+    yard(OWNER, { rows: { dutylog: 'throws' } }),
+    async (p) => {
+      await p.run(0);
+      await p.win.Boot.enter(OWNER);
+      await p.run(300);
+      assert(p.win.Router.go('attention'));
+      await p.run(300);
+      assert(p.win.Cache.isUnread('dutylog'), 'the fixture should leave dutylog unread');
+      const idx = p.win.Attention.index(p.win.S.cache, { id: 'u-owner', role: 'owner' },
+                                        Date.now(), p.win.Cache.unread());
+      assert.deepStrictEqual(seatIdsOf(idx), [], 'seat rows were invented off an unread dutylog');
+    });
+});
+
+test('MUTANT must fail: lastSyncAt is seeded to the epoch again', async () => {
+  await mustFailOn('lastSyncAt seeds to 0',
+    mutate('sync.js',
+           "  let lastSyncAt = (function () {\n    const raw = ls.getItem('lastSyncAt');\n    if (raw == null || raw === '') return null;\n    const n = parseInt(raw, 10);\n    return isFinite(n) && n > 0 ? n : null;\n  })();",
+           "  let lastSyncAt = parseInt(ls.getItem('lastSyncAt') || '0', 10);"),
+    { token: 'u-drv', rows: yardRows([DRIVER]), ls: {} },
+    async (p) => {
+      await p.run(0);
+      assert.strictEqual(p.win.Sync.info().lastSyncAt, null,
+        'a never-synced device reports ' + JSON.stringify(p.win.Sync.info().lastSyncAt));
+    });
+});
+
+test('MUTANT must fail: Me tells a never-synced phone it holds n of n records', async () => {
+  await mustFailOn('me draws n of n',
+    mutate('screens/me.js',
+           "      body += '<p class=\"photos-hint\">' + esc(behind > 0\n        ? fill('meHolds', group(held), group(held + behind))\n        : fill('meHoldsUnknown', group(held))) + '</p>';",
+           "      body += '<p class=\"photos-hint\">' + esc(fill('meHolds', group(held), group(held + behind))) + '</p>';"),
+    { token: 'u-drv', rows: yardRows([DRIVER]), ls: {},
+      info: { lastRev: 0, tableMax: 0, notStored: 0, pending: 0, lastSyncAt: null } },
+    async (p) => {
+      await p.run(0);
+      await p.win.Boot.enter(DRIVER);
+      await p.run(300);
+      const nOfN = /holds\s+([\d,]+)\s+of\s+([\d,]+)\s+records/.exec(p.body());
+      assert.strictEqual(nOfN && nOfN[1] === nOfN[2] ? nOfN[0] : null, null,
+        'Me reports "' + (nOfN && nOfN[0]) + '"');
+    });
+});
+
+test('MUTANT must fail: Today goes back to calling an unread nightlist "not picked yet"', async () => {
+  await mustFailOn('today conflates unloaded with unpicked',
+    mutate('screens/today.js',
+           "    if (!q.rows.nightlist || !q.rows.drivers) return loading('seats', say('cardEmptySeats'), q);\n",
+           ''),
+    yard(CREWMGR, { rows: { nightlist: 'throws' } }),
+    async (p) => {
+      await p.run(0);
+      await p.win.Boot.enter(CREWMGR);
+      await p.run(300);
+      /* `nightlist` could not be read, so `Cache.load` left it `[]` — which
+       * `tonight()` reads as "no record for tonight", which block 2 reads as
+       * "nobody has picked". The honest answer is that this device does not
+       * know, and the loading card says exactly that much. */
+      assert(p.win.Cache.isUnread('nightlist'), 'the fixture should leave nightlist unread');
+      assert(!/not picked yet/i.test(p.body()),
+        'Today says tonight is not picked over a nightlist it could not read');
+    });
 });
 
 /* =================================================================================================== */

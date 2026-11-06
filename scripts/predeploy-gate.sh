@@ -1545,6 +1545,204 @@ ck "cache.js can say a store could not be read" \
 ck "…and an unread store keeps this device incomplete" \
    "$(grep -cE 'c\.unread\(\)' v2/boot.js)" "1"
 
+echo "── v2 screen reads ──"
+# WHAT GETS LOADED INTO THE REPLICA, AND WHEN — REV-FLOW F2, F3, F5, F8.
+#
+# The lifecycle section above is the half that made this possible: `Shell.mount`
+# calls the incoming screen's `mount()`, so a screen has one place to ask for its
+# own data. EIGHT of the thirteen never asked. Twelve stores were loaded by
+# nothing in the whole of v2, and the cost was measured on the screen -- a Duty
+# board that was a permanent skeleton for the one role whose job it is, an owner
+# getting two of his four 6.40am numbers, a Money screen that never showed a
+# total, five Retry buttons that redrew the identical sentence, and a Store that
+# opened on "0 parts" for 3.3 seconds every visit.
+#
+# THE SAME NO-STRIPPING DISCIPLINE as the lifecycle block, and for the same
+# reason: every pattern below tells code from prose on its own -- a
+# line-anchored statement (`^    load();`), or a full call (`.load(STORES)`).
+# The comments in these files discuss all of it and match none of it, checked
+# file by file.
+#
+# This is a PER-SCREEN LOOP and not a list of the screens that needed fixing.
+# "Every screen asks for its own stores when the frame mounts it" is a rule
+# thirteen files can be held to; "every screen that happens to need it does" is
+# a rule whose exceptions have to be remembered, and the eight that were silent
+# were silent because nobody was holding a list. `jobs.js` and `jobcard.js`
+# read only stores that are already in FIRST_STORES and ask anyway, so this
+# loop has no exceptions to carve out.
+for _f in v2/screens/*.js; do
+  [ -f "$_f" ] || continue
+  _n="$(basename "$_f")"
+  # INSIDE mount()'s OWN BODY, and that scoping is a mutant that came back
+  # alive. The first version grepped the WHOLE FILE for a line-anchored
+  # `load();` -- and `store.js` has five of them (the issue sheet, the shelf
+  # count, the bill, the stock receipt and `reload()`), so deleting the one in
+  # `mount()` left four behind and the check stayed green over a screen that no
+  # longer reads anything when it is opened. The same four-of-four-versus-
+  # one-of-four shape the listener check above was bitten by, in the same file,
+  # two sections apart.
+  #
+  # `sed` from the function's signature to the first closing brace at its own
+  # indent: every one of the thirteen declares it as `  function mount() {` and
+  # closes it with `  }`, and the nested `if` blocks inside close at four
+  # spaces, so the range is the body and nothing after it.
+  #
+  # `gate.js` calls `reload()` and `fuel.js` `loadStores()`, each that screen's
+  # own name for the same thing, so the pattern is any of the three -- and
+  # `attention.js` passes the reader (`load(me())`), because its store list
+  # depends on which kinds the role holds. So the argument list is anything or
+  # nothing, and the line anchor is what keeps the prose above every one of
+  # these functions out of the match.
+  _mb="$(sed -n '/^  function mount()/,/^  }/p' "$_f")"
+  ck "$_n asks for its stores when it is mounted" \
+     "$(printf '%s' "$_mb" | grep -cE '^[[:space:]]*(load|reload|loadStores)\([^;]*\);' \
+        | awk '{print ($1>0)?"yes":"no"}')" "yes"
+  # And the body was found at all, so a screen that renames or reshapes its
+  # mount cannot pass the check above by presenting an empty range to grep.
+  ck "$_n declares a mount() the check can read" \
+     "$(printf '%s' "$_mb" | grep -cE '^  function mount\(\)')" "1"
+  # AND IT REDRAWS WHEN THE READ LANDS. A screen that fires `Cache.load` and
+  # discards the promise only catches up on `boot.js`'s next four-second tick,
+  # which is F8: three and a bit seconds of "0 parts" over a shelf holding
+  # seven lines, every visit.
+  #
+  # STATED AS THE DEFECT AND NOT AS THE CURE, after two false positives taught
+  # the difference. Counting `.load(LIST)` against `.load(LIST).then(` failed
+  # two files that are CORRECT: `fuel.js:1616` assigns the promise and chains
+  # `p.then(redraw, redraw)` on the next line, and the second hit in `store.js`
+  # was this gate's sibling comment QUOTING the broken line to explain it --
+  # a check tripping on prose about itself, which is the thing the lifecycle
+  # block above warns about by name.
+  #
+  # So the check looks for the defect itself: a read whose result is DROPPED ON
+  # THE FLOOR, which in this codebase is a statement that begins with the call.
+  # `return c.load(…)`, `await c.load(…)` and `var p = c.load(…)` all begin
+  # with something else, and a comment line begins with `*`, so none of the
+  # three can match. `c.load(STORES);` as a bare statement is the F8 shape and
+  # the only thing that does.
+  ck "$_n drops no store read on the floor" \
+     "$(grep -cE '^[[:space:]]*[A-Za-z_$][A-Za-z0-9_$]*\.load\((STORES|READS|SIG_STORES|want|names)\)' "$_f" || true)" "0"
+done
+
+# THE RETRY THAT DID NOT RETRY — F5.
+#
+# `money.js`'s `retry()` called `Shell.mount` and never `Cache.load`, so it
+# redrew the screen from the same in-memory cache and produced the identical
+# sentence, byte for byte. Five of them are on that screen at once, each under a
+# "Could not read the..." line and each the only affordance the owner is given.
+# A button that redraws the sentence saying the read failed, without retrying
+# the read, teaches its user that the screen is simply broken.
+#
+# Every screen that draws an error state with a Retry is asked the same thing,
+# which is `errorState(`'s second argument being a function that reaches the
+# cache. Checked as "the named retry function calls load", because `ui/states.js`
+# keys its handlers by identity and the markup carries an id and not a name.
+for _f in v2/screens/*.js; do
+  [ -f "$_f" ] || continue
+  _n="$(basename "$_f")"
+  if grep -qE '^[[:space:]]*function retry\(\)' "$_f"; then
+    ck "$_n's Retry re-reads rather than redrawing the same cache" \
+       "$(sed -n '/^[[:space:]]*function retry()/,/^[[:space:]]*}/p' "$_f" \
+          | grep -cE '(load\(\)|\.load\()' | awk '{print ($1>0)?"yes":"no"}')" "yes"
+  fi
+done
+
+# A PHONE THAT HAS NEVER SYNCED — F6.
+#
+# `lastSyncAt` was seeded from `ls.getItem('lastSyncAt') || '0'`, and 0 is a
+# perfectly good timestamp: it is the epoch. Every reader guards on `== null` or
+# `isNum` and 0 passes both, so IST rendered it as a time -- "Last sent 05:30",
+# "Updated 20763 days ago", "No signal since 05:30" -- on a phone that had never
+# sent anything. For a driver and a conductor, whose whole app is Me, those were
+# the only two facts the product offered about why their screen was empty.
+ck "sync.js does not seed lastSyncAt to the epoch" \
+   "$(grep -cE "lastSyncAt = parseInt\(ls\.getItem\('lastSyncAt'\) \|\| '0'" v2/sync.js)" "0"
+ck "…and seeds it to null instead, which every reader already handles" \
+   "$(grep -cE "const raw = ls\.getItem\('lastSyncAt'\);" v2/sync.js)" "1"
+# The sentence that exists ONLY to say the replica is short must not report that
+# nothing is missing. `replicaState` returns `behind: 0` both when this device is
+# caught up and when NO PULL HAS EVER COME BACK -- an unknown must not be
+# announced as a shortfall -- so `meHolds` drew "{held} of {held + 0}":
+# measured, "This phone holds 91 of 91 records".
+ck "me.js does not put a denominator on a shortfall nobody knows" \
+   "$(grep -cE "fill\('meHoldsUnknown', group\(held\)\)" v2/screens/me.js)" "1"
+
+# NO COUNT OFF A REPLICA THAT CANNOT BE READ — F4.
+#
+# `attention.js`'s reader turns an absent or unreadable store into an empty
+# list, so for the seat row kind "there is no dutylog on this device" and
+# "nobody is on any bus" were the same value. With `nightlist` readable and
+# `dutylog` not, the screen reported SIX buses as "no crew, 2 seats still
+# empty", one of them with all three seats filled, as a settled count with no
+# loading state and no hedge. That is [E] ba274f6 -- "67 buses need a driver" --
+# reproduced as a load-order defect rather than a missing narrowing.
+#
+# Both halves of the readability test are checked, and the second is the one a
+# weaker version would drop: `Cache.load` leaves `[]` behind a FAILED read, not
+# `undefined`, so a test that asks only whether the store has a copy passes the
+# store that could not be read -- which is exactly the state F4 was measured in.
+ck "attention.js refuses to build a kind whose stores it cannot read" \
+   "$(grep -cE 'if \(missing\.length\) \{ skipped\.push\(k\.key\); continue; \}' v2/screens/attention.js)" "1"
+ck "…and counts a FAILED read as unreadable, not only a missing one" \
+   "$(grep -cE 'unreadSet && unreadSet\[n\]' v2/screens/attention.js)" "1"
+# And the fact reaches it from the one place that holds it.
+ck "…reading the names from Cache.unread() rather than guessing them" \
+   "$(grep -cE 'function unreadNow\(\)' v2/screens/attention.js)" "1"
+
+# ZERO IS NOT UNKNOWN, IN THE STOREKEEPER'S OWN HEADLINE — F8.
+#
+# `v.counts.parts` is null until the shelf has been read, and `header()` drew
+# `say('stPartsN', { c: group(v.counts.parts || 0) }, 0)` -- so for the whole of
+# the loading state the first line of the storekeeper's own screen read
+# "0 parts", in plain text, as a settled figure, over a shelf holding seven
+# lines. The `|| 0` is how a count that is not known becomes a claim that there
+# are none, which is `v2-ux.md §4.1` #7 and the defect this repo has been bitten
+# by most.
+# `^[^*]*` BEFORE THE CALL, and that is not decoration either. The first
+# version of this check matched store.js's own comment, which quotes the broken
+# line verbatim to explain what it was -- so the check failed on the fixed tree,
+# for the prose that documents the fix. A check that trips on writing about
+# itself teaches people to delete the writing, which is the opposite of what
+# this file is for. A comment line reaches `say(` only through a leading `*`.
+ck "store.js does not read an unknown part count as zero" \
+   "$(grep -cE "^[^*]*say\('stPartsN', \{ c: group\(v\.counts\.parts \|\| 0\) \}" v2/screens/store.js)" "0"
+ck "…and tells a count it has not read from one it has" \
+   "$(grep -cE 'var known = v\.counts\.parts != null;' v2/screens/store.js)" "1"
+
+# THE FIRST-SCREEN PULL IS A SERVER PULL ORDER, AND IT IS MEASURED.
+#
+# REV-FLOW F3 reads as "FIRST_STORES growing by the handful that Today and Money
+# need". It grew by ONE. What those screens were missing is an in-memory copy of
+# rows that were already on disk, which is the per-screen read above; all this
+# list changes is how soon the SERVER sends them on a device's first sync. One
+# name went in (`nightlist`, the narrowing two front doors have no shape
+# without, and one record per night) and `ledger` stayed out on a number:
+# `scripts/measure-pull.py --quick --reps 3` on the 80,700-row fixture takes the
+# owner's first-screen pass from 174.9 ms / 10 requests to 269.6 ms / 13
+# requests with it, which is 0.9x to 1.4x `03 §8`'s recorded 195 ms and three
+# more round trips in front of the first paint.
+#
+# The bound is the check, not the exact list: a list that grows to cover every
+# screen is the same as no list at all, and `test_pullapply.js` holds the same
+# ceiling from the other side.
+# FLATTENED FIRST, because the list is five lines long and `grep -o` is
+# line-at-a-time: the first version of these three checks read only the first
+# line of the array, so the ceiling counted six names out of twenty-four and the
+# `nightlist` check -- which is on the last line -- answered 0 on a tree that
+# has it. Wrong in the direction that passes, on the check whose whole job is a
+# bound. The flatten is safe here because `FIRST_STORES = [` appears exactly
+# once in the file (asserted below, or the bound is being read off prose).
+_fs_decl="$(grep -cE 'FIRST_STORES = \[' v2/pullapply.js)"
+ck "the first-screen pull list is declared exactly once" "$_fs_decl" "1"
+_fs="$(tr '\n' ' ' < v2/pullapply.js | grep -oE "FIRST_STORES = \[[^]]*\]")"
+ck "the first-screen pull list is still short" \
+   "$(printf '%s' "$_fs" | grep -oE "'[a-z]+'" | wc -l | tr -d ' ' \
+      | awk '{print ($1<=20)?"short":"grown to "$1}')" "short"
+ck "…and still holds the narrowing the Duty board and Today cannot do without" \
+   "$(printf '%s' "$_fs" | grep -cE "'nightlist'")" "1"
+ck "…and still defers the 40,000-row store" \
+   "$(printf '%s' "$_fs" | grep -cE "'gpsevents'")" "0"
+
 echo "──"
 echo "RESULT: $PASS passed, $FAIL failed"
 if [ "$FAIL" -ne 0 ]; then

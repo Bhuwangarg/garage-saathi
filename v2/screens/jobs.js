@@ -51,6 +51,14 @@
     jbBadgeStarted: { en: 'Started', hi: '' },
     jbCapLine: { en: '{shown} of {total} shown, oldest first. Use a filter to narrow this.', hi: '' },
     jbNoConn: { en: 'No connection since {time}', hi: '' },
+    /* AND THE SAME SENTENCE WITH NO TIME IN IT, because a phone that has never
+     * sent anything has no "since". REV-FLOW F6 was `lastSyncAt` seeded to 0
+     * rather than null, so the epoch rendered as a clock time and this read
+     * "No connection since 05:30" on a device that had never synced. With the honest
+     * null the one above would render with an empty slot instead — a dangling
+     * sentence, which is the same defect wearing better manners — so there are
+     * two words for the two facts. */
+    jbNoConnEver: { en: 'This phone has not sent anything yet', hi: '' },
     jbHoursShort: { en: '{h} h', hi: '' },
     jbDaysShort: { en: '{d} d', hi: '' },
     jbWorkSub: { en: '{open} open · {rework} rework · {days} days average turnaround', hi: '' },
@@ -313,8 +321,10 @@
     }
     var count = fig(v.open, { at: v.offline ? null : v.at, stale: v.stale,
                               format: function (n) { return say('jbStanding', null, n).replace('{n}', n); } });
+    var when = hhmm(v.at);
     var tail = v.offline
-      ? ' <span class="jb-off">' + draw('offline', 14) + ' ' + esc(say('jbNoConn', { time: hhmm(v.at) })) + '</span>'
+      ? ' <span class="jb-off">' + draw('offline', 14) + ' '
+        + esc(when === '' ? say('jbNoConnEver') : say('jbNoConn', { time: when })) + '</span>'
       : '';
     return '<p class="jb-fresh">' + count + tail + '</p>';
   }
@@ -475,7 +485,41 @@
 
   var handler = null;
 
+  /* THE STORES THIS SCREEN READS. All three are in `PullApply.FIRST_STORES`, so
+   * unlike Today, Money, the Duty board and five others this screen was NOT
+   * among REV-FLOW F3's casualties — its rows arrive behind the first paint.
+   *
+   * IT ASKS ANYWAY, AND THAT IS THE POINT. "Every screen reads its own stores
+   * when the frame mounts it" is a rule a check can hold all thirteen to;
+   * "every screen that happens to need it does" is a rule whose exceptions have
+   * to be remembered, and the eight screens that were missing a read were
+   * missing it because nobody was holding a list. `Cache.load` skips a store
+   * that cannot have changed since the last read (`v2/db.js`'s dirty marks), so
+   * for a screen whose stores are already in hand this costs a dirty-flag
+   * lookup and no `getAll` at all. */
+  var STORES = ['jobcards', 'buses', 'users'];
+
+  var loading = false;
+
+  function load() {
+    var c = root.Cache;
+    if (loading || !c || typeof c.load !== 'function') return null;
+    loading = true;
+    return c.load(STORES).then(function () { loading = false; reread(); },
+                               function () { loading = false; });
+  }
+
+  // Only while this is still the screen on the page.
+  function reread() {
+    var cur = root.Router && root.Router.current ? root.Router.current() : null;
+    if (!cur || cur.id !== ID) return;
+    if (root.Shell && typeof root.Shell.mount === 'function') root.Shell.mount(ID, cur.params || null);
+  }
+
   function mount() {
+    // The read is the first statement, above the listener guard. `duty.js`'s
+    // mount says why the position and not the guard is the point.
+    load();
     if (handler) return handler;
     handler = onClick;
     if (root.document && typeof root.document.addEventListener === 'function') {

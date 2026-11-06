@@ -100,6 +100,14 @@
 
     jcShowing: { en: 'Showing what this phone received {age}', hi: '' },
     jcOfflineAge: { en: 'No connection since {time} — this may be out of date.', hi: '' },
+    /* AND THE SAME SENTENCE WITH NO TIME IN IT, because a phone that has never
+     * sent anything has no "since". REV-FLOW F6 was `lastSyncAt` seeded to 0
+     * rather than null, so the epoch rendered as a clock time and this read
+     * "No connection since 05:30" on a device that had never synced. With the honest
+     * null the one above would render with an empty slot instead — a dangling
+     * sentence, which is the same defect wearing better manners — so there are
+     * two words for the two facts. */
+    jcOfflineEver: { en: 'This phone has not sent anything yet — this may be out of date.', hi: '' },
 
     jcGateNeed: { en: 'To close: 2 photos before, 2 after', hi: '' },
     jcGateNeedSub: { en: '{before} before taken, {after} after still needed.', hi: '' },
@@ -493,8 +501,9 @@
 
   // Block 2. Freshness, stated once for the whole card.
   function blockFresh(v) {
+    var when = hhmm(v.at);
     var text = v.offline
-      ? say('jcOfflineAge', { time: hhmm(v.at) })
+      ? (when === '' ? say('jcOfflineEver') : say('jcOfflineAge', { time: when }))
       : say('jcShowing', { age: ageWords(v.at) });
     return '<p class="jc-fresh">' + draw('clock', 14) + ' ' + esc(text) + '</p>';
   }
@@ -1115,7 +1124,40 @@
 
   var handler = null;
 
+  /* THE STORES THIS SCREEN READS. `jobcards`, `buses`, `parts` and `users` are
+   * in `PullApply.FIRST_STORES`; `ledger` (the part-issue trail behind a part
+   * row) and `gatepasses` (the slip an outside job left on) are in no other
+   * load list in v2 and reached this device only if the storekeeper's Store or
+   * a supervisor's Attention had been opened first.
+   *
+   * The read happens on every mount even when nothing is missing, for the
+   * reason `jobs.js`'s list gives: a rule that holds for all thirteen screens
+   * is checkable, and `Cache.load` skips a store that cannot have changed. */
+  var STORES = ['jobcards', 'buses', 'parts', 'users', 'ledger', 'gatepasses'];
+
+  var loading = false;
+
+  function load() {
+    var c = root.Cache;
+    if (loading || !c || typeof c.load !== 'function') return null;
+    loading = true;
+    return c.load(STORES).then(function () { loading = false; reread(); },
+                               function () { loading = false; });
+  }
+
+  /* Only while this is still the screen on the page, AND with the card the
+   * person is actually looking at: `redraw()` below reads `here()` for the id,
+   * so a read that settled after they walked away must not remount this. */
+  function reread() {
+    var cur = root.Router && root.Router.current ? root.Router.current() : null;
+    if (!cur || cur.id !== ID) return;
+    redraw();
+  }
+
   function mount() {
+    // The read is the first statement, above the listener guard. `duty.js`'s
+    // mount says why the position and not the guard is the point.
+    load();
     if (handler) return handler;                 // one listener, however many mounts
     handler = onClick;
     if (root.document && typeof root.document.addEventListener === 'function') {

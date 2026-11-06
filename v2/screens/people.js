@@ -356,6 +356,14 @@
     peSaveFailed: { en: 'Not saved. Try again.', hi: '' },
     peNeedsNet: { en: 'Needs a connection', hi: '' },
     peOffSince: { en: 'No connection since {time}.', hi: '' },
+    /* AND THE SAME SENTENCE WITH NO TIME IN IT, because a phone that has never
+     * sent anything has no "since". REV-FLOW F6 was `lastSyncAt` seeded to 0
+     * rather than null, so the epoch rendered as a clock time and this read
+     * "No connection since 05:30" on a device that had never synced. With the honest
+     * null the one above would render with an empty slot instead — a dangling
+     * sentence, which is the same defect wearing better manners — so there are
+     * two words for the two facts. */
+    peOffEver: { en: 'This phone has not sent anything yet.', hi: '' },
     peEmpty: { en: 'Nobody on the roll yet', hi: '' },
     peEmptyHint: { en: 'Add a person, or import the roster.', hi: '' },
     peEmptyLeft: { en: 'Nobody marked as left', hi: '' },
@@ -1003,7 +1011,7 @@
                        format: function (n) { return group(n); } });
     var off = m.offline
       ? ' <span class="pe-off">' + draw('offline', 14) + ' '
-        + esc(say('peOffSince', { time: clock(at) || '' })) + '</span>' : '';
+        + esc(clock(at) ? say('peOffSince', { time: clock(at) }) : say('peOffEver')) + '</span>' : '';
     return '<p class="pe-fresh">' + head + ' ' + esc(say('peTabCrew')) + off + '</p>';
   }
 
@@ -1464,7 +1472,48 @@
    * kept them. */
   var mintedPins = null;
 
+  /* THE STORES THIS SCREEN READS, MINUS ONE. `dutylog` (where a crew member has
+   * been) and `coachai` (the coaching drafts) are in no other load list in all
+   * of v2, and `crewnotes` only reaches this device because it is in
+   * `PullApply.FIRST_STORES` for a driver's Me. That is REV-FLOW F3 on this
+   * screen.
+   *
+   * `gpsevents` is in `SCORE_STORES` and is deliberately NOT here, for the
+   * reason `buses.js`'s own list gives at length: it is 40,000 rows against 700
+   * for everything else, `pullapply.js` defers it from the first sync on that
+   * measured ground, and the cost of a `getAll` over it is the one part of the
+   * cost that cannot be measured from node. The crew score already says it was
+   * built from three parts of four when a part is missing, which is the honest
+   * state and not a blank. */
+  var STORES = ['users', 'buses', 'drivers', 'attendance', 'incidents',
+                'coachai', 'crewnotes', 'dutylog'];
+
+  /* The read, and the only place this screen asks IndexedDB for anything. From
+   * `mount()` and nowhere else; the `.then` is what puts the rows on screen
+   * without waiting for `boot.js`'s next four-second tick, and `loading` keeps
+   * a mount that lands mid-read from stacking a second one over the first. */
+  var loading = false;
+
+  function load() {
+    var c = cacheMod();
+    if (loading || !c || typeof c.load !== 'function') return null;
+    loading = true;
+    return c.load(STORES).then(function () { loading = false; reread(); },
+                               function () { loading = false; });
+  }
+
+  // Only while this is still the screen on the page.
+  function reread() {
+    var r = router();
+    var cur = r && r.current ? r.current() : null;
+    if (!cur || cur.id !== ID) return;
+    redraw();
+  }
+
   function mount() {
+    // The read is the first statement, above the listener guard. `duty.js`'s
+    // mount says why the position and not the guard is the point.
+    load();
     var d = doc();
     if (!d || typeof d.addEventListener !== 'function') return false;
     if (bound) return true;

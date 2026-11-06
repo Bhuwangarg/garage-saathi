@@ -168,6 +168,14 @@
     rvEmptyNamesHint: { en: 'Checked just now.', hi: '' },
     rvError: { en: 'Could not read the reviews', hi: '' },
     rvNoNew: { en: 'No new reviews since {time}.', hi: '' },
+    /* AND THE SAME SENTENCE WITH NO TIME IN IT. REV-FLOW F6 was `lastSyncAt`
+     * seeded to 0 rather than null, so the epoch rendered as a clock time and
+     * this read "No new reviews since 05:30" on a device that had never synced.
+     * With the honest null the one above renders with an empty slot instead --
+     * observed in a real browser as "No new reviews since ." -- which is the
+     * same defect with better manners. Two words for the two facts, as on
+     * Attention, Money, Jobs, the Job card and People. */
+    rvNoNewEver: { en: 'This phone has not sent anything yet.', hi: '' },
     rvNeedsConn: { en: 'Needs a connection', hi: '' },
     rvAskRead: { en: 'Ask Claude to read this', hi: '' },
     rvAskName: { en: 'Ask Claude about this name', hi: '' },
@@ -762,8 +770,10 @@
     }
     var count = fig(v.tab === 'names' ? v.queueTotal : (v.tab === 'complaints' ? v.complaintTotal : v.reviewTotal),
                     { at: v.offline ? null : v.at, stale: v.stale, format: group });
+    var when = hhmm(v.at);
     var tail = v.offline
-      ? ' <span class="rv-off">' + draw('offline', 14) + ' ' + esc(say('rvNoNew', { time: hhmm(v.at) })) + '</span>'
+      ? ' <span class="rv-off">' + draw('offline', 14) + ' '
+        + esc(when === '' ? say('rvNoNewEver') : say('rvNoNew', { time: when })) + '</span>'
       : '';
     var dates = v.dateless
       ? '<p class="rv-note">' + draw('alert', 16) + ' ' + esc(say('rvNoDates')) + '</p>'
@@ -1084,7 +1094,47 @@
   var handler = null;
   var scroller = null;
 
+  /* THE STORES THIS SCREEN READS, and six of the nine are in no load list in
+   * all of v2 — REV-FLOW F3 on this screen. Measured on the owner's Reviews:
+   * `Complaints 0` and `Names to confirm 0`, drawn as HARD ZEROS over
+   * `rbcomplaints` and `rbalias` that nothing had ever asked IndexedDB for.
+   * Those two counts reaching a real zero is the point of the screen, so a
+   * zero that means "never read" is the whole of §4.1 #7 in two numbers.
+   *
+   * `crewnotes` is written here (the office's conversation log) and `buses` and
+   * `drivers` are read for names; both of the latter are in FIRST_STORES and
+   * are in this list anyway, because what a screen reads is one list and not
+   * two. `itslookup` is NOT here and must never be: the comment above
+   * `aliasIndex` says why. */
+  var STORES = ['rbservices', 'rbreviews', 'rbcomplaints', 'rbassign', 'rbalias',
+                'rbreviewai', 'rbaliasai', 'buses', 'drivers', 'incidents', 'crewnotes'];
+
+  /* The read, and the only place this screen asks IndexedDB for anything. From
+   * `mount()` and nowhere else; the `.then` is what puts the rows on screen
+   * without waiting for `boot.js`'s next four-second tick, and `loading` keeps
+   * a mount that lands mid-read from stacking a second one over the first. */
+  var loading = false;
+
+  function load() {
+    var c = root.Cache;
+    if (loading || !c || typeof c.load !== 'function') return null;
+    loading = true;
+    return c.load(STORES).then(function () { loading = false; reread(); },
+                               function () { loading = false; });
+  }
+
+  // Only while this is still the screen on the page.
+  function reread() {
+    var R = root.Router;
+    var c = R && R.current ? R.current() : null;
+    if (!c || c.id !== ID) return;
+    redraw();
+  }
+
   function mount() {
+    // The read is the first statement, above the listener guard. `duty.js`'s
+    // mount says why the position and not the guard is the point.
+    load();
     if (handler) return handler;
     handler = onClick;
     if (root.document && typeof root.document.addEventListener === 'function') {

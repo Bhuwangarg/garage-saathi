@@ -209,6 +209,13 @@
     // it is its own id rather than the freshness line with its prefix cut off.
     attDays: { en: { one: '{n} day', other: '{n} days' }, hi: '' },
     attNoSignal: { en: 'No signal since {0}', hi: '' },
+    /* A phone that has never sent anything has no "since". Before REV-FLOW F6,
+     * `lastSyncAt` was seeded to 0 rather than null and the epoch rendered as a
+     * time, so this read "No signal since 05:30" — a sentence that names a
+     * moment that never happened. With the honest null, the one above would
+     * have read "No signal since " with nothing after it, so there are two
+     * words for the two facts. */
+    attNoSignalEver: { en: 'This phone has not sent anything yet', hi: '' },
     attAskTitle: { en: 'Ask about the business', hi: '' },
     // A real question, so the person can see the shape of one.
     attAskPlaceholder: { en: 'What is costing us the most this month?', hi: '' },
@@ -950,15 +957,66 @@
     };
   }
 
-  function index(rows, me, nowMs) {
+  /* A KIND WHOSE STORES ARE NOT ALL READABLE IS NOT BUILT, and this is
+   * REV-FLOW F4.
+   *
+   * `reader()` above turns an absent or unreadable store into `EMPTY`, so
+   * "this store is not on this device" and "this store is empty" arrive at a
+   * builder as the same value — and for `seatRows` an empty `dutylog` means
+   * "nobody is on any bus". With `nightlist` readable and `dutylog` not, the
+   * screen reported SIX buses as *"no crew, 2 seats still empty"*, one of them
+   * with all three seats filled, as a settled count with no loading state and
+   * no hedge. That is [E] ba274f6 — *"67 buses need a driver"* — reproduced as
+   * a load-order defect rather than a missing narrowing, and the cost is a
+   * supervisor walking the yard to crew buses that are crewed and then learning
+   * to scroll past the red, which is the exact habit the row kind exists to
+   * prevent.
+   *
+   * The fix is NOT to load more. A screen cannot promise that every store it
+   * reads is readable — a read can fail, and a store can be sealed because it
+   * belongs to the previous person (`cache.js`). The fix is that a kind which
+   * cannot see its own data contributes NOTHING: no rows, no filter count, no
+   * remainder. That is the answer `seatRows`' own comment already gives for a
+   * night with no record — *"kind 9 is removed rather than left as a number
+   * that cannot reach zero"* — applied one layer up, and it sits beside
+   * `holds()` because it is the same kind of question: may this kind be built
+   * at all, asked before anything is read.
+   *
+   * `unreadable` is the union of two facts, and both are needed:
+   *   - the store has no copy in `rows` (`undefined`): never read;
+   *   - the store is named by `Cache.unread()`: the last read FAILED or was
+   *     refused, and `load()` leaves `[]` behind a failure — which is the case
+   *     a check on `undefined` alone cannot see and the one that survives.
+   *
+   * A kind that is skipped is in `skipped`, so a caller can say "could not be
+   * read" rather than silently drawing a shorter list. */
+  function unreadableFor(kind, rows, unreadSet) {
+    const out = [];
+    for (let i = 0; i < kind.stores.length; i++) {
+      const n = kind.stores[i];
+      if (rows && rows[n] !== undefined && !(unreadSet && unreadSet[n])) continue;
+      out.push(n);
+    }
+    return out;
+  }
+
+  function index(rows, me, nowMs, unreadNames) {
     const now = num(nowMs) === null ? Date.now() : nowMs;
     const seen = Object.create(null);
+    const unreadSet = Object.create(null);
+    const un = (unreadNames && unreadNames.length) ? unreadNames : [];
+    for (let i = 0; i < un.length; i++) unreadSet[String(un[i])] = true;
     let ranked = [], unranked = [];
+    const skipped = [];
     for (let i = 0; i < KINDS.length; i++) {
       const k = KINDS[i];
       /* BEFORE the query. An unheld kind is not read, not built, not counted
        * and not in the remainder — §3.6's whole second layer is this line. */
       if (!holds(k, me)) continue;
+      // AND before the query: see the block above. A kind that cannot see its
+      // own rows is removed, not computed off the gap.
+      const missing = unreadableFor(k, rows, unreadSet);
+      if (missing.length) { skipped.push(k.key); continue; }
       const got = k.build(reader(k, rows, seen), me, now);
       ranked = ranked.concat(got.rows);
       unranked = unranked.concat(got.unranked);
@@ -976,6 +1034,10 @@
       unranked: unranked,
       counts: counts,
       stores: Object.keys(seen).sort(),
+      // The kinds this device could not build, in KINDS order. A caller that
+      // wants to say "this part could not be read" has the names; a caller that
+      // does not is at least not drawing a count off the gap.
+      skipped: skipped.sort(),
       at: now,
     };
   }
@@ -1006,18 +1068,56 @@
     return list.length ? c.sigOf.apply(null, list) : '';
   }
 
+  /* The stores whose last read failed or was refused, from `Cache` itself and
+   * not from the frame's model: `render` is also called with a bare rows bag by
+   * the suites, and `cachedIndex` is reached from `setFilter` and `rowById` too,
+   * which have no model in hand. One source, every caller. */
+  function unreadNow() {
+    const c = cache();
+    try { return (c && c.unread) ? c.unread() : []; } catch (e) { return []; }
+  }
+
   function cachedIndex(me) {
     const s = state();
     const bag = (s && s.cache) || null;
     if (!bag) return null;
     const sig = sigFor(me);
     const who = me ? String(me.id) + '/' + String(me.role) : '-';
-    // A store with no copy yet is "not loaded", which is not "empty": the
-    // screen draws its chrome and a skeleton until the first load lands.
+    /* A store with no copy yet is "not loaded", which is not "empty": the
+     * screen draws its chrome and a skeleton until the first load lands.
+     *
+     * ANY of them, not all, and this line was very nearly relaxed on the way to
+     * fixing F4 — which would have broken the rule F4 is about. The thought was
+     * that a store which came back unreadable would skeleton for ever, so the
+     * test should let a partly-filled bag through. It should not, for two
+     * reasons:
+     *
+     *   - `v2-foundation-ui.md §3.6`'s filter-strip row SPECIFIES the loading
+     *     state: *"the strip draws immediately with the counts as `figure(null)`
+     *     — a dash, not a 0"*. A bag with four of its eight stores in hand
+     *     yields REAL counts over half the kinds, drawn as settled figures with
+     *     no hedge, and then they jump when the rest land. A number that is
+     *     true of half the data is the same lie as a number that is true of
+     *     none of it, which is this screen's whole subject.
+     *   - the premise was wrong anyway. `Cache.load` leaves `[]` behind a
+     *     FAILED read, not `undefined` (its own comment says so), so an
+     *     unreadable store does not reach this test as missing. It reaches
+     *     `index()`, which drops the kinds that cannot see their own rows and
+     *     draws the rest. There is no forever-skeleton for this line to avoid.
+     *
+     * So the two cases are handled in the two different places they belong:
+     * "nothing is here yet" is a skeleton, and "this part could not be read" is
+     * a kind removed from a screen that otherwise draws. */
     const want = stores(me);
     for (let i = 0; i < want.length; i++) if (bag[want[i]] === undefined) return null;
-    if (memo && memo.sig === sig && memo.who === who) return memo.index;
-    memo = { sig: sig, who: who, index: index(bag, me) };
+    /* The unread names are part of what the index was built FROM, so they are
+     * part of its key. Without this, a store that failed and then recovered
+     * would keep serving the index built while it was unreadable, because the
+     * signature of a store that is still `[]` has not moved. */
+    const un = unreadNow().slice().sort();
+    const key = sig + '#' + un.join(',');
+    if (memo && memo.sig === key && memo.who === who) return memo.index;
+    memo = { sig: key, who: who, index: index(bag, me, null, un) };
     return memo.index;
   }
 
@@ -1096,7 +1196,7 @@
     if (offline) {
       const i = info();
       const last = num(i.lastSyncAt);
-      text = fill('attNoSignal', [last === null ? '' : clockTime(last)]);
+      text = last === null ? say('attNoSignalEver') : fill('attNoSignal', [clockTime(last)]);
     } else {
       const ms = Math.max(0, Date.now() - index.at);
       if (ms < 60000) text = say('attFreshNow');

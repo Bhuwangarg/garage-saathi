@@ -181,7 +181,29 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
    * for anyone to know a figure is still filling in. A number that cannot say
    * whether it is complete is worse than a number that is late. */
   let tableMax = parseInt(ls.getItem('tableMax') || '0', 10);
-  let lastSyncAt = parseInt(ls.getItem('lastSyncAt') || '0', 10);
+  /* NULL on a device that has never synced, and the `|| '0'` that used to be
+   * here is REV-FLOW F6.
+   *
+   * A phone fresh out of the box held 0, and 0 is a perfectly good timestamp —
+   * it is the epoch. Every reader guards on `== null` or `isNum`, and 0 passes
+   * both, so the epoch was rendered as a time. The office is IST, so what a
+   * driver's one screen said about a phone that had never sent anything was:
+   *
+   *     Me       ▸ Last sent 05:30 · Updated 20763 days ago
+   *     Today    ▸ "No signal since 05:30. What you see may be out of date."
+   *     Attention▸ "No signal since 05:30 am"
+   *
+   * A time dressed as a fact, which `v2-ux.md §4.1` #12 forbids by name. `null`
+   * is the honest value and the one every reader already handles: `me.js`'s
+   * `clock(null)` returns null, `figure(null)` is the dash, and the three
+   * screens that test `isNum` fall to their own "never" wording. Written back
+   * as a number on the first real sync (below), so this is the absence only. */
+  let lastSyncAt = (function () {
+    const raw = ls.getItem('lastSyncAt');
+    if (raw == null || raw === '') return null;
+    const n = parseInt(raw, 10);
+    return isFinite(n) && n > 0 ? n : null;
+  })();
   let outbox = new Set(JSON.parse(ls.getItem('outbox') || '[]'));
   // Who made each pending change. The outbox is device-wide, so changes one
   // person saved offline (or left unsent at logout) used to go out under whoever

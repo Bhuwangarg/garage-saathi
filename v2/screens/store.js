@@ -66,6 +66,10 @@
 
   var WORDS = {
     stPartsN: { en: { one: '{c} part', other: '{c} parts' }, hi: '' },
+    /* The headline BEFORE the shelf has been read. "0 parts" is the one thing
+     * it must not say: see `header()`. The word carries no number because there
+     * is no number to carry — that is the whole point of it. */
+    stPartsUnread: { en: 'Parts on the shelf', hi: '' },
     stReqN: { en: { one: '{n} waiting request', other: '{n} waiting requests' }, hi: '' },
     stNoLevels: { en: '{v} parts have no reorder level. Set one to get a warning.', hi: '' },
     stSetLevel: { en: 'Set a level', hi: '' },
@@ -773,9 +777,26 @@
    * render — pure, one string, and the caller does one insert
    * ---------------------------------------------------------------------- */
 
+  /* THE HEADLINE, and the zero-versus-unknown rule in the one place a
+   * storekeeper looks first (`v2-ux.md §4.1` #7, REV-FLOW F8).
+   *
+   * `v.counts.parts` is `null` until the shelf has been read, and this drew
+   * `say('stPartsN', { c: group(v.counts.parts || 0) }, 0)` — so for the whole
+   * of the loading state it read **"0 parts"**, as a settled figure, in plain
+   * text, over a shelf holding seven lines. The `|| 0` is how a count that is
+   * not known becomes a claim that there are none, which is the defect this
+   * repo has been bitten by most and the reason `figure()` tests for "no value"
+   * before it formats.
+   *
+   * So an unknown count draws the label and the dash `figure()` already owns
+   * for exactly this, and never a number. The shelf's real count arrives with
+   * the read, one tick later at worst now that `load()` redraws. */
   function header(v) {
+    var known = v.counts.parts != null;
     var facts = '<p class="st-facts">'
-      + esc(say('stPartsN', { c: group(v.counts.parts || 0) }, v.counts.parts == null ? 0 : v.counts.parts))
+      + (known
+          ? esc(say('stPartsN', { c: group(v.counts.parts) }, v.counts.parts))
+          : esc(say('stPartsUnread')) + ' ' + fig(null, {}))
       + (v.counts.requests ? ' · ' + esc(say('stReqN', null, v.counts.requests)) : '')
       + '</p>';
     var acts = '';
@@ -1473,6 +1494,10 @@
   var bound = false;
 
   function mount() {
+    /* The read is the first statement, above the listener guard. See `duty.js`'s
+     * mount: it runs on each entry either way because `unmount()` clears the
+     * guard, and the position is what keeps it from depending on that. */
+    load();
     var d = doc();
     if (!d || typeof d.addEventListener !== 'function') return false;
     if (bound) return true;
@@ -1481,7 +1506,6 @@
     d.addEventListener('input', onField);
     d.addEventListener('change', onField);
     d.addEventListener('scroll', onScroll, true);
-    load();
     return true;
   }
 
@@ -1638,9 +1662,42 @@
     try { return s.info().status === 'offline'; } catch (e) { return false; }
   }
 
+  /* THE PROMISE IS NOT DISCARDED ANY MORE, and that one `.then` is REV-FLOW F8.
+   *
+   * This fired `Cache.load(STORES)` and threw the promise away, so the screen
+   * only caught up on `boot.js`'s next four-second sync tick. Instrumented in a
+   * real browser with seven parts on disk, the first content paint was:
+   *
+   *     251 ms  "Store … 0 parts … Loading"
+   *    1254 ms  "Store … 0 parts … Loading"
+   *    2265 ms  "Store … 0 parts … Loading"
+   *    3270 ms  "Store … 7 parts … Brake Pad Set (front) 12 set …"
+   *
+   * Three and a bit seconds of skeleton, every visit, on a Mac — one tick or
+   * two more on a Core 2 Duo. `fuel.js:1322` and `attention.js:1035` both
+   * already redraw on their read landing; this screen was the one that did not.
+   *
+   * `loading` keeps a mount that arrives while a read is settling from stacking
+   * a second one over the top of the first. */
+  var loading = false;
+
   function load() {
     var c = root.Cache;
-    if (c && typeof c.load === 'function') c.load(STORES);
+    if (loading || !c || typeof c.load !== 'function') return null;
+    loading = true;
+    return c.load(STORES).then(function () { loading = false; reread(); },
+                               function () { loading = false; });
+  }
+
+  /* Only while this is still the screen on the page: a read that settles after
+   * the storekeeper has walked to another tab must not mount this one over
+   * theirs. `redraw()` itself has no such test because every other caller of it
+   * is a tap on this screen. */
+  function reread() {
+    var R = root.Router;
+    var c = R && R.current ? R.current() : null;
+    if (!c || c.id !== ID) return;
+    redraw();
   }
 
   function redraw() {
