@@ -440,6 +440,18 @@ about emergency and reference numbers.
 **Still sent to every signed-in role, including a `conductor` who holds zero
 capabilities:**
 
+> **Narrowed, 2026-11-06, verified by REV-AUTH and re-checked against the
+> source.** That sentence is now stale and overstates the breadth.
+> `v2_perms.py:179` makes `drivers` own-rows-only for `store`, `mechanic`,
+> `driver` and `conductor`, so those four receive their own row and nobody
+> else's — a conductor no longer reaches another crew member's photo at all.
+> `owner`, `supervisor` and `crewmanager` are `PII_ROLES`
+> (`sync_server.py:4137`) and are entitled to the record. **The residual is
+> exactly one role: `office`**, which is outside `PII_ROLES` and still receives
+> every crew member's `photo`, `leftAt`, `leftReason`, `leftReasonKey`,
+> `leftNote` and `rehire`. The fix and the reasoning below are unchanged and
+> still the owner's call; only the blast radius is smaller than written.
+
 | field | what it is |
 |---|---|
 | `photo` | the crew member's face |

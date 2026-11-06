@@ -731,8 +731,13 @@
   function entryPane(v) {
     var out = '<h2 class="dt-h2">' + esc(say('dtPickHead')) + '</h2>'
       + '<p class="dt-hint">' + esc(say('dtPickHint')) + '</p>'
-      + '<div class="field dt-find"><input type="search" class="dt-search" placeholder="'
-      + esc(say('dtPickSearch')) + '" aria-label="' + esc(say('dtPickSearch')) + '"></div>';
+      /* A <label>, not a <div>: `.field` is 48px tall and the input inside it is
+       * 22px, so with a div the other 25px was a dead band -- `onField` runs on
+       * `input` events, never on click, so tapping the box did nothing at all.
+       * A label forwards the tap to the control. `buses.js:994` already had this
+       * right. Found by REV-FLOOR, measured: effective target was 309x23. */
+      + '<label class="field dt-find"><input type="search" class="dt-search" placeholder="'
+      + esc(say('dtPickSearch')) + '" aria-label="' + esc(say('dtPickSearch')) + '"></label>';
 
     /* Yesterday's list is OFFERED, not copied: one tap pre-ticks, then the
      * person corrects what is different, which is how a register is actually
@@ -987,8 +992,9 @@
       return { d1: null, d2: null, con: null };
     }, busById: busById };
     var people = freeList(m, busId, seat, index);
-    var out = '<div class="field dt-find"><input type="search" class="dt-sheet-search" placeholder="'
-      + esc(say('dtSheetSearch')) + '" aria-label="' + esc(say('dtSheetSearch')) + '"></div>';
+    // A <label> for the same reason as the pick list's search box above.
+    var out = '<label class="field dt-find"><input type="search" class="dt-sheet-search" placeholder="'
+      + esc(say('dtSheetSearch')) + '" aria-label="' + esc(say('dtSheetSearch')) + '"></label>';
     if (!people.length) {
       return out + (typeof root.emptyState === 'function'
         ? root.emptyState(say('dtNobodyFree'), { icon: 'person', hint: say('dtNobodyFreeHint') }) : '');

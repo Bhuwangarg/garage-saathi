@@ -54,6 +54,27 @@
 /* ---- the numbers people open the app for ------------------------------ */
 [data-v2] .kpirow { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s3); margin-bottom: var(--s4); }
 [data-v2] .kpirow.one { grid-template-columns: 1fr; }
+/* Below 420px a two-column tile is 165.5px wide and its value box is 88px, and a
+ * rupee figure has no break opportunity a line-breaker will take: `9,99,999` is
+ * one word to CSS, commas included. So the figure -- `inline-block`, shrink-to-
+ * fit, with nothing in the chain clipping it -- simply draws past its own tile.
+ * Measured at 375x812: Rs 9,99,999 spilled 34px past the tile and 22px INTO the
+ * neighbouring one, Rs 99,99,999 spilled 52px, and the page never scrolled,
+ * because the overflow lands on the tile beside it rather than past the
+ * viewport. Two money tiles sit in this row, so one number is drawn over the
+ * other's, on the first screen anybody opens.
+ *
+ * One column is the fix rather than smaller type: at --t4 the figure still
+ * spilled 25px at nine digits and cleared eight by 3px, which is not a margin,
+ * and `min-width: 0` on the inner block does nothing at all here -- measured,
+ * because min-content equals the whole unbreakable string. It costs 233px of
+ * height (295 -> 528 with four tiles carrying their age notes) and that is the
+ * right trade: a reader scrolls past a tall tile and cannot read through
+ * overlapping text. Devanagari will change the metrics again (§21), so this must
+ * not become a digit-count threshold in script. */
+@media (max-width: 420px) {
+  [data-v2] .kpirow { grid-template-columns: 1fr; }
+}
 [data-v2] .kpi {
   display: flex; align-items: center; gap: var(--s3);
   background: var(--surface-raised); border: 1px solid var(--line);
