@@ -1,0 +1,267 @@
+/* Screen #5, Buses. Spec: docs/v2/plan/screens-assets.md §1.5, §1.6, §1.10.
+ *
+ * Nothing here is a new component and nothing here is a new token. The register
+ * is `.v2row` from ui/components.css, the eleven cards are `.card`, the papers
+ * and the seats are `.v2row`, card 2's reasons are `.v2row.v2row-why`, the
+ * figures are `.figure` from ui/states.js and the sheets are `.num` and
+ * `.field`. What this sheet adds is the screen's own LAYOUT — the register's
+ * one bar, the two-column card grid at desk, and the handful of places a state
+ * needs a colour BESIDE its mark and its word.
+ *
+ * STATUS IS NEVER COLOUR ALONE. Every rule below that sets --ok, --warn, --bad
+ * or --ink-dim is colouring a mark that is already a distinct drawing (doc,
+ * clock, warn, ok, alert, challan, seat, tyre are eight different pictures)
+ * next to a sentence that already says the same thing. The colour is the third
+ * signal, which is why this screen would still be readable with it switched
+ * off — and test_v2_buses.js asserts on the marks and the words, never on these
+ * rules.
+ *
+ * THERE IS NO PER-KM RULE IN HERE BECAUSE THERE IS NO PER-KM FIGURE. 8db78e7
+ * read ₹45,000 of work as ₹45,000 per kilometre off a missing odometer; per km
+ * lives on Money (#7) and Fuel & tyres (#10) and this screen draws rupees and
+ * kilometres, never one over the other.
+ *
+ * Chrome 109 is the ceiling: no nesting, no :has(), no oklch(), no color-mix(),
+ * no @starting-style. Colours come from ui/tokens.css and are never written out
+ * here, so dark mode and the light override both follow without a second rule.
+ * `px` appears only in a border, an outline or a shadow; everything else is a
+ * token or a calc of one. Only `transform` and `opacity` animate, and nothing
+ * here animates at all — the one press this screen has is components.css's.
+ */
+
+/* ---- the screen's column ----------------------------------------------- */
+[data-v2] .bs {
+  display: block;
+  padding: 0 0 var(--s6);
+  color: var(--ink);
+}
+
+/* ---- the count line, which states the list's freshness ONCE ------------- */
+/* A grid rather than a flex row: the mark must not shrink and the sentence has
+ * to be free to wrap at 360px. "No connection. Last updated 06:40." does not
+ * fit beside "89 buses" in Hindi, and a sentence that truncated would turn the
+ * one thing telling the reader how old the list is into an ellipsis. */
+[data-v2] .bs-fresh {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--s1);
+  margin: 0;
+  padding: var(--pad) var(--pad) var(--s3);
+  font-size: var(--t5);
+  font-variant-numeric: tabular-nums;
+}
+[data-v2] .bs-off {
+  display: block;
+  font-size: var(--t6);
+  color: var(--warn);
+}
+[data-v2] .bs-off svg { vertical-align: -2px; }
+
+/* ---- the one bar: search, sort, add ------------------------------------- */
+/* Stacked at 360px, because a search field and two controls side by side leave
+ * the field too narrow to read a plate in, and the plate is what the person
+ * already knows. One line as soon as there is room for all three. */
+[data-v2] .bs-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--s2);
+  margin: 0 0 var(--s4);
+  padding: 0 var(--pad);
+}
+[data-v2] .bs-find { display: block; }
+/* `.field` is the box; the search input inside it must not draw a second one. */
+[data-v2] .bs-find input {
+  display: block;
+  width: 100%;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  border: 0;
+  font: inherit;
+}
+[data-v2] .bs-sort,
+[data-v2] .bs-add { width: 100%; }
+
+@media (min-width: 560px) {
+  [data-v2] .bs-bar {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: center;
+  }
+  [data-v2] .bs-sort,
+  [data-v2] .bs-add { width: auto; }
+}
+
+/* ---- the register ------------------------------------------------------- */
+[data-v2] .bs-list { display: block; }
+[data-v2] .bs-list { padding: 0 var(--pad); }
+/* The list clips, so the focus ring is INSET: an outer ring on a row is cut off
+ * by the row above it, and a ring nobody can see is a ring nobody can follow. */
+[data-v2] a.v2row.bs-row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+[data-v2] .v2row.bs-row .lead { color: var(--ink-dim); }
+
+/* The line under the ranked rows, for the buses that have no figure in this
+ * order. They are listed, not sorted: an unusable figure leaves a ranking in
+ * BOTH directions, and a bus with no running cost sorting as the cheapest in
+ * the fleet is a bus nobody looks at. */
+[data-v2] .bs-unranked,
+[data-v2] .bs-note {
+  margin: var(--s3) 0 var(--s2);
+  font-size: var(--t6);
+  line-height: var(--lh);
+  color: var(--ink-dim);
+}
+[data-v2] .bs-note { margin: var(--s2) 0 0; }
+
+/* ---- one bus: the cards ------------------------------------------------- */
+[data-v2] .bs-one { padding: 0 var(--pad); }
+[data-v2] .bs-grid { display: block; }
+[data-v2] .bs-card { margin-bottom: var(--s4); padding: var(--pad); }
+[data-v2] .bs-h {
+  margin: 0 0 var(--s2);
+  font-size: var(--t4);
+  font-weight: 650;
+  color: var(--ink);
+}
+
+/* Card 1's heading row: the back control, then the plate. The plate is --t2 and
+ * tabular-nums (inherited from [data-v2]) because it is read against a plate
+ * somebody is holding in their hand. */
+[data-v2] .bs-top {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--s2);
+  margin: 0 0 var(--s3);
+}
+[data-v2] .bs-back { justify-self: start; }
+[data-v2] .bs-reg {
+  margin: 0;
+  font-size: var(--t2);
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/* A label-and-figure pair. Two columns so the figures line up down the card and
+ * the reader can add the running cost's parts up without sliding a finger. */
+[data-v2] .bs-kv,
+[data-v2] .bs-part {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 0 var(--s3);
+  padding: var(--s2) 0;
+  box-shadow: inset 0 -1px 0 var(--line);
+}
+[data-v2] .bs-card > .bs-kv:last-child,
+[data-v2] .bs-card > .bs-part:last-child { box-shadow: none; }
+[data-v2] .bs-k {
+  grid-column: 1;
+  font-size: var(--t6);
+  color: var(--ink-dim);
+}
+[data-v2] .bs-v {
+  grid-column: 2;
+  text-align: right;
+  font-size: var(--t5);
+  color: var(--ink);
+}
+[data-v2] .bs-v-t { font-size: var(--t5); color: var(--ink); }
+/* The sentence that says WHY a figure is the dash. Its own line, under the
+ * pair, because "No odometer reading and no service recorded." is longer than
+ * any value column and it is the half of the row that matters. */
+[data-v2] .bs-why {
+  grid-column: 1 / -1;
+  display: block;
+  margin: var(--s1) 0 0;
+  font-size: var(--t6);
+  line-height: var(--lh);
+  color: var(--ink-dim);
+}
+[data-v2] .bs-tel { color: var(--accent-text); }
+
+/* ---- card 5: the total, and the parts that have to add up to it --------- */
+/* The total is never drawn alone — a total without its parts is a number you
+ * have to trust — so this is a heading sitting directly on top of the six
+ * figures, with its badge beside it rather than under it. */
+[data-v2] .bs-total {
+  display: block;
+  margin: 0 0 var(--s3);
+  padding: 0 0 var(--s2);
+  font-size: var(--t3);
+  box-shadow: inset 0 -1px 0 var(--line);
+}
+[data-v2] .bs-total .badge { vertical-align: 2px; }
+
+/* ---- the three tones, each beside a mark and a word -------------------- */
+[data-v2] .bs-ok > .lead,
+[data-v2] .bs-ok .lead { color: var(--ok); }
+[data-v2] .bs-warn > .lead,
+[data-v2] .bs-warn .lead { color: var(--warn); }
+[data-v2] .bs-bad > .lead,
+[data-v2] .bs-bad .lead { color: var(--bad); }
+[data-v2] .bs-dim > .lead,
+[data-v2] .bs-dim .lead { color: var(--ink-dim); }
+[data-v2] .bs-why.bs-warn { color: var(--warn); }
+[data-v2] .bs-why.bs-bad { color: var(--bad); }
+[data-v2] .bs-kv.bs-bad .bs-v { color: var(--bad); }
+
+/* A row with nothing to press gets no cursor and no press: a row that moves
+ * under the thumb and then does nothing is the feedback failure inverted. */
+[data-v2] div.v2row.bs-paper,
+[data-v2] div.v2row.bs-seat,
+[data-v2] div.v2row.bs-fit,
+[data-v2] div.v2row.v2row-why { cursor: default; }
+/* The last row in a card carries no hairline: the card's own edge is there. */
+[data-v2] .bs-card > .v2row:last-child { box-shadow: none; }
+
+/* One control, full width, at the foot of a card. Not sticky and not fixed —
+ * the nav belongs to the frame and a second bar pinned to an edge reads as one. */
+[data-v2] .bs-wideb {
+  display: block;
+  width: 100%;
+  margin-top: var(--s3);
+}
+
+/* ---- the sheets -------------------------------------------------------- */
+[data-v2] .bs-sheet { display: block; }
+[data-v2] .bs-sheet .num { margin-bottom: var(--s3); }
+[data-v2] .bs-sheet .bs-why { margin: 0 0 var(--s3); color: var(--warn); }
+
+/* ---- desk -------------------------------------------------------------- */
+/* 1024x768, Windows 7, --rail-w of left rail, 864px of content.
+ *
+ * The register stays the SAME one-line list — 89 rows is under the 200-row
+ * windowing threshold by a factor of two, so this stands whatever the office
+ * PC's reading turns out to be. There is deliberately no two-pane
+ * register-plus-detail: it would need a column width that is neither a token
+ * nor a fraction, and the register's job is to get you to one bus, not to
+ * compare two.
+ *
+ * One bus becomes two columns, with cards 1, 2 and 5 across both: the first
+ * because it is the heading, the second because a wrapped reason row must not
+ * be squeezed to half of 864px, the fifth because the six parts read as a
+ * column of figures. Columns are fractions and the gap is a token, so there is
+ * no px literal and no new token here.
+ *
+ * The rail's own inset belongs to the frame (shell.css), not here. A screen that
+ * padded for the rail as well would pad twice.
+ */
+@media (min-width: 1024px) {
+  [data-density="desk"] .bs-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--s4);
+    align-items: start;
+  }
+  [data-density="desk"] .bs-grid > .bs-card { margin-bottom: 0; }
+  [data-density="desk"] .bs-grid > .bs-wide { grid-column: 1 / -1; }
+  /* Card 1's plate and its back control fit on one line once there is room. */
+  [data-density="desk"] .bs-top {
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+  }
+}

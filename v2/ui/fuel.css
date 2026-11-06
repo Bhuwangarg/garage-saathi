@@ -1,0 +1,171 @@
+/* Screen #10, Fuel & tyres.
+ *
+ * Nothing here is a new component. The fill rows, the mileage rows, the piece
+ * rows and the bus pick list are all `.v2row` from ui/components.css; the tabs,
+ * the badges and the buttons are that file's too, and the number fields are its
+ * `.num`. What this sheet adds is the screen's own layout and the places a state
+ * needs a colour BESIDE its mark and its word.
+ *
+ * STATUS IS NEVER COLOUR ALONE. Every rule below that sets --warn is colouring a
+ * line that already carries a drawing (warn / clock / bad are three different
+ * marks) and a sentence that says the same thing in words. The colour is the
+ * third signal, so this file would still be readable with it switched off.
+ *
+ * Chrome 109 is the ceiling: no nesting, no :has(), no oklch(), no color-mix().
+ * Colours come from ui/tokens.css and are never written out here, so dark mode
+ * follows without a second rule. `px` appears only in a border, an outline or a
+ * shadow; everything else is a token or a calc of one. Only `transform` and
+ * `opacity` animate, and nothing here animates at all -- the one press this
+ * screen has is already ui/components.css's.
+ */
+
+/* ---- the screen's column ----------------------------------------------- */
+[data-v2] .ft {
+  display: block;
+  padding: 0 0 var(--s6);
+  color: var(--ink);
+}
+
+/* The header's second line is the last thing this person did, so a double entry
+ * is visible before it is made. */
+[data-v2] .ft-last {
+  margin: 0;
+  padding: var(--pad) var(--pad) var(--s2);
+  font-size: var(--t6);
+  line-height: var(--lh);
+  color: var(--ink-dim);
+}
+[data-v2] .ft-off {
+  display: block;
+  color: var(--warn);
+}
+[data-v2] .ft-off svg { vertical-align: middle; }
+
+/* ---- the four writes: two rows at 360px, 48px each ---------------------- */
+/* The group carries data-density="yard" in the markup, so --tap is 48px here at
+ * desk too: this person is holding a nozzle, not a mouse. */
+[data-v2] .ft-top {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  padding: 0 var(--pad) var(--s3);
+}
+[data-v2] .ft-top .btn {
+  flex: 1 1 calc(var(--tap) * 3);
+  min-height: var(--tap);
+}
+
+[data-v2] .ft .tabs { margin: 0 0 var(--s3); padding: 0 var(--pad); }
+[data-v2] .ft-view { display: block; }
+
+/* ---- reasons: a mark, a word, and a colour as the third signal ---------- */
+[data-v2] .ft-warn { color: var(--warn); }
+[data-v2] .ft-dim { color: var(--ink-dim); }
+[data-v2] .ft-warn svg,
+[data-v2] .ft-dim svg { vertical-align: middle; }
+
+/* The falling-mileage row: the mark in .lead takes --warn through v2row-why.warn;
+ * nothing else on the row changes colour. */
+[data-v2] .ft-view .v2row .figure { white-space: nowrap; }
+
+[data-v2] .ft-cap,
+[data-v2] .ft-reg {
+  margin: var(--s2) 0 var(--s3);
+  padding: 0 var(--pad);
+  font-size: var(--t6);
+  line-height: var(--lh);
+  color: var(--ink-dim);
+}
+[data-v2] .ft-reg { margin-top: 0; }
+
+/* The excluded group's heading. Its rows are drawn separately because an
+ * unusable figure leaves the ranking in BOTH directions. */
+[data-v2] .ft-h {
+  margin: var(--s5) 0 var(--s1);
+  padding: 0 var(--pad);
+  font-size: var(--t4);
+  font-weight: 650;
+  color: var(--ink);
+}
+
+/* ---- a piece, and its actions ------------------------------------------- */
+[data-v2] .ft-piece { display: block; }
+[data-v2] .ft-pacts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  padding: var(--s2) var(--pad) var(--s3);
+  box-shadow: inset 0 -1px 0 var(--line);
+}
+[data-v2] .ft-pacts .btn { min-height: var(--tap); }
+/* The row above carries the hairline between pieces; its actions sit inside it. */
+[data-v2] .ft-piece > .v2row { box-shadow: none; }
+
+/* ---- the sheets --------------------------------------------------------- */
+[data-v2] .ft-sheet { display: block; }
+/* `.num` sets display:block, which beats the user agent's [hidden] rule, so the
+ * odometer block, its message and a filtered bus row would stay on screen
+ * without this. */
+[data-v2] .ft-sheet [hidden] { display: none; }
+[data-v2] .ft-sheet .ft-num { margin: 0 0 var(--s3); }
+[data-v2] .ft-sheet .num-in,
+[data-v2] .ft-sheet .field,
+[data-v2] .ft-sheet .select { width: 100%; }
+
+[data-v2] .ft-fixed,
+[data-v2] .ft-age {
+  margin: 0 0 var(--s3);
+  font-size: var(--t5);
+  color: var(--ink);
+}
+[data-v2] .ft-age { font-size: var(--t6); color: var(--ink-dim); }
+[data-v2] .ft-fixed svg { vertical-align: middle; }
+[data-v2] .ft-brokennote { margin: 0 0 var(--s3); font-size: var(--t6); }
+
+/* A reading that goes backwards: the --bad border, an inset 1px --bad edge, and
+ * the message in words under the field (927864c). Three signals, one of which
+ * is not colour. */
+[data-v2] .ft-sheet .field[aria-invalid="true"] {
+  border-color: var(--bad);
+  box-shadow: inset 0 0 0 1px var(--bad);
+}
+[data-v2] .ft-err { color: var(--bad); }
+
+/* The bus pick list: a row is a label and the whole of it is the radio's target,
+ * so the ring has to come from :focus-within -- a label takes no focus of its
+ * own -- and it is inset so the row above does not clip it. */
+[data-v2] .ft-picklist { display: block; margin: 0 0 var(--s3); }
+[data-v2] label.v2row.ft-pick { cursor: pointer; }
+[data-v2] label.v2row.ft-pick:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+[data-v2] .ft-pick-main { min-width: 0; }
+[data-v2] .ft-bus-r {
+  width: var(--tap);
+  height: var(--tap);
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+/* Save: sticky inside the sheet's column, never fixed to the viewport, and the
+ * reason it cannot be pressed in words beside it. */
+[data-v2] .ft-save {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  display: block;
+  margin: 0;
+  padding: var(--s3) 0 var(--s2);
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+  text-align: center;
+}
+[data-v2] .ft-save-b { width: 100%; }
+[data-v2] .ft-why {
+  display: block;
+  margin: var(--s1) 0 0;
+  font-size: var(--t6);
+  color: var(--warn);
+}

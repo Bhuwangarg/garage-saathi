@@ -1,0 +1,295 @@
+/* Screen #6, Store.
+ *
+ * Nothing here is a new component. The catalogue, the pieces, the requests and
+ * the bills are all `.v2row` from ui/components.css; the count fields are its
+ * `.num` / `.num-in`; the vendor card is `.card` and the vendor's own lines are
+ * `.drow`, both from ui/screens.css; the tabs are `.tabs`. What this sheet adds
+ * is the screen's own layout, the catalogue's scrolling window, and the few
+ * places a state needs a colour BESIDE its mark and its word.
+ *
+ * THE WINDOW IS HERE, AND IT IS WRITTEN IN THE DENSITY TOKEN. `.st-cat` is
+ * eighteen rows tall — `calc(var(--row-h) * 18)` — and screens/store.js's
+ * VIEW_ROWS is the same eighteen. The spacing above and below the drawn rows is
+ * an inline `calc(var(--row-h) * n)` from the same token, so the scroll bar is
+ * the whole catalogue's without one row ever being measured
+ * (v2-foundation-ui.md §2.3 rules 2 and 6). DECISIONS.md §20 is why the window
+ * exists at all: 2,384 rows drawn whole cost 410-619 ms on a sixteen-core i9,
+ * and the office runs Core 2 Duos.
+ *
+ * STATUS IS NEVER COLOUR ALONE. Every rule below that reaches for --warn, --bad
+ * or --ok is colouring a mark that is already a different drawing, next to a
+ * sentence that already says the same thing. This file would still be readable
+ * with every colour switched off, which is the test for whether colour is
+ * carrying meaning on its own.
+ *
+ * Chrome 109 is the ceiling: no nesting, no :has(), no oklch(), no color-mix().
+ * Colours come from ui/tokens.css and are never written out here, so dark mode
+ * and the light override both follow without a second rule. `px` appears only
+ * in a border, an outline or a shadow; every other size is a token or a calc of
+ * one. Only `transform` and `opacity` animate, and the one press this screen
+ * has is already ui/components.css's.
+ */
+
+/* ---- the screen's column ----------------------------------------------- */
+[data-v2] .st {
+  display: block;
+  padding: 0 0 var(--s6);
+  color: var(--ink);
+}
+
+/* ---- the header: three facts, two writes, one search ------------------- *
+ * The two writes stay at --tap even at desk density, because they are the
+ * whole job and a 32px "Issue part" on a Core 2 Duo with a mouse is a miss.
+ */
+[data-v2] .st-head {
+  display: block;
+  padding: var(--pad) var(--pad) var(--s3);
+}
+[data-v2] .st-facts {
+  margin: 0 0 var(--s3);
+  font-size: var(--t6);
+  line-height: var(--lh);
+  color: var(--ink-dim);
+  font-variant-numeric: tabular-nums;
+}
+[data-v2] .st-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  margin: 0 0 var(--s3);
+}
+[data-v2] .st-acts .btn {
+  min-height: var(--tap);
+  flex: 1 1 auto;
+}
+
+/* The search box carries the mark inside its own box, so the field keeps the
+ * full width at 360px and the mark does not become a column that squeezes it. */
+[data-v2] .st-find {
+  position: relative;
+  display: block;
+}
+[data-v2] .st-find-m {
+  position: absolute;
+  inset-inline-start: var(--s3);
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  pointer-events: none;
+  color: var(--ink-dim);
+}
+[data-v2] .st-find .field {
+  min-height: var(--tap);
+  padding-inline-start: calc(var(--s3) * 2 + var(--t2));
+}
+
+/* ---- the tab strip ------------------------------------------------------ *
+ * Five tabs, which do not fit at 360px, so the strip scrolls sideways
+ * (§3.6, and that is the cost of the fifth). The focus ring goes INSIDE the
+ * edge because the strip clips an outer one.
+ */
+[data-v2] .st-tabs {
+  padding: 0 var(--pad);
+}
+[data-v2] .st-tabs [role="tab"] {
+  flex: 0 0 auto;
+}
+[data-v2] .st-tabs [role="tab"]:focus-visible {
+  outline-offset: -2px;
+}
+
+[data-v2] .st-view {
+  display: block;
+}
+
+/* ---- the lines that are not rows --------------------------------------- *
+ * .st-note is the one line that stands for the 2,384 parts with no reorder
+ * level, and the one that says an interrupted issue is still being matched.
+ * Both are a mark, a sentence and a way out — never a list of 2,384 rows.
+ */
+[data-v2] .st-note,
+[data-v2] .st-warn,
+[data-v2] .st-sub,
+[data-v2] .st-cap,
+[data-v2] .st-confirm,
+[data-v2] .st-trust {
+  margin: 0;
+  padding: var(--s2) var(--pad);
+  font-size: var(--t6);
+  line-height: var(--lh);
+  color: var(--ink-dim);
+}
+[data-v2] .st-note {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  color: var(--ink);
+}
+[data-v2] .st-note svg,
+[data-v2] .st-warn svg {
+  flex: 0 0 auto;
+  color: var(--warn);
+}
+/* The count's standing warning: the data model cannot keep a promise about an
+ * unsaved count, so the screen states that plainly, every draw, above the
+ * fields. The colour is the third signal after the mark and the sentence. */
+[data-v2] .st-warn {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  color: var(--ink);
+  box-shadow: inset 0 -1px 0 var(--line);
+}
+[data-v2] .st-confirm {
+  color: var(--ink);
+  font-weight: 600;
+}
+[data-v2] .st-cap {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- the catalogue window ---------------------------------------------- */
+/* Eighteen rows tall at both densities, and screens/store.js holds the same
+ * eighteen in VIEW_ROWS. Changing one without the other leaves the window
+ * drawing fewer rows than the viewport shows, which reads as a blank strip at
+ * the bottom of the list. */
+[data-v2] .st-cat {
+  height: calc(var(--row-h) * 18);
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  box-shadow: inset 0 -1px 0 var(--line);
+}
+[data-v2] .st-cat:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+/* The spacer. Its padding is set inline, from --row-h, by the renderer: it is
+ * the only number on this screen that changes between draws, and it is
+ * arithmetic rather than a measurement. */
+[data-v2] .st-win {
+  display: block;
+}
+[data-v2] .st-row .lead {
+  color: var(--ink-dim);
+}
+[data-v2] .st-issue-row {
+  min-height: var(--row-h);
+}
+
+/* At yard the catalogue row is two lines, so the window is the same eighteen
+ * rows of a taller row and nothing else changes. At desk it is one line and
+ * the `.sub` is not rendered at all — a windowed list may only use the
+ * one-line row, because the window's arithmetic has exactly one row height. */
+[data-v2] [data-density="desk"] .st-row .t {
+  font-weight: 600;
+}
+
+/* ---- the filter control ------------------------------------------------ */
+[data-v2] .st-filter {
+  margin: var(--s2) var(--pad);
+  min-height: var(--tap);
+}
+
+/* ---- the counts view --------------------------------------------------- */
+/* A .table would be wrong here: every cell is a field. So the count stays a
+ * list of rows, and every row is a DIV — never a button, never a link. The
+ * field lives in .act and nothing that wraps it is a target. */
+[data-v2] .st-count-row {
+  cursor: auto;
+}
+[data-v2] .st-count-row .num {
+  display: flex;
+  align-items: center;
+}
+[data-v2] .st-count-row .num-in {
+  min-height: var(--tap);
+}
+/* The book figure, in Full mode only, beside the field and never inside it:
+ * a blind count must not be able to show what the book says. */
+[data-v2] .st-book {
+  font-size: var(--t6);
+  color: var(--ink-dim);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* The trust number: one figure, the share of counted lines that matched. */
+[data-v2] .st-trust {
+  color: var(--ink);
+}
+[data-v2] .st-trust-v,
+[data-v2] .st-owed {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  padding: var(--s2) var(--pad);
+  font-size: var(--t6);
+  box-shadow: inset 0 -1px 0 var(--line);
+}
+[data-v2] .st-owed-l {
+  color: var(--ink-dim);
+}
+[data-v2] .st-owed-n {
+  color: var(--ink-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- sheets ------------------------------------------------------------- */
+[data-v2] .st-sheet {
+  display: block;
+}
+[data-v2] .st-step {
+  display: block;
+  padding: 0 0 var(--s4);
+}
+[data-v2] .st-step-h {
+  margin: 0 0 var(--s2);
+  font-size: var(--t5);
+  font-weight: 650;
+  line-height: var(--lh);
+  color: var(--ink);
+}
+[data-v2] .st-wide {
+  display: flex;
+  width: 100%;
+  min-height: var(--tap);
+  margin-top: var(--s3);
+  justify-content: center;
+}
+[data-v2] .st-sheet .num {
+  margin-bottom: var(--s3);
+}
+
+/* ---- the vendor card and the piece sheet ------------------------------- */
+[data-v2] .st-vendor {
+  margin: var(--s3) var(--pad);
+}
+[data-v2] .st-bill .drow-v {
+  font-variant-numeric: tabular-nums;
+}
+/* Warranty in three forms that never look alike: in warranty carries --ok,
+ * ended is plain dim ink, and NOT RECORDED is the dash with its own sentence —
+ * never "ended", because 0 of 2,384 seeded parts carry a warranty and reading
+ * absence as expiry would mark the whole yard out of warranty on day one. */
+[data-v2] .st-warranty {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  margin: 0 0 var(--s3);
+  font-size: var(--t6);
+  line-height: var(--lh);
+  color: var(--ink-dim);
+}
+[data-v2] .st-warranty svg {
+  flex: 0 0 auto;
+}
+[data-v2] .st-ok {
+  color: var(--ok);
+}
+[data-v2] .st-ok svg {
+  color: var(--ok);
+}

@@ -1,0 +1,166 @@
+/* Garage Saathi v2 — People (#8). Spec: screens-money-people.md §2.1–2.3.
+ *
+ * FIVE RULES THIS FILE DOES NOT GET TO CHOOSE.
+ *
+ * 1. No colour and no size of its own. Every length below is one of the tokens
+ *    or a calc() of them; a px literal appears only inside a border, outline or
+ *    box-shadow value, and this file has none of those either.
+ * 2. Every selector starts with [data-v2], so the file is inert anywhere the v2
+ *    attribute is absent — v1 is live for about a hundred people and shares the
+ *    document for the whole migration.
+ * 3. Chrome 109 is the ceiling (Windows 7 office PCs): no oklch(), no
+ *    color-mix(), no nesting, no @starting-style, no subgrid, no text-wrap.
+ * 4. Motion is transform and opacity only. The press feedback on every control
+ *    here is components.css's scale(0.97) at 120 ms and this file adds none of
+ *    its own, and no @keyframes.
+ * 5. Almost nothing. The crew list is `.v2row`s, the person is `.card`s of
+ *    `.drow`s and `.stat`s, the tabs and the badges and the buttons and the
+ *    photo grid are all components.css's. What is left is the ONE COLUMN, the
+ *    desk master–detail, two quiet lines of text, and the one thing on this
+ *    screen that has to be read at arm's length.
+ */
+
+/* ---------- the one column -------------------------------------------------
+ * A grid rather than margins on the children, so the gap between blocks is
+ * stated once.
+ */
+[data-v2] .pe {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--s4);
+  padding-bottom: var(--s7);
+}
+
+[data-v2] .pe-list,
+[data-v2] .pe-detail {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--s3);
+  min-width: 0;
+}
+
+/* A full-width control: "Add a person", "Write what was said", the leaver.
+ * Each is the one thing its card asks for, so it takes the card's width rather
+ * than sitting in a row of buttons the eye has to choose between. */
+[data-v2] .pe-wide {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  margin-top: var(--s3);
+}
+
+/* ---------- the two quiet lines -------------------------------------------
+ * The freshness line above the list, and the count line under it. Both are
+ * sentences about the list rather than rows in it, which is the whole reason
+ * they exist: a list states its freshness and its length ONCE, in words, so no
+ * `.figure-note` and no age has to appear in any of the 164 rows.
+ */
+[data-v2] .pe-fresh,
+[data-v2] .pe-count,
+[data-v2] .pe-parts,
+[data-v2] .pe-hint {
+  margin: 0;
+  font-size: var(--t6);
+  color: var(--ink-dim);
+}
+
+[data-v2] .pe-count,
+[data-v2] .pe-parts {
+  padding-top: var(--s2);
+}
+
+[data-v2] .pe-off {
+  white-space: nowrap;
+}
+
+/* The label above the conversation log, above the coaching note and above the
+ * duplicate list. It is the most important text on those three cards — it says
+ * what KIND of writing the reader is looking at before they read a word of it —
+ * so it is the body size and the body colour, not a caption. */
+[data-v2] .pe-label {
+  margin: 0 0 var(--s3);
+  font-size: var(--t5);
+  color: var(--ink);
+}
+
+/* The line that stands where the documents card would have been. Same size as
+ * a `.drow` label, because it is a statement about this login and not an error.
+ */
+[data-v2] .pe-hidden {
+  margin: 0;
+  font-size: var(--t5);
+  color: var(--ink-dim);
+}
+
+/* THE ONE THING ON THIS SCREEN READ AT ARM'S LENGTH. A minted PIN is read out
+ * loud to somebody standing at a bus, once, and then it is gone for ever — the
+ * server will not show it again. --t3 is the size §2.9 asks for, tabular so a
+ * column of them lines up, and `user-select: all` so one tap selects the whole
+ * PIN rather than half of it. */
+[data-v2] .pe-pin {
+  font-size: var(--t3);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.08em;
+  user-select: all;
+}
+
+/* ---------- desk: master–detail -------------------------------------------
+ * §2.2: at 864px of content the crew list is a 320px left panel of one-line
+ * rows and the person fills the remaining 544px. Both clauses of the
+ * condition, matching shell.css and components.css exactly: desk density AND at
+ * least 1024px, because a width-only rule would split a tablet held in two
+ * hands (also 1024x768) and a desk-density page on a 360px phone must not be
+ * told it has two columns.
+ *
+ * The master column is a fixed measure and the detail column is minmax(0, 1fr),
+ * so a long name truncates inside its row instead of widening the list and
+ * reflowing the person beside it.
+ */
+@media (min-width: 1024px) {
+  [data-v2][data-density="desk"] .pe-split {
+    display: grid;
+    grid-template-columns: calc(var(--rail-w) * 2) minmax(0, 1fr);
+    gap: var(--s5);
+    align-items: start;
+    min-width: 0;
+  }
+
+  /* The list scrolls inside its own panel rather than scrolling the page, so
+   * the person's cards do not walk off the top while somebody is looking for a
+   * name. No `position` is used for this: the panel is a grid cell with a
+   * height, which is what keeps this file's one promise about not pinning
+   * anything to an edge. */
+  [data-v2][data-density="desk"] .pe-master {
+    max-height: calc(100vh - var(--nav-h) - var(--s8));
+    overflow-y: auto;
+    min-width: 0;
+  }
+
+  [data-v2][data-density="desk"] .pe-slave {
+    min-width: 0;
+  }
+
+  /* Two stacked columns of cards at desk, which is what makes 544px worth
+   * having: the score and the documents sit beside the incidents and the log
+   * instead of under them, and the reader of a 1024x768 screen sees the whole
+   * person without scrolling. */
+  [data-v2][data-density="desk"] .pe-slave .pe-detail {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: start;
+  }
+
+  /* …except the back control and the WHO card, which are the person's heading
+   * and run the full width above both columns. */
+  [data-v2][data-density="desk"] .pe-slave .pe-detail > .pe-back,
+  [data-v2][data-density="desk"] .pe-slave .pe-detail > .card:first-of-type {
+    grid-column: 1 / -1;
+  }
+}
+
+/* The back control is a quiet button, not a row, and it is the only thing above
+ * the person's first card. It carries its own mark and its word; `justify-self`
+ * keeps it the width of its words rather than the width of the column. */
+[data-v2] .pe-back {
+  justify-self: start;
+  gap: var(--s2);
+}

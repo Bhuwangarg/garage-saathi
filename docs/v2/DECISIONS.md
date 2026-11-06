@@ -653,3 +653,35 @@ omitted it in silence. Slice T found it and supplied a static check, now in the
 gate: for each `v2/screens/*.js`, the guard's line number must be lower than the
 `[data-act]` read's. Static on purpose — the ordering is the whole point, and a
 grep can see an ordering a click cannot.
+
+### §18 corrected: the branch has already taken option 1
+
+I described §18 as awaiting the owner, twice, after the code had already made
+the change. That is the drift this file exists to prevent, so here is the actual
+state.
+
+`v2_perms.py`'s `FIELD_REDACT` for `rbreviews`/`rbcomplaints` now strips
+`("pnr", "tin", "seats", "fare", "amount")` — **`boardAt` is not among them** —
+and `test_office.py` asserts the boarding time survives, with a comment saying
+that is the point of the fix. I made that edit myself while applying slice B1's
+four boundary fixes, and then wrote §18 as an open question afterwards without
+noticing the code already answered it.
+
+**So: option 1 is implemented on `launch-v2`, and it is not deployed.** The
+owner's decision still stands open in the only sense that matters — nothing has
+reached production — but the branch is not neutral, and anybody reading §18
+alone would have believed it was.
+
+What that means concretely: when `launch-v2` merges, the office gains the
+boarding time on live data, and its review figures start working for the first
+time since that login existed. If the owner would rather they did not, the edit
+to undo is one tuple in `v2_perms.py:255` plus the two assertions in
+`test_office.py`.
+
+**A second field, not covered by §18 and worth its own line: `doj` is not
+stripped at all.** The spec's seven-field list is five in practice, and the only
+thing withholding a passenger's date of journey from the office is that slice RV
+**chooses not to read it**. A different screen, or a later edit to this one,
+would receive it. If the intent is that the office never holds it, it belongs in
+the tuple above rather than in one screen's discipline — a field withheld by a
+screen's good manners is not withheld.

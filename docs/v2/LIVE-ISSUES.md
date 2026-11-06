@@ -422,3 +422,41 @@ between an unauthenticated request and a crew member's licence.
 
 **Still the owner's call**, and it is now a smaller, clearer decision: fund the
 client change, or accept capability URLs for these files and say so on purpose.
+
+---
+
+## 10. A crew member's face photo and exit record still reach every role
+
+**Verified, small, and one tuple away from fixed.** Found by slice PE, which
+hid them on screen and then said plainly that the server still sends them —
+because a field withheld by a screen's discipline is not withheld.
+
+`v2_perms.py`'s `FIELD_REDACT['drivers']` now withholds, from `office` and
+below: `phone`, `altPhone`, `address`, `dob`, `bloodGroup`, `license`, `docs`,
+`salaryMonthly`, and — added by slice B1 — `emgName`, `emgPhone`,
+`emgRelation`, `refName`, `refPhone`. That closes the half of `LIVE-ISSUES` §7.3
+about emergency and reference numbers.
+
+**Still sent to every signed-in role, including a `conductor` who holds zero
+capabilities:**
+
+| field | what it is |
+|---|---|
+| `photo` | the crew member's face |
+| `leftAt`, `leftReason`, `leftReasonKey`, `leftNote` | when somebody left and why |
+| `rehire` | whether they would be taken back |
+
+The face photo is the one I would fix first. It is a person's likeness, it
+reaches a colleague's phone with no capability behind it, and the app already
+treats a crew photograph as sensitive everywhere else — `crewPhone` is withheld
+on `buses` in the same tuple two lines below.
+
+The exit fields are a different kind of exposure and no less real: "left
+because" and "would we take them back" is an HR judgement about a former
+colleague, readable by the people they worked with.
+
+**The fix is one line** — add the six names to that tuple — and the only reason
+it is recorded rather than done is that it changes what a live role receives,
+which is the owner's call and the same class of decision as §18. Unlike §18
+there is no screen that needs them: PE already hides all six behind its
+documents rule, so nothing in v2 breaks when the server stops sending them.

@@ -131,6 +131,28 @@
      *                                     sign-off, so it is the owner's alone. */
     closeJob: ['owner', 'supervisor'],
     moveJobBus: ['owner'],
+    /* Correcting a record somebody else appended, and writing a bus's odometer.
+     *
+     * Slice FT needed both and had neither, so it stood them up on
+     * `garageSetup` -- the right roles for the wrong reason. `garageSetup`
+     * means "may open the garage setup sheet"; coupling fill-correction to it
+     * means a future narrowing of one silently narrows the other, which is the
+     * class of drift DECISIONS section 23 ruled on.
+     *
+     * editFuelFill is NOT the same question as creating a fill. Four roles may
+     * WRITE fuel on the server -- owner, supervisor, store, crewmanager
+     * (sync_server.py WRITE_ROLES) -- because the crew manager is the person
+     * standing at the pump. But fuel and def are append-only for everybody
+     * else (02 section 4.4): the person who recorded a fill cannot later edit
+     * it, which is the anti-tamper property. So creating is four roles and
+     * correcting is two, and they are different capabilities.
+     *
+     * writeBusOdometer mirrors the server exactly: WRITE_ROLES['buses'] is
+     * owner and supervisor, so a storekeeper's or crew manager's odometer
+     * write would be refused -- which FT found by reading the server rather
+     * than the spec, and skipped the control for them. */
+    editFuelFill: ['owner', 'supervisor'],
+    writeBusOdometer: ['owner', 'supervisor'],
     logService: ['owner', 'supervisor'],       // resets service + writes a verified job
     manageRoutes: ['owner', 'supervisor'],     // routes, stops, go-times, punctuality
     // Diesel, AdBlue and tyres are the crew manager's too: the person who runs
@@ -302,7 +324,11 @@
       declares: ['fleet'],
       // `liveMap` survives here as the bus's own position; the full-screen fleet
       // map is dropped outright (v2-ux.md §5.2, Q9).
-      gates: ['addBus', 'logService', 'challans', 'liveMap'],
+      // `addJob` is card 1's "Make a job" from an open driver report (§1.1) and
+      // `assignDriver` is card 8's link to the Duty board (§1.9). Both were gated
+      // correctly in the screen and absent here, so the "no capability is held
+      // without a path" sweep could not see either one. Found by slice B.
+      gates: ['addBus', 'logService', 'challans', 'liveMap', 'addJob', 'assignDriver'],
     },
     store: {
       title: 'Store', word: 'scStore', order: 6, nav: true, mark: 'part',
@@ -348,7 +374,11 @@
     fuel: {
       title: 'Fuel & tyres', word: 'scFuel', order: 11, nav: true, mark: 'fuel',
       declares: ['addFuel', 'manageComponents'],
-      gates: [],
+      /* `addFuel` admits four roles because the crew manager is at the pump.
+       * Correcting a fill somebody else appended, and writing a bus's recorded
+       * odometer, are both narrower -- owner and supervisor -- so they are gates
+       * here rather than declarations. The screen is reachable without them. */
+      gates: ['editFuelFill', 'writeBusOdometer', 'fleet', 'viewStore', 'outsideJob'],
     },
     reviews: {
       title: 'Reviews', word: 'scReviews', order: 12, nav: true, mark: 'review',

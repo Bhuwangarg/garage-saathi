@@ -130,3 +130,216 @@ builder first reported in wave 1 of the backend work, now narrowed to one suite.
 **16. The shell must compose the nav's count badges.** `nav(items, activeId)` has
 nowhere to put "Me (3)" — P1 says the shell composes it into `label`. S1 owns
 that.
+
+---
+
+## 17. THE TOP INTEGRATION ITEM: screen listeners are never removed
+
+**Found by slice MO while reviewing its own draft, then measured across all
+thirteen screens. This is the one defect in wave 4 and 5 that no single slice
+could see, and it is exactly what stage 4 exists for.**
+
+Every screen installs a delegated click listener on **`document`** in its
+`mount()`. And:
+
+- **No screen implements `unmount`.**
+- **No screen calls `removeEventListener`.**
+- **Neither `shell.js` nor `router.js` ever calls `unmount`**, although
+  `Router.register(id, {render, mount, unmount})` accepts one.
+
+So a listener survives for the whole session, and they accumulate: after
+visiting Store, People and Reviews, **three** live handlers are listening for
+`data-tab`. The attributes actually shared are:
+
+| attribute | read by |
+|---|---|
+| `data-tab` | store, people, reviews |
+| `data-filter` | jobs, reviews |
+| `data-act` | all thirteen |
+
+Most builders prefixed theirs and are therefore safe — `data-bs-job`,
+`data-open-part`, `data-bs-sort`. MO scoped its three to `.mo` after finding
+this. The rest are exposed, and `data-act` is shared by every screen, which is
+survivable only because each handler happens to ignore an act it does not know.
+
+**The fix, and it is the mechanism that already exists rather than a new one:**
+
+1. `Shell.mount` calls the **outgoing** screen's `unmount()` before mounting the
+   next. One edit in `shell.js`; the hook is already in the Router contract.
+2. Each screen implements `unmount()` and removes exactly what its `mount()`
+   added. Twelve small edits.
+3. Then a gate check per screen: a screen that calls `addEventListener` must
+   also call `removeEventListener`, and must export `unmount`. **Do not add that
+   check before step 2** — it would fail thirteen times and block every push,
+   which is how a gate gets bypassed.
+
+### Correction, measured before dispatching stage 4 (integrator)
+
+I re-measured this note against the files rather than forwarding it, and two of
+its statements are wrong. The fix it prescribes is right; the picture it paints
+of the current state is not.
+
+    screen       addEventListener  removeEventListener  unmount
+    attention           2                  0               no
+    buses               3                  0               no
+    duty                4                  0               no
+    fuel                4                  0               no
+    gate                7                  0              YES
+    jobcard             2                  0               no
+    jobs                2                  0               no
+    me                  3                  0               no
+    money               2                  0               no
+    people              4                  0               no
+    reviews             4                  0               no
+    store               5                  0               no
+    today               2                  0               no
+                       ---                ---
+                        42                  0
+
+1. **"No screen implements `unmount`" is false.** `gate.js` does: defined at
+   `v2/screens/gate.js:1165`, exported at `:1186`, and passed to
+   `Router.register` at `:1198`. Twelve screens lack it, not thirteen — which is
+   what this note's own step 2 says ("Twelve small edits"), so the step count was
+   right and the headline claim contradicted it.
+
+2. **Gate's `unmount` removes no listeners either.** It clears a timer and resets
+   seven `ui` fields. So step 2 is twelve screens that need `unmount` written plus
+   one that needs listener removal added to the `unmount` it already has. No
+   screen in v2 currently removes a listener.
+
+3. **`Router.register` does carry the hook, loosely.** It stores the module whole
+   (`modules[id] = mod`, `v2/router.js:87`) and validates only that `render` is a
+   function (`:86`), so `Router.moduleFor(id).unmount` is reachable from the Shell
+   today. The hook is available; the contract does not require it. Step 1 needs no
+   router change.
+
+**A fourth item this note missed.** `gate.js` is the only screen that sets a
+timer (`setTimeout` at `:1129`, the press-and-hold on the release control). It is
+cleared on release at `:1142` and self-nulls when it fires at `:1130`, so it is
+short-lived — but `unmount` clearing it at `:1166` is the one path that handles
+*navigating away mid-hold*, and since nothing ever calls `unmount`, that path is
+dead code. Hold the release control, leave the screen before `HOLD_MS`, and the
+timer fires against a screen that is no longer mounted. It is the smallest of the
+four findings and the only one that is a live misbehaviour rather than an
+accumulation.
+
+**Two partial guards already exist and should not be mistaken for the fix.**
+`people.js` and `store.js` carry a double-install guard, so re-entering one
+screen does not stack its own listener twice. That stops the count growing on
+re-entry; it does nothing about a *different* screen's listener still being
+live.
+
+**Why this was invisible to every slice.** Each builder tested its own screen in
+isolation, where exactly one listener exists and everything passes. The
+collision needs two screens mounted in one session, which is the integrator's
+first real test and nobody else's.
+
+---
+
+## 18. THE HEADLINE: v2 opens to a blank page — there is no login screen
+
+**Found in a browser, after wave 5 was wired and all fourteen node suites were
+green at 969 checks. No suite could have found it. This outranks note 17.**
+
+This note replaces a first draft of itself that claimed v2 was "three screens
+short of its own design". That was wrong, in three separate ways, because I
+compared the build against §5 of the *design spec* (fourteen screens) without
+noticing that **stage 1 superseded it**: `docs/v2/plan/v2-ux.md` is the
+authoritative screen list and it says **twelve**. All twelve are built. The
+corrections are at the end of this note, because the mistake is instructive — it
+is the same mistake as grading a slice against a brief nobody is working from.
+
+### What happens when a person opens /v2 today
+
+Nothing. A white page.
+
+    #app children ........... 0
+    S.route ................. "login"
+    S.user .................. null
+    console ................. no error from the shell
+
+All thirteen screen modules load and register. `Boot.start()` runs to completion
+and resolves. It routes to `login`, because `firstScreen()` returns `LOGIN` when
+there is no session (`v2/boot.js:255`). `Shell.mount('login')` then returns
+`true` — and draws nothing.
+
+**`Shell.mount` is not at fault.** `v2/shell.js:553` sends the login route to
+`signedOut()`, and `signedOut()` (`:504`) deliberately empties `#app`, drops
+`data-frame` and adds the `lg` class so `ui/login.css` owns a bare body. That
+hand-off is correct and intentional — its own comment says a nav over a keypad
+would be "a lie about there being somewhere to go". The frame gets out of the way
+exactly as designed.
+
+**There is nothing on the other side of the hand-off.** No login module exists.
+`ui/login.css` is 154 lines, defines the whole `.lg*` family (`.lg-pad`,
+`.lg-dots`, `.lg-who`, `.lg-ava`, `.lg-search`, `.pinpad`, `.userpick`), is
+linked in `index.html` and is precached in `sw.js`. The stylesheet for the screen
+shipped and the screen never did.
+
+Consequence: **nobody can sign in, so none of the twelve screens is reachable by
+a real person.** Every one of them is correct and unreachable.
+
+### Why no slice built it
+
+Login is not one of the twelve, and it was never meant to be. In v1 it lives
+*outside* `render()` — `docs/v2/inventory/01-screens-and-nav.md:38`: `renderLogin`
+→ `renderRolePick` → `renderPin` — so it was never a route to redesign, and the
+reduction that produced the twelve was a reduction *of routes*. Deny-by-default
+compounds it: login must be reachable with no capability at all, so it can never
+appear in `Caps.SCREENS`, which is the one list every gate, every suite and every
+dispatch was derived from. It is absent from the artefact that defines
+completeness, so nothing could report it missing.
+
+`v2/shell.js:61` says it plainly, and is the only place in the codebase that
+does: `const LOGIN = 'login';  // not one of the thirteen: nobody is signed in`.
+
+### Corrections to this note's first draft
+
+1. **"Three screens short of its own design" — wrong.** The design spec's §5
+   lists fourteen; stage 1 (`v2-ux.md`, revised against the owner's answers in
+   `DECISIONS.md §5–12`) reduces that to twelve and is the list the build was
+   dispatched from. The twelve are Today, Attention, Jobs, Job card, Buses,
+   Store, Money, People, Duty board, Fuel & tyres, Reviews, Me. **All twelve
+   exist**, plus `gate` as Duty board's drill-in, the way `jobcard` is Jobs'.
+
+2. **"Map and Challans are unbuilt" — wrong, they were absorbed.** Both were cut
+   between §5 and the UX plan, and their content is present:
+   - Map → Buses: `bsNoPosition`, `bsSeenNone`, `bsLinkGps`, `bsGpsReg`,
+     `bsNeedLinkGps` (`v2/screens/buses.js:189–217`).
+   - Challans → Attention as a ranked row, `attChallanN` / `attChallanWhy` with
+     `{ key: 'challan', cap: 'challans', band: 2, tone: 'crit' }`
+     (`v2/screens/attention.js:180–182, 302`), and → Buses as
+     `bsCardChallans` / `bsChallanPend` (`:121, 176`).
+
+3. **"`challans` is a capability guarding nothing" — wrong.** `v2/caps.js:179`
+   grants it to owner and supervisor and `v2/screens/attention.js:302` guards the
+   challans row with it. It is used.
+
+**One real finding does survive from that draft, and it is small: the UX plan's
+arithmetic does not add up.** It says "Gate check and Trip cash are dropped as
+screens. 14 → 12", but Trip cash was never one of §5's fourteen. The actual delta
+is three dropped (Map, Gate check, Challans) and one added (Job card). The
+outcome is right and the absorptions are sound; the sentence explaining how
+fourteen became twelve names the wrong two. Worth a line in the UX plan so the
+next person reconciling the two documents does not conclude, as I did, that two
+screens went missing.
+
+### What this costs
+
+**Login is blocking, and it blocks everything.** Until it exists, v2 cannot be
+opened by a person, demonstrated to the owner, or walked by the eight-role
+reviewer that stage 5 is supposed to run — the review that found four real
+boundary defects last time cannot even sign in.
+
+### What it says about the pipeline
+
+Every gate checks dispatched work against what it was dispatched to do, and every
+list of what to dispatch came from `Caps.SCREENS`. Login cannot be in that list
+by construction. So the pipeline had no representation of it anywhere, and
+thirteen slices, 969 checks, a 250-check pre-deploy gate and a browser boot all
+passed over the one screen standing between the product and its first user.
+
+The cheap fix is not another gate on the screens. It is a single check that the
+*shell's* own route constants each have something that draws them: `shell.js`
+knows about `LOGIN`, and nothing renders it. That check is four lines and would
+have failed on the day `signedOut()` was written.

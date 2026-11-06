@@ -1,0 +1,241 @@
+/* Garage Saathi v2 — Money (#7). Spec: screens-money-people.md §1.2 (phone),
+ * §1.3 (desk), §1.4 (the unreliable denominator) and §1.8 (the presses).
+ *
+ * WHAT IS NOT HERE IS THE POINT. `ui/components.css` already owns `.card`,
+ * `.v2row` / `.v2row-why`, `.tabs`, `.stat`, `.table` / `td.fig`, `.badge`,
+ * `.btn`, `.field`, `.select`, `.num` and `.figure`; `ui/screens.css` already
+ * owns `.drow` and its three parts. This file is only what §1.2 and §1.3 ask
+ * for that no existing rule says: the arithmetic line, the one-line statements
+ * beside the figures, the two desk columns, and the frozen fields of a closed
+ * trip. No token, no colour literal, no animation — every colour is a token
+ * name and `px` appears only where the foundation allows a literal (border,
+ * outline, box-shadow). Chrome 109: no nesting, no :has(), no oklch().
+ *
+ *   1  .mo-fresh / .mo-fresh-off   the screen's one freshness line (§1.2)
+ *   2  .mo-arith                   the six parts added up in words (§1.1)
+ *   3  .mo-note                    a one-line statement under a figure: what is
+ *                                  excluded, what is redacted, what needs signal
+ *   4  .mo-head                    a card's sub-heading ("Cannot work out cost
+ *                                  per km (3)") — a heading inside a card, which
+ *                                  `.card h3` is already used for at the top
+ *   5  the two desk columns, and the per-bus table full width under them (§1.3)
+ *   6  .mo-sheet / .mo-exp / .mo-frozen   the trip sheets (§1.5)
+ *   7  .mo-all                     "See all 89 buses" as a row, not a button
+ *
+ * THE DESK COLUMNS ARE A RATIO, NOT 520px. §1.3 says "left 520px, right the
+ * rest" of 864px of content. A px literal outside a border is forbidden here
+ * (v2-foundation-ui.md §2.1) and would also be wrong the moment the rail or the
+ * window changes width, so the same split is written as 1.6fr / 1fr — 0.615 of
+ * the row against the spec's 0.602. The ratio is what §1.3 is really stating:
+ * the total and its six parts need the wider half, because the reconciliation
+ * line is the longest string on the screen.
+ */
+
+/* 1. THE SCREEN STATES ITS FRESHNESS ONCE, AND THIS IS IT (§1.7, foundation
+ * §2.3 rule 4). It is the reason no figure inside a money-pit row, a trip row
+ * or a per-bus table cell carries `at`: `at` adds `.figure-note` as a block
+ * element, which triples the row height and runs the age words once per row —
+ * eighty-nine times on the per-bus table. One line here, and the hero is the
+ * only figure on the screen that carries an age.
+ *
+ * Offline it turns --warn AND the screen draws `icon('offline')` in place of
+ * `icon('clock')`, because status is never colour alone (§7.1 item 14). */
+[data-v2] .mo-fresh {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  margin: var(--s2) 0 0;
+  color: var(--ink-dim);
+  font-size: var(--t6);
+  line-height: var(--lh);
+}
+
+[data-v2] .mo-fresh svg {
+  display: block;
+  flex: none;
+}
+
+[data-v2] .mo-fresh-off {
+  color: var(--warn);
+}
+
+/* 2. THE ARITHMETIC, IN WORDS, AND IT HAS TO WRAP.
+ *
+ * "Fuel & AdBlue 2,41,300 + Parts 1,58,940 + … = 6,03,410" is about ninety
+ * characters, which is two lines at yard and one at desk. `white-space: normal`
+ * is stated outright because this sits under six `.drow`s whose labels do not
+ * wrap, and an arithmetic line truncated to an ellipsis would hide the term
+ * that does not add up — which is the one thing this line exists to show.
+ * `tabular-nums` is inherited from [data-v2]; the figures in it are read
+ * against the six rows above. */
+[data-v2] .mo-arith {
+  margin: var(--s2) 0 0;
+  padding-top: var(--s2);
+  border-top: 1px solid var(--line);
+  color: var(--ink-dim);
+  font-size: var(--t6);
+  line-height: var(--lh);
+  white-space: normal;
+  overflow-wrap: break-word;
+}
+
+/* 3. A one-line statement under a figure.
+ *
+ * Four of them, and each is a sentence the foundation requires rather than a
+ * decoration: what is NOT in the total (§1.1), how the fleet per-km figure was
+ * worked out and how many buses are out of it (§1.4), which field is withheld
+ * for this login (§1.7 "partially redacted"), and what needs a connection
+ * (§1.7 offline). A hidden field says it is hidden once, in words, and never by
+ * drawing an empty row (§5 rule 4). */
+[data-v2] .mo-note {
+  margin: var(--s2) 0 0;
+  color: var(--ink-dim);
+  font-size: var(--t6);
+  line-height: var(--lh);
+}
+
+[data-v2] .mo-note:first-child {
+  margin-top: 0;
+}
+
+/* 4. A sub-heading inside a card. `.card h3` is the card's own title, and the
+ * no-km section and the per-bus table are sections WITHIN a card, so they take
+ * a quieter heading rather than a second h3 at the same weight. */
+[data-v2] .mo-head {
+  margin: var(--s4) 0 var(--s2);
+  color: var(--ink);
+  font-size: var(--t6);
+  font-weight: 600;
+  line-height: var(--lh);
+}
+
+/* 5. DESK: TWO COLUMNS, AND THE PER-BUS TABLE FULL WIDTH UNDER BOTH (§1.3).
+ *
+ * Both selector shapes, because `data-density` sits on the html element in the
+ * app and on a wrapper in the gallery (components.css §0 note).
+ *
+ * At yard this rule does not apply at all and the children stack in one
+ * column, which is §1.2 — so there is no yard rule to keep in step with this
+ * one. `.mo-wide` is a grid item spanning both columns rather than a sibling
+ * after the grid, so the table cannot be separated from the screen it belongs
+ * to by a stray element between them. */
+[data-v2][data-density="desk"] .mo-cols,
+[data-v2] [data-density="desk"] .mo-cols {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+  gap: var(--s4);
+  align-items: start;
+}
+
+[data-v2][data-density="desk"] .mo-wide,
+[data-v2] [data-density="desk"] .mo-wide {
+  grid-column: 1 / -1;
+}
+
+/* The ten-column per-bus table at desk. §1.3 names the two columns that must
+ * never give — km and cost per km, "the two the owner came for" — so the eight
+ * money columns are the ones allowed to narrow. `table-layout: auto` with the
+ * figure columns right-aligned by `td.fig` does that on its own; what is stated
+ * here is only that the bus's registration never wraps, because a wrapped
+ * registration is a two-line row and the row budget is measured in one-line
+ * rows (foundation §2.3). */
+[data-v2] .mo-bus-t td:first-child,
+[data-v2] .mo-bus-t th:first-child {
+  white-space: nowrap;
+}
+
+/* 6. THE TRIP SHEETS (§1.5).
+ *
+ * `.num` is the field primitive and already carries its label, its hint and its
+ * right-aligned digits; all this adds is the space between fields, because a
+ * sheet of five controls with no gap is one control.
+ *
+ * `.mo-exp` is one expense: three controls on a line at desk, stacked at yard.
+ * Repeated by "Add another", so the gap is on the container and not between
+ * siblings — an `+` selector would leave the first row of a freshly emptied
+ * list differently spaced from the rest. */
+[data-v2] .mo-sheet {
+  display: grid;
+  gap: var(--s3);
+  margin: 0;
+}
+
+[data-v2] .mo-exp {
+  display: grid;
+  gap: var(--s2);
+  padding: var(--s2) 0;
+  box-shadow: inset 0 -1px 0 var(--line);
+}
+
+[data-v2][data-density="desk"] .mo-exp,
+[data-v2] [data-density="desk"] .mo-exp {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);
+  align-items: end;
+}
+
+/* A CLOSED TRIP'S FIELDS ARE FROZEN, AND THE SHEET SAYS SO IN WORDS.
+ *
+ * §1.5 gives the two declarations exactly. The words beside them are the
+ * screen's, not this file's: "Closed trips cannot be changed here." A field
+ * that is only dimmed is status as colour alone, which §7.1 item 14 forbids.
+ *
+ * Named honestly, where the person maintaining this will read it: THIS FREEZE
+ * IS A CLIENT RULE FOR A SUPERVISOR. The server freezes a closed trip for a
+ * `driver` only (`02 §4.4`), so a supervisor or owner token may still push a
+ * changed closed trip. Stage-3 backend item §7.6. */
+[data-v2] .mo-frozen {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* 7. "See all 89 buses" IS A ROW, not a centred button — the last line of the
+ * card, reading as the continuation of the list above it. `.btn-quiet` already
+ * gives it the press, the ring and the hover, so none of those is restated:
+ * restating a press is how two components end up disagreeing about what a tap
+ * looks like. It is ABSENT at one row, and that is the screen's rule (§1.7 "one
+ * item") — a stylesheet cannot hide a control honestly. */
+[data-v2] .mo-all {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  width: 100%;
+  min-height: var(--row-h);
+  padding: 0;
+  text-align: left;
+}
+
+/* The money-pit row's mark carries its severity in the icon's colour and never
+ * in a filled tile behind it — `.v2row-why.crit > .lead` in components.css is
+ * the same rule for the same reason. These three are the tone classes this
+ * screen puts on a `.lead` that is NOT a `.v2row-why` (a trip row, a dues row),
+ * and they are declared together so a row that needs one does not invent a
+ * class. Never colour alone: every row that takes one also carries its reason
+ * in words. */
+[data-v2] .v2row > .lead.tone-warn { color: var(--warn); }
+[data-v2] .v2row > .lead.tone-bad { color: var(--bad); }
+[data-v2] .v2row > .lead.tone-ok { color: var(--ok); }
+
+/* THE PERIOD REPORT IS THIS SCREEN WITH THE PERIOD FIXED AND THE NAV ABSENT AT
+ * PRINT WIDTH (§1.6) — not a new screen and not a download. So the print rules
+ * are here rather than in a report file that would be a second place the six
+ * parts are laid out, which is the whole defect this screen exists to end.
+ * One printable column: the desk grid collapses, the tabs and the sheet-opening
+ * controls go (a printed button is an instruction nobody can follow), and the
+ * hairlines stay because the figures are read against each other. */
+@media print {
+  /* The same two selector shapes the desk rule above uses, because an equal
+   * specificity later in the file is what wins — `[data-v2] .mo-cols` on its own
+   * loses to `[data-v2][data-density="desk"] .mo-cols` and the columns would
+   * print side by side. */
+  [data-v2][data-density="desk"] .mo-cols,
+  [data-v2] [data-density="desk"] .mo-cols,
+  [data-v2] .mo-cols {
+    display: block;
+  }
+
+  [data-v2] .mo-tabs,
+  [data-v2] .mo-write,
+  [data-v2] .mo-all {
+    display: none;
+  }
+}

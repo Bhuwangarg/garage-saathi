@@ -69,7 +69,9 @@ const STYLES = ['ui/tokens.css', 'ui/components.css', 'ui/screens.css', 'ui/logi
                 // a stylesheet linked but not named here fails, and one named but not
                 // linked fails too -- which is what caught all seven screens arriving
                 // on disk wired to nothing.
-                'ui/today.css', 'ui/attention.css', 'ui/work.css', 'ui/duty.css', 'ui/gate.css', 'ui/me.css'];
+                'ui/today.css', 'ui/attention.css', 'ui/work.css', 'ui/duty.css', 'ui/gate.css',
+                'ui/buses.css', 'ui/fuel.css', 'ui/money.css', 'ui/people.css', 'ui/reviews.css',
+                'ui/store.css', 'ui/me.css'];
 
 /* What must already have run when a file runs. Not "what it imports" — there are
  * no imports — but what has to have declared itself before this file's own

@@ -468,7 +468,7 @@ function main() {
         changes.length === 1 && changes[0] === 'store' && Router.current().id === 'store');
 
   /* ================================================================== *
-   * 9. The table itself: 43 capabilities -- v1's 37 transcribed, the four v2
+   * 9. The table itself: 45 capabilities -- v1's 37 transcribed, the four v2
    *    names, and closeJob + moveJobBus, with v1's exact role lists.
    *
    *    This said 41 until slice W found that `mayCloseJob` and `changeJobBus`
@@ -479,8 +479,16 @@ function main() {
    *    (sync_server.py:1760 and :1702) and gated on the Job card.
    * ================================================================== */
   const caps = Object.keys(Caps.PERMS);
-  check('43 capabilities: v1\'s 37, four v2 names, closeJob + moveJobBus (got '
-        + caps.length + ')', caps.length === 43);
+  check('45 capabilities: v1\'s 37, four v2 names, and the four minted from the '
+        + 'server\'s own rules -- closeJob, moveJobBus, editFuelFill, '
+        + 'writeBusOdometer (got ' + caps.length + ')', caps.length === 45);
+  /* Each minted one is checked against the server line it came from, not just
+   * counted -- a count notices a capability appearing and says nothing about
+   * whether its role list is right, which is the half that leaks. */
+  check('editFuelFill is owner and supervisor: a fill is append-only for everyone else',
+        Caps.PERMS.editFuelFill.slice().sort().join(',') === 'owner,supervisor');
+  check('writeBusOdometer mirrors WRITE_ROLES[buses], which is two roles',
+        Caps.PERMS.writeBusOdometer.slice().sort().join(',') === 'owner,supervisor');
   ['closeJob', 'moveJobBus'].forEach(function (c) {
     check('the minted capability ' + c + ' exists and is role-scoped',
           Array.isArray(Caps.PERMS[c]) && Caps.PERMS[c].length > 0);

@@ -1,0 +1,264 @@
+/* Garage Saathi v2 — Reviews (#11). Spec: screens-money-people.md §3.
+ *
+ * FIVE RULES THIS FILE DOES NOT GET TO CHOOSE.
+ *
+ * 1. No colour and no size of its own. Every length is a token or a calc() of
+ *    tokens; every colour is a token reference. A px literal appears only
+ *    inside a border, outline or box-shadow value (`PX_OK_PROP`), and this file
+ *    has none of those.
+ * 2. Every selector starts with [data-v2], so the file is inert anywhere the v2
+ *    attribute is absent. v1 is live and shares the document for the whole
+ *    migration.
+ * 3. Chrome 109 is the ceiling (Windows 7 office PCs): no oklch(), no
+ *    color-mix(), no nesting, no @starting-style, no subgrid, no text-wrap.
+ * 4. Motion is transform and opacity only, never over 300 ms. The press
+ *    feedback on every control here is components.css's scale(0.97) at 120 ms
+ *    and this file adds none of its own.
+ * 5. Almost nothing. `.tabs`, `.v2row`, `.badge`, `.btn*`, `.figure`, `.field`,
+ *    `.card`, `.drow`, `.select` and `.num` are already components. What is
+ *    left is the scroll container windowing needs, the search field's icon, two
+ *    quiet lines of text, the queue row's three buttons, and the desk split.
+ *
+ * THE ONE RULE WITH A MEASUREMENT BEHIND IT (`DECISIONS.md §20`). This screen
+ * holds about 4,000 reviews and grows by ~1,025 every sixteen days. 2,384 rows
+ * drawn whole cost 410-619 ms on an i9 with sixteen cores, against 7-19 ms
+ * windowed; the office runs Core 2 Duos, commonly five to ten times slower. So
+ * the list WINDOWS, and windowing has exactly one requirement from this file:
+ *
+ *     EVERY ROW IN `.rv-list` IS EXACTLY `--row-h` TALL, AT BOTH DENSITIES.
+ *
+ * The screen computes the spacing above and below the window as
+ * `calc(var(--row-h) * n)` and never measures a row, so a row that wraps to two
+ * lines puts every row below it in the wrong place and the scrollbar lies.
+ * `white-space: nowrap` with `text-overflow: ellipsis` is therefore load-
+ * bearing here rather than decoration — which is also §3.5's stated trade: the
+ * reason does not fit in the row and goes into the opened review instead.
+ */
+
+/* ---------- the screen ---------------------------------------------------- */
+[data-v2] .rv {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--s3);
+}
+
+/* ---------- the freshness line, and the two quiet sentences ---------------
+ * `.rv-fresh` is the ONE place an age appears on this screen: `at` on a figure
+ * inside a row would add `.figure-note` as a block element, break the row
+ * height windowing depends on, and run the age words four thousand times.
+ *
+ * `.rv-note` carries three different sentences — the §18 "dates are not
+ * available to this login" line, the office's "Passenger ticket details are not
+ * part of this screen", and the queue's "a row marked Decided by Claude can be
+ * changed here". All three are an ABSENCE explained, so none of them is an
+ * error colour: --ink-dim, with the word doing the work.
+ */
+[data-v2] .rv-fresh {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s2);
+  margin: 0;
+  font-size: var(--t5);
+}
+
+[data-v2] .rv-off {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s1);
+  color: var(--warn);
+}
+
+[data-v2] .rv-note {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s2);
+  margin: 0;
+  color: var(--ink-dim);
+  font-size: var(--t6);
+  line-height: var(--lh);
+}
+
+[data-v2] .rv-count {
+  margin: var(--s3) 0 0;
+  padding: 0 var(--pad);
+  color: var(--ink-dim);
+  font-size: var(--t6);
+}
+
+/* ---------- the search field ---------------------------------------------
+ * A label wrapping the input, so the icon is inside the hit area and the whole
+ * thing is one target. The icon is positioned with grid rather than `position`,
+ * because this screen pins nothing to anything.
+ */
+[data-v2] .rv-find {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--s2);
+  padding: 0 var(--pad);
+}
+
+[data-v2] .rv-find-i {
+  display: inline-flex;
+  align-items: center;
+  color: var(--ink-dim);
+}
+
+/* ---------- the windowed list --------------------------------------------
+ * The scroll container. Its height is the viewport's, not the content's, which
+ * is what makes a 4,000-row list cost a 200-row draw. `overflow-anchor: none`
+ * because the browser's own scroll anchoring fights a list whose rows are
+ * replaced under it on every scroll step.
+ */
+[data-v2] .rv-list {
+  min-width: 0;
+  max-height: calc(var(--row-h) * 18);
+  overflow-y: auto;
+  overflow-anchor: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* The window's own padding is written inline by the screen as
+ * `calc(var(--row-h) * n)` — n rows above, n rows below — so the scroll height
+ * is `rows x --row-h` exactly and nothing is measured to get it. */
+[data-v2] .rv-win {
+  min-width: 0;
+}
+
+/* THE ROW HEIGHT RULE. One line, clipped, at both densities. A row that wraps
+ * breaks the arithmetic above; see the header. */
+[data-v2] .rv-row .t,
+[data-v2] .rv-q .t {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* `.act` holds exactly one thing on a review row — the stars — and never an
+ * age. Fixed-width-free: the figure sizes itself and the title column is the
+ * one that gives way. */
+[data-v2] .rv-row .act {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  padding-left: var(--s3);
+}
+
+/* ---------- the name queue ----------------------------------------------
+ * Three buttons on one row, in the action column, in one order everywhere:
+ * confirm, someone else, not a person. The row is a div and not a button,
+ * because the row itself does nothing — every one of the three presses is its
+ * own write, which is why an interruption costs nothing (§3.6).
+ */
+[data-v2] .rv-q .act {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--s2);
+  padding-left: var(--s3);
+}
+
+/* The group confirm sits BELOW the rows it will write, never above them: the
+ * first press reveals the seven and the second writes them, and a button above
+ * the list is a button pressed before the list was read (§3.3). */
+[data-v2] .rv-group {
+  margin: var(--s3) var(--pad) 0;
+}
+
+/* ---------- the opened review -------------------------------------------- */
+[data-v2] .rv-sheet {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--s3);
+}
+
+/* The passenger's own words, set apart so they are never mistaken for ours.
+ * The rule down the start edge is a border, which is the one place a px literal
+ * is allowed. */
+[data-v2] .rv-said {
+  margin: 0;
+  border-left: 3px solid var(--line);
+  padding: var(--s3) var(--s4);
+  font-size: var(--t4);
+  line-height: var(--lh);
+}
+
+/* Claude's reading. No accent fill and no verdict colour: it is a reading, not
+ * a finding, and the label says so in words directly above the verdict. */
+[data-v2] .rv-read {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--s2);
+}
+
+[data-v2] .rv-label {
+  margin: 0;
+  color: var(--ink-dim);
+  font-size: var(--t6);
+  font-weight: 600;
+}
+
+[data-v2] .rv-note-sheet,
+[data-v2] .rv-inc-sheet,
+[data-v2] .rv-choose {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--s3);
+}
+
+/* The desk panel. At yard it is never drawn (§3.1: the review is a sheet there,
+ * because 360px has no second column), so this file gives it no layout of its
+ * own outside the desk query below — and the sheet markup inside it is already
+ * styled by `.rv-sheet` above. */
+[data-v2] .rv-panel {
+  min-width: 0;
+}
+
+/* ---------- desk: the list on the left, the review beside it -------------
+ * §3.1: at desk the list is a 360px left panel and the review opens in the
+ * remaining 504px as a panel rather than a <dialog>, because at a desk the list
+ * and the review are read together. Both clauses of the condition, matching
+ * shell.css and components.css exactly: desk density AND at least 1024px, so a
+ * tablet in landscape and a desk-density page on a phone are both left alone.
+ *
+ * 360 + 504 = 864, which is the content width a 1024px office screen has left
+ * once the rail takes --rail-w. The two columns are written as a fraction of
+ * that rather than as two literals, because a px literal here is the rule at
+ * the top of this file.
+ */
+@media (min-width: 1024px) {
+  [data-v2][data-density="desk"] .rv {
+    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+    align-items: start;
+    column-gap: var(--s5);
+  }
+
+  /* The header, the tabs, the filters and the search run across both columns:
+   * they narrow the list, and a filter row inside a 360px panel wraps to three
+   * lines at desk's own type size. */
+  [data-v2][data-density="desk"] .rv-fresh,
+  [data-v2][data-density="desk"] .rv-tabs,
+  [data-v2][data-density="desk"] .rv-filters,
+  [data-v2][data-density="desk"] .rv-find,
+  [data-v2][data-density="desk"] .rv-note {
+    grid-column: 1 / -1;
+  }
+
+  /* Taller at a desk because a desk row is --row-h 32px: eighteen rows is 576px
+   * on a yard phone and 576px here would be most of a 768px office screen, so
+   * the desk window is counted in rows and lands at about 60% of the height. */
+  [data-v2][data-density="desk"] .rv-list {
+    max-height: calc(var(--row-h) * 24);
+  }
+
+  /* The panel scrolls on its own, so reading a long comment does not move the
+   * list out from under the reader's eye. */
+  [data-v2][data-density="desk"] .rv-panel {
+    max-height: calc(var(--row-h) * 24);
+    overflow-y: auto;
+    padding: 0 var(--pad);
+  }
+}
