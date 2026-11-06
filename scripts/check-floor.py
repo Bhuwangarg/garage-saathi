@@ -61,8 +61,27 @@ NESTING = re.compile(r"^\s*&[\s.:>+~\[{]")
 # here and is now out: an arrow is not an emoji, Windows 7 renders -> and the
 # rest from ordinary fonts, and including it flagged nineteen comments in the
 # data layer that had been harmless for a year.
+#
+# U+231A-231B and U+23E9-23FA were MISSING and are added here: the watch, the
+# hourglass, and the clock/media block that carries the alarm clock, the timer,
+# the stopwatch and the pause and record marks. Verified before and after --
+# U+23F0, U+231B and U+23F1 each passed this checker on their own, and each is
+# red now. They are Emoji_Presentation=Yes, which is the test that matters: the
+# font is asked for a colour glyph whether or not a variation selector follows,
+# and Windows 7 has none to give.
+#
+# What is deliberately NOT added, having been considered:
+#   - (c), (R), (TM), the information source and the geometric shapes default to
+#     TEXT presentation and render from ordinary Windows 7 fonts. They only turn
+#     into emoji when followed by U+FE0F, which is already banned below, so
+#     banning the base characters would flag correct typography instead.
+#   - U+200D, the zero-width joiner, which a review suggested. It would be wrong
+#     here and will become more wrong: Devanagari uses ZWJ and ZWNJ to control
+#     conjuncts, and DECISIONS §21 is 459 Hindi strings away from putting real
+#     Devanagari in these files. A rule that reddens correct Hindi is worse than
+#     the emoji it would catch, and U+FE0F already catches the sequences.
 EMOJI_RANGES = [(0x1F000, 0x1FAFF), (0x2600, 0x27BF), (0xFE0F, 0xFE0F),
-                (0x2B00, 0x2BFF)]
+                (0x2B00, 0x2BFF), (0x231A, 0x231B), (0x23E9, 0x23FA)]
 EXT = {".css", ".js", ".mjs", ".html"}
 
 
