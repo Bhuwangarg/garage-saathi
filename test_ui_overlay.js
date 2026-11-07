@@ -1372,7 +1372,25 @@ const LOCK_PAGE = { body: TALL_BODY, head: '<style>html::-webkit-scrollbar { wid
 async function checkScrollLock(env) {
   const f = [], settled = (p) => p.eval('H.settled()'), frames = (p) => p.eval('H.frames(3)');
   const state = (p) => p.eval("({ y: Math.round(window.scrollY), ov: document.documentElement.style.overflow, pr: document.documentElement.style.paddingRight, app: (function(){ var a = document.getElementById('app'); if (!a) return [0, 0]; var r = a.getBoundingClientRect(); return [Math.round(r.left), Math.round(r.width)]; })() })");
-  const wheelMoves = async (p) => { await p.eval('window.scrollTo(0, 0); 1'); await p.wheel(500, 300, 400); return p.until('window.scrollY > 0', 1000); };
+  /* One wheel and a second to notice it was enough on a machine that draws; a
+   * CI runner managing 8 frames a second missed it and reported "the page
+   * cannot scroll", which reads as the lock never releasing. It had released --
+   * the overflow assertion beside this one passed every time.
+   *
+   * So the OBSERVATION is retried, not the assertion relaxed. A page that is
+   * genuinely held still has scrollY 0 after four wheels and four seconds, so
+   * this keeps every failure it could catch before, including the one this
+   * check exists for: overflow restored and the page still stuck, which is what
+   * a leftover wheel listener looks like. It only stops calling a slow machine
+   * a locked one. */
+  const wheelMoves = async (p) => {
+    await p.eval('window.scrollTo(0, 0); 1');
+    for (let i = 0; i < 4; i++) {
+      await p.wheel(500, 300, 400);
+      if (await p.until('window.scrollY > 0', 1000)) return true;
+    }
+    return false;
+  };
   // 1. the app's own inline styles come back exactly; page scrolls before, is held while open, scrolls again after
   await withPage(env, LOCK_PAGE, async (p) => {
     await p.eval("document.documentElement.style.overflow = 'auto'; document.documentElement.style.paddingRight = '2px'; 1");
