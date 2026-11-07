@@ -117,10 +117,17 @@ quietly.
 
 ## What is still engineering, and is not blocked on you
 
-Hindi aside, the review left a short list that wants one more slice: no screen
-reads `Cache.unread()` by name yet, so a store that could not be read is
-distinguished internally but no screen says "Gate checks could not be read on
-this phone". `title(nameOf(id))` still runs before the permission test, so the
-header names the screen over a refusal. And the gate round's photo paths —
-camera, the three photos, the 1.5-second hold — are unexercised by anybody,
-because no automated browser can hold a camera up to a bus.
+Hindi aside, this list is down to one item, and that one cannot be closed from
+a keyboard.
+
+**Done since.** `title(nameOf(id))` ran before the permission test was used, so
+the header and the tab named a screen over a refusal — "Money — Garage Saathi"
+above a body saying it is not open to you. A screen you do not hold is not
+named now, and `test_v2_shell.js` goes red in two places if that regresses.
+`Cache.unread()` is read by name after all: `attention.js` draws "Could not be
+ranked (…)" from it, so that note was stale when it was written.
+
+**Open, and not closable from here.** The gate round's photo paths — camera,
+the three photos, the 1.5-second hold — are unexercised by anybody, because no
+automated browser can hold a camera up to a bus. It wants one person, one
+phone and one bus, once.
