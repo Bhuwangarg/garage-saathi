@@ -199,6 +199,96 @@ OWN_ROWS_ONLY = {
 # `trips` was keyed on the login id in the first version of this file, so a v1
 # driver received none of their own trips and the trip-cash card on their home
 # screen -- one of the four screens that login has -- came up empty.
+# ---------------------------------------------------------------------------
+# Membership, for a store whose "mine" is a LIST and not a column.
+#
+# `OWN_ROWS_ONLY` above narrows on one scalar field, which is every store but
+# one. A job card's crew is `assignees[].userId`, falling back to the single
+# `assignedTo` on cards written before multi-mechanic jobs — so it fits no
+# `(field, roles)` pair, and that is the whole reason `jobcards` was never in
+# the map and a mechanic received every card in the fleet. `02 §4.3` says a
+# mechanic must never see another mechanic's card and `02 §6.2` records that it
+# leaked once already; REV-AUTH verified a second mechanic's token pulling all
+# three cards on both read paths, hours and `externalCost` included.
+#
+# Only the mechanic is narrowed. `store` keeps every card on purpose: the
+# storekeeper issues a part against a chosen card (`v2-ux.md §4` row 3, "store
+# (read)"), and owner and supervisor run the workshop.
+OWN_ROWS_MEMBER = {
+    "jobcards": frozenset({"mechanic"}),
+}
+
+
+def job_crew_ids(rec):
+    """User ids on a job card: `assignees` if it has any, else `assignedTo`.
+
+    THE one definition. `app.js`'s `jobCrew()` and `v2/screens/jobcard.js` are
+    the client's copies of the same rule and `sync_server.py`'s `_job_crew`
+    delegates here, because the write guard that refuses "you are not on this
+    job" and the read rule that decides which cards arrive have to be the same
+    sentence. Two copies that drift mean a mechanic who can write a card they
+    can no longer see.
+
+    The fallback is ordered, not combined: a card WITH assignees is described by
+    them alone, so a stale `assignedTo` on a reassigned card grants nothing.
+    """
+    rec = rec or {}
+    ids = []
+    for a in rec.get("assignees") or []:
+        uid = a.get("userId") if isinstance(a, dict) else None
+        if uid and str(uid) not in ids:
+            ids.append(str(uid))
+    if not ids and rec.get("assignedTo"):
+        ids.append(str(rec["assignedTo"]))
+    return ids
+
+
+def member_row_ok(store, actor, data):
+    """Exact membership test for `OWN_ROWS_MEMBER`. This is the boundary.
+
+    `redact_for` calls it on every record it returns, so what this refuses never
+    leaves the server whatever the SQL did. `member_rows_predicate` below is a
+    volume filter sitting in front of it and is deliberately allowed to be
+    LOOSER — never tighter, because a tighter SQL filter drops a row the cursor
+    has already stepped past and the device never asks again.
+    """
+    roles = OWN_ROWS_MEMBER.get(store)
+    if not roles or not actor or not isinstance(data, dict):
+        return True
+    if actor.get("role") not in roles:
+        return True
+    me = str(actor.get("id") or "")
+    if not me:
+        return False               # no identity: deny, never widen
+    return me in job_crew_ids(data)
+
+
+def member_rows_predicate(store, actor, dialect="sqlite"):
+    """`(sql_fragment, params)` for `OWN_ROWS_MEMBER`, or None if unrestricted.
+
+    A SUPERSET of `member_row_ok` on purpose, and the comment is the design:
+    this matches a card that names the actor in `assignees` OR in `assignedTo`,
+    while the exact rule prefers `assignees` when it has any. The two differ for
+    one card only — reassigned away from somebody whose `assignedTo` was left
+    behind — and on that card this sends the row and `member_row_ok` drops it.
+    Loose here costs a row read; tight here would cost a row that is never sent
+    and never asked for again, which is the failure in `c5dff43`'s own comment.
+    """
+    roles = OWN_ROWS_MEMBER.get(store)
+    if not roles or not actor or actor.get("role") not in roles:
+        return None
+    me = str(actor.get("id") or "")
+    if not me:
+        return ("1 = 0", [])       # no identity for the subject: no rows
+    if dialect == "postgres":
+        return ("((data::jsonb->'assignees') @> jsonb_build_array("
+                "jsonb_build_object('userId', ?::text))"
+                " OR (data::jsonb->>'assignedTo') = ?)", [me, me])
+    return ("(EXISTS (SELECT 1 FROM json_each(data, '$.assignees')"
+            " WHERE json_extract(value, '$.userId') = ?)"
+            " OR json_extract(data, '$.assignedTo') = ?)", [me, me])
+
+
 OWN_ROWS_SUBJECT = {
     "trips":   "crew",
     "triplog": "bus",

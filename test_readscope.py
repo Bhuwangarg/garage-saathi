@@ -122,8 +122,15 @@ for role in ROLES:
             # asked with the actor's OWN row, keyed on whichever of the three ids
             # that store's field actually holds.
             field = (P.OWN_ROWS_ONLY.get(st) or (None, ()))[0]
-            mine = other if field is None else \
-                rec(st, "m-" + st, **{field: subject_value(st, role)})
+            if role in (P.OWN_ROWS_MEMBER.get(st) or ()):
+                # "Mine" on a membership store is a row this role is ON. Handing
+                # it `other` here would assert that a mechanic still receives a
+                # card belonging to nobody, which is the leak, not the rule.
+                mine = rec(st, "m-" + st, assignees=[{"userId": "u-" + role, "task": ""}])
+            elif field is None:
+                mine = other
+            else:
+                mine = rec(st, "m-" + st, **{field: subject_value(st, role)})
             if S.redact_for(actor, mine) is None:
                 lost.append(st)
             if st in never:
@@ -169,6 +176,27 @@ for i in range(2000):
 for st in ("jobcards", "buses", "drivers"):
     rev = S._upsert_record(c, st, "late-" + st,
                            {"id": "late-" + st, "at": now, "updatedAt": now, "userId": "u-nobody"}, now, rev)
+# Job cards each MEMBER role is actually on, in both shapes the rule accepts,
+# plus the one it must refuse. Without these the narrowing below would be tested
+# in one direction only -- "the mechanic stopped receiving cards" passes just as
+# well when the mechanic receives NOTHING, which is the blank screen this
+# project has shipped before and the reason these three rows exist.
+for role in sorted(P.OWN_ROWS_MEMBER.get("jobcards", ())):
+    rev = S._upsert_record(c, "jobcards", "mine-assignees-" + role,
+                           {"id": "mine-assignees-" + role, "at": now, "updatedAt": now,
+                            "assignees": [{"userId": "u-" + role, "task": ""}]}, now, rev)
+    # The pre-multi-mechanic shape: no `assignees`, one `assignedTo`. A card
+    # written before that feature must still have a crew of one.
+    rev = S._upsert_record(c, "jobcards", "mine-legacy-" + role,
+                           {"id": "mine-legacy-" + role, "at": now, "updatedAt": now,
+                            "assignedTo": "u-" + role}, now, rev)
+    # Reassigned away, with a stale `assignedTo` left behind. `assignees` wins
+    # when it has anything, so this one is NOT theirs -- the ordered fallback,
+    # which is the half of the rule a combined OR would get wrong.
+    rev = S._upsert_record(c, "jobcards", "reassigned-away-" + role,
+                           {"id": "reassigned-away-" + role, "at": now, "updatedAt": now,
+                            "assignees": [{"userId": "u-somebody-else", "task": ""}],
+                            "assignedTo": "u-" + role}, now, rev)
 c.commit()
 c.close()
 
@@ -195,6 +223,12 @@ def entitled(actor):
     for st in STORES:
         if role not in P.read_roles(st):
             continue
+        # Membership stores: "mine" is a list, not a column (`jobcards`). The
+        # two cards this role is on and not the three that belong to others.
+        if role in (P.OWN_ROWS_MEMBER.get(st) or ()):
+            want.add((st, "mine-assignees-" + role))
+            want.add((st, "mine-legacy-" + role))
+            continue
         field, roles = P.OWN_ROWS_ONLY.get(st) or (None, ())
         restricted = bool(field) and role in roles
         if restricted:
@@ -203,6 +237,12 @@ def entitled(actor):
         want.add((st, "seed-" + st))
         if field:
             want |= {(st, "own-%s-%s" % (st, r)) for r in ROLES}
+        # A role this membership store does not narrow is owed every member's
+        # cards as well -- the storekeeper issues a part against any card, and
+        # the workshop runs on seeing all of them.
+        for r in sorted(P.OWN_ROWS_MEMBER.get(st) or ()):
+            want |= {(st, "mine-assignees-" + r), (st, "mine-legacy-" + r),
+                     (st, "reassigned-away-" + r)}
         if st in ("jobcards", "buses", "drivers"):
             want.add((st, "late-" + st))
         if st == "gpsevents":
@@ -308,6 +348,49 @@ for st, (field, roles) in sorted(P.OWN_ROWS_ONLY.items()):
                                       **{field: subject_value(st, role)})) is not None)
         check("%-14s %-11s does not get a colleague's" % (st, role),
               S.redact_for(actor, rec(st, "theirs", **{field: "somebody-else"})) is None)
+
+print("\nMembership: a job card's crew is a LIST, and a mechanic sees only their own")
+# Spelled out rather than read off the map, for the same reason as NARROWED
+# below: a store dropped from OWN_ROWS_MEMBER must fail here rather than quietly
+# take its own checks with it.
+MEMBER = {"jobcards": ["mechanic"]}
+check("the membership map holds exactly these stores%s"
+      % ("" if sorted(P.OWN_ROWS_MEMBER) == sorted(MEMBER)
+         else " -> gone: " + ",".join(sorted(set(MEMBER) - set(P.OWN_ROWS_MEMBER)))),
+      sorted(P.OWN_ROWS_MEMBER) == sorted(MEMBER))
+for _st, _roles in sorted(MEMBER.items()):
+    check("%s narrows exactly %s" % (_st, ",".join(_roles)),
+          sorted(P.OWN_ROWS_MEMBER.get(_st) or ()) == sorted(_roles))
+    for _role in _roles:
+        a = actor_for(_role)
+        check("%-14s %-11s gets a card it is on by `assignees`" % (_st, _role),
+              S.redact_for(a, rec(_st, "mine", assignees=[{"userId": "u-" + _role}])) is not None)
+        check("%-14s %-11s gets a pre-multi-mechanic card by `assignedTo`" % (_st, _role),
+              S.redact_for(a, rec(_st, "legacy", assignedTo="u-" + _role)) is not None)
+        check("%-14s %-11s gets a card naming it among several" % (_st, _role),
+              S.redact_for(a, rec(_st, "shared", assignees=[
+                  {"userId": "u-other"}, {"userId": "u-" + _role}])) is not None)
+        check("%-14s %-11s does NOT get a colleague's card" % (_st, _role),
+              S.redact_for(a, rec(_st, "theirs", assignees=[{"userId": "u-other"}])) is None)
+        check("%-14s %-11s does NOT get a card with no crew at all" % (_st, _role),
+              S.redact_for(a, rec(_st, "nobody")) is None)
+        # The ordered fallback, which is the half a combined OR gets wrong: the
+        # card was reassigned and a stale `assignedTo` was left behind.
+        check("%-14s %-11s does NOT get a card reassigned away from it" % (_st, _role),
+              S.redact_for(a, rec(_st, "stale", assignees=[{"userId": "u-other"}],
+                                  assignedTo="u-" + _role)) is None)
+        # And the SQL filter in front of the backstop must be a SUPERSET, never
+        # tighter: the one card they disagree on has to survive the query so the
+        # backstop is the thing that drops it.
+        _frag, _args = P.member_rows_predicate(_st, a, "sqlite")
+        check("%-14s %-11s the query filter is looser than the rule, not tighter" % (_st, _role),
+              "assignedTo" in _frag and "assignees" in _frag)
+for _role in sorted(set(ROLES) - {"mechanic"}):
+    if _role not in P.read_roles("jobcards"):
+        continue
+    check("jobcards      %-11s is not narrowed and keeps every card" % _role,
+          S.redact_for(actor_for(_role),
+                       rec("jobcards", "any", assignees=[{"userId": "u-mechanic"}])) is not None)
 
 print("…and the narrowing is in the query for EVERY one of them, not after it")
 # Spelled out rather than read off OWN_ROWS_ONLY, so a store dropped from the map

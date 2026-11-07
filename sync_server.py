@@ -1280,16 +1280,13 @@ def _job_crew(rec):
     """User ids on a job card: `assignees` if present, else the one `assignedTo`.
 
     Mirrors jobCrew() in app.js. Cards written before multi-mechanic jobs have
-    only `assignedTo`, and must still have a crew of one."""
-    rec = rec or {}
-    ids = []
-    for a in rec.get("assignees") or []:
-        uid = a.get("userId") if isinstance(a, dict) else None
-        if uid and str(uid) not in ids:
-            ids.append(str(uid))
-    if not ids and rec.get("assignedTo"):
-        ids.append(str(rec["assignedTo"]))
-    return ids
+    only `assignedTo`, and must still have a crew of one.
+
+    Delegates to `v2_perms.job_crew_ids` so the WRITE guard below ("you are not
+    on this job") and the READ rule that decides which cards a mechanic receives
+    are one sentence. Two copies that drift mean a mechanic who can write a card
+    they can no longer see."""
+    return v2_perms.job_crew_ids(rec)
 
 
 # Roles that run the garage. Per-record authorship rules below bind everyone else.
@@ -4315,6 +4312,13 @@ def redact_for(actor, rec):
     # never went through pull() at all.
     if not v2_perms.own_row_ok(st, actor, d):
         return None
+    # The same backstop for a store whose "mine" is a list rather than a column.
+    # `jobcards` is the only one: a mechanic received every card in the fleet
+    # because membership is `assignees[].userId` and no (field, roles) pair can
+    # say that. This call is the boundary — the SQL fragment in pull() is a
+    # volume filter in front of it and is allowed to be looser, never tighter.
+    if not v2_perms.member_row_ok(st, actor, d):
+        return None
     # Checked before the PII_ROLES shortcut: this is about volume, and it
     # applies to the owner's phone as much as anyone's. Omitted records still
     # count as sent — pull() takes its cursor before redaction — so the client
@@ -4421,6 +4425,18 @@ def pull(since, limit=None, actor=None, only=None, defer=None):
         _dialect = "postgres" if _USE_PG else "sqlite"
         for _st in sorted(v2_perms.OWN_ROWS_ONLY):
             _pred = v2_perms.own_rows_predicate(_st, scoped, _dialect)
+            if not _pred:
+                continue
+            _frag, _args = _pred
+            own_sql.append(" AND (store<>? OR %s)" % _frag)
+            own_params.append(_st)
+            own_params.extend(_args)
+        # And the membership stores, same shape, same two statements. Kept as a
+        # second loop rather than folded into the first because the predicates
+        # come from different maps and a single loop over a merged key set would
+        # hide which map a store was narrowed by.
+        for _st in sorted(v2_perms.OWN_ROWS_MEMBER):
+            _pred = v2_perms.member_rows_predicate(_st, scoped, _dialect)
             if not _pred:
                 continue
             _frag, _args = _pred
