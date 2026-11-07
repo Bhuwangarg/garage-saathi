@@ -1,0 +1,347 @@
+/* All rules belong to this example, including its responsive variants. */
+.gs {
+  /* Pinned, bottom bleed: the app sits one gutter in from the top and sides of
+     a warm well and runs a gutter past the stage's bottom. The detail panel is
+     anchored UI, not a satellite -- it opens over the app's own right margin,
+     where the product would put it, and never over the list it came from. */
+  & .ss-stage {
+    --gutter: 32px;
+    overflow: hidden;
+    border-radius: 14px;
+
+    /* Garage Saathi's own tokens, from v2/ui/tokens.css. The palette is warm
+       -- paper, not the usual cool SaaS grey -- and the accent is the orange
+       the app uses for anything a person has to act on. Hand-written HSL,
+       because the office is on Chrome 109 and oklch() does not parse there;
+       the same values are carried here so the demo and the app agree. */
+    --ss-canvas: hsl(40 22% 96%);
+    --ss-well: hsl(38 16% 92%);
+    --ss-surface: hsl(40 30% 99%);
+    --ss-raised: hsl(40 30% 99%);
+    --ss-line: hsl(38 12% 80%);
+    --ss-line-faint: hsl(38 14% 88%);
+    --ss-text-strong: hsl(30 20% 9%);
+    --ss-text: hsl(30 12% 26%);
+    --ss-text-faint: hsl(30 8% 46%);
+    --ss-icon: hsl(30 12% 30%);
+    --ss-icon-faint: hsl(30 8% 52%);
+    --ss-accent: hsl(16 88% 54%);
+    --ss-accent-text: hsl(16 71% 35%);
+    --ss-accent-soft: hsl(20 86% 94%);
+    --ss-success: hsl(147 63% 28%);
+    --ss-success-text: hsl(147 63% 24%);
+    --ss-success-soft: hsl(147 45% 92%);
+    --ss-warning: hsl(38 93% 28%);
+    --ss-warning-text: hsl(38 93% 26%);
+    --ss-warning-soft: hsl(40 86% 90%);
+    --ss-danger: hsl(5 67% 43%);
+    --ss-danger-text: hsl(5 67% 38%);
+    --ss-danger-soft: hsl(8 74% 93%);
+
+    background: var(--ss-well);
+  }
+
+  & .gs-app {
+    position: absolute;
+    top: var(--gutter);
+    left: var(--gutter);
+    width: 656px;
+    height: 367px;
+  }
+
+  /* The count the title bar carries: the app's own "N need you", whose empty
+     state reads "Nothing needs you". */
+  & .gs-need {
+    font-size: 11.5px;
+    line-height: 16px;
+    color: var(--ss-text-faint);
+    display: inline-flex;
+    align-items: baseline;
+    gap: 3px;
+  }
+
+  /* --- the rail ------------------------------------------------------- */
+
+  & .gs-rail {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    padding: 6px;
+    min-width: 0;
+  }
+
+  & .gs-rail-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    border-radius: 6px;
+    color: var(--ss-text-faint);
+    min-width: 0;
+  }
+
+  & .gs-rail-item[data-on] {
+    background: var(--ss-accent-soft);
+    color: var(--ss-accent-text);
+  }
+
+  /* No cap trim and no clip here: "Today", "Duty" and "Money" all hang a
+     descender, and trimming to the cap height cut the tails off -- the label
+     read "Todav". Trim is for centring a label in a pill, not for a nav item. */
+  & .gs-rail-label {
+    font-size: 12px;
+    line-height: 16px;
+    white-space: nowrap;
+  }
+
+  /* --- the body ------------------------------------------------------- */
+
+  & .gs-body {
+    position: relative;
+    display: flex;
+    gap: 16px;
+    padding: 14px 16px 0;
+    background: var(--ss-surface);
+    overflow: hidden;
+  }
+
+  & .gs-list {
+    width: 300px;
+    flex: none;
+    min-width: 0;
+  }
+
+  & .gs-row {
+    --ss-row-title: 13px;
+    --ss-row-subtitle: 11.5px;
+    --ss-row-pad: 12px;
+  }
+
+  /* The lead tile: one square per kind, tinted by how bad it is. The icon is
+     the app's own glyph, never an emoji -- Windows 7 draws those as boxes. */
+  & .gs-tile {
+    width: 26px;
+    height: 26px;
+    border-radius: 7px;
+    display: grid;
+    place-items: center;
+    flex: none;
+    background: var(--ss-ink-1);
+    color: var(--ss-icon);
+  }
+
+  & .gs-tile[data-tone='bad'] {
+    background: var(--ss-danger-soft);
+    color: var(--ss-danger);
+  }
+
+  & .gs-tile[data-tone='warn'] {
+    background: var(--ss-warning-soft);
+    color: var(--ss-warning);
+  }
+
+  /* --- the quiet right column ------------------------------------------ */
+
+  & .gs-aside {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px;
+    border: 1px solid var(--ss-line-faint);
+    border-bottom: 0;
+    border-radius: 10px 10px 0 0;
+    background: var(--ss-canvas);
+  }
+
+  & .gs-aside-title {
+    font-size: 12px;
+    line-height: 16px;
+    color: var(--ss-text-faint);
+  }
+
+  /* The pane is filled by its own rows running off the bottom bleed rather
+     than by one box with air under it: an empty band reads unfinished. */
+  & .gs-aside-list {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  & .gs-aside-row {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    min-width: 0;
+  }
+
+  & .gs-aside-name {
+    font-size: 11.5px;
+    line-height: 15px;
+    color: var(--ss-text);
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  & .gs-aside-out {
+    font-size: 11px;
+    line-height: 15px;
+    color: var(--ss-text-faint);
+    flex: none;
+  }
+
+  & .gs-tile--quiet {
+    width: 22px;
+    height: 22px;
+    border-radius: 6px;
+    background: var(--ss-ink-1);
+    color: var(--ss-icon-faint);
+  }
+
+  /* --- the detail panel ------------------------------------------------ */
+
+  & .gs-detail {
+    position: absolute;
+    top: 14px;
+    right: 16px;
+    width: 200px;
+    will-change: transform;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px;
+    border-radius: 10px;
+    background: var(--ss-surface);
+    box-shadow: var(--ss-shadow-satellite);
+    opacity: 0;
+    transform: translateY(6px) scale(0.985);
+    transform-origin: 90% 0;
+    /* Out fast, in smooth. A symmetric fade let the closing panel dissolve
+       THROUGH the row under it, both legible at once for a quarter second --
+       worst on the phone column, where it covers the list rather than a
+       margin. Leaving quickly reads as the panel going, not melting. */
+    transition:
+      opacity 130ms ease,
+      transform 150ms ease;
+    pointer-events: none;
+  }
+
+  & .gs-detail[data-show] {
+    opacity: 1;
+    transform: none;
+    transition:
+      opacity 220ms ease,
+      transform 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+
+  /* Title over its subtitle, 4px of ink between: one item, read as one. */
+  & .gs-detail-head {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  & .gs-detail-title {
+    font-size: 13px;
+    line-height: 17px;
+    color: var(--ss-text-strong);
+    font-weight: 500;
+  }
+
+  & .gs-detail-sub {
+    font-size: 11.5px;
+    line-height: 15px;
+    color: var(--ss-text-faint);
+  }
+
+  & .gs-fail {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin-inline: -9px;
+    padding: 7px 9px;
+    border-radius: 7px;
+    background: var(--ss-danger-soft);
+    color: var(--ss-danger-text);
+  }
+
+  & .gs-fail-text {
+    font-size: 12px;
+    line-height: 16px;
+    text-box: trim-both cap alphabetic;
+  }
+
+  & .gs-detail-when {
+    font-size: 11.5px;
+    line-height: 15px;
+    color: var(--ss-text-faint);
+  }
+
+  & .gs-detail-foot {
+    display: flex;
+    padding-top: 2px;
+  }
+
+  & .gs-detail-foot .ss-button {
+    flex: 1;
+    justify-content: center;
+  }
+
+  /* --- the phone column ------------------------------------------------ */
+  /* A redesign, not a squeeze: the rail collapses to its glyphs, the quiet
+     right column goes, and the detail opens as a sheet the way the app does
+     it on a phone. */
+
+  & .ss-stage[data-layout='compact'] {
+    --gutter: 16px;
+  }
+
+  & .ss-stage[data-layout='compact'] .gs-app {
+    width: 326px;
+    height: 340px;
+  }
+
+  & .ss-stage[data-layout='compact'] .gs-rail {
+    align-items: center;
+    padding: 6px 4px;
+  }
+
+  & .ss-stage[data-layout='compact'] .gs-rail-item {
+    padding: 7px;
+  }
+
+  & .ss-stage[data-layout='compact'] .gs-rail-label {
+    display: none;
+  }
+
+  & .ss-stage[data-layout='compact'] .gs-aside {
+    display: none;
+  }
+
+  & .ss-stage[data-layout='compact'] .gs-list {
+    width: auto;
+    flex: 1;
+  }
+
+  & .ss-stage[data-layout='compact'] .gs-body {
+    padding: 10px 12px 0;
+  }
+
+  /* On a phone the panel opens under the row that was tapped, full width,
+     the way the app does it -- not as a sheet at the foot of the screen,
+     which on a bled window would put its button off the crop. The trigger
+     row stays visible above it; only filler is covered. */
+  & .ss-stage[data-layout='compact'] .gs-detail {
+    top: 82px;
+    right: 16px;
+    bottom: auto;
+    left: 16px;
+    width: auto;
+    transform-origin: 50% 0;
+  }
+}

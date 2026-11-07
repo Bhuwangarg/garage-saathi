@@ -34,3 +34,8 @@ crew-backup-*.json
 .agents/
 .claude/skills/
 skills-lock.json
+
+# The marketing hero's build output and dependencies. Its source and the
+# vendored kit ARE tracked; what npm and vite produce is not.
+marketing/v2-hero/node_modules/
+marketing/v2-hero/dist/

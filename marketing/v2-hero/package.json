@@ -1,0 +1,23 @@
+{
+  "name": "garage-saathi-v2-hero",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Marketing hero illustration for Garage Saathi v2. Never shipped to the app.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build"
+  },
+  "dependencies": {
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "lucide-react": "0.468.0"
+  },
+  "devDependencies": {
+    "@types/react": "18.3.12",
+    "@types/react-dom": "18.3.1",
+    "@vitejs/plugin-react": "4.7.0",
+    "typescript": "5.6.3",
+    "vite": "6.4.5"
+  }
+}
