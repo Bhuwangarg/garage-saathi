@@ -404,6 +404,15 @@ async function main() {
   check('…answering the shell from the cache first', /caches\.match\(/.test(SW));
   check('…and a navigation anywhere under /v2/ resolves to the one document',
         /mode === 'navigate'/.test(SW) && /INDEX_PATH/.test(SW));
+  /* After the cutover this worker controls "/", and v1's document is then
+   * inside its scope without being its business. Assets look after themselves
+   * (not in SHELL_PATHS, so they fall through); a navigation does not, because
+   * every navigation resolves to INDEX_PATH, which IS in the shell. */
+  check('…and a navigation outside /v2/ and "/" is not this worker\'s to answer',
+        /function isOurs/.test(SW) && /nav && !isOurs\(/.test(SW));
+  check('…with the guard placed before the shell lookup, or it never runs',
+        SW.indexOf('!isOurs(') > 0 && SW.indexOf('!isOurs(') < SW.indexOf('SHELL_PATHS.has(key)'));
+
   check('the cache name still carries the garage-saathi-v2- prefix',
         /const CACHE = 'garage-saathi-v2-\d+'/.test(SW));
   check('activate still drops only v2\'s own older caches',

@@ -154,6 +154,26 @@ PORT = int(os.environ.get("PORT", "8766"))      # cloud hosts inject $PORT
 _lock = threading.Lock()
 SESSIONS = {}          # token -> {uid, exp}
 SESSION_TTL = int(os.environ.get("SESSION_TTL_SEC", str(12 * 3600)))   # 12h
+
+# ---------------------------------------------------------------------------
+# THE CUTOVER. One constant, and the whole of what "v2 is the app now" means.
+#
+# False: "/" is v1, v2 is a second app at /v2/ whose worker the BROWSER caps at
+#        that directory. This is how v2 was built -- a tester opening it could
+#        not touch the live app, because the cap is the browser's rule and not
+#        ours.
+# True:  "/" is v2. Its worker is allowed to control the root, which is the
+#        only way the app works offline there, and v1 stays reachable at
+#        /index.html as the way back.
+#
+# It is a constant and not an env var on purpose: the value is in git history,
+# `scripts/check-v2-isolation.sh` reads it and asserts a DIFFERENT set of
+# invariants on each side, and turning it back is a one-line revert rather than
+# a dashboard someone has to remember the state of.
+#
+# What it must never be is flipped on its own. Everything below that reads it
+# was written for both values; the checks enforce both.
+V2_AT_ROOT = False
 # CORS allow-list. Default = the production PWA (GitHub Pages) only; any
 # localhost/127.0.0.1 port is also allowed for dev. Override with ALLOWED_ORIGIN
 # env: a comma-separated list of exact origins, or "*" to allow any (not for prod).
@@ -5724,8 +5744,15 @@ class Handler(BaseHTTPRequestHandler):
         # "/" is the app when the PWA is bundled with the function, and only falls
         # back to health when it is not (a backend-only deploy). /health is always
         # health, which is what the keepalive cron and every deploy check use.
-        if u.path == "/" and self._serve_static("/index.html"):
-            return
+        # Which app answers "/" is V2_AT_ROOT's decision and nothing else's.
+        # Both branches are spelled out rather than folded into one expression:
+        # the way back has to be as visible as the way forward, and
+        # check-v2-isolation.sh reads both lines to prove neither was deleted.
+        if u.path == "/":
+            if not V2_AT_ROOT and self._serve_static("/index.html"):
+                return
+            if V2_AT_ROOT and self._serve_static("/v2/index.html"):
+                return
         # v2 is served from the v2/ directory as plain files: /v2/app.js and the
         # rest already resolve through _serve_static, which allows the directory
         # and the extensions. Only the bare path needs saying, because

@@ -113,6 +113,19 @@ const SHELL_PATHS = new Set(SHELL.map((u) => new URL(u, self.location.href).path
 const INDEX_PATH = new URL('index.html', self.location.href).pathname;
 const SELF_PATH = self.location.pathname;
 
+/* The directory this worker is served from, and therefore the set of documents
+ * it is entitled to answer. Before the cutover the browser caps the scope at
+ * this directory and the question never arises; after it, this worker controls
+ * "/" and v1's own document sits at /index.html, inside that scope and NOT
+ * ours. v1's assets look after themselves -- /app.js and /db.js are not in
+ * SHELL_PATHS, so they already fall through to the network -- but a navigation
+ * does not, because every navigation resolves to INDEX_PATH, which IS in the
+ * shell. Without this, asking for v1 would hand back v2. */
+const V2_DIR = new URL('./', self.location.href).pathname;
+function isOurs(pathname) {
+  return pathname === '/' || pathname.indexOf(V2_DIR) === 0;
+}
+
 self.addEventListener('install', (e) => {
   /* Resilient (non-atomic) precache: one failed or slow asset must NOT fail the
    * whole install, or the old worker gets stuck and the device is left on
@@ -176,10 +189,12 @@ self.addEventListener('fetch', (e) => {
    * no address bar to read — so every navigation here resolves to index.html,
    * and an offline open of /v2/anything draws the app rather than the browser's
    * dinosaur. */
-  const key = request.mode === 'navigate' ? INDEX_PATH : url.pathname;
+  const nav = request.mode === 'navigate';
+  if (nav && !isOurs(url.pathname)) return;          // v1's document: never ours to answer
+  const key = nav ? INDEX_PATH : url.pathname;
   if (!SHELL_PATHS.has(key)) return;                 // not the shell: straight to the network
 
-  e.respondWith(request.mode === 'navigate'
+  e.respondWith(nav
     ? cacheFirst(new Request(INDEX_PATH, { cache: 'no-store' }))
     : cacheFirst(request));
 });
