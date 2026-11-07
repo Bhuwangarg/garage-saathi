@@ -345,7 +345,8 @@ function load(o) {
   const ctx = vm.createContext(sandbox);
   for (const f of SRC) {
     if (o.words === false && f === 'ui/words.js') continue;
-    vm.runInContext(read(V2(f)), ctx, { filename: V2(f) });
+    const src = (f === 'shell.js' && o.shellSrc) ? o.shellSrc : read(V2(f));
+    vm.runInContext(src, ctx, { filename: V2(f) });
   }
   const r = sandbox.Router;
   if (o.screens) for (const id of Object.keys(o.screens)) r.register(id, o.screens[id]);
@@ -695,6 +696,21 @@ test('the no-permission body is a refusal that blames nobody, plus one dev line 
   assert.strictEqual(line.length, 1, 'arriving here means the nav and the declaration disagree');
   assert(/mechanic/.test(line[0]) && /money/.test(line[0]), 'the line must name both: ' + line[0]);
   assert(/class="nav"/.test(l.app.html), 'the nav stays: a person who cannot read Money can still reach Today');
+  // …and the refusal does not name what it refuses. The header and the tab are
+  // the two places a person always reads; a screen they do not hold belongs in
+  // neither.
+  assert.strictEqual(l.win.document.title, 'Garage Saathi', 'the tab named a screen the mechanic cannot open');
+  assert(!/Money/.test(l.app.html), 'the frame named a screen the mechanic cannot open');
+});
+
+test('MUTANT must fail: the screen is named before the permission test', () => {
+  const broken = SHELL_JS.replace('const name = allowed ? nameOf(id) : null;', 'const name = nameOf(id);');
+  assert(broken !== SHELL_JS, 'the mutation did not apply — the line it edits has moved');
+  const l = load({ role: 'mechanic', screens: { money: PAGE }, shellSrc: broken });
+  l.win.Shell.mount('money');
+  assert.strictEqual(l.win.document.title, 'Money — Garage Saathi',
+    'the check above cannot fail: naming the screen anyway left the tab clean');
+  assert(/Money/.test(l.app.html), 'the check above cannot fail: naming the screen anyway left the frame clean');
 });
 
 /* ---- §1.7 signed out ---- */

@@ -677,7 +677,14 @@
     const bar = navHtml(items, id);
     barDrawn = bar !== '';
 
-    const name = nameOf(id);
+    /* A screen the person does not hold is not named. `allowed` is already
+     * decided above, and naming it anyway put the screen's title in the header
+     * and in the tab -- "Money — Garage Saathi" over a body that says this is
+     * not open to you. Deny-by-default means a capability you lack is not
+     * reachable; a refusal that announces what it is refusing is the screen
+     * leaking its own existence, in the one place a person is guaranteed to
+     * read. The body carries the message, so the header has nothing to add. */
+    const name = allowed ? nameOf(id) : null;
     title(name);
 
     const r2 = router();
