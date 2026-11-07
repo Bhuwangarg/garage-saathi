@@ -51,7 +51,14 @@ ck "the cutover constant is readable and is one of two values" \
   "$([ "$CUT" = "True" ] || [ "$CUT" = "False" ] && echo yes || echo "no: '$CUT'")" "yes"
 
 SCOPE_OVERRIDES="$(grep -cE "serviceWorker\.register\([^)]*scope" v2/*.html v2/*.js 2>/dev/null | awk -F: '{s+=$NF} END{print s+0}')"
-SWA_SERVER="$(grep -cE "send_header\(\s*[\"']Service-Worker-Allowed" sync_server.py)"
+# This server sends response headers through `_send(extra={...})`, not through
+# bare send_header() calls, so the pattern has to match a DICT KEY. The first
+# version of this line matched only send_header( and would have reported "the
+# server never sends it" about a server that does. Anchoring on the quoted name
+# followed by a colon keeps it off prose: the comment two lines above names the
+# header and must never trip the check, which is the mistake this file already
+# made once and wrote down.
+SWA_SERVER="$(grep -cE "[\"']Service-Worker-Allowed[\"']\s*:" sync_server.py)"
 SWA_PLATFORM="$(grep -c "Service-Worker-Allowed" vercel.json)"
 
 if [ "$CUT" = "False" ]; then
