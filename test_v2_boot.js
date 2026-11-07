@@ -395,8 +395,15 @@ async function main() {
           HTML.indexOf('<link rel="stylesheet"'), HTML.indexOf('<script src=')));
   /* A <base> makes the worker registration relative to /v2/ too, which is what
    * keeps `register('sw.js')` pointing at v2's worker and not v1's. */
+  /* The point is the path, not the argument list: a RELATIVE 'sw.js' resolves
+   * against the base to v2's worker, where '/sw.js' would be v1's. Written with
+   * a closing paren first, which made adding the scope argument look like a
+   * regression in the thing it does not test. What the registration may ask for
+   * is check-v2-isolation.sh's, which pins it to exactly one. */
   check('the worker is still registered by a relative path, under that base',
-        /serviceWorker\.register\('sw\.js'\)/.test(HTML));
+        /serviceWorker\.register\(\s*'sw\.js'/.test(HTML));
+  check('…and never by a root path, which would be v1\'s worker',
+        !/serviceWorker\.register\(\s*'\/sw\.js'/.test(HTML));
 
   /* ---- 8. the worker opens offline, and keeps its scope ---------------- */
 
