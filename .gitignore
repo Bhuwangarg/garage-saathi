@@ -25,3 +25,12 @@ crew-backup-*.json
 # Subagent-driven-development scratch (ledger, briefs, review packages)
 .superpowers/
 .boots
+
+# Third-party agent skills installed by `npx skills add`. Vendored tooling for
+# building things *about* this app (illustrations, demos), never code that ships
+# to a yard, so it has no business in a repo the fleet runs on. `.claude/agents/`
+# and `.claude/workflows/` stay tracked — those are ours; only the installer's
+# own output is ignored.
+.agents/
+.claude/skills/
+skills-lock.json
