@@ -968,6 +968,12 @@ async function checkToastRetarget(env) {
     })()`);
     const f = [];
     if (!r.same || r.count !== 1) f.push('the same toast asked for twice made ' + r.count + ' elements (same object: ' + r.same + '); it should be one');
+    // The retarget can only be judged if the exit was caught in flight. Missing
+    // it means the machine did not draw during the transition, not that the
+    // toast misbehaved -- and the assertions below all read `before`/`after`
+    // from that moment. Anything already wrong (two elements for one toast) is
+    // a real finding and still reported; the missed observation alone is not.
+    if (!r.mid && f.length === 0) throw unmeasurable('the toast\'s exit was never caught in flight: no frame landed inside the transition');
     if (!r.mid) f.push('never observed the toast mid-exit, so the retarget could not be tested');
     else {
       if (Math.abs(r.after - r.before) > 0.2) f.push('re-triggering mid-exit jumped the opacity from ' + r.before.toFixed(2) + ' to ' + r.after.toFixed(2) + ' instead of reversing from where it was');
@@ -1213,7 +1219,14 @@ async function checkReducedMotion(env) {
       return out;
     })()`);
     const f = [];
-    if (r.frames < 10) f.push('only ' + r.frames + ' frames were sampled');
+    // Fewer than ten frames is not a verdict, it is a machine that would not
+    // draw. Every transform assertion below reads values sampled from those
+    // frames, so on five of them the check has not seen the thing it judges --
+    // it has seen a slideshow of it. A CI runner starved enough to manage 8fps
+    // reported "only 5 frames were sampled" as a FAILURE of the app's reduced
+    // motion, which is a red for something that is not a defect, and a red
+    // like that is the reason gates get bypassed.
+    if (r.frames < 10) throw unmeasurable('only ' + r.frames + ' frames in 400ms: this machine would not draw fast enough to judge what moved');
     for (const k of ['sheet', 'confirm', 'toast']) {
       const tf = Object.keys(r.transforms[k]);
       if (tf.length !== 1 || tf[0] !== 'none') f.push(k + ': under prefers-reduced-motion its transform took the values ' + tf.join(' | ') + ', so it still moves');
