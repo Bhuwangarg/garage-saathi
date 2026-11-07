@@ -165,14 +165,19 @@ def main(argv):
         for i, ln in enumerate(lines):
             if "FAIL" in ln or ln.lstrip().startswith("✗"):
                 bad.append(ln)
-                for nxt in lines[i + 1:i + 4]:
+                # Follow to the NEXT CHECK, not a fixed few lines. A check that
+                # reports "3 failure(s):" and lists them needs four lines, and a
+                # window of three printed two of three -- the same clipping this
+                # whole block exists to undo, committed twice by me in a row. The
+                # stop condition is the next check line; 12 is only a runaway cap.
+                for nxt in lines[i + 1:i + 13]:
                     if is_check(nxt):
                         break
                     bad.append(nxt)
         shown = []
         if bad:
-            shown += ["the checks that failed, and why:"] + bad[:24]
-            if len(bad) > 24:
+            shown += ["the checks that failed, and why:"] + bad[:40]
+            if len(bad) > 40:
                 shown += [f"...and {len(bad) - 24} more lines"]
             shown += ["the end of the run:"]
         shown += lines[-18:]
