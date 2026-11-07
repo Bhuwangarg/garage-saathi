@@ -173,7 +173,7 @@ SESSION_TTL = int(os.environ.get("SESSION_TTL_SEC", str(12 * 3600)))   # 12h
 #
 # What it must never be is flipped on its own. Everything below that reads it
 # was written for both values; the checks enforce both.
-V2_AT_ROOT = False
+V2_AT_ROOT = True
 # CORS allow-list. Default = the production PWA (GitHub Pages) only; any
 # localhost/127.0.0.1 port is also allowed for dev. Override with ALLOWED_ORIGIN
 # env: a comma-separated list of exact origins, or "*" to allow any (not for prod).
@@ -6088,8 +6088,18 @@ class Handler(BaseHTTPRequestHandler):
         # Safe across a deploy because Vercel purges this cache on every
         # deployment: stale here means "a few minutes behind the edge", never "a
         # build behind". The worker is network-first on top of that.
+        is_sw = os.path.basename(rel) == "sw.js"
+        # The one header that lets a worker out of its directory, and the only
+        # reason the cutover can work at all: a worker served from /v2/ cannot
+        # control "/" without it, and a worker that cannot control "/" cannot
+        # make "/" work offline. Narrow on purpose -- v2's worker only, and only
+        # once v2 is the app. v1's own /sw.js never gets it, and neither does
+        # any other file, so nothing else gains scope it was not reviewed for.
+        extra = ({"Service-Worker-Allowed": "/"}
+                 if is_sw and V2_AT_ROOT and rel.startswith("v2/") else None)
         self._send(200, raw=body, ctype=_CTYPES.get(ext, "application/octet-stream"),
-                   cache="no-cache" if os.path.basename(rel) == "sw.js"
+                   extra=extra,
+                   cache="no-cache" if is_sw
                    else "public, max-age=0, s-maxage=600, stale-while-revalidate=86400")
         return True
 

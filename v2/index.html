@@ -128,14 +128,20 @@
 <script src="boot.js"></script>
 
 <script>
-  /* Registered with no scope override, and from inside /v2/, so the browser
-   * caps this worker's scope at /v2/ and it can never claim the live app at /.
-   * That cap is the browser's rule rather than ours, which is why it is the
-   * protection worth relying on -- and why a `scope` option or a
-   * Service-Worker-Allowed header must never appear here. The gate checks both. */
+  /* 'sw.js' resolves against the <base> above, so this is always /v2/sw.js --
+   * v2's own worker and never v1's, wherever this document is served from.
+   *
+   * The scope is the cutover. While v2 was a second app the browser capped this
+   * worker at /v2/ and that cap, being the browser's rule rather than ours, was
+   * the thing that made it safe to build beside a live app. v2 is the app now:
+   * it answers "/", and a worker that cannot control "/" cannot make "/" work
+   * offline, which is the whole premise of this thing in a yard with no signal.
+   * The widening is granted by Service-Worker-Allowed, sent by the server for
+   * this file alone, and check-v2-isolation.sh asserts BOTH halves are present
+   * and narrow once V2_AT_ROOT is set -- and that neither exists while it is not. */
   if ('serviceWorker' in navigator) {
     addEventListener('load', () => {
-      navigator.serviceWorker.register('sw.js').catch(() => {});
+      navigator.serviceWorker.register('sw.js', { scope: '/' }).catch(() => {});
     });
   }
 </script>
