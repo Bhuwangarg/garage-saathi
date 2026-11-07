@@ -6088,7 +6088,6 @@ class Handler(BaseHTTPRequestHandler):
         # Safe across a deploy because Vercel purges this cache on every
         # deployment: stale here means "a few minutes behind the edge", never "a
         # build behind". The worker is network-first on top of that.
-        is_sw = os.path.basename(rel) == "sw.js"
         # The one header that lets a worker out of its directory, and the only
         # reason the cutover can work at all: a worker served from /v2/ cannot
         # control "/" without it, and a worker that cannot control "/" cannot
@@ -6096,10 +6095,16 @@ class Handler(BaseHTTPRequestHandler):
         # once v2 is the app. v1's own /sw.js never gets it, and neither does
         # any other file, so nothing else gains scope it was not reviewed for.
         extra = ({"Service-Worker-Allowed": "/"}
-                 if is_sw and V2_AT_ROOT and rel.startswith("v2/") else None)
+                 if V2_AT_ROOT and rel == "v2/sw.js" else None)
+        # Written out, and left alone. predeploy-gate.sh greps for this exact
+        # line, and check-v2-isolation.sh counts the basename test and expects
+        # ONE. Hoisting it into a variable broke the first; keeping a variable
+        # beside it broke the second. Two checks spelling one rule differently,
+        # which is the failure the gate's own comment predicted. Factor this and
+        # you must change both checks in the same commit, and say why.
         self._send(200, raw=body, ctype=_CTYPES.get(ext, "application/octet-stream"),
                    extra=extra,
-                   cache="no-cache" if is_sw
+                   cache="no-cache" if os.path.basename(rel) == "sw.js"
                    else "public, max-age=0, s-maxage=600, stale-while-revalidate=86400")
         return True
 
