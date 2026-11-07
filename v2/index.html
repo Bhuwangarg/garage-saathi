@@ -10,6 +10,18 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- Every relative URL below -- 32 of them, plus the worker registration at the
+     foot -- resolves against THIS, not against wherever the document happens to
+     be served. Without it, serving this file at "/" for the cutover resolves
+     `db.js` to v1's db.js and `ui/tokens.css` to v1's: the same names exist in
+     both, so the app would come up as v2's markup running v1's data layer,
+     silently, while `boot.js` and `caps.js` 404. One line here instead of 32
+     absolute paths, and the precache list in sw.js stays the same list in the
+     same shape, which is what test_v2_boot.js compares.
+
+     Safe because v2 reads nothing from the URL: no hash, no pushState, no
+     location.pathname outside the worker. The document's address is not state. -->
+<base href="/v2/">
 <title>Garage Saathi</title>
 <!-- The v2 app root. No styles.css: v2 has its own design system under ui/ and
      reaches outside /v2/ for nothing (the isolation gate checks that). -->

@@ -380,6 +380,24 @@ async function main() {
   check('every v2/screens/*.js on disk is in BOTH lists',
         screensOnDisk.every((s) => htmlScripts.indexOf(s) >= 0 && swFiles.indexOf(s) >= 0));
 
+  /* ---- 7b. the document's relative URLs do not depend on its address --- */
+
+  /* The cutover serves THIS file at "/". Every href and src in it is relative,
+   * and v1 has files of the same name at the root -- db.js, sync.js,
+   * ui/tokens.css are in both -- so without a <base> the app would come up as
+   * v2's markup over v1's data layer, with no error to show for it. */
+  const baseM = HTML.match(/<base\s+href="([^"]+)"/);
+  check('index.html declares a <base>', !!baseM);
+  check('…pointing at /v2/, so a relative src resolves there from any address',
+        !!baseM && baseM[1] === '/v2/', baseM && baseM[1]);
+  check('…before the first relative URL it has to govern, or it governs nothing',
+        !!baseM && HTML.indexOf(baseM[0]) < Math.min(
+          HTML.indexOf('<link rel="stylesheet"'), HTML.indexOf('<script src=')));
+  /* A <base> makes the worker registration relative to /v2/ too, which is what
+   * keeps `register('sw.js')` pointing at v2's worker and not v1's. */
+  check('the worker is still registered by a relative path, under that base',
+        /serviceWorker\.register\('sw\.js'\)/.test(HTML));
+
   /* ---- 8. the worker opens offline, and keeps its scope ---------------- */
 
   check('sw.js has a fetch handler at last', /addEventListener\('fetch'/.test(SW));
