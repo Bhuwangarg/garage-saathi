@@ -145,8 +145,21 @@ def main(argv):
 
     for name, code, out in failed:
         print(f"\n─── {name} (exit {code}) " + "─" * max(0, 46 - len(name)))
-        tail = [ln for ln in out.splitlines() if ln.strip()][-18:]
-        print("\n".join("  " + ln for ln in tail) or "  (no output)")
+        lines = [ln for ln in out.splitlines() if ln.strip()]
+        # The FAILING lines first, then the tail. A tail on its own is the
+        # wrong report for a long suite: test_ui_overlay.js prints ~50 lines,
+        # so when two checks failed EARLY the 18-line window showed seventeen
+        # passes and the word FAILED, and CI looked like it was hiding the
+        # reason. The diagnostic was hiding the diagnosis.
+        bad = [ln for ln in lines if "FAIL" in ln or ln.lstrip().startswith("✗")]
+        shown = []
+        if bad:
+            shown += ["the checks that failed:"] + bad[:12]
+            if len(bad) > 12:
+                shown += [f"...and {len(bad) - 12} more"]
+            shown += ["the end of the run:"]
+        shown += lines[-18:]
+        print("\n".join("  " + ln for ln in shown) or "  (no output)")
 
     if failed or timed_out:
         print(f"\n❌ {len(failed) + len(timed_out)} suite(s) not passing")
