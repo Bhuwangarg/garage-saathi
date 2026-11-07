@@ -151,12 +151,29 @@ def main(argv):
         # so when two checks failed EARLY the 18-line window showed seventeen
         # passes and the word FAILED, and CI looked like it was hiding the
         # reason. The diagnostic was hiding the diagnosis.
-        bad = [ln for ln in lines if "FAIL" in ln or ln.lstrip().startswith("✗")]
+        # A failing check and the REASON under it. The first version of this
+        # kept only lines containing FAIL, which is where a check's name lives
+        # and not where it says why -- the suites print the detail on the
+        # following line, as node 20 did with "this node has no built-in
+        # WebSocket". Printing the name without the reason just moves the
+        # question. So: each failing line plus what follows it, up to the next
+        # check line.
+        def is_check(ln):
+            t = ln.lstrip()
+            return t.startswith("ok ") or t.startswith("ok\t") or "FAIL" in ln or t.startswith("✗")
+        bad = []
+        for i, ln in enumerate(lines):
+            if "FAIL" in ln or ln.lstrip().startswith("✗"):
+                bad.append(ln)
+                for nxt in lines[i + 1:i + 4]:
+                    if is_check(nxt):
+                        break
+                    bad.append(nxt)
         shown = []
         if bad:
-            shown += ["the checks that failed:"] + bad[:12]
-            if len(bad) > 12:
-                shown += [f"...and {len(bad) - 12} more"]
+            shown += ["the checks that failed, and why:"] + bad[:24]
+            if len(bad) > 24:
+                shown += [f"...and {len(bad) - 24} more lines"]
             shown += ["the end of the run:"]
         shown += lines[-18:]
         print("\n".join("  " + ln for ln in shown) or "  (no output)")
