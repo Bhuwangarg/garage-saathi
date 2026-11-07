@@ -119,6 +119,17 @@ j()  { perl -e 'alarm shift; exec @ARGV' 25 "$B" js "$1" 2>/dev/null; }
 # reason, which is why gck() further down takes its expression single-quoted, and
 # why the few FOO="$(j "...")" assignments here are left as they are.
 jck()  { ck "$1" "$(j "$2")" "$3"; }          # desc, expression, expected literal
+
+# A browse call that cannot wedge the gate, for the same reason j() is bounded: a hung daemon once held a push open for
+# fourteen minutes. A call that times out returns nothing, which reads as a failed check, loudly and in the right place.
+#
+# Defined HERE, beside j(), and not where it used to be 1000 lines down. Bash
+# resolves a function when the line runs, so the two `bb viewport` calls in the
+# desktop-layout block were running before this existed: "bb: command not
+# found" on stderr, drowned in 392 lines of ticks, and four checks that claim
+# to measure the home screen at 1366x768 measuring it at whatever width the
+# browser happened to be. They passed. That is worse than failing.
+bb() { perl -e 'alarm shift; exec @ARGV' 25 "$B" "$@" 2>/dev/null; }
 jck2() { ck "$1" "$(j "$2")" "$(j "$3")"; }   # desc, expression, expression for expected
 ck() { # desc, actual, expected
   # Anything other than three arguments is the signature of the bug above, so it
@@ -1167,9 +1178,6 @@ GAL_STATES='button|.btn;button|.btn-primary;button|.btn-quiet;button|.btn-danger
 # The emoji detector: surrogate pairs (every emoji outside the BMP), the arrows, technical, enclosed, dingbat and symbol
 # blocks, the variation selector, the joiner and the keycap mark. A dash and an ellipsis are fine.
 GAL_EMOJI='function(s){return /[\uD800-\uDBFF][\uDC00-\uDFFF]|[←-⇿⌀-⏿①-➿⤀-⯿️‍⃣]/.test(s)?"found":"none"}'
-# A browse call that cannot wedge the gate, for the same reason j() is bounded: a hung daemon once held a push open for
-# fourteen minutes. A call that times out returns nothing, which reads as a failed check, loudly and in the right place.
-bb() { perl -e 'alarm shift; exec @ARGV' 25 "$B" "$@" 2>/dev/null; }
 gck() {
   local js="$2"
   js="${js//@REQ@/$GAL_REQ}"; js="${js//@STATES@/$GAL_STATES}"; js="${js//@EMOJI@/$GAL_EMOJI}"
