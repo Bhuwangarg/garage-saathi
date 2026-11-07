@@ -38,7 +38,18 @@ jobs:
           python-version: '3.12'
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          # 22, not 20. test_ui_overlay.js drives Chrome over the DevTools
+          # protocol using node's BUILT-IN WebSocket rather than carrying
+          # puppeteer, and that only exists from node 22 -- the suite says so
+          # itself and throws "this node has no built-in WebSocket (needs node
+          # 22+)". On 20 that one suite failed on every push, so this workflow
+          # has been red for weeks while the gate on the developer's machine
+          # was green: the hook runs the suites locally on node 26, and nobody
+          # reads a CI badge that has been red long enough to look normal.
+          #
+          # android-build.yml and ios-build.yml already pin 22. This file was
+          # the one left behind.
+          node-version: '22'
 
       - name: Every test file
         run: python3 scripts/run-tests.py
