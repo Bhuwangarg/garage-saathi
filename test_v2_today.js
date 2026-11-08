@@ -74,10 +74,19 @@ const SRC = ['ui/icons.js', 'ui/words.js', 'ui/states.js', 'fmt.js', 'cost.js', 
 const NOW = Date.now();
 const DAY = 86400000;
 const HOUR = 3600000;
-const dayKeyOf = (ms) => {
-  const d = new Date(ms), m = d.getMonth() + 1, day = d.getDate();
-  return d.getFullYear() + '-' + (m < 10 ? '0' : '') + m + '-' + (day < 10 ? '0' : '') + day;
-};
+/* THE GARAGE'S DAY, because this builds a NIGHTLIST ID and `v2/night.js` writes
+ * those on UTC+5:30 -- fixed, matching the server's `_ist_day`. It must not be
+ * the device's local date.
+ *
+ * It was the local date, and that is the second half of the defect today.js's
+ * `dayKey` had: the screen read the device's day and so did this fixture, both
+ * wrong in the same direction, so they agreed and the suite stayed green. Once
+ * `dayKey` moved to the garage clock and this did not, they disagreed for the
+ * 5.5 hours a day when IST is already on tomorrow -- `tonight()` found no row
+ * for `nl-<device date>`, and four MUTANT checks below went green because the
+ * count they watch had nothing to count either way. A check that cannot fail is
+ * decoration, so the fixture moves with the screen. Measured under TZ=UTC. */
+const dayKeyOf = (ms) => new Date(ms + 19800000).toISOString().slice(0, 10);
 const NIGHT = 'nl-' + dayKeyOf(NOW);
 
 /* load(o) -> {win, Today, logs, sheets}
