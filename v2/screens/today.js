@@ -736,11 +736,32 @@
              foot: { act: 'digest', label: say('readItAll') } };
   }
 
-  // The ISO-ish week key the server writes on a digest: Monday's date.
+  /* The ISO-ish week key the server writes on a digest: Monday's date.
+   *
+   * THE GARAGE'S WEEKDAY, NOT THE DEVICE'S. `coach_ai.week_of` builds the key
+   * entirely in IST -- `datetime.fromtimestamp(ms/1000, CT.IST)`, then
+   * `d.weekday()` on that -- so which day of the week it is has to be asked of
+   * the garage's clock, exactly like the date.
+   *
+   * This took `d.getDay()`, the DEVICE's weekday, and fed it to `dayKey`, which
+   * is the garage's date: two clocks in three lines. On a device whose local
+   * weekday had not yet caught up with IST's, `back` was off by one and the key
+   * came back a day late -- NOT a Monday at all. Measured at 2026-11-08T06:18Z
+   * on a Los Angeles device: `getDay()` said Saturday while IST was Sunday, and
+   * weekKey returned `2026-11-03`, a TUESDAY, where the server had written
+   * `2026-11-02`. `thisWeek` then fails its `best.week !== weekKey(q.now)` test
+   * and returns null, so the owner's Monday summary silently leaves Today.
+   *
+   * 38.5 hours a week on a UTC device, 94.5 on US Pacific, 0 on IST -- measured
+   * over a full week in half-hour steps in test_v2_daykeys.js, which pins it.
+   *
+   * The weekday is read back out of `dayKey` rather than from a second copy of
+   * the 5.5-hour offset, so this file keeps ONE definition of the garage clock
+   * and the two cannot drift apart. */
   function weekKey(now) {
-    var d = new Date(now);
-    var back = (d.getDay() + 6) % 7;             // Monday = 0
-    return dayKey(now - back * DAY);
+    var ms = now == null ? Date.now() : Number(now);
+    var back = (new Date(dayKey(ms) + 'T00:00:00Z').getUTCDay() + 6) % 7;   // Monday = 0, in IST
+    return dayKey(ms - back * DAY);
   }
 
   /* ---- supervisor, block 1: standing in the yard (§2.3) ----
