@@ -368,6 +368,46 @@ test('the chrome is not allowed to be pending: all 21 ids have a real Hindi valu
   assert.deepEqual(chromeFailures(mergedTables(), win.W.chrome), []);
 });
 
+/* A `word` NOBODY REGISTERS IS A SCREEN NAME IN ENGLISH, and nothing else here could see it.
+ *
+ * `Caps.SCREENS[id]` carries `title: 'Duty board'` beside `word: 'scDuty'`, and DECISIONS.md 17
+ * exempts the title from the English-literal scan precisely BECAUSE the word sits next to it holding
+ * the Hindi. `Shell`'s nameOf() and `duty.js`'s both read the word first and fall back to the title
+ * when `w()` throws -- which it does for an id nobody registered. The fallback is silent and
+ * unmarked, so in Hindi the nav, the header and every cross-reference to that screen draw plain
+ * English, which is the exact shape of the defect section 6.3 exists to prevent.
+ *
+ * TEN OF THE THIRTEEN were in that state: only scMe, scPeople and scReviews were ever registered.
+ * Every other check here reads the tables, and an id that is referenced but never registered is in
+ * no table. This one reads the OTHER END -- what caps.js promises -- and that is the only place the
+ * gap is visible. */
+function screenWordFailures(capsSrc, merged) {
+  const out = [];
+  const re = /title:\s*'([^']*)'\s*,\s*word:\s*'([A-Za-z0-9_]+)'/g;
+  let m, seen = 0;
+  while ((m = re.exec(capsSrc)) !== null) {
+    seen++;
+    const [, title, word] = m;
+    if (!merged[word]) { out.push(word + ' (' + title + ') is named by caps.js and registered nowhere'); continue; }
+    if (merged[word].en === undefined) out.push(word + ' has no English value');
+    if (!('hi' in merged[word])) out.push(word + ' has no Hindi key');
+  }
+  if (!seen) out.push('no title/word pair was found in caps.js at all: this check read nothing');
+  return out;
+}
+
+test('the screen-word detector catches an unregistered word, a missing half, and an empty read', () => {
+  const caps = "me: { title: 'Me', word: 'scMe' },\n  duty: { title: 'Duty board', word: 'scDuty' },";
+  assert.deepEqual(screenWordFailures(caps, { scMe: { en: 'Me', hi: 'x' }, scDuty: { en: 'D', hi: 'y' } }), []);
+  assert.strictEqual(screenWordFailures(caps, { scMe: { en: 'Me', hi: 'x' } }).length, 1);
+  assert.strictEqual(screenWordFailures(caps, { scMe: { en: 'Me' }, scDuty: { en: 'D', hi: 'y' } }).length, 1);
+  assert.strictEqual(screenWordFailures('', {}).length, 1);
+});
+
+test("every screen name caps.js promises is a word somebody registered, not a title in English", () => {
+  assert.deepEqual(screenWordFailures(read(path.join(ROOT, 'v2', 'caps.js')), mergedTables()), []);
+});
+
 /* 3. THE PENDING COUNT, PRINTED EVERY RUN. Not a test - a report, so that the number is in front of whoever
  * ran the suite whether or not anything failed. A pending mechanism nobody empties is the leak with extra
  * steps, and a count printed only on failure is a count nobody reads. */

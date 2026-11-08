@@ -184,7 +184,7 @@
      * (`Caps.SCREENS.people.word`), so ONE word fills the nav label, the header
      * and More instead of the header translating from one id and the body from
      * a synonym. */
-    scPeople: { en: 'People', hi: '' },
+    scPeople: { en: 'People', hi: 'लोग' },  // FROM i18n-hi.js line 18 (people). The screen's own name, so that all thirteen are translated together
 
     peTabCrew: { en: 'Crew', hi: '' },
     peTabStaff: { en: 'Staff logins', hi: '' },

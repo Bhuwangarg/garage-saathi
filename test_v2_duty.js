@@ -59,8 +59,14 @@ function test(name, fn) {
  * THE SANDBOX
  * =================================================================================================== */
 
+/* `screens/gate.js` is here for ONE id. The board names the Gate round screen inside
+ * `dtGateNoneSub`, and `duty.js` resolves another screen's name through its `word`
+ * (`scGate`), falling back to the English `title` only when nobody registered it. Without
+ * gate.js in the sandbox nobody does, so the fallback fired and the Hindi check below saw
+ * a plain English screen name that the real app never draws. A fixture that makes the app
+ * take a path it would not take is a fixture that tests the path. */
 const SRC = ['ui/icons.js', 'ui/words.js', 'ui/states.js', 'fmt.js', 'caps.js',
-             'router.js', 'night.js', 'screens/duty.js'];
+             'router.js', 'night.js', 'screens/gate.js', 'screens/duty.js'];
 
 /* A stand-in for v2/db.js, faithful in the two ways seat() depends on: a missing
  * row reads as null, and every read and write is a CLONE, because IndexedDB
@@ -841,20 +847,105 @@ test('the lookup\'s remainder line DOES say newest first, because its order is t
  * 9. HINDI
  * =================================================================================================== */
 
-test('every label this screen draws goes through the word table', () => {
-  const l = load({ lang: 'hi' });
-  const f = fullHouse();
-  const html = l.Duty.render(shell({ cache: f.cache }));
-  // No Hindi is written yet, so every id is pending — and a pending label draws
-  // its English WITH ITS ID. That mark on every sentence is the proof that the
-  // sentence came from the table rather than from the source.
-  const sentences = ['Every bus tonight has a driver and a conductor [dtCountZero]',
-                     'Driver 1', 'Conductor'];
-  assert(/\[dtCountZero\]/.test(html), sentences[0] + ' did not come from the table');
-  assert(/\[dtSeatDriver1\]/.test(html), 'the seat labels did not come from the table');
-  assert(/\[dtGateNone\]/.test(html), 'the gate words did not come from the table');
+/* The old check here asserted that every sentence rendered as "English [dtId]" -- the PENDING mark --
+ * and used that mark as its proof that the sentence came from the table rather than from the source.
+ * That proof expires the moment the Hindi arrives, which it now has, so the mark is replaced by the
+ * two checks that outlive it:
+ *   - the TABLE: every dt* id has a real Hindi value, and no Latin letter in it. That reaches the
+ *     sentences no render here draws -- the failures, the offline line, the gate decisions.
+ *   - the RENDER: the whole board drawn in Hindi leaks no unmarked English. That reaches a fixed word
+ *     hard-coded at the point of use, which the table cannot see.
+ * Together they are strictly stronger than what they replace: the old one passed on three ids. */
+
+/* Tags become NEWLINES so one text node cannot borrow the next card's marker. */
+const MARKED = /[A-Za-z][^\n[\]]*\[[A-Za-z]+\]/g;
+/* A REGISTRATION PLATE IS LATIN IN HINDI TOO. "RJ09PA6101" is what is painted on the bus, and the
+ * board draws it on every card, so without this the check reports the fleet as untranslated English.
+ * The pattern is the Indian plate's own shape -- two letters, two digits, one to three letters, up to
+ * four digits -- and not a blanket allowance for capitals, so a fixed word can never hide behind it. */
+const PLATE = /\b[A-Z]{2}\s?\d{2}\s?[A-Z]{1,3}\s?\d{1,4}\b/g;
+function englishLeaks(html) {
+  const text = String(html).replace(/<[^>]*>/g, '\n').replace(MARKED, ' ').replace(PLATE, ' ');
+  const bad = [];
+  const re = /[A-Za-z][A-Za-z ']*/g;
+  let m;
+  while ((m = re.exec(text)) !== null) { const w = m[0].trim(); if (w.length >= 2) bad.push(w); }
+  return bad;
+}
+
+/* `{0}`, `{1}`, `{n}` and `{t}` are SLOTS, and `n` and `t` are Latin letters inside them. They are the
+ * caller's, not the language's, so they come out before the alphabet is judged -- otherwise every
+ * form with a count in it reads as untranslated. */
+const noSlots = (s) => String(s).replace(/\{[^}]*\}/g, '');
+
+function latinInTable(win) {
+  const out = [];
+  for (const id of win.W.ids()) {
+    if (!/^dt[A-Z]/.test(id)) continue;
+    const e = win.W.entry(id);
+    const hi = e && e.hi;
+    const forms = (hi && typeof hi === 'object') ? [hi.one, hi.other] : [hi];
+    for (const f of forms) {
+      if (f === undefined) continue;
+      if (f === null || f === '') { out.push(id + ' has no Hindi'); break; }
+      if (/[A-Za-z]/.test(noSlots(f))) { out.push(id + ' is English in Hindi: ' + f); break; }
+    }
+  }
+  return out;
+}
+
+test('the leak detector rejects an unmarked word and allows a marked one', () => {
+  assert.deepEqual(englishLeaks('<p>Runs tonight [dtNightRunning]</p>'), []);
+  assert.deepEqual(englishLeaks('<p>आज रात चलेगी</p>'), []);
+  assert.strictEqual(englishLeaks('<p>Runs tonight</p>').length, 1);
+  assert.deepEqual(englishLeaks('<p>RJ09PA6101</p>'), [], 'a number plate read as English');
+  assert.strictEqual(englishLeaks('<p>RJ09PA6101 Runs tonight</p>').length, 1,
+    'the plate pattern swallowed a fixed word beside it');
+  // The slot stripper, which is what keeps {n} from reading as an English word.
+  assert.strictEqual(noSlots('{t} में से {n} बसों').trim(), 'में से  बसों');
 });
 
+test('every word the duty board registers has a real Hindi value, including the ones no render draws', () => {
+  const l = load({ lang: 'hi' });
+  const ids = l.win.W.ids().filter((i) => /^dt[A-Z]/.test(i));
+  assert(ids.length >= 60, 'only ' + ids.length + ' duty ids: the table shrank');
+  assert.deepEqual(latinInTable(l.win), []);
+});
+
+/* The fixture's own text is Devanagari on purpose -- crew names and route labels -- so a Latin letter
+ * in the rendered body can only have come from a FIXED WORD, which is the thing being measured.
+ * A registration plate stays Latin: "RJ09PA6101" is what is painted on the bus in either language. */
+function hindiHouse() {
+  const f = fullHouse();
+  const names = ['रमेश कुमार', 'सुरेश चंद', 'मोहन लाल', 'विजय सिंह', 'कैलाश मीणा'];
+  f.cache.buses.forEach((b, i) => { b.routeLabel = 'जयपुर - कोटा'; });
+  f.cache.drivers.forEach((d, i) => { d.name = names[i % names.length]; });
+  f.cache.dutylog.forEach((r, i) => { r.crewName = names[i % names.length]; r.by = 'u-रमेश'; });
+  f.cache.nightlist.forEach((nl) => {
+    Object.keys(nl.buses || {}).forEach((k) => { nl.buses[k].by = 'u-रमेश'; });
+  });
+  return f;
+}
+
+test('in Hindi the whole board is Hindi — the count, the seats, the gate and the lookup', () => {
+  const l = load({ lang: 'hi' });
+  const f = hindiHouse();
+  const out = [l.Duty.render(shell({ cache: f.cache })),
+               l.Duty.render(shell({ cache: f.cache, params: { tab: 'lookup', bus: 'b1', date: DATE } }))];
+  const leaks = englishLeaks(out.join('\n'));
+  assert.deepEqual(leaks, [], 'English reached a Hindi reader on the duty board: ' + leaks.join(', '));
+  // …and the words really are the table's, not the source's.
+  assert(/आज रात/.test(out[0]), 'the count line did not come from the table');
+  assert(/ड्राइवर 1/.test(out[0]), 'the seat labels did not come from the table');
+});
+
+test("the owner's own Hindi is used where v1 already said the same thing", () => {
+  const l = load({ lang: 'hi' });
+  assert.strictEqual(l.win.w('dtSeatRelief'), 'दूसरा ड्राइवर, रात / लंबा रूट');   // i18n-hi.js:405
+  assert.strictEqual(l.win.w('dtTabLookup'), 'उस दिन बस पर कौन था');              // i18n-hi.js:397
+  assert.strictEqual(l.win.w('dtGateAwaiting'), 'ऑफिस के जवाब का इंतज़ार');        // i18n-hi.js:317
+  assert.strictEqual(l.win.w('dtChange'), 'बदलें');                                // i18n-hi.js:322
+});
 /* =================================================================================================== */
 
 Promise.all(waiting).then(() => {

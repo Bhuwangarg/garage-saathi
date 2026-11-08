@@ -152,6 +152,11 @@
    * caller: Hindi word order is not English word order, so "Expires in {0}" has
    * to be translatable whole. The dash joiner is an id for the same reason. */
   const TABLE = {
+    /* THE SCREEN'S OWN NAME. `Caps.SCREENS` names this id in its `word` field beside the English
+     * `title`, and nothing registered it, so `Shell`'s nameOf() fell through to the title and the
+     * nav, the header and every cross-reference to this screen drew UNMARKED English in Hindi mode.
+     * Ten of the thirteen were like this. test_v2_words.js now fails on a `word` nobody registers. */
+    scAttention: { en: 'Attention', hi: 'ध्यान दें' },  // NEW, on his needsYouNow (line 13)
     attTitle: { en: 'Attention', hi: '' },
     // The four bands plus all, in the bands' own order.
     attAll: { en: 'All', hi: '' },

@@ -102,6 +102,11 @@
    * ====================================================================== */
 
   var WORDS = {
+    /* THE SCREEN'S OWN NAME. `Caps.SCREENS` names this id in its `word` field beside the English
+     * `title`, and nothing registered it, so `Shell`'s nameOf() fell through to the title and the
+     * nav, the header and every cross-reference to this screen drew UNMARKED English in Hindi mode.
+     * Ten of the thirteen were like this. test_v2_words.js now fails on a `word` nobody registers. */
+    scBuses: { en: 'Buses', hi: 'बसें' },  // FROM i18n-hi.js line 11 (buses)
     bsCountNone:    { en: 'No buses', hi: '' },
     bsCount:        { en: { one: '1 bus', other: '{n} buses' }, hi: { one: '', other: '' } },
     bsSearch:       { en: 'Search a bus', hi: '' },

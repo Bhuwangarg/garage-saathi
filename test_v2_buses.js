@@ -1306,7 +1306,18 @@ test('H2 no Hindi was guessed, and every id this file draws is registered', () =
   // already the check. This states the other half: nothing has a guessed value.
   const table = /var WORDS = \{([\s\S]*?)\n  \};/.exec(SCREEN);
   assert(table, 'the word table must be one literal a register() call can find');
-  assert(!/[ऀ-ॿ]/.test(SCREEN), 'no Devanagari — the Hindi is the owner\'s to supply');
+  /* THE SCREEN'S OWN NAME IS EXEMPT, and it is the only exemption.
+   *
+   * `scBuses` is not one of this screen's 134 labels. It is the id `Caps.SCREENS.buses.word`
+   * PROMISES, and nothing registered it, so `Shell`'s nameOf() fell through to the English `title`
+   * and the nav drew "Buses" unmarked in Hindi mode -- ten of the thirteen screens were in that
+   * state. Registering it closes that, and its value is the owner's own word copied out of
+   * i18n-hi.js with the line it sits on, which `v2/ui/words.js` explicitly endorses and which
+   * `me.js` already does 45 times. The rule below is about this file not GUESSING its own labels,
+   * and it still is: the exemption is one line, named, and anything else in Devanagari fails. */
+  const own = /^\s*scBuses: \{[^\n]*\n/m;
+  assert(own.test(SCREEN), "the screen's own name is not registered here any more: drop this exemption");
+  assert(!/[ऀ-ॿ]/.test(SCREEN.replace(own, '')), 'no Devanagari — the Hindi is the owner\'s to supply');
   const ids = Object.keys(l.Buses.render ? {} : {});
   assert(l.win.W.pending().length > 0, 'the pending count is the owner\'s list and it is printed below');
   void ids;

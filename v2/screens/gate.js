@@ -122,6 +122,11 @@
    * supervisor presses at the moment that matters. Every `hi` is empty and
    * therefore PENDING, counted and printed by test_v2_words.js. */
   const WORDS = {
+    /* THE SCREEN'S OWN NAME. `Caps.SCREENS` names this id in its `word` field beside the English
+     * `title`, and nothing registered it, so `Shell`'s nameOf() fell through to the title and the
+     * nav, the header and every cross-reference to this screen drew UNMARKED English in Hindi mode.
+     * Ten of the thirteen were like this. test_v2_words.js now fails on a `word` nobody registers. */
+    scGate: { en: 'Gate round', hi: 'गेट चेक' },  // FROM i18n-hi.js line 312 (gcTitle)
     /* the board */
     gateCheckedOf: { en: '{0} of {1} checked out of the gate', hi: '' },
     gateAllChecked: { en: 'Every bus tonight left the gate checked', hi: '' },

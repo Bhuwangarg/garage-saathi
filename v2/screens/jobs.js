@@ -36,6 +36,11 @@
   var STALE_H = 48;                    // hours standing before the mark turns --bad
 
   var WORDS = {
+    /* THE SCREEN'S OWN NAME. `Caps.SCREENS` names this id in its `word` field beside the English
+     * `title`, and nothing registered it, so `Shell`'s nameOf() fell through to the title and the
+     * nav, the header and every cross-reference to this screen drew UNMARKED English in Hindi mode.
+     * Ten of the thirteen were like this. test_v2_words.js now fails on a `word` nobody registers. */
+    scJobs: { en: 'Jobs', hi: 'काम' },  // FROM i18n-hi.js line 11 (jobs)
     jbNewCard: { en: 'New job card', hi: '' },
     jbTabOpen: { en: 'Open', hi: '' },
     jbTabDone: { en: 'Completed', hi: '' },

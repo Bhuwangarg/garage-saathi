@@ -68,6 +68,11 @@
    * the last. A builder does not guess Hindi for a word a mechanic acts on.
    * ---------------------------------------------------------------------- */
   var WORDS = {
+    /* THE SCREEN'S OWN NAME. `Caps.SCREENS` names this id in its `word` field beside the English
+     * `title`, and nothing registered it, so `Shell`'s nameOf() fell through to the title and the
+     * nav, the header and every cross-reference to this screen drew UNMARKED English in Hindi mode.
+     * Ten of the thirteen were like this. test_v2_words.js now fails on a `word` nobody registers. */
+    scJobcard: { en: 'Job card', hi: 'जॉब कार्ड' },  // NEW, on his addJob (line 13)
     jobStarted: { en: 'I have started', hi: '' },
     jobDone: { en: 'I am done', hi: '' },
     jobStartedAt: { en: 'Started {time}', hi: '' },

@@ -730,7 +730,10 @@ test('every fixed word in both modules is registered for translation, and a tran
   assert.deepEqual(Object.keys(plain.win._registered), [], 'nothing to register against: W was not stubbed here');
   const hi = load({ words: (id) => 'HI:' + id });
   const ids = Object.keys(hi.win._registered).sort();
-  assert.deepEqual(ids, ['navMain', 'phAdd', 'phNotSent', 'phOnPhone', 'phSending', 'phView', 'phWifi'].sort());
+  /* `navMore` joined this list when the More tile's word was found unregistered: caps.js named it and
+   * nothing registered it, so the tile drew its English title in Hindi mode. The list is an inventory,
+   * so it grows deliberately and a word added without a reason fails here. */
+  assert.deepEqual(ids, ['navMain', 'navMore', 'phAdd', 'phNotSent', 'phOnPhone', 'phSending', 'phView', 'phWifi'].sort());
   for (const id of ids) {
     assert(hi.win._registered[id].en, id + ' has no English value');
     assert(Object.prototype.hasOwnProperty.call(hi.win._registered[id], 'hi'), id + ' has no hi key');

@@ -71,7 +71,13 @@
   };
 
   W.register({
-    navMain: { en: 'Main', hi: '' }
+    navMain: { en: 'Main', hi: 'मुख्य' },  // NEW. The nav's accessible name; v1 has no word for it
+    /* THE MORE TILE'S OWN NAME. `caps.js`'s MORE entry names this id in its `word` field, and nothing
+     * registered it, so the tile fell back to the English `title` -- unmarked, in Hindi mode, on the
+     * one control that opens the rest of the app on a phone. Do not confuse this id with the
+     * `navMore(items, activeId)` BUILDER below: they share a name in two different namespaces, and
+     * that is why the missing registration read as "the function exists, so the word must". */
+    navMore: { en: 'More', hi: 'अधिक' }  // NEW. His `more` (line 146) is "N more", a count, not a menu
   });
 
   /* w() THROWS on an id nobody registered, which is right: a missing translation that silently falls back

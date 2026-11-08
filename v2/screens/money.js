@@ -144,6 +144,11 @@
   var PERIODS = ['this', 'last', 'm3', 'year', 'dates'];
 
   var WORDS = {
+    /* THE SCREEN'S OWN NAME. `Caps.SCREENS` names this id in its `word` field beside the English
+     * `title`, and nothing registered it, so `Shell`'s nameOf() fell through to the title and the
+     * nav, the header and every cross-reference to this screen drew UNMARKED English in Hindi mode.
+     * Ten of the thirteen were like this. test_v2_words.js now fails on a `word` nobody registers. */
+    scMoney: { en: 'Money', hi: 'पैसा' },  // FROM i18n-hi.js line 18 (money)
     moTabThis: { en: 'This month', hi: '' },
     moTabLast: { en: 'Last month', hi: '' },
     moTabM3: { en: '3 months', hi: '' },

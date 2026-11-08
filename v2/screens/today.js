@@ -129,6 +129,11 @@
    * supervisor acts on is how "Not sent yet" becomes a line nobody can parse.
    * -------------------------------------------------------------------- */
   var LABELS = {
+    /* THE SCREEN'S OWN NAME. `Caps.SCREENS` names this id in its `word` field beside the English
+     * `title`, and nothing registered it, so `Shell`'s nameOf() fell through to the title and the
+     * nav, the header and every cross-reference to this screen drew UNMARKED English in Hindi mode.
+     * Ten of the thirteen were like this. test_v2_words.js now fails on a `word` nobody registers. */
+    scToday: { en: 'Today', hi: 'आज' },  // FROM i18n-hi.js line 18 (today)
     /* tiles */
     kpiRepair30: { en: 'Repair cost, 30 days', hi: 'मरम्मत खर्च (30 दिन)' },      // FROM i18n-hi.js: costMonth, line 13
     kpiOwed: { en: 'Owed to suppliers', hi: 'सप्लायर को देना है' },                 // FROM i18n-hi.js: hmOwed, line 115

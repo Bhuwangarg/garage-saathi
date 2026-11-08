@@ -96,92 +96,93 @@
    * reader can report it. Inventing Hindi the owner has not read would hide
    * exactly that (DECISIONS.md §21). */
   var WORDS = {
+    /* THE SCREEN'S OWN NAME. `Caps.SCREENS` names this id in its `word` field beside the English
+     * `title`, and nothing registered it, so `Shell`'s nameOf() fell through to the title and the
+     * nav, the header and every cross-reference to this screen drew UNMARKED English in Hindi mode.
+     * Ten of the thirteen were like this. test_v2_words.js now fails on a `word` nobody registers. */
+    scDuty: { en: 'Duty board', hi: 'ड्यूटी' },  // FROM i18n-hi.js line 400 (asTitle)
     // the count, which is the screen's whole argument
-    dtCountZero: { en: 'Every bus tonight has a driver and a conductor', hi: '' },
-    dtCountZeroOne: { en: 'The one bus tonight has a driver and a conductor', hi: '' },
-    dtCountOne: { en: '1 bus tonight needs somebody', hi: '' },
+    dtCountZero: { en: 'Every bus tonight has a driver and a conductor', hi: 'आज रात हर बस पर ड्राइवर और कंडक्टर है' },  // NEW, on his asAllHaveDriver (line 403)
+    dtCountZeroOne: { en: 'The one bus tonight has a driver and a conductor', hi: 'आज रात की इकलौती बस पर ड्राइवर और कंडक्टर है' },  // NEW
+    dtCountOne: { en: '1 bus tonight needs somebody', hi: 'आज रात 1 बस को कोई चाहिए' },  // NEW, on his cmNeedDriver (line 408)
     dtCountNeed: { en: { one: '{n} of {t} buses still needs somebody',
-                         other: '{n} of {t} buses still need somebody' },
-                   hi: { one: '', other: '' } },
-    dtCountNone: { en: 'No buses run tonight', hi: '' },
-    dtTonight: { en: 'tonight', hi: '' },
-    dtOffline: { en: 'No connection — this may be out of date', hi: '' },
-    dtError: { en: 'Could not load the duty board', hi: '' },
-    dtShown: { en: '{0} of {1} shown', hi: '' },
-    dtShownNewest: { en: '{0} of {1} shown, newest first', hi: '' },
+                         other: '{n} of {t} buses still need somebody' }, hi: '{t} में से {n} बसों को अभी कोई चाहिए' },  // NEW. One Hindi form for both counts
+    dtCountNone: { en: 'No buses run tonight', hi: 'आज रात कोई बस नहीं चलती' },  // NEW
+    dtTonight: { en: 'tonight', hi: 'आज रात' },  // NEW. v1 has no word for tonight
+    dtOffline: { en: 'No connection — this may be out of date', hi: 'कनेक्शन नहीं — यह पुराना हो सकता है' },  // NEW, on the chrome offlineHint
+    dtError: { en: 'Could not load the duty board', hi: 'ड्यूटी बोर्ड नहीं खुल सका' },  // NEW, on his asTitle (line 400)
+    dtShown: { en: '{0} of {1} shown', hi: '{1} में से {0} दिख रहे' },  // NEW
+    dtShownNewest: { en: '{0} of {1} shown, newest first', hi: '{1} में से {0} दिख रहे, नए पहले' },  // NEW
 
     // the tabs
-    dtTabTonight: { en: 'Tonight', hi: '' },
-    dtTabLookup: { en: 'Who was on a bus', hi: '' },
+    dtTabTonight: { en: 'Tonight', hi: 'आज रात' },  // NEW
+    dtTabLookup: { en: 'Who was on a bus', hi: 'उस दिन बस पर कौन था' },  // FROM i18n-hi.js line 397 (asWhoWas)
 
     // the entry, ticked off the office register
-    dtPickHead: { en: 'Which buses run tonight?', hi: '' },
-    dtPickHint: { en: 'Tick them off the office register. The board then shows only these.', hi: '' },
-    dtPickSearch: { en: 'Search a bus number', hi: '' },
-    dtSave: { en: { one: 'Save tonight’s list ({n} bus)', other: 'Save tonight’s list ({n} buses)' },
-              hi: { one: '', other: '' } },
-    dtSaveNone: { en: 'Tick at least one bus', hi: '' },
-    dtSaving: { en: 'Saving…', hi: '' },
-    dtSameAsLast: { en: { one: 'Same {n} bus as last night', other: 'Same {n} buses as last night' },
-                    hi: { one: '', other: '' } },
-    dtSameHint: { en: 'Tap to tick them all, then change what is different.', hi: '' },
-    dtEntryRow: { en: { one: '{n} bus tonight', other: '{n} buses tonight' }, hi: { one: '', other: '' } },
-    dtEntryBy: { en: 'Saved by {0} at {1}. Tap to change the list.', hi: '' },
-    dtEntryNoBy: { en: 'Tap to change the list.', hi: '' },
-    dtEmptyHint: { en: 'Saved by {0} at {1}. Tap the row above to change it.', hi: '' },
-    dtEmptyHintNoBy: { en: 'Tap the row above to change it.', hi: '' },
+    dtPickHead: { en: 'Which buses run tonight?', hi: 'आज रात कौन सी बसें चलेंगी?' },  // NEW
+    dtPickHint: { en: 'Tick them off the office register. The board then shows only these.', hi: 'ऑफिस रजिस्टर से टिक कीजिए। फिर बोर्ड सिर्फ़ यही दिखाएगा।' },  // NEW
+    dtPickSearch: { en: 'Search a bus number', hi: 'बस नंबर खोजें…' },  // NEW, on his asSearch (line 399)
+    dtSave: { en: { one: 'Save tonight’s list ({n} bus)', other: 'Save tonight’s list ({n} buses)' }, hi: 'आज रात की सूची सेव करें ({n} बसें)' },  // NEW, on his save (line 17). One Hindi form for both counts
+    dtSaveNone: { en: 'Tick at least one bus', hi: 'कम से कम एक बस टिक कीजिए' },  // NEW
+    dtSaving: { en: 'Saving…', hi: 'सेव हो रहा है…' },  // NEW, on his save (line 17)
+    dtSameAsLast: { en: { one: 'Same {n} bus as last night', other: 'Same {n} buses as last night' }, hi: 'कल रात जैसी ही {n} बसें' },  // NEW. One Hindi form for both counts
+    dtSameHint: { en: 'Tap to tick them all, then change what is different.', hi: 'सब टिक करने के लिए दबाइए, फिर जो अलग है उसे बदलिए।' },  // NEW
+    dtEntryRow: { en: { one: '{n} bus tonight', other: '{n} buses tonight' }, hi: 'आज रात {n} बसें' },  // NEW. One Hindi form for both counts
+    dtEntryBy: { en: 'Saved by {0} at {1}. Tap to change the list.', hi: '{0} ने {1} पर सेव किया। सूची बदलने के लिए दबाइए।' },  // NEW
+    dtEntryNoBy: { en: 'Tap to change the list.', hi: 'सूची बदलने के लिए दबाइए।' },  // NEW
+    dtEmptyHint: { en: 'Saved by {0} at {1}. Tap the row above to change it.', hi: '{0} ने {1} पर सेव किया। बदलने के लिए ऊपर वाली पंक्ति दबाइए।' },  // NEW
+    dtEmptyHintNoBy: { en: 'Tap the row above to change it.', hi: 'बदलने के लिए ऊपर वाली पंक्ति दबाइए।' },  // NEW
 
     // the three states of a bus in the pick list, each a word AND a mark
-    dtNightRunning: { en: 'Runs tonight', hi: '' },
-    dtNightOff: { en: 'Somebody said this one does not run tonight', hi: '' },
-    dtNightUndecided: { en: 'Nobody has said yet', hi: '' },
+    dtNightRunning: { en: 'Runs tonight', hi: 'आज रात चलेगी' },  // NEW
+    dtNightOff: { en: 'Somebody said this one does not run tonight', hi: 'किसी ने कहा है कि यह आज रात नहीं चलेगी' },  // NEW
+    dtNightUndecided: { en: 'Nobody has said yet', hi: 'अभी किसी ने नहीं बताया' },  // NEW
 
     // the three seats
-    dtSeatDriver1: { en: 'Driver 1', hi: '' },
-    dtSeatDriver2: { en: 'Driver 2', hi: '' },
-    dtSeatConductor: { en: 'Conductor', hi: '' },
-    dtSeatEmpty: { en: '{0} — empty', hi: '' },
-    dtSeatFilled: { en: '{0} — {1}', hi: '' },
-    dtSeatPut: { en: 'Tap to put somebody on it', hi: '' },
-    dtSeatRelief: { en: 'The relief driver, on night and long routes', hi: '' },
-    dtSeatSince: { en: 'On this bus since {0}', hi: '' },
-    dtChange: { en: 'Change', hi: '' },
+    dtSeatDriver1: { en: 'Driver 1', hi: 'ड्राइवर 1' },  // FROM i18n-hi.js line 405 (asDriverN)
+    dtSeatDriver2: { en: 'Driver 2', hi: 'ड्राइवर 2' },  // FROM i18n-hi.js line 405 (asDriverN)
+    dtSeatConductor: { en: 'Conductor', hi: 'कंडक्टर' },  // FROM i18n-hi.js line 230 (roleConductor)
+    dtSeatEmpty: { en: '{0} — empty', hi: '{0} — खाली' },  // FROM i18n-hi.js line 405 (asSeatEmpty)
+    dtSeatFilled: { en: '{0} — {1}', hi: '{0} — {1}' },  // NEW. Two slots and a dash: no word of either language in it
+    dtSeatPut: { en: 'Tap to put somebody on it', hi: 'किसी को बैठाने के लिए दबाइए' },  // NEW, on his asHint (line 400)
+    dtSeatRelief: { en: 'The relief driver, on night and long routes', hi: 'दूसरा ड्राइवर, रात / लंबा रूट' },  // FROM i18n-hi.js line 405 (asSeat2Hint)
+    dtSeatSince: { en: 'On this bus since {0}', hi: '{0} से इसी बस पर' },  // NEW
+    dtChange: { en: 'Change', hi: 'बदलें' },  // FROM i18n-hi.js line 322 (gcChange)
 
     // the seat sheet
-    dtSheetSearch: { en: 'Search a name', hi: '' },
-    dtFree: { en: { one: 'Free · {n} night this week', other: 'Free · {n} nights this week' },
-              hi: { one: '', other: '' } },
-    dtOnBus: { en: 'On {0} as {1}', hi: '' },
-    dtNobodyFree: { en: 'Nobody is free tonight', hi: '' },
-    dtNobodyFreeHint: { en: 'Everybody active is already on a bus that runs tonight.', hi: '' },
-    dtSeatFailed: { en: 'Not saved. Nobody was put on that seat.', hi: '' },
-    dtPutting: { en: 'Putting them on…', hi: '' },
+    dtSheetSearch: { en: 'Search a name', hi: 'नाम खोजें…' },  // FROM i18n-hi.js line 90 (searchName)
+    dtFree: { en: { one: 'Free · {n} night this week', other: 'Free · {n} nights this week' }, hi: 'खाली · इस हफ़्ते {n} रातें' },  // NEW, on his asSeatEmpty (405). One Hindi form for both counts
+    dtOnBus: { en: 'On {0} as {1}', hi: '{0} पर {1} के तौर पर' },  // NEW
+    dtNobodyFree: { en: 'Nobody is free tonight', hi: 'आज रात कोई खाली नहीं' },  // NEW, on his asNobody (line 407)
+    dtNobodyFreeHint: { en: 'Everybody active is already on a bus that runs tonight.', hi: 'काम पर हर कोई पहले से आज रात चलने वाली किसी बस पर है।' },  // NEW
+    dtSeatFailed: { en: 'Not saved. Nobody was put on that seat.', hi: 'सेव नहीं हुआ। उस सीट पर कोई नहीं बैठा।' },  // NEW
+    dtPutting: { en: 'Putting them on…', hi: 'बैठाया जा रहा है…' },  // NEW
 
     // the gate, six states, every one a mark and a word
-    dtGateNone: { en: 'Not checked out yet', hi: '' },
-    dtGateNoneOffline: { en: 'Not checked on this phone yet', hi: '' },
-    dtGateNoneSub: { en: 'The ten items are on {0}.', hi: '' },
-    dtGateOpen: { en: 'Check started {0}', hi: '' },
-    dtGateOpenSub: { en: '{0} of {1} answered', hi: '' },
-    dtGateAwaiting: { en: 'Waiting for a decision', hi: '' },
-    dtGateAwaitingSub: { en: 'Sent {0}', hi: '' },
-    dtGateReleased: { en: 'Released {0}', hi: '' },
-    dtGateReleasedSub: { en: 'All ten passed · {0}', hi: '' },
-    dtGateApproved: { en: 'Allowed out {0}', hi: '' },
-    dtGateApprovedSub: { en: 'The decision was go', hi: '' },
-    dtGateHeld: { en: 'Held {0}', hi: '' },
-    dtGateHeldSub: { en: 'The decision was hold', hi: '' },
+    dtGateNone: { en: 'Not checked out yet', hi: 'अभी गेट चेक नहीं हुआ' },  // NEW, on his gcNoCheckShort (line 394)
+    dtGateNoneOffline: { en: 'Not checked on this phone yet', hi: 'इस फ़ोन पर अभी कोई चेक नहीं आया' },  // NEW, on his gcNotFound (line 319)
+    dtGateNoneSub: { en: 'The ten items are on {0}.', hi: 'दसों चीज़ें {0} पर हैं।' },  // NEW
+    dtGateOpen: { en: 'Check started {0}', hi: '{0} चेक शुरू हुआ' },  // NEW, on his gcStartedAt (line 319)
+    dtGateOpenSub: { en: '{0} of {1} answered', hi: '{1} में से {0} के जवाब आए' },  // NEW
+    dtGateAwaiting: { en: 'Waiting for a decision', hi: 'ऑफिस के जवाब का इंतज़ार' },  // FROM i18n-hi.js line 317 (gcAwaiting)
+    dtGateAwaitingSub: { en: 'Sent {0}', hi: '{0} भेजा' },  // NEW, on his gcSentToOffice (line 316)
+    dtGateReleased: { en: 'Released {0}', hi: 'बस छूटी {0}' },  // FROM i18n-hi.js line 317 (gcReleased)
+    dtGateReleasedSub: { en: 'All ten passed · {0}', hi: 'दसों पास · {0}' },  // NEW, on his gcPass (line 314)
+    dtGateApproved: { en: 'Allowed out {0}', hi: '{0} जाने दिया' },  // NEW, on his gcApproved (line 318)
+    dtGateApprovedSub: { en: 'The decision was go', hi: 'फ़ैसला था: चलो' },  // FROM i18n-hi.js line 321 (gcGo)
+    dtGateHeld: { en: 'Held {0}', hi: '{0} रोका' },  // NEW, on his gcHeld (line 318)
+    dtGateHeldSub: { en: 'The decision was hold', hi: 'फ़ैसला था: रुको' },  // FROM i18n-hi.js line 321 (gcHold)
 
     // the lookup
-    dtPickBus: { en: 'Choose the bus', hi: '' },
-    dtOnDate: { en: 'The date', hi: '' },
-    dtShow: { en: 'Show', hi: '' },
-    dtLooking: { en: 'Looking…', hi: '' },
-    dtLogRow: { en: '{0} — {1}', hi: '' },
-    dtLogSub: { en: 'Put on at {0} by {1} · {2}', hi: '' },
-    dtLogSubNoBy: { en: 'Put on at {0} · {1}', hi: '' },
-    dtLogEmpty: { en: 'Nobody was recorded on that bus that day', hi: '' },
-    dtLogHorizon: { en: 'The duty log starts on {0}.', hi: '' },
+    dtPickBus: { en: 'Choose the bus', hi: 'बस चुनें' },  // FROM i18n-hi.js line 397 (asPickBus)
+    dtOnDate: { en: 'The date', hi: 'तारीख़' },  // NEW, on his cbExpiryDate (line 278)
+    dtShow: { en: 'Show', hi: 'देखें' },  // FROM i18n-hi.js line 397 (asLookUp)
+    dtLooking: { en: 'Looking…', hi: 'देखा जा रहा है…' },  // NEW, on his asLookUp (line 397)
+    dtLogRow: { en: '{0} — {1}', hi: '{0} — {1}' },  // NEW. Two slots and a dash: no word of either language in it
+    dtLogSub: { en: 'Put on at {0} by {1} · {2}', hi: '{1} ने {0} पर बैठाया · {2}' },  // NEW
+    dtLogSubNoBy: { en: 'Put on at {0} · {1}', hi: '{0} पर बैठाया · {1}' },  // NEW
+    dtLogEmpty: { en: 'Nobody was recorded on that bus that day', hi: 'उस दिन उस बस पर कोई दर्ज नहीं' },  // FROM i18n-hi.js line 398 (asNobodySeat)
+    dtLogHorizon: { en: 'The duty log starts on {0}.', hi: 'ड्यूटी लॉग {0} से शुरू होता है।' },  // NEW, on his asNotRecorded (line 398)
   };
 
   /* ---------- the small stuff --------------------------------------------- */

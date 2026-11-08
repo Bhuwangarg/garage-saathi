@@ -102,6 +102,11 @@
   var BUS_ODO_CAP = 'writeBusOdometer';
 
   var WORDS = {
+    /* THE SCREEN'S OWN NAME. `Caps.SCREENS` names this id in its `word` field beside the English
+     * `title`, and nothing registered it, so `Shell`'s nameOf() fell through to the title and the
+     * nav, the header and every cross-reference to this screen drew UNMARKED English in Hindi mode.
+     * Ten of the thirteen were like this. test_v2_words.js now fails on a `word` nobody registers. */
+    scFuel: { en: 'Fuel & tyres', hi: 'ईंधन और टायर' },  // NEW, on his fuel (line 13) and catTyres (line 174)
     ftLastFill: { en: 'Last fill: {reg}, {age}', hi: '' },
     ftNoFills: { en: 'No fills yet', hi: '' },
     ftLogDiesel: { en: 'Log diesel', hi: '' },
