@@ -253,8 +253,34 @@
   min-width: 0;
 }
 
+/* A SECOND LINE WRITTEN AS A SIBLING GETS ITS OWN ROW, and the rule above is why it needs one.
+ *
+ * `> *` puts EVERY direct child in column 2, row 1. The markup contract at the top of this file wraps
+ * the two lines in `div.txt`, so the wrapper is the one child in that cell and the lines stack inside it.
+ * Four screens -- money, people, jobs and buses -- write them as siblings instead:
+ *
+ *     <a class="v2row"><span class="lead">..</span><span class="t">..</span><span class="sub">..</span><span class="act">..</span></a>
+ *
+ * Both then land in the SAME CELL and are drawn one on top of the other. Not touching, not clipped:
+ * superimposed, full width, at the same y. Measured at 1366px before this rule: People drew
+ * "Geeta Devi - Driver - RJ45 CC 8890" and "Score 77 - 2 incidents - Documents missing" both at
+ * x=200, 1085px wide, one pixel apart vertically -- 27 rows of it on People, 18 on Money, 7 on the
+ * job card, where two of them are the instructions a mechanic has to act on. The second line was not
+ * missing. It was underneath.
+ *
+ * `span 2` and not `1 / -1`: with no `grid-template-rows` there is no explicit grid, so `-1` resolves
+ * to line 1 and the span collapses -- the mark then sits on the title's line instead of centred
+ * against both. Measured: 45 rows off-centre with `1 / -1`, none with `span 2`.
+ *
+ * A row with no sibling `.sub` keeps one line and its 32px: the second track is implicit and empty, so
+ * it has no height. Measured: Store and Reviews unchanged at 32px either way. */
+[data-v2] .v2row > .sub {
+  grid-row: 2;
+}
+
 [data-v2] .v2row > .lead {
   grid-column: 1;
+  grid-row: 1 / span 2;
   display: flex;
   align-items: center;
   margin-inline-end: var(--s3);
@@ -263,6 +289,7 @@
 
 [data-v2] .v2row > .act {
   grid-column: 3;
+  grid-row: 1 / span 2;
   display: flex;
   align-items: center;
   gap: var(--s2);

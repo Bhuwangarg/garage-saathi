@@ -415,6 +415,76 @@ test('the span form is still in use, so the block rule above is guarding somethi
     + users.map((f) => path.basename(f)).join(', '));
 });
 
+/* ---------------------------------------------------------------------------------------------------
+ * A SECOND LINE WRITTEN AS A SIBLING NEEDS ITS OWN GRID ROW. The other half of the same defect.
+ *
+ * `[data-v2] .v2row > *` puts every direct child in column 2, row 1. Where the two lines are siblings
+ * of `.lead` rather than wrapped in `div.txt`, they land in ONE cell and are drawn on top of each
+ * other -- superimposed, full width, same y. Measured at 1366px: 27 rows on People, 18 on Money, 7 on
+ * the job card, two of which are the instructions a mechanic acts on.
+ *
+ * `span 2` and not `1 / -1`: with no `grid-template-rows` there is no explicit grid, `-1` resolves to
+ * line 1, and the span collapses -- the mark then sits on the title's line. Measured: 45 rows
+ * off-centre with `1 / -1`, none with `span 2`. So the span is pinned here as written, not just as
+ * "some grid-row".
+ * ------------------------------------------------------------------------------------------------- */
+
+function declOf(css, sel) {
+  const hit = rulesOf(css).filter((r) => selectors(r).some((s) => s.replace('[data-v2] ', '') === sel));
+  return Object.assign({}, ...hit.map((r) => r.decls));
+}
+
+function siblingRowFailures(css) {
+  const out = [];
+  const sub = declOf(css, '.v2row > .sub');
+  if (sub['grid-row'] !== '2') {
+    out.push('.v2row > .sub declares grid-row: ' + (sub['grid-row'] || '(nothing, so row 1 with the title)')
+      + ' -- a sibling second line then shares the title\'s cell and is drawn on top of it');
+  }
+  for (const sel of ['.v2row > .lead', '.v2row > .act']) {
+    const d = declOf(css, sel);
+    if (d['grid-row'] !== '1 / span 2') {
+      out.push(sel + ' declares grid-row: ' + (d['grid-row'] || '(nothing)')
+        + ' -- it must be "1 / span 2" or the mark sits on the title\'s line instead of centred against both');
+    }
+  }
+  return out;
+}
+
+test('the sibling-row detector rejects a shared cell, a collapsed span and a missing rule', () => {
+  const good = '[data-v2] .v2row > .sub { grid-row: 2; }\n'
+    + '[data-v2] .v2row > .lead { grid-row: 1 / span 2; }\n'
+    + '[data-v2] .v2row > .act { grid-row: 1 / span 2; }';
+  assert.deepEqual(siblingRowFailures(good), []);
+  assert.strictEqual(siblingRowFailures(good.replace('.sub { grid-row: 2; }', '.sub { color: red; }')).length, 1);
+  assert.strictEqual(siblingRowFailures(good.split('1 / span 2').join('1 / -1')).length, 2);
+  assert.strictEqual(siblingRowFailures('').length, 3);
+});
+
+test("a second line written beside the title gets its own row, instead of being drawn under it", () => {
+  assert.deepEqual(siblingRowFailures(COMP_V2), []);
+});
+
+/* As with the block rule: this guards nothing once every screen wraps its two lines, so it says which
+ * files still write them as siblings and fails if none do. */
+test('the sibling form is still in use, so the row rules above are guarding something real', () => {
+  const files = [];
+  (function walk(d) {
+    for (const n of fs.readdirSync(d)) {
+      const p = path.join(d, n);
+      if (fs.statSync(p).isDirectory()) walk(p);
+      else if (/\.js$/.test(n)) files.push(p);
+    }
+  })(path.join(ROOT, 'v2'));
+  // `<span class="lead">` ... `</span>` then `<span class="t">` with no wrapper opened between them.
+  const SIBLING = /<span class="lead"[^>]*>[\s\S]{0,400}?<\/span>'?\s*\+?\s*'?\s*\+?\s*[^<]{0,80}'<span class="t">/;
+  const users = files.filter((f) => SIBLING.test(read(f)));
+  assert(users.length > 0,
+    'no v2 file writes the two lines as siblings any more: move this check, or delete it');
+  console.log('        ' + users.length + ' v2 files write the two lines as siblings of .lead: '
+    + users.map((f) => path.basename(f)).join(', '));
+});
+
 function load(o) {
   o = o || {};
   const sheets = [];
