@@ -1208,10 +1208,12 @@ async function checkReducedMotion(env) {
       });
       // ...and out again: the exit must not move either
       out.exit = { sheet: {}, confirm: {}, toast: {} }; out.exitOpacity = { sheet: [], confirm: [], toast: [] };
+      out.exitFrames = 0;
       V2.closeSheet(); H.confirm().querySelector('.ov-no').click(); t.querySelector('.ov-toast-close').click();
       await new Promise(function (done) {
         var t0 = performance.now();
         (function frame() {
+          out.exitFrames++;
           Object.keys(els).forEach(function (k) { if (els[k].isConnected) { var cs = getComputedStyle(els[k]); out.exit[k][cs.transform] = 1; out.exitOpacity[k].push(parseFloat(cs.opacity)); } });
           if (performance.now() - t0 < 400) requestAnimationFrame(frame); else done();
         })();
@@ -1227,6 +1229,26 @@ async function checkReducedMotion(env) {
     // motion, which is a red for something that is not a defect, and a red
     // like that is the reason gates get bypassed.
     if (r.frames < 10) throw unmeasurable('only ' + r.frames + ' frames in 400ms: this machine would not draw fast enough to judge what moved');
+    /* THE EXIT IS ITS OWN MEASUREMENT, and a per-object sample count cannot stand
+     * in for it. Each element DISCONNECTS part-way through its exit, and the loop
+     * stops sampling it when it does, so a healthy machine here yields 7 to 11
+     * samples per object -- measured -- and the shortfall is the element going
+     * away, not the frames. Counting the LOOP's own frames tells the two apart:
+     * it runs the full 400ms either way.
+     *
+     * Measured on a quiet Mac: 26 to 38 frames in, 7 to 11 exit samples per
+     * object, opacity walking 1 -> 0 over about 160ms. Measured on the GitHub
+     * runner that failed this check on 8 Nov 2026: ONE exit sample, value 1 --
+     * the element was connected for the first frame of the exit and gone by the
+     * second, so no frame ever landed inside the 160ms fade. That is not a fade
+     * that stopped happening, it is a fade nobody watched, and the check said
+     * "the exit is never seen part-way faded" about all three objects at once,
+     * which is the shape of a starved box and not of three simultaneous defects.
+     *
+     * Ten frames is the same threshold the line above uses, for the same reason.
+     * At ten frames in 400ms a 160ms fade must produce four interior samples, so
+     * past that line an unfaded exit IS a defect and still fails. */
+    const exitSeen = r.exitFrames >= 10;
     for (const k of ['sheet', 'confirm', 'toast']) {
       const tf = Object.keys(r.transforms[k]);
       if (tf.length !== 1 || tf[0] !== 'none') f.push(k + ': under prefers-reduced-motion its transform took the values ' + tf.join(' | ') + ', so it still moves');
@@ -1235,10 +1257,19 @@ async function checkReducedMotion(env) {
       const o = r.opacity[k];
       if (!o.some((x) => x > 0 && x < 1)) f.push(k + ': never seen part-way faded (opacities ' + o.slice(0, 6).join(',') + '...), so the fade is not happening');
       if (o[o.length - 1] !== 1) f.push(k + ': ends at opacity ' + o[o.length - 1]);
+      /* Only when the exit was actually watched. Everything above this point is
+       * the ENTRY, which has its own frame gate and is judged either way. */
+      if (!exitSeen) continue;
       const ex = Object.keys(r.exit[k]);
       if (ex.length === 0) f.push(k + ': the exit was never sampled, so its movement is unchecked');
       else if (ex.length !== 1 || ex[0] !== 'none') f.push(k + ': under prefers-reduced-motion its EXIT took the transforms ' + ex.join(' | ') + ', so it still moves going out');
       if (!r.exitOpacity[k].some((x) => x > 0 && x < 1)) f.push(k + ': the exit is never seen part-way faded (' + r.exitOpacity[k].slice(0, 6).join(',') + ')');
+    }
+    /* A real failure going IN outranks an unwatched exit: say what was found.
+     * With nothing found and the exit unwatched, this check did not finish, and
+     * NOT MEASURED is what it owes the reader rather than a pass. */
+    if (f.length === 0 && !exitSeen) {
+      throw unmeasurable('only ' + r.exitFrames + ' frames in the 400ms exit: no frame landed inside the fade, so going out was never watched');
     }
     return f;
   });
@@ -1939,6 +1970,19 @@ test('the reduced-motion checker goes red when the overlay block is missing, lea
     ['the fade is dropped on enter', mCss('[data-v2].ov-sheet[data-mounted] .ov-panel {\n    transition: opacity 250ms ease-out;', '[data-v2].ov-sheet[data-mounted] .ov-panel {\n    transition: none;')],
     ['the toast fade is dropped', mCss('[data-v2] .ov-toast[data-mounted] {\n    transition: opacity 200ms ease-out;', '[data-v2] .ov-toast[data-mounted] {\n    transition: none;')],
     ['the reduced block only covers the sheet', mCss(/(  \[data-v2\] \.ov-toast \{\n    transform: none;\n    transition: opacity 150ms ease-out;\n  \}\n\n)/, '')],
+    /* THE EXIT FADE ON ITS OWN. The two above drop the fade for a whole element
+     * and the ENTRY clause catches them, so neither proves the exit clause is
+     * awake. These two take the fade off the base rule only -- the one without
+     * [data-mounted], which is what governs going OUT -- and leave the entry
+     * rule alone. They are the mutants that go red through
+     * "the exit is never seen part-way faded" and nothing else, which is the
+     * clause that was gated behind exitFrames >= 10. */
+    ['the sheet and the confirmation stop fading on the way out',
+     mCss('  [data-v2].ov-sheet .ov-panel,\n  [data-v2].ov-confirm .ov-panel {\n    transform: none;\n    transition: opacity 150ms ease-out;\n  }',
+          '  [data-v2].ov-sheet .ov-panel,\n  [data-v2].ov-confirm .ov-panel {\n    transform: none;\n    transition: none;\n  }')],
+    ['the toast stops fading on the way out',
+     mCss('  [data-v2] .ov-toast {\n    transform: none;\n    transition: opacity 150ms ease-out;\n  }',
+          '  [data-v2] .ov-toast {\n    transform: none;\n    transition: none;\n  }')],
   ]);
 }, { browser: true, solo: true });
 
