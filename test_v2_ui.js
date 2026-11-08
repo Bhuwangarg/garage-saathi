@@ -350,6 +350,71 @@ test('the rail needs desk density AND at least 1024px: both clauses, each for a 
  * ===================================================================================================== */
 
 // load({sheets, document, icons, words}) -> the sandbox, plus what it recorded.
+/* ---------------------------------------------------------------------------------------------------
+ * THE ROW'S TWO LINES MUST BE BLOCKS. A defect that reached the office and was reported by a person.
+ *
+ * components.css's markup contract writes them as DIVS inside div.txt, and a div is already block, so
+ * the missing declaration changed nothing for the files that follow the contract and nobody saw it.
+ * Nine of the thirteen screens write them as SPANS instead --
+ * <span><span class="t">..</span><span class="sub">..</span></span> -- and an inline box breaks both of
+ * the things .t and .sub are declared for:
+ *   - two inline boxes share ONE line with no gap, so on the duty board the title and the second line
+ *     ran together: "Driver 1 - Suresh Chand MeenaOn this bus since 2026-10-29";
+ *   - overflow and text-overflow DO NOTHING on a non-replaced inline box, so the title never truncated.
+ *     Measured at 375px it ran out of the grid's middle track and printed on top of .act: the crew
+ *     name and the word "Change" drawn over each other, which is what was reported.
+ * The grid and its minmax(0, 1fr) middle track were right the whole time; only the TEXT left the box.
+ * That is why nothing else here could see it, and why display: block is pinned.
+ * ------------------------------------------------------------------------------------------------- */
+
+function rowLineFailures(css) {
+  const out = [];
+  const rules = rulesOf(css);
+  for (const want of ['.v2row .t', '.v2row .sub']) {
+    const hit = rules.filter((r) => selectors(r).some((s) => s.replace('[data-v2] ', '') === want));
+    if (!hit.length) { out.push(want + ' has no rule at all'); continue; }
+    const display = hit.map((r) => r.decls.display).filter(Boolean).pop();
+    if (display !== 'block') {
+      out.push(want + ' declares display: ' + (display || '(nothing, which is inline for a span)')
+        + ' -- an inline line box cannot truncate and will not stack');
+    }
+  }
+  return out;
+}
+
+test('the row-line detector rejects a missing display and an inline one, and accepts block', () => {
+  assert.deepEqual(rowLineFailures('[data-v2] .v2row .t { display: block; }\n'
+    + '[data-v2] .v2row .sub { display: block; }'), []);
+  assert.strictEqual(rowLineFailures('[data-v2] .v2row .t { overflow: hidden; }\n'
+    + '[data-v2] .v2row .sub { display: block; }').length, 1);
+  assert.strictEqual(rowLineFailures('[data-v2] .v2row .t { display: inline; }\n'
+    + '[data-v2] .v2row .sub { display: inline-block; }').length, 2);
+  assert.strictEqual(rowLineFailures('').length, 2);
+});
+
+test("the row's title and second line are blocks, so a long name truncates instead of printing over .act", () => {
+  assert.deepEqual(rowLineFailures(COMP_V2), []);
+});
+
+/* The rule above only guards something while screens write the two lines as spans. If they all move to
+ * the div.txt form the contract documents, this stops guarding anything -- so it says so out loud
+ * instead of sitting there green and meaning nothing. */
+test('the span form is still in use, so the block rule above is guarding something real', () => {
+  const files = [];
+  (function walk(d) {
+    for (const n of fs.readdirSync(d)) {
+      const p = path.join(d, n);
+      if (fs.statSync(p).isDirectory()) walk(p);
+      else if (/\.js$/.test(n)) files.push(p);
+    }
+  })(path.join(ROOT, 'v2'));
+  const users = files.filter((f) => /<span class="t">/.test(read(f)));
+  assert(users.length > 0,
+    'no v2 file writes <span class="t"> any more: move this check to the div form, or delete it');
+  console.log('        ' + users.length + " v2 files write the row's lines as spans: "
+    + users.map((f) => path.basename(f)).join(', '));
+});
+
 function load(o) {
   o = o || {};
   const sheets = [];

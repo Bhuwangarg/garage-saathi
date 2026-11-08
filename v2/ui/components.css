@@ -270,7 +270,22 @@
   white-space: nowrap;
 }
 
+/* `display: block` IS LOAD-BEARING, and it is the whole of a defect that shipped.
+ *
+ * The markup contract at the top of this file writes the two lines as DIVS inside `div.txt`, and a div is
+ * already block, so for three screens this rule changed nothing and nobody noticed it was missing. Nine
+ * screens write them as SPANS instead -- `<span><span class="t">..</span><span class="sub">..</span></span>`
+ * -- and a span is inline, which breaks both things the three declarations below are for:
+ *   - two inline boxes sit on ONE line with no gap, so the title and the second line run together:
+ *     measured on the duty board, "Driver 1 - Suresh Chand MeenaOn this bus since 2026-10-29";
+ *   - `overflow`/`text-overflow` DO NOTHING on a non-replaced inline box, so the title never truncated. It
+ *     ran straight out of the grid's middle track and printed on top of `.act`: measured at 375px, the
+ *     name and the word "Change" drawn over each other, which is what a person reported.
+ * The grid's `minmax(0, 1fr)` middle column is sized right either way; it is the TEXT that would not stay
+ * inside it. So this is not styling. It is the one declaration that makes the ellipsis in the three lines
+ * below reachable, and without it they are decoration. */
 [data-v2] .v2row .t {
+  display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -279,6 +294,7 @@
 }
 
 [data-v2] .v2row .sub {
+  display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
