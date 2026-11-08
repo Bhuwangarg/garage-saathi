@@ -301,6 +301,39 @@ test('a role with no block draws nothing at all, rather than a heading over an e
   assert(l.logs.warn.some((x) => /no block for role/.test(x)), 'it drew nothing and said nothing');
 });
 
+/* THE COLD START: signed in, not one store read yet. Every builder that needs a
+ * store it has not got returns `loading(...)`, a skeleton card, and this is the
+ * ONLY state that path exists for -- so it is the state that was never driven.
+ *
+ * It threw. `var loading = false` (the mount latch) was declared in the same
+ * scope as `function loading(id, title, q)`, so the function hoisted and the
+ * assignment overwrote it at load: every skeleton call raised
+ * `TypeError: loading is not a function` and five of the six roles could not
+ * draw Today at all, on any device, in any timezone. It stayed hidden because
+ * every case in this file hands the screen a full fixture.
+ *
+ * Driven through `model()` rather than `render()` on purpose: `frame()` always
+ * carries `world()`, so a frame cannot express "no stores yet". */
+test('every role draws a skeleton before any store has been read, rather than throwing', () => {
+  const l = load({ role: 'owner' });
+  const seen = {};
+  for (const role of ROLES) {
+    let m;
+    assert.doesNotThrow(() => { m = l.Today.model(role, {}); },
+      role + ' cannot draw Today on a cold start');
+    const states = (m.blocks || []).map((b) => b.state);
+    assert(m.blocks.length <= 4, role + ' broke the cap on a cold start');
+    seen[role] = states.indexOf('loading') >= 0;
+  }
+  // The owner's two blocks say "unknown" instead of waiting, so he is the one
+  // role with no skeleton. The other five must actually reach that path -- a
+  // role that merely did not throw proves nothing about the builder.
+  for (const role of ROLES.filter((r) => r !== 'owner')) {
+    assert.strictEqual(seen[role], true,
+      role + ' drew no skeleton on a cold start, so the loading path went undriven');
+  }
+});
+
 /* =====================================================================================================
  * 2. THE FOUR-BLOCK CAP — the check this file exists for
  * ===================================================================================================== */
