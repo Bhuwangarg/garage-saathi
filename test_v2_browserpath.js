@@ -1102,13 +1102,26 @@ const CREWMGR = { id: 'u-cm', role: 'crewmanager', name: 'Crew manager', updated
 const DRIVER = { id: 'u-drv', role: 'driver', name: 'Ramlal', updatedAt: 1 };
 const STOREMAN = { id: 'u-st', role: 'store', name: 'Storekeeper', updatedAt: 1 };
 
-// Today's key in the shape `nightlist` is keyed by (`nl-<YYYY-MM-DD>`), on the
-// page's own clock: a fixture with yesterday's key is a fixture with no record
-// for tonight, which is a different state and the one F2 is NOT about.
+/* Today's key in the shape `nightlist` is keyed by (`nl-<YYYY-MM-DD>`): a fixture
+ * with yesterday's key is a fixture with no record for tonight, which is a
+ * different state and the one F2 is NOT about.
+ *
+ * IT MUST BE THE SAME CLOCK THE CODE UNDER TEST USES, and that clock is not the
+ * machine's. `v2/night.js`'s `dayKey` is `UTC + 5:30`, fixed, because the server's
+ * `_ist_day` is and two people opening the board must write one record and not
+ * two. This function used to build the key from the machine's LOCAL date, so the
+ * two agreed only on a machine set to IST.
+ *
+ * Measured: at 21:38 UTC on 7 Nov 2026 the local date is 2026-11-07 and the
+ * garage's is 2026-11-08, so the fixture wrote `nl-2026-11-07`, the board asked
+ * for `nl-2026-11-08`, and F2's denominator was 0 instead of 2. That is every
+ * runner that is not on IST -- GitHub Actions is UTC -- for the five and a half
+ * hours between 18:30 and 00:00 UTC, every day. CI was green only because no run
+ * had yet landed inside that window. Four checks here fail in it, F2 and F4
+ * directly and two Attention mutants by surviving against an empty board. */
 function todayKey() {
-  const d = new Date();
-  const m = d.getMonth() + 1, day = d.getDate();
-  return d.getFullYear() + '-' + (m < 10 ? '0' : '') + m + '-' + (day < 10 ? '0' : '') + day;
+  const IST_MS = (5 * 60 + 30) * 60000;
+  return new Date(Date.now() + IST_MS).toISOString().slice(0, 10);
 }
 
 function yardRows(users) {

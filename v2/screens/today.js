@@ -433,10 +433,25 @@
     return null;
   }
 
+  /* THE GARAGE'S DAY, NOT THE DEVICE'S. This builds the key `tonight()` looks up,
+   * and that key is written by `v2/night.js`, whose `dayKey` is `UTC + 5:30`,
+   * fixed, because the server's `_ist_day` is. This one used to read the DEVICE's
+   * local date, so the two agreed only on a device set to IST -- which is every
+   * phone in the garage, and not a phone whose timezone was never set, one set to
+   * UTC, or one carried out of the country.
+   *
+   * On such a device the duty board writes `nl-<garage date>` and Today looks up
+   * `nl-<device date>`, finds nothing, and tells the crew manager "Tonight's buses
+   * are not picked yet" with a button to a board that is already full. That is the
+   * same sentence the "67 buses need a driver" defect printed, from the other end:
+   * there the list could not be narrowed, here it cannot be found.
+   *
+   * 5.5 hours a day on a UTC device, every day. Measured in test_v2_browserpath.js
+   * F2, which only caught it once its own fixture stopped using the local clock
+   * too -- both halves were wrong in the same direction, so they agreed. */
   function dayKey(now) {
-    var d = new Date(now);
-    var m = d.getMonth() + 1, day = d.getDate();
-    return d.getFullYear() + '-' + (m < 10 ? '0' : '') + m + '-' + (day < 10 ? '0' : '') + day;
+    var IST_MS = (5 * 60 + 30) * 60000;
+    return new Date((now == null ? Date.now() : Number(now)) + IST_MS).toISOString().slice(0, 10);
   }
 
   /* The newest gate check per bus. One pass, one map: the alternative is a scan
@@ -1825,16 +1840,26 @@
    * From `mount()` and nowhere else: `Cache.reads()` must not move between two
    * draws of the same data, which is the rule `computeInsights()` broke at
    * 386 ms a render. The `.then` is what fills the blocks without waiting for
-   * `boot.js`'s next four-second tick, and `loading` keeps a mount that lands
-   * mid-read from stacking a second one over the first. */
-  var loading = false;
+   * `boot.js`'s next four-second tick, and `loadLatch` keeps a mount that lands
+   * mid-read from stacking a second one over the first.
+   *
+   * NOT `loading`. This latch is declared in the same scope as the skeleton
+   * builder `function loading(id, title, q)` above, so a `var loading` here is
+   * the SAME binding: the function hoists, then this line assigns `false` over
+   * it at load, and every `return loading(...)` in the builders above throws
+   * `TypeError: loading is not a function`. That is not an edge case -- it is
+   * the cold start, signed in with no store read yet, which is the only state
+   * the skeleton exists for. Five of the six roles could not draw Today at all,
+   * on any device in any timezone. Pinned by "every role draws a skeleton
+   * before any store has been read" in test_v2_today.js. */
+  var loadLatch = false;
 
   function load() {
     var c = cache();
-    if (loading || !c || typeof c.load !== 'function') return null;
-    loading = true;
-    return c.load(SIG_STORES).then(function () { loading = false; reread(); },
-                                   function () { loading = false; });
+    if (loadLatch || !c || typeof c.load !== 'function') return null;
+    loadLatch = true;
+    return c.load(SIG_STORES).then(function () { loadLatch = false; reread(); },
+                                   function () { loadLatch = false; });
   }
 
   // Only while Today is still the screen on the page: a read that settles after
@@ -1940,7 +1965,7 @@
     // suite cannot reload a classic script per case.
     _reset: function () {
       mounted = false;
-      loading = false;
+      loadLatch = false;
       _costMemo = {};
       Object.keys(said).forEach(function (k) { delete said[k]; });
     },
