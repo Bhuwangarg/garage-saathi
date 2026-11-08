@@ -38,11 +38,23 @@
  * application in the wrong language for the only people with no second screen to
  * fall back to. So every fixed word below is an id in the one `W.register`
  * table, `w()` throws on an unregistered id by design, and `hi: ''` is PENDING —
- * counted and printed by test_v2_words.js and marked on screen. The values
- * filled in are the OWNER'S OWN, copied from i18n-hi.js where a key already said
- * the same thing (marked FROM i18n-hi.js, with its line); nothing here is
- * guessed, because a builder inventing Hindi for a word a driver has to act on
- * is how "Not sent yet" becomes a sentence nobody can parse.
+ * counted and printed by test_v2_words.js and marked on screen.
+ *
+ * THIS SCREEN NO LONGER HAS A PENDING WORD. Every value below is filled, and
+ * each one says where it came from:
+ *   FROM i18n-hi.js  the OWNER'S OWN word, copied with the line it is on. 45 of
+ *                    the 108, and they include both of this screen's writes,
+ *                    which were his from the start.
+ *   NEW              written here, at the owner's instruction. 61, of which 18
+ *                    are built on a word or a sentence of his and say which, and
+ *                    43 are new whole. HE STILL HAS TO READ THEM, and those 43
+ *                    first: the theme words, the coaching note, the device card
+ *                    and the usage block. (`meLang` and `meLangValue` carry no
+ *                    marker because the row names the two languages either way;
+ *                    the note above them says why.)
+ * The earlier note in this place said nothing here was guessed. That stopped
+ * being true when the owner asked for the sitting to be anticipated rather than
+ * waited for, and a comment that keeps the old claim is worse than no comment.
  *
  * THE THREE UPLOAD URLS ARE A SECURITY BOUNDARY, NOT STYLING (§4.7,
  * LIVE-ISSUES 7 and 7b). `GET /uploads/<name>` authenticates NOTHING: the 32
@@ -157,37 +169,37 @@
     /* The role, in words. This block does the nav's first job for the two roles
      * that have no nav (foundation §3.7.1), so the role has to be a word and
      * not the token on the record. */
-    meRoleOwner: { en: 'Owner', hi: '' },
-    meRoleSupervisor: { en: 'Supervisor', hi: '' },
-    meRoleStore: { en: 'Storekeeper', hi: '' },
-    meRoleMechanic: { en: 'Mechanic', hi: '' },
-    meRoleCrewmanager: { en: 'Crew manager', hi: '' },
-    meRoleOffice: { en: 'Office', hi: '' },
+    meRoleOwner: { en: 'Owner', hi: 'मालिक' },  // FROM i18n-hi.js line 102 (jbOwnerOnly)
+    meRoleSupervisor: { en: 'Supervisor', hi: 'सुपरवाइज़र' },  // FROM i18n-hi.js line 122 (hmWaitingSignoffSub)
+    meRoleStore: { en: 'Storekeeper', hi: 'स्टोरकीपर' },  // FROM i18n-hi.js line 161 (reqPartNote)
+    meRoleMechanic: { en: 'Mechanic', hi: 'मैकेनिक' },  // FROM i18n-hi.js line 176 (crewWho)
+    meRoleCrewmanager: { en: 'Crew manager', hi: 'क्रू मैनेजर' },  // NEW. v1 has no word for this role
+    meRoleOffice: { en: 'Office', hi: 'ऑफिस' },  // FROM i18n-hi.js line 386 (fltOffice)
     meRoleDriver: { en: 'Driver', hi: 'ड्राइवर' },               // FROM i18n-hi.js line 230 (roleDriver)
     meRoleConductor: { en: 'Conductor', hi: 'कंडक्टर' },          // FROM i18n-hi.js line 230 (roleConductor)
 
     // ---- block 2, check in / check out ---------------------------------
     meCheckIn: { en: 'Check in', hi: 'हाज़िरी लगाएं' },           // FROM i18n-hi.js line 15 (checkin)
     meCheckOut: { en: 'Check out', hi: 'छुट्टी' },                // FROM i18n-hi.js line 15 (checkout)
-    meCheckingIn: { en: 'Checking in...', hi: '' },
-    meCheckingOut: { en: 'Checking out...', hi: '' },
+    meCheckingIn: { en: 'Checking in...', hi: 'हाज़िरी लग रही है…' },  // NEW, on his checkin (line 15)
+    meCheckingOut: { en: 'Checking out...', hi: 'छुट्टी लग रही है…' },  // NEW, on his checkout (line 15)
     // {0} is the time. A whole form, not a prefix glued on by the caller:
     // Hindi word order is not English word order.
-    meCheckedAt: { en: 'Checked in at {0}', hi: '' },
-    meCheckedOutAt: { en: 'Checked out at {0}', hi: '' },
+    meCheckedAt: { en: 'Checked in at {0}', hi: '{0} पर हाज़िरी लगी' },  // NEW
+    meCheckedOutAt: { en: 'Checked out at {0}', hi: '{0} पर छुट्टी लगी' },  // NEW
     meFace: { en: 'Take your photo', hi: 'फोटो' },               // FROM i18n-hi.js line 164 (drvPhotoBtn)
-    meCheckFailed: { en: 'Not recorded. Try again.', hi: '' },
+    meCheckFailed: { en: 'Not recorded. Try again.', hi: 'दर्ज नहीं हुआ। दोबारा कोशिश कीजिए।' },  // NEW, on his cbNotRecorded (line 268)
 
     // ---- block 3, the person's own attendance --------------------------
     meAttendance: { en: 'Your attendance', hi: 'हाज़िरी' },        // FROM i18n-hi.js line 17 (attendance)
-    meIn: { en: 'In', hi: '' },
-    meOut: { en: 'Out', hi: '' },
-    meLate: { en: 'Late', hi: '' },
-    meNoLocation: { en: 'Location not recorded', hi: '' },
+    meIn: { en: 'In', hi: 'हाज़िरी' },  // FROM i18n-hi.js line 17 (attendance): the row says what was marked
+    meOut: { en: 'Out', hi: 'छुट्टी' },  // FROM i18n-hi.js line 15 (checkout)
+    meLate: { en: 'Late', hi: 'देर' },  // FROM i18n-hi.js line 140 (mpLate)
+    meNoLocation: { en: 'Location not recorded', hi: 'लोकेशन नहीं' },  // FROM i18n-hi.js line 319 (gcNoLocation)
     // {0} is the distance in metres, grouped.
-    meFromGarage: { en: '{0} m from the garage', hi: '' },
-    meNoAttendance: { en: 'No attendance yet. Check in above.', hi: '' },
-    meSelfie: { en: 'Your photo', hi: '' },
+    meFromGarage: { en: '{0} m from the garage', hi: 'गैराज से {0} मीटर' },  // NEW
+    meNoAttendance: { en: 'No attendance yet. Check in above.', hi: 'अभी कोई हाज़िरी नहीं। ऊपर हाज़िरी लगाएं।' },  // NEW, on his checkin (line 15)
+    meSelfie: { en: 'Your photo', hi: 'आपकी फोटो' },  // NEW, on his docPhoto (line 274)
 
     // ---- block 4, something is wrong with my bus -----------------------
     /* THE HIGHEST-VALUE HINDI STRING IN THE PRODUCT (§4.6): one of two writes
@@ -198,7 +210,7 @@
     meReportWhat: { en: 'What is wrong?', hi: 'ट्रिप में क्या महसूस हुआ?' },  // FROM i18n-hi.js line 150 (reportWhat)
     meReportSend: { en: 'Send', hi: 'भेजें' },                    // FROM i18n-hi.js line 150 (submit)
     meReportSent: { en: 'Report sent', hi: 'रिपोर्ट भेज दी' },     // FROM i18n-hi.js line 150 (reportSubmitted)
-    meReportNeeds: { en: 'Say what is wrong, or add a photo.', hi: '' },
+    meReportNeeds: { en: 'Say what is wrong, or add a photo.', hi: 'क्या गड़बड़ है लिखिए, या फोटो लगाइए।' },  // NEW
     meSpeak: { en: 'Speak', hi: 'आवाज़' },                        // FROM i18n-hi.js line 164 (drvVoiceBtn)
     // The nine areas keep v1's stable English values on the record; these are
     // the labels beside them. The Hindi is the owner's own.
@@ -213,40 +225,40 @@
     meAreaOther: { en: 'Other', hi: 'अन्य' },                     // FROM i18n-hi.js line 174 (catOther)
 
     // ---- block 5, yours -----------------------------------------------
-    meYours: { en: 'Yours', hi: '' },
-    meDocs: { en: 'Your documents', hi: '' },
+    meYours: { en: 'Yours', hi: 'आपका रिकॉर्ड' },  // NEW
+    meDocs: { en: 'Your documents', hi: 'आपके कागज़ात' },  // FROM i18n-hi.js line 21 (documents)
     // {0} is the document's name, {1} the days left.
-    meDocsExpiring: { en: '{0} expires in {1} days', hi: '' },
-    meDocsOnFile: { en: '{0} of {1} on your record', hi: '' },
+    meDocsExpiring: { en: '{0} expires in {1} days', hi: '{0} {1} दिन में खत्म हो रहा है' },  // NEW, on his cbExpiringSoon (line 232)
+    meDocsOnFile: { en: '{0} of {1} on your record', hi: 'आपके रिकॉर्ड पर {1} में से {0}' },  // NEW
     meDocLicence: { en: 'Driving licence', hi: 'ड्राइविंग लाइसेंस' },   // FROM i18n-hi.js line 274 (docLicense)
     meDocAadhaar: { en: 'Aadhaar card', hi: 'आधार कार्ड' },             // FROM i18n-hi.js line 274 (docAadhaar)
     meDocPhoto: { en: 'Photograph', hi: 'फोटो' },                      // FROM i18n-hi.js line 274 (docPhoto)
     meDocPan: { en: 'PAN card', hi: 'पैन कार्ड' },                      // FROM i18n-hi.js line 275 (docPan)
     meDocPolice: { en: 'Police verification', hi: 'पुलिस वेरिफिकेशन' },  // FROM i18n-hi.js line 275 (docPolice)
     meDocMedical: { en: 'Medical certificate', hi: 'मेडिकल सर्टिफिकेट' }, // FROM i18n-hi.js line 275 (docMedical)
-    meDocExpires: { en: 'Expires {0}', hi: '' },
-    meDocExpired: { en: 'Ran out {0}', hi: '' },
-    meDocHeld: { en: 'On your record', hi: '' },
-    meDocMissing: { en: 'Not on your record', hi: '' },
-    meNoDocs: { en: 'No documents on your record. Ask the office.', hi: '' },
-    meReviews: { en: 'Your reviews', hi: '' },
+    meDocExpires: { en: 'Expires {0}', hi: '{0} को खत्म' },  // NEW, on his cbExpiresWord (line 278)
+    meDocExpired: { en: 'Ran out {0}', hi: '{0} को खत्म हो गया' },  // NEW
+    meDocHeld: { en: 'On your record', hi: 'रिकॉर्ड पर है' },  // NEW
+    meDocMissing: { en: 'Not on your record', hi: 'रिकॉर्ड पर नहीं' },  // NEW
+    meNoDocs: { en: 'No documents on your record. Ask the office.', hi: 'आपके रिकॉर्ड पर कोई कागज़ नहीं। ऑफिस से कहिए।' },  // NEW
+    meReviews: { en: 'Your reviews', hi: 'आपके रिव्यू' },  // FROM i18n-hi.js line 85 (coReviewsWord)
     // {0} is the star average to one decimal, {1} the count.
-    meReviewsSub: { en: '{0} stars from {1} reviews', hi: '' },
-    meNoReviews: { en: 'No reviews yet.', hi: '' },
-    meCoaching: { en: 'Your coaching note', hi: '' },
+    meReviewsSub: { en: '{0} stars from {1} reviews', hi: '{1} रिव्यू से {0} स्टार' },  // NEW, on his star word (line 355 myRvNoText)
+    meNoReviews: { en: 'No reviews yet.', hi: 'अभी कोई रिव्यू नहीं।' },  // NEW, on his ofNoReviews (line 420)
+    meCoaching: { en: 'Your coaching note', hi: 'आपके लिए सलाह' },  // NEW
     // {0} is the week it was written for, {1} how many lines it holds.
-    meCoachingSub: { en: 'Written for {0}. {1} lines.', hi: '' },
-    meNoCoaching: { en: 'No note yet. One is written every Monday.', hi: '' },
-    meScore: { en: 'Your score', hi: '' },
-    meScoreSub: { en: '{0} open. {1} done. {2} signed off.', hi: '' },
+    meCoachingSub: { en: 'Written for {0}. {1} lines.', hi: '{0} के लिए लिखी गई। {1} बातें।' },  // NEW
+    meNoCoaching: { en: 'No note yet. One is written every Monday.', hi: 'अभी कोई नोट नहीं। हर सोमवार एक लिखा जाता है।' },  // NEW
+    meScore: { en: 'Your score', hi: 'आपका स्कोर' },  // NEW, on his score word (line 138 mpSub)
+    meScoreSub: { en: '{0} open. {1} done. {2} signed off.', hi: '{0} खुले। {1} पूरे। {2} जाँचे हुए।' },  // NEW, on his open/markDone/verify (lines 15-17)
 
     // ---- block 6, this phone ------------------------------------------
-    mePhone: { en: 'This phone', hi: '' },
-    meWaiting: { en: 'Waiting to send', hi: '' },
-    meLastSent: { en: 'Last sent', hi: '' },
-    meRecords: { en: 'Records on this phone', hi: '' },
+    mePhone: { en: 'This phone', hi: 'यह फ़ोन' },  // NEW, on his onThisPhone (line 75)
+    meWaiting: { en: 'Waiting to send', hi: 'भेजने के लिए बाकी' },  // NEW
+    meLastSent: { en: 'Last sent', hi: 'आखिरी बार भेजा' },  // NEW
+    meRecords: { en: 'Records on this phone', hi: 'इस फ़ोन पर रिकॉर्ड' },  // NEW
     // {0} is what this phone holds, {1} what it would hold complete.
-    meHolds: { en: 'This phone holds {0} of {1} records', hi: '' },
+    meHolds: { en: 'This phone holds {0} of {1} records', hi: 'इस फ़ोन पर {1} में से {0} रिकॉर्ड हैं' },  // NEW
     /* The same fact when the SHORTFALL IS NOT KNOWN, which is REV-FLOW F6's
      * other half. `replicaState` returns `behind: 0` both when this device is
      * caught up and when no pull has ever come back, and says so in its own
@@ -255,59 +267,59 @@
      * measured, "This phone holds 91 of 91 records", which is the one sentence
      * on this screen that exists ONLY to say the replica is short, reporting
      * that nothing is missing. A denominator nobody knows is not a denominator. */
-    meHoldsUnknown: { en: 'This phone holds {0} records. It has not finished filling up.', hi: '' },
+    meHoldsUnknown: { en: 'This phone holds {0} records. It has not finished filling up.', hi: 'इस फ़ोन पर {0} रिकॉर्ड हैं। पूरा भरना अभी बाकी है।' },  // NEW
     // NOT "rejected", NOT "payload refused" (§4.6).
-    meRefused: { en: { one: '{n} record the server would not take', other: '{n} records the server would not take' }, hi: '' },
+    meRefused: { en: { one: '{n} record the server would not take', other: '{n} records the server would not take' }, hi: 'सर्वर ने {n} रिकॉर्ड नहीं लिया' },  // NEW. One Hindi form for both counts
     // Three clauses: what happened, what is kept, the one next thing.
-    meRefusedHint: { en: 'They are still on this phone. Tap one to see why.', hi: '' },
-    meRefusedOne: { en: 'A record the server would not take', hi: '' },
-    meSending: { en: 'Sending...', hi: '' },
-    meSeeAll: { en: 'See all ({n})', hi: '' },
-    meOnPhoneOnly: { en: 'On this phone only', hi: '' },
-    meSendsOnWifi: { en: 'Sends when there is wifi', hi: '' },
+    meRefusedHint: { en: 'They are still on this phone. Tap one to see why.', hi: 'वे इस फ़ोन पर ही हैं। वजह देखने के लिए किसी एक को दबाइए।' },  // NEW
+    meRefusedOne: { en: 'A record the server would not take', hi: 'एक रिकॉर्ड जो सर्वर ने नहीं लिया' },  // NEW
+    meSending: { en: 'Sending...', hi: 'भेजा जा रहा है…' },  // NEW
+    meSeeAll: { en: 'See all ({n})', hi: 'सब देखें ({n})' },  // NEW
+    meOnPhoneOnly: { en: 'On this phone only', hi: 'सिर्फ़ इस फ़ोन पर' },  // NEW
+    meSendsOnWifi: { en: 'Sends when there is wifi', hi: 'वाईफ़ाई मिलने पर भेजा जाएगा' },  // NEW, on his photoSavedOnPhone (line 159)
 
     // ---- block 7, settings --------------------------------------------
-    meSettings: { en: 'Settings', hi: '' },
+    meSettings: { en: 'Settings', hi: 'सेटिंग' },  // NEW, on his settings word (line 36 aiServerOff)
     meLang: { en: 'Language / भाषा', hi: 'भाषा / Language' },
     /* The id whose own translation IS the value drawn beside it: in English the
      * row reads "English" and in Hindi "हिंदी", which is the language's own name
      * either way and is the one place a value and a word are the same thing. */
     meLangValue: { en: 'English', hi: 'हिंदी' },
     meTheme: { en: 'Theme', hi: 'थीम' },                          // FROM i18n-hi.js line 17 (theme)
-    meThemeLight: { en: 'Light', hi: '' },
-    meThemeDark: { en: 'Dark', hi: '' },
-    meThemeFollow: { en: 'Follow the phone', hi: '' },
+    meThemeLight: { en: 'Light', hi: 'हल्की' },  // NEW. Agrees with theme, which is feminine in Hindi
+    meThemeDark: { en: 'Dark', hi: 'गहरी' },  // NEW
+    meThemeFollow: { en: 'Follow the phone', hi: 'फ़ोन जैसी' },  // NEW
     mePin: { en: 'Change my PIN', hi: 'मेरा पिन बदलें' },          // FROM i18n-hi.js line 146 (changePin)
     // Said in the body BEFORE it is pressed, never after (§4.4 offline).
-    mePinOffline: { en: 'Needs a connection. Try when there is signal.', hi: '' },
-    mePinNew: { en: 'New PIN', hi: '' },
-    mePinSaved: { en: 'PIN changed', hi: '' },
-    mePinFourDigits: { en: 'Four digits, no letters.', hi: '' },
-    meSaveFailed: { en: 'Not saved. Try again.', hi: '' },
+    mePinOffline: { en: 'Needs a connection. Try when there is signal.', hi: 'इसके लिए कनेक्शन चाहिए। सिग्नल आने पर कोशिश कीजिए।' },  // NEW
+    mePinNew: { en: 'New PIN', hi: 'नया पिन' },  // FROM i18n-hi.js line 44 (renamePinNote)
+    mePinSaved: { en: 'PIN changed', hi: 'पिन बदल गया' },  // NEW
+    mePinFourDigits: { en: 'Four digits, no letters.', hi: 'चार अंक, अक्षर नहीं।' },  // NEW
+    meSaveFailed: { en: 'Not saved. Try again.', hi: 'सेव नहीं हुआ। दोबारा कोशिश कीजिए।' },  // NEW, on his save (line 17)
 
     // ---- block 8, owner only ------------------------------------------
-    meOwnerOnly: { en: 'Owner only', hi: '' },
-    meWhoOpened: { en: 'Who opened what', hi: '' },
-    meLastDays: { en: 'Last {n} days', hi: '' },
-    meDaysTab: { en: { one: '{n} day', other: '{n} days' }, hi: '' },
+    meOwnerOnly: { en: 'Owner only', hi: 'सिर्फ़ मालिक' },  // FROM i18n-hi.js line 102 (jbOwnerOnly)
+    meWhoOpened: { en: 'Who opened what', hi: 'किसने क्या खोला' },  // NEW
+    meLastDays: { en: 'Last {n} days', hi: 'पिछले {n} दिन' },  // NEW, on his mpSub (line 138)
+    meDaysTab: { en: { one: '{n} day', other: '{n} days' }, hi: '{n} दिन' },  // NEW. One Hindi form for both counts
     // {0} is a screen's own name, {n} how many times it was opened.
-    meOpenedTimes: { en: { one: '{0} {n} time.', other: '{0} {n} times.' }, hi: '' },
-    meLastOpened: { en: 'Last opened {0}.', hi: '' },
-    meNeverOpened: { en: 'Never opened the app.', hi: '' },
-    meNeverSignedIn: { en: 'Never signed in', hi: '' },
-    meNobodyOpened: { en: 'Nobody opened the app in this period.', hi: '' },
-    meShownMore: { en: '{0} shown. {1} more.', hi: '' },
-    meImport: { en: 'Import from Excel', hi: '' },
-    meImportHint: { en: 'Only on an empty database', hi: '' },
-    meSetup: { en: 'Garage setup', hi: '' },
+    meOpenedTimes: { en: { one: '{0} {n} time.', other: '{0} {n} times.' }, hi: '{0} {n} बार।' },  // NEW. One Hindi form for both counts
+    meLastOpened: { en: 'Last opened {0}.', hi: 'आखिरी बार {0} खोला।' },  // NEW
+    meNeverOpened: { en: 'Never opened the app.', hi: 'ऐप कभी नहीं खोला।' },  // NEW
+    meNeverSignedIn: { en: 'Never signed in', hi: 'कभी लॉगिन नहीं किया' },  // NEW
+    meNobodyOpened: { en: 'Nobody opened the app in this period.', hi: 'इस अवधि में किसी ने ऐप नहीं खोला।' },  // NEW
+    meShownMore: { en: '{0} shown. {1} more.', hi: '{0} दिख रहे। {1} और।' },  // NEW, on his more (line 146)
+    meImport: { en: 'Import from Excel', hi: 'एक्सेल से लाएँ' },  // NEW
+    meImportHint: { en: 'Only on an empty database', hi: 'सिर्फ़ खाली डेटाबेस पर' },  // NEW
+    meSetup: { en: 'Garage setup', hi: 'गैराज सेटिंग' },  // NEW
     // v1's own sub for the same row, transcribed rather than invented.
-    meSetupHint: { en: 'Location, geofence and shift time.', hi: '' },
+    meSetupHint: { en: 'Location, geofence and shift time.', hi: 'जगह, जियोफ़ेंस और शिफ्ट का समय।' },  // NEW
 
     // ---- block 9, sign out --------------------------------------------
     meSignOut: { en: 'Sign out', hi: 'लॉगआउट' },                  // FROM i18n-hi.js line 17 (logout)
-    meSignOutBody: { en: 'Your records stay on this phone.', hi: '' },
+    meSignOutBody: { en: 'Your records stay on this phone.', hi: 'आपके रिकॉर्ड इस फ़ोन पर ही रहेंगे।' },  // NEW
     meStay: { en: 'Stay', hi: 'रद्द' },                           // FROM i18n-hi.js line 17 (cancel) — §4.6 names this one
-    meBlockFailed: { en: 'This part could not be drawn.', hi: '' }
+    meBlockFailed: { en: 'This part could not be drawn.', hi: 'यह हिस्सा नहीं दिख सका।' }  // NEW, on his reportArea (line 150)
   });
 
   /* `w()` throws on an id nobody registered, which is the whole point of the

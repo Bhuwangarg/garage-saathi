@@ -2103,6 +2103,123 @@ reddens('a v2 file calls seedIfEmpty', async () => {
 });
 
 /* ===================================================================================================
+ * 11. THE HINDI, on the screen that is ahead of every other one
+ *
+ * v2-foundation-ui.md 6.3's defect is a screen that stayed English while every test passed, because a
+ * missing translation and a present one look the same to everything except a Hindi reader. The login is
+ * where that costs most: three roles reach nothing else without a network, and a person who cannot read
+ * the eight role tiles cannot start the app at all.
+ *
+ * So two checks, and they catch different things. The FIRST reads the table: every id this file
+ * registers has a real Hindi value, and no Latin letter in it. That covers the sentences only a server
+ * refusal draws, which no render here reaches. The SECOND renders all three steps in Hindi and scans the
+ * body: that catches a fixed word hard-coded at the point of use, which the table cannot see.
+ * =================================================================================================== */
+
+/* Tags become NEWLINES rather than spaces, so one text node cannot reach across markup to borrow the
+ * next card's marker - the greedy version of this swallowed a real leak in test_v2_me.js. */
+const MARKED = /[A-Za-z][^\n[\]]*\[[A-Za-z]+\]/g;
+function englishLeaks(html) {
+  // A pending label draws "English [lgId]" - marked, reportable, and the whole point of the fallback.
+  // The English and its marker come out as a PAIR, so what is left is English nothing ever marked.
+  const text = String(html).replace(/<[^>]*>/g, '\n').replace(MARKED, ' ');
+  const bad = [];
+  const re = /[A-Za-z][A-Za-z ']*/g;
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    const word = m[0].trim();
+    if (word.length >= 2) bad.push(word);
+  }
+  return bad;
+}
+
+/* Every name is Devanagari on purpose: a Latin letter in the rendered body can then only have come from
+ * a fixed word, which is the thing being measured. */
+function hindiRoster() {
+  const out = [person('u-owner', 'रमेश गुप्ता', 'owner'),
+               person('u-sup', 'मोहन लाल', 'supervisor'),
+               person('u-cm', 'सुरेश यादव', 'crewmanager'),
+               person('u-off', 'प्रिया शर्मा', 'office'),
+               person('u-store', 'विकास जैन', 'store'),
+               person('u-m1', 'अरुण कुमार', 'mechanic'),
+               person('u-c1', 'कैलाश मीणा', 'conductor')];
+  for (let i = 1; i <= 9; i++) out.push(person('u-d' + i, 'चालक ' + i, 'driver'));
+  return out;
+}
+
+const HI_CACHE = { users: hindiRoster(), meta: [{ key: 'garage', biz: 'महालक्ष्मी ट्रैवल्स' }] };
+
+/* The three panes, each rendered in Hindi, with a recent face on the first so that step draws its list
+ * rather than its empty sentence. */
+function hindiPanes(src) {
+  const l = load({ lang: 'hi', recent: ['u-d1'], src: src });
+  const out = [];
+  out.push(l.Login.render(model({ cache: HI_CACHE })));
+  l.Login._goto('who', 'driver', null);
+  out.push(l.Login.render(model({ cache: HI_CACHE })));
+  l.Login._goto('pin', 'driver', person('u-d1', 'चालक १', 'driver'));
+  out.push(l.Login.render(model({ cache: HI_CACHE })));
+  return { win: l.win, html: out.join('\n') };
+}
+
+function latinInTable(win) {
+  const out = [];
+  for (const id of win.W.ids()) {
+    if (!/^lg[A-Z]/.test(id)) continue;
+    const e = win.W.entry(id);
+    const hi = e && e.hi;
+    if (hi === undefined || hi === null || hi === '') { out.push(id + ' has no Hindi'); continue; }
+    if (/[A-Za-z]/.test(String(hi))) out.push(id + ' is English in Hindi: ' + hi);
+  }
+  return out;
+}
+
+test('the leak detector rejects an unmarked word and allows a marked one', () => {
+  assert.deepEqual(englishLeaks('<p>Enter your PIN [lgEnterPin]</p>'), []);
+  assert.deepEqual(englishLeaks('<p>पिन डालें</p>'), []);
+  assert.strictEqual(englishLeaks('<p>Enter your PIN</p>').length, 1);
+});
+
+test('every word the login registers has a real Hindi value, including the ones only a refusal draws', () => {
+  const l = load({ lang: 'hi' });
+  const ids = l.win.W.ids().filter((i) => /^lg[A-Z]/.test(i));
+  assert(ids.length >= 29, 'only ' + ids.length + ' login ids: the table shrank');
+  assert.deepEqual(latinInTable(l.win), []);
+});
+
+test('in Hindi, every fixed word on all three login steps is Hindi - never silently English', () => {
+  const leaks = englishLeaks(hindiPanes().html);
+  assert.deepEqual(leaks, [], 'English reached a Hindi reader on the login: ' + leaks.join(', '));
+});
+
+test("the owner's own Hindi is used where v1 already said the same thing", () => {
+  const l = load({ lang: 'hi' });
+  // i18n-hi.js lines 89 and 90: his login words, not a second translation of them.
+  assert.strictEqual(l.win.w('lgEnterPin'), 'पिन डालें');
+  assert.strictEqual(l.win.w('lgWrongPin'), 'गलत पिन');
+  assert.strictEqual(l.win.w('lgWho'), 'आप कौन हैं?');
+  assert.strictEqual(l.win.w('lgRecent'), 'इस फ़ोन पर हाल के');
+});
+
+reddens('a login word left English in the Hindi table', async () => {
+  const src = mutant("lgEnterPin: { en: 'Enter your PIN', hi: 'पिन डालें' }",
+                     "lgEnterPin: { en: 'Enter your PIN', hi: 'Enter your PIN' }");
+  assert.deepEqual(latinInTable(load({ lang: 'hi', src: src }).win), []);
+});
+
+reddens('a login word with its Hindi taken away, back to the silent English fallback', async () => {
+  const src = mutant("lgRoleDriver: { en: 'Driver', hi: 'ड्राइवर' }",
+                     "lgRoleDriver: { en: 'Driver', hi: '' }");
+  assert.deepEqual(latinInTable(load({ lang: 'hi', src: src }).win), []);
+});
+
+reddens('a fixed word hard-coded in a pane instead of registered, so Hindi mode draws English', async () => {
+  const src = mutant("'<p class=\"lg-tag\">' + esc(say('lgEnterPin')) + '</p>'",
+                     "'<p class=\"lg-tag\">Enter your PIN</p>'");
+  assert.deepEqual(englishLeaks(hindiPanes(src).html), []);
+});
+
+/* ===================================================================================================
  * run
  * =================================================================================================== */
 

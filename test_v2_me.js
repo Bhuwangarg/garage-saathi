@@ -1100,8 +1100,11 @@ test('MUTANT must fail: block 8 drawn for a supervisor, who does not hold viewAd
 });
 
 test('MUTANT must fail: the device card claiming everything else was sent', () => {
-  const src = mutate("meRefusedHint: { en: 'They are still on this phone. Tap one to see why.', hi: '' },",
-    "meRefusedHint: { en: 'Everything else was sent.', hi: '' },");
+  /* The ENGLISH HALF alone is the mutation target, not the whole table line: the
+   * line's Hindi half changes when the owner supplies a word, and a mutant
+   * pinned to the whole line goes green on a translation instead of on a fix. */
+  const src = mutate("en: 'They are still on this phone. Tap one to see why.'",
+    "en: 'Everything else was sent.'");
   const sync = { pending: 0, quarantined: 1, reasons: ['r'], lastSyncAt: Date.now() };
   let caught = null;
   try {

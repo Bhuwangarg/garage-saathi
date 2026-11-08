@@ -603,6 +603,52 @@ shape of `i18n-hi.js` instead of reading it, and the table is
 matched nothing looks exactly like a zero from a real search, which is the same
 trap three separate checks fell into earlier in this project.
 
+### §21 corrected again, 2026-11-08: login and Me are at zero, and 73 of the 104 are not his words
+
+The owner asked for the Hindi on **the login and Me** rather than waiting for the
+sitting. That reverses what §21 says, and it is his call to reverse, so this
+records exactly what landed and what still needs his eye.
+
+| | login | Me | shell |
+|---|---|---|---|
+| ids filled this round | 29 | 74 | 1 (`appTitle`) |
+| **copied from his own `i18n-hi.js`**, with the line | 17 | 13 | 1 |
+| **written for him to read** | 12 | 61 | 0 |
+| of those, built on a word or sentence of his | 4 | 18 | — |
+| **new whole, no anchor at all** | 8 | 43 | — |
+
+The pending count moved **1,254 → 1,151**. Both screens are now at zero.
+
+**What he has to read, and in this order.**
+
+1. **The six role tiles on the login.** v1 only ever had Hindi for driver and
+   conductor, so owner, supervisor, crew manager, office, store and mechanic are
+   six words I wrote, on the one screen where a Hindi reader who cannot read them
+   cannot start the app at all. `क्रू मैनेजर` for crew manager is the shakiest: v1
+   has no word for that role anywhere.
+2. **The theme rows on Me** — `हल्की` and `गहरी`, chosen to agree with `थीम`. Nothing
+   in v1 names a theme.
+3. **The coaching note, the device card and the usage block** — the other 43 with
+   no anchor.
+
+**Three places I changed his sentence rather than copying it**, each marked in the
+table and each for the same reason — v2 says something his did not:
+
+- `lgTooMany`: his says "wait a few minutes, or tell your supervisor"; v2 has the
+  real number of seconds from the server and says that instead.
+- `lgWaking`: his says a cold start takes "a few seconds". It takes 30 to 36.
+- `lgCantReach`: his first clause, plus the half v2 adds — that this phone is not
+  holding a PIN for you.
+
+**One thing I did not copy.** `i18n-hi.js:86` has `pinBack: 'मिटाेँ'`, whose matra
+looks broken — `मिटाएँ` is presumably meant. `lgPadBack` is written out rather than
+copying it. That line is live in v1 and worth a look.
+
+**What holds it.** `test_v2_login.js` section 11: every `lg*` id has a real Hindi
+value with no Latin letter in it, all three login steps render with no unmarked
+English, and three mutants prove both checks fail when they should. Me already
+had the equivalent in `test_v2_me.js`.
+
 ## 23. Two rulings the screen builders asked for, and one correction to my own briefs
 
 **Ruling 1: a row figure is not marked stale; the aggregate is.**

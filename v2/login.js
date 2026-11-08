@@ -155,38 +155,49 @@
    * Every fixed word this screen draws is an id, for the reason
    * v2-foundation-ui.md §6.3 gives: a fixed English word hard-coded at the
    * point of use is a word no Hindi reader is ever told is missing, and that is
-   * how a whole screen stayed English with every test passing. The Hindi halves
-   * are '' — PENDING, which is a state and not an absence: test_v2_words.js
-   * prints the pending count by name on every run, and a pending label draws
-   * its English WITH ITS ID in Hindi mode so a reader can report it. Inventing
-   * Hindi the owner has not read would hide exactly that (DECISIONS.md §21).
+   * how a whole screen stayed English with every test passing.
    *
-   * These matter more than most: this is the first screen every one of the
-   * hundred people sees, and for three roles it is the only screen they can
-   * reach without a network. */
+   * NOTHING HERE IS PENDING ANY MORE. These mattered more than most — this is
+   * the first screen every one of the hundred people sees, and for three roles
+   * it is the only screen they can reach without a network — so they were the
+   * first filled when the owner asked for it. Each value says where it came
+   * from:
+   *   FROM i18n-hi.js  his own word, with the line it is on. 17 of the 29, and
+   *                    they cover the whole pad: enter, wrong, retired, off.
+   *   NEW              written here, at his instruction, and HE STILL HAS TO
+   *                    READ THEM. 12, of which 4 are built on a sentence of his
+   *                    and say so. The role tiles are the ones to read first:
+   *                    v1 only ever had Hindi for driver and conductor, so
+   *                    owner, supervisor, crew manager, office, store and
+   *                    mechanic are the six words a Hindi reader needs to pick
+   *                    the right door, and six that are not yet his.
+   *
+   * test_v2_login.js section 11 is what holds this: every id's Hindi is real
+   * and Latin-free, all three steps render with no unmarked English, and three
+   * mutants prove both checks can fail. */
   var WORDS = {
     /* The eight role names. v1's `ROLE_META` (app.js:13424) holds the same eight
      * English words and this is the first time they have been ids: on the login
      * they are the ONLY thing distinguishing eight doors, so a Hindi reader who
      * is shown eight English words here cannot start the app at all. */
-    lgRoleOwner: { en: 'Owner', hi: '' },
-    lgRoleSupervisor: { en: 'Supervisor', hi: '' },
-    lgRoleCrewManager: { en: 'Crew Manager', hi: '' },
-    lgRoleOffice: { en: 'Office', hi: '' },
-    lgRoleStore: { en: 'Store', hi: '' },
-    lgRoleMechanic: { en: 'Mechanic', hi: '' },
-    lgRoleDriver: { en: 'Driver', hi: '' },
-    lgRoleConductor: { en: 'Conductor', hi: '' },
+    lgRoleOwner: { en: 'Owner', hi: 'मालिक' },  // FROM i18n-hi.js line 102 (jbOwnerOnly), his word for the role
+    lgRoleSupervisor: { en: 'Supervisor', hi: 'सुपरवाइज़र' },  // FROM i18n-hi.js line 122 (hmWaitingSignoffSub)
+    lgRoleCrewManager: { en: 'Crew Manager', hi: 'क्रू मैनेजर' },  // NEW. v1 has no word for this role
+    lgRoleOffice: { en: 'Office', hi: 'ऑफिस' },  // FROM i18n-hi.js line 386 (fltOffice)
+    lgRoleStore: { en: 'Store', hi: 'स्टोर' },  // FROM i18n-hi.js line 12 (store)
+    lgRoleMechanic: { en: 'Mechanic', hi: 'मैकेनिक' },  // FROM i18n-hi.js line 176 (crewWho)
+    lgRoleDriver: { en: 'Driver', hi: 'ड्राइवर' },  // FROM i18n-hi.js line 230 (roleDriver)
+    lgRoleConductor: { en: 'Conductor', hi: 'कंडक्टर' },  // FROM i18n-hi.js line 230 (roleConductor)
 
-    lgTag: { en: 'Sign in to carry on', hi: '' },
-    lgRecent: { en: 'Recent on this phone', hi: '' },
+    lgTag: { en: 'Sign in to carry on', hi: 'आगे बढ़ने के लिए लॉगिन कीजिए' },  // NEW. v1's tagline names the garage, not this
+    lgRecent: { en: 'Recent on this phone', hi: 'इस फ़ोन पर हाल के' },  // FROM i18n-hi.js line 90 (recentHere)
     // Not an empty list drawn as nothing: §3.6's rule, on the one screen where
     // a blank space is indistinguishable from the app being broken.
-    lgRecentNone: { en: 'Nobody has signed in on this phone yet', hi: '' },
-    lgWho: { en: 'Who are you?', hi: '' },
-    lgPickName: { en: 'Find your name', hi: '' },
-    lgSearchName: { en: 'Search for your name', hi: '' },
-    lgNoMatch: { en: 'No name matches that', hi: '' },
+    lgRecentNone: { en: 'Nobody has signed in on this phone yet', hi: 'इस फ़ोन पर अभी तक कोई लॉगिन नहीं हुआ' },  // NEW
+    lgWho: { en: 'Who are you?', hi: 'आप कौन हैं?' },  // FROM i18n-hi.js line 90 (whoAreYou)
+    lgPickName: { en: 'Find your name', hi: 'अपना नाम चुनें' },  // FROM i18n-hi.js line 90 (selectName)
+    lgSearchName: { en: 'Search for your name', hi: 'नाम खोजें…' },  // FROM i18n-hi.js line 90 (searchName)
+    lgNoMatch: { en: 'No name matches that', hi: 'इस नाम से कोई नहीं मिला' },  // NEW
     /* The hint names WHY there is nobody, and it is the reason rather than a
      * guess about it. This screen only draws this state after it has asked the
      * server for the roster and come away without one (see askRoster), so the
@@ -194,24 +205,24 @@
      * phone has never synced, which it may well have done. A device that really
      * had nobody to show would be a garage with no staff, and an empty answer
      * from the server is read as a failure here for exactly that reason. */
-    lgNoUsers: { en: 'No accounts on this phone yet', hi: '' },
-    lgNoUsersHint: { en: 'The server could not be reached, so there is nobody to show. Put this phone on the network and open this page again.', hi: '' },
-    lgEnterPin: { en: 'Enter your PIN', hi: '' },
+    lgNoUsers: { en: 'No accounts on this phone yet', hi: 'इस फ़ोन पर अभी कोई खाता नहीं' },  // NEW
+    lgNoUsersHint: { en: 'The server could not be reached, so there is nobody to show. Put this phone on the network and open this page again.', hi: 'सर्वर से संपर्क नहीं हुआ, इसलिए दिखाने के लिए कोई नहीं है। इस फ़ोन को नेटवर्क पर लाकर यह पेज दोबारा खोलिए।' },  // NEW
+    lgEnterPin: { en: 'Enter your PIN', hi: 'पिन डालें' },  // FROM i18n-hi.js line 89 (enterPin)
     // The COUNT of digits entered, which is what the dots show. Never the
     // digits: see note 3 in the header.
-    lgDigits: { en: '{0} of {1} digits entered', hi: '' },
-    lgBack: { en: 'Back', hi: '' },
-    lgCancel: { en: 'Cancel', hi: '' },
-    lgPadBack: { en: 'Delete the last digit', hi: '' },
-    lgWrongPin: { en: 'That PIN is not right', hi: '' },
-    lgPinRetired: { en: 'That PIN has been retired. Ask the owner for a new one.', hi: '' },
-    lgLoginOff: { en: 'This login has been turned off', hi: '' },
-    lgTooMany: { en: 'Too many tries. Wait {0} seconds and try again.', hi: '' },
-    lgChecking: { en: 'Checking', hi: '' },
+    lgDigits: { en: '{0} of {1} digits entered', hi: '{1} में से {0} अंक डाले गए' },  // NEW
+    lgBack: { en: 'Back', hi: 'वापस' },  // FROM i18n-hi.js line 86 (back)
+    lgCancel: { en: 'Cancel', hi: 'रद्द' },  // FROM i18n-hi.js line 17 (cancel)
+    lgPadBack: { en: 'Delete the last digit', hi: 'आखिरी अंक मिटाएँ' },  // NEW. v1 pinBack (line 86) reads "mitaen" with a broken matra; not copied
+    lgWrongPin: { en: 'That PIN is not right', hi: 'गलत पिन' },  // FROM i18n-hi.js line 89 (wrongPin)
+    lgPinRetired: { en: 'That PIN has been retired. Ask the owner for a new one.', hi: 'यह पिन अब नहीं चलेगा — ऑफिस से अपना नया पिन लें' },  // FROM i18n-hi.js line 89 (pinRetired)
+    lgLoginOff: { en: 'This login has been turned off', hi: 'यह लॉगिन बंद कर दिया गया है — दफ़्तर से बात करें' },  // FROM i18n-hi.js line 89 (loginOff)
+    lgTooMany: { en: 'Too many tries. Wait {0} seconds and try again.', hi: 'बहुत बार गलत पिन। {0} सेकंड रुककर दोबारा कोशिश कीजिए।' },  // NEW, on his sentence (line 144 tooManyTries); his "a few minutes" becomes the real wait
+    lgChecking: { en: 'Checking', hi: 'जाँच हो रही है' },  // NEW, from his word for verify (line 15)
     // Said rather than left as a frozen pad: a cold container is 30-36 seconds
     // and these three roles have nothing to fall back on.
-    lgWaking: { en: 'Waking the server. This can take half a minute.', hi: '' },
-    lgCantReach: { en: 'No connection to the server, and this phone keeps no PIN for you', hi: '' }
+    lgWaking: { en: 'Waking the server. This can take half a minute.', hi: 'सर्वर चालू हो रहा है। इसमें आधा मिनट लग सकता है।' },  // NEW, on his sentence (line 89 serverWaking), whose "a few seconds" understates a cold start
+    lgCantReach: { en: 'No connection to the server, and this phone keeps no PIN for you', hi: 'सर्वर से संपर्क नहीं, और इस फ़ोन पर आपका पिन सेव नहीं है' }  // NEW, on his first clause (line 91 cantReach)
   };
 
   /* ---------- the small stuff --------------------------------------------- */

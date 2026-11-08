@@ -134,7 +134,7 @@
     // {0} is the screen's own name. A whole form rather than a prefix glued on
     // by the caller, because Hindi word order is not English word order.
     docTitle: { en: '{0} — Garage Saathi', hi: '' },
-    appTitle: { en: 'Garage Saathi', hi: '' }
+    appTitle: { en: 'Garage Saathi', hi: 'गैराज साथी' }  // FROM i18n-hi.js line 11 (appName)
   });
 
   // `w()` throws on an unregistered id. See note 3 in the header: a missing
