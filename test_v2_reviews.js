@@ -1270,6 +1270,45 @@ function clickEl(win, el) {
   return Promise.resolve(r).then(() => new Promise((res) => setTimeout(res, 0)));
 }
 
+/* A review whose bus was never traced -- most of them, until the duty log catches up -- used to draw
+ * its title with the separator written in by hand on both sides of an empty bus: "1 star \u00b7  \u00b7 7 Nov".
+ * A separator standing either side of nothing reads as a value that failed to load, on a row that
+ * already carries very little. Reported from the office together with the row overlap. */
+const DANGLING = /\u00b7\s*\u00b7|^\s*\u00b7|\u00b7\s*$/;
+function danglingLines(html) {
+  return String(html).replace(/<[^>]*>/g, '\n').split('\n')
+    .map((l) => l.trim()).filter((l) => l && DANGLING.test(l));
+}
+
+/* The fixture's four reviews all board on the one night the duty log covers, so every one of them is
+ * traced to a bus and the dangling separator never appears. THIS CASE SUPPLIES THE UNTRACED ONE -- a
+ * review boarding on a night with no assignment, which is most of them in the office until the duty
+ * log catches up. Without it the check below is green against the broken join too, and a check that
+ * cannot fail is decoration. */
+function untracedCache() {
+  const c = fixture();
+  c.rbreviews = c.rbreviews.concat([
+    review(9, { stars: 3, boardAt: '2026-10-21 21:30:00' })   // no rbassign for that date
+  ]);
+  return c;
+}
+
+test('the dangling-separator detector catches one and passes a title that is fine', () => {
+  assert.deepEqual(danglingLines('<p>1 star \u00b7  \u00b7 7 Nov</p>'), ['1 star \u00b7  \u00b7 7 Nov']);
+  assert.deepEqual(danglingLines('<p>1 star \u00b7 RJ09PA6126 \u00b7 7 Nov</p>'), []);
+  assert.deepEqual(danglingLines('<p>\u00b7 7 Nov</p>'), ['\u00b7 7 Nov']);
+});
+
+test('a review with no traced bus draws no separator standing either side of nothing', () => {
+  for (const density of ['yard', 'desk']) {
+    const { Reviews } = load();
+    const html = Reviews.render(S('office', { density: density, cache: untracedCache() }));
+    assert(/\u00b7/.test(String(html)), density + ': no separator was drawn at all, so nothing was tested');
+    const bad = danglingLines(html);
+    assert.deepEqual(bad, [], density + ': a dangling separator is drawn: ' + JSON.stringify(bad));
+  }
+});
+
 /* ===================================================================================================
  * run
  * =================================================================================================== */

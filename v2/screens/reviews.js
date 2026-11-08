@@ -791,8 +791,15 @@
     var out = '', i, r, t;
     for (i = 0; i < v.rows.length; i++) {
       r = v.rows[i];
-      t = esc((r.stars === null ? '' : say('rvStars', null, r.stars) + ' · ')
-        + (r.reg || '') + ' · ' + (r.date || '—') + (r.who ? ' · ' + r.who : ''));
+      /* Joined from the parts that EXIST. The separator used to be written in by hand between the
+       * stars and the bus, so a review whose bus was never traced -- which is most of them until the
+       * duty log catches up -- drew "1 star -  - 7 Nov" with a separator standing either side of
+       * nothing. A dangling separator reads as a value that failed to load, and this row already has
+       * little enough on it. The date keeps its em dash when it is unknown: that IS the value. */
+      t = esc([r.stars === null ? null : say('rvStars', null, r.stars),
+               r.reg || null,
+               r.date || '—',
+               r.who || null].filter(function (x) { return x; }).join(' · '));
       out += '<button class="v2row rv-row" type="button" data-review="' + esc(r.id) + '">'
         + '<span class="lead">' + draw('star', v.density === 'desk' ? 16 : 20) + '</span>'
         + '<span class="t">' + t + '</span>'
