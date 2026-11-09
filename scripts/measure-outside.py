@@ -158,12 +158,45 @@ def _stored(store, rid):
         c.close()
 
 
+def _tick(stored_at):
+    """The next stamp to push with: ahead of our own last one, ahead of the wall
+    clock, AND ahead of what the server actually stored.
+
+    The third term is the one this harness was missing, and it cost a CI build.
+    THE SERVER DOES NOT ALWAYS STORE WHAT YOU SENT. When the guard changes the
+    payload -- which is exactly what the recompute under measurement does, the
+    first time it touches each card and sets externalCost -- sync_server.py:4058
+    re-stamps the row `max(upd + 1, now_ms(), row.updatedAt + 1)`. Measured on an
+    idle machine: the a-push sent 1794222635667 and the server stored
+    ...676, nine milliseconds ahead, because the 2,000-pass scan took that long
+    and now_ms() won.
+
+    The b-push of the same pair then sends max(sent_a + 1, wall) -- and `wall`,
+    read just after the a-push returned, lands within a millisecond or two of
+    the stamp the server already used. Measured margins on an idle machine were
+    +3 to +13 ms. On a slower machine the margin reaches zero, `upd > row[0]` is
+    false, and the push is REFUSED as stale: the harness raised
+    "the card push was not applied" and reddened the build.
+
+    It bites the FIRST touch of each card and no other, because that is when
+    externalCost changes, which is why it struck at n=7 of the first interleave
+    and never on a repeat. Reading the stored stamp back removes the race
+    entirely. Nothing about the measurement changes: the timestamp is not what
+    is being timed, and the server-side work is identical either way.
+
+    The server's own refusal is correct and is not touched. A real device
+    handles it -- `reason: "stale"` is the one refusal v2's client re-applies
+    (sync_server.py:4101) -- so this was a harness that did not behave like a
+    client, not a product defect."""
+    return max(_clock[0] + 1, int(time.time() * 1000), int(stored_at or 0) + 1)
+
+
 def push_card(k, n):
     """Owner pushes outside card oc-k with one ordinary field changed (a note), the
     outside fields carried unchanged -- the shape a real edit of such a card takes."""
     d = _stored("jobcards", "oc-%d" % k)
     d["note"] = "n%d" % n
-    _clock[0] = max(_clock[0] + 1, int(time.time() * 1000))
+    _clock[0] = _tick(d.get("updatedAt"))
     t = time.perf_counter()
     out = S.push([{"store": "jobcards", "id": d["id"], "data": d, "updatedAt": _clock[0]}], OWNER)
     ms = (time.perf_counter() - t) * 1000
@@ -174,8 +207,12 @@ def push_card(k, n):
 
 def push_unrelated(k, n):
     """Owner pushes a fuel record. fuel has no pass and no outside field."""
-    _clock[0] = max(_clock[0] + 1, int(time.time() * 1000))
-    d = {"id": "fuel-m%d" % k, "busId": "b1", "litres": 40 + n % 7, "n": "x"}
+    rid = "fuel-m%d" % k
+    # Same guard as push_card, for the same reason. fuel has no recompute, so
+    # today the server stores what is sent -- but "today" is the word that made
+    # the other one a flake, and the cost of being right here is one read.
+    _clock[0] = _tick((_stored("fuel", rid) or {}).get("updatedAt"))
+    d = {"id": rid, "busId": "b1", "litres": 40 + n % 7, "n": "x"}
     t = time.perf_counter()
     out = S.push([{"store": "fuel", "id": d["id"], "data": d, "updatedAt": _clock[0]}], OWNER)
     ms = (time.perf_counter() - t) * 1000
