@@ -44,16 +44,109 @@ BANNED = [
     ("Object/Map.groupBy — Chrome 117", re.compile(r"\b(Object|Map)\.groupBy\s*\(")),
     ("toSorted/toReversed/toSpliced — Chrome 110",
      re.compile(r"\.(toSorted|toReversed|toSpliced)\s*\(")),
-    ("Array.prototype.with — Chrome 110", re.compile(r"\]\s*\.with\s*\(")),
+    # Was `\]\s*\.with\s*\(`, which only saw `[1,2,3].with(...)` -- a literal
+    # array. The real shape is `rows.with(0, v)` on a variable, and the review
+    # measured that passing. Any `.with(` now, because nothing in this repo
+    # defines a method by that name (checked) and Chrome 109 throws on the
+    # built-in. `Promise.withResolvers` is covered on its own line and does not
+    # match: this needs the `(` straight after `with`.
+    ("Array.prototype.with — Chrome 110", re.compile(r"\.with\s*\(")),
     ("Promise.withResolvers — Chrome 119", re.compile(r"\bPromise\.withResolvers")),
     ("Array.fromAsync — Chrome 121", re.compile(r"\bArray\.fromAsync")),
     ("String.isWellFormed — Chrome 111", re.compile(r"\.(isWellFormed|toWellFormed)\s*\(")),
+
+    # ---- added 9 Nov 2026, closing the hole the outside-repair floor review
+    # ---- measured: it appended nesting, a v-flag regex, popover, Set.union
+    # ---- and nine more to work.css and this check still said exit 0. Each
+    # ---- pattern below was broken once, alone, and watched go red.
+    #
+    # The two that are not a dropped declaration but a DEAD FILE on Chrome 109:
+    # a `v`-flag regex is a SyntaxError at parse time, so the whole script
+    # fails to load -- for ui/passes.js that is every sheet in the outside
+    # repair gone, for screens/jobcard.js a blank card. Nothing warns.
+    # The `/` must be where a regex can legally START -- after `=`, `(`, `,`,
+    # a return, and so on. Without that anchor this pattern read
+    # `'</span></div>'` as a regex with flags `div`: `d`, `i` and `v` are all
+    # real flag letters, so it reported 123 violations across 54 files, every
+    # one of them an HTML string. A check that cries wolf 123 times is a check
+    # somebody switches off, and then it checks nothing.
+    ("regex v flag — Chrome 112, a SyntaxError at parse time: the whole file fails to load",
+     re.compile(r"(?:^|[=(,;:!&|?{}\[+]|\breturn|\btypeof|\bcase)\s*"
+                r"/(?![/*])(?:\\.|\[(?:\\.|[^\]\\])*\]|[^/\\\n])+/[dgimsuy]*v[dgimsuy]*(?![\w$])")),
+    ("Set.union/intersection/difference — Chrome 122, throws at the tap",
+     re.compile(r"\.(union|intersection|difference|symmetricDifference|isSubsetOf|isSupersetOf|isDisjointFrom)\s*\(")),
+
+    # The popover API: the attribute is ignored and the calls throw, so a
+    # sheet built on it never opens at all.
+    ("popover API — Chrome 114",
+     re.compile(r'(showPopover|hidePopover|togglePopover)\s*\(|[\'"]popover[\'"]|\[popover|:popover-open|\bpopover\s*:')),
+
+    ("transition-behavior / allow-discrete — Chrome 117",
+     re.compile(r"\btransition-behavior\b|\ballow-discrete\b")),
+    ("linear() easing — Chrome 113", re.compile(r"\blinear\s*\(")),
+    ("lab() / lch() / color() — Chrome 111",
+     re.compile(r"\b(lab|lch|color)\s*\(\s*(?!from\b)[^)]")),
+    (":nth-child(… of …) — Chrome 111",
+     re.compile(r":nth-(child|last-child)\s*\([^)]*\bof\b")),
+    ("CSS round()/mod()/rem() — Chrome 112",
+     re.compile(r"[\s:(,]\b(round|mod|rem)\s*\(")),
+    ("scrollend — Chrome 114", re.compile(r'[\'"]scrollend[\'"]|\bonscrollend\b')),
+    ("URL.canParse — Chrome 120", re.compile(r"\bURL\.canParse")),
 ]
 
-# A nested rule, which Chrome 112 introduced. Only matched in .css, and only in
-# its unambiguous shape: a line that begins with `&` followed by a selector
-# character. `&` is legal inside a JS string, so .js is left alone.
-NESTING = re.compile(r"^\s*&[\s.:>+~\[{]")
+# CSS nesting, Chrome 112. THIS WAS THE HOLE, and it was shaped like a line
+# regex: `^\s*&[\s.:>+~\[{]` sees only the `&`-leading shape, and neither of
+# the two commonest ways to nest starts with one --
+#
+#     [data-v2] .oj-sheet { color: var(--ink);
+#       .oj-err { color: var(--bad); }     <- no &
+#       > .field { width: 100%; }          <- no &
+#     }
+#
+# Chrome 109 drops both blocks: the error line and the full-width field are
+# simply not styled, and nothing warns. The review appended exactly that to
+# work.css at the tip and the check still exited 0.
+#
+# A line regex cannot see this, because what makes a selector nested is not how
+# it is written but WHERE it is: inside a style rule's braces. So track brace
+# depth and what kind of block each one is. A block opened while the enclosing
+# block is a STYLE RULE is nesting. A block opened inside an at-rule is not --
+# `@media { .a { } }` and `@keyframes x { 0% { } }` have always been legal and
+# are all over this codebase.
+NESTING_AMP = re.compile(r"&")
+
+
+def css_nesting_hits(code):
+    """Line numbers in `code` (comments already stripped) that nest a rule.
+
+    Returns [(line_no, text)]. The scan is on characters, not lines, because a
+    selector's preamble may span several lines and the `{` that matters may sit
+    on any of them.
+    """
+    hits = []
+    stack = []          # 'rule' | 'at', innermost last
+    pre_start = 0       # where the current block's preamble began
+    i, n = 0, len(code)
+    while i < n:
+        ch = code[i]
+        if ch == "{":
+            pre = code[pre_start:i]
+            kind = "at" if pre.lstrip().startswith("@") else "rule"
+            # A rule opened inside a rule is a nested rule.
+            if kind == "rule" and stack and stack[-1] == "rule":
+                ln = code.count("\n", 0, i) + 1
+                sel = " ".join(pre.split())[-80:]
+                hits.append((ln, sel + " {"))
+            stack.append(kind)
+            pre_start = i + 1
+        elif ch == "}":
+            if stack:
+                stack.pop()
+            pre_start = i + 1
+        elif ch == ";":
+            pre_start = i + 1
+        i += 1
+    return hits
 
 # Windows 7 never shipped the full emoji set, so an emoji in a rendered string
 # is a grey box on an office PC. Icons here are inline SVG.
@@ -142,9 +235,50 @@ def strip_comments(text, is_css):
     return "".join(out)
 
 
-def is_emoji(ch):
-    o = ord(ch)
+def is_emoji_cp(o):
     return any(lo <= o <= hi for lo, hi in EMOJI_RANGES)
+
+
+def is_emoji(ch):
+    return is_emoji_cp(ord(ch))
+
+
+# AN EMOJI WRITTEN AS AN ESCAPE, which the character scan above cannot see --
+# found 9 Nov 2026 by the probe suite in test_floor_check.py, on its first run,
+# in the course of closing a different hole.
+#
+#     var t = 'done \u2705';
+#
+# is six ASCII characters on disk and a white heavy check mark at runtime. The
+# scan reads source characters, so it said `✅ within the Chrome 109 floor`,
+# and the office PC draws a grey box. Three spellings, all of them real:
+# `\uXXXX` and `\u{...}` in JS, and HTML's numeric entities.
+ESCAPED_EMOJI = re.compile(
+    r"\\u\{([0-9a-fA-F]{1,6})\}"      # \u{1F600}
+    r"|\\u([0-9a-fA-F]{4})"            # \u2705
+    r"|\\x([0-9a-fA-F]{2})"            # \xFE (never an emoji, but cheap to read)
+    r"|&#x([0-9a-fA-F]{1,6});"          # &#x2705;
+    r"|&#([0-9]{1,7});"                 # &#9989;
+)
+
+
+def escaped_emoji_hits(line):
+    """Code points in `line` written as an escape that are emoji."""
+    out = []
+    for m in ESCAPED_EMOJI.finditer(line):
+        hexes = [m.group(i) for i in (1, 2, 3, 4)]
+        dec = m.group(5)
+        try:
+            if dec is not None:
+                cp = int(dec, 10)
+            else:
+                hit = next(h for h in hexes if h is not None)
+                cp = int(hit, 16)
+        except (ValueError, StopIteration):
+            continue
+        if is_emoji_cp(cp):
+            out.append(m.group(0))
+    return out
 
 
 def files_under(targets):
@@ -177,7 +311,10 @@ def main(argv):
             for desc, pat in BANNED:
                 if pat.search(line):
                     note(desc, f, ln, line)
-            if is_css and NESTING.search(line):
+            # `&` anywhere inside a stylesheet is nesting or the nesting
+            # selector: there is no other use for it in CSS. `.js` is left
+            # alone, where `&` is legal in a string and in bit arithmetic.
+            if is_css and NESTING_AMP.search(line):
                 note("CSS nesting — Chrome 112", f, ln, line)
         # Emoji are judged on the comment-stripped text, like everything else.
         #
@@ -188,9 +325,17 @@ def main(argv):
         # comments in db.js and sync.js the moment v2 took its copy. A checker
         # that cannot tell a shipped string from prose about one gets switched
         # off, and then it checks nothing.
+        # Nesting WITHOUT an `&`, which no line regex can see. Whole-file.
+        if is_css:
+            for ln, sel in css_nesting_hits(code):
+                note("CSS nesting — Chrome 112", f, ln, sel)
         for ln, line in enumerate(code.splitlines(), 1):
             if any(is_emoji(c) for c in line):
                 note("emoji in source — Windows 7 renders a box", f, ln, line)
+            esc = escaped_emoji_hits(line)
+            if esc:
+                note("emoji written as an escape — Windows 7 renders a box "
+                     "(" + ", ".join(sorted(set(esc))[:4]) + ")", f, ln, line)
 
     print("── browser floor: Chrome 109 (Windows 7) ──")
     checked = sum(1 for _ in files_under(targets))
