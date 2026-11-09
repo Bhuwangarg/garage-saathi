@@ -175,7 +175,19 @@
   }
 
   function closed(c) { return c.status === 'done' || c.status === 'verified'; }
-  function away(c) { return !!c.externalVendor; }
+  /* AWAY IS WHERE THE BUS IS, NOT WHO DID THE WORK, and this tested the wrong field.
+   *
+   * It was `!!c.externalVendor` -- the vendor's NAME. The two are different facts and the tab got
+   * both of them wrong, in opposite directions:
+   *   - a bus standing IN OUR OWN YARD with a vendor's name typed on its card was counted as away,
+   *     so `matches()` below removed it from Open. The work is in the bay, the card is not on the
+   *     board, and nobody is looking at it.
+   *   - a bus that really IS away, in another town, with no vendor name typed yet, was not counted
+   *     as away and never reached this tab at all.
+   * v1's own test is `isOutside = (j) => !!(j && j.outside)` (app.js:2927), and `v2-ux.md:628`
+   * already recorded the decision: the away tick "is also overloaded onto the vendor field today
+   * and gets its own state". `outside` is that state. */
+  function away(c) { return !!c.outside; }
 
   function matches(c, which) {
     if (which === 'done') return closed(c);

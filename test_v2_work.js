@@ -1009,6 +1009,33 @@ test('the new-card sheet pre-selects no bus, and its odometer is empty', () => {
  * 10b. WORKLOAD, THE MOVE, THE CREW AND THE DELETE
  * ===================================================================================================== */
 
+/* AWAY IS WHERE THE BUS IS, NOT WHO DID THE WORK.
+ *
+ * `jobs.js`'s `away()` tested `externalVendor` -- the vendor's NAME -- and `matches()` uses it to
+ * take cards OUT of Open. So the tab was wrong in both directions at once, and the Open board was
+ * wrong with it:
+ *   - a bus in our own bay with a vendor's name typed on its card vanished from Open;
+ *   - a bus actually away, with no vendor name typed yet, never reached Away.
+ * v1's test is `!!(j && j.outside)` (app.js:2927) and `v2-ux.md:628` had already decided the away
+ * tick "gets its own state". One case for each direction, because a fix that only moves the error
+ * from one tab to the other passes a check that tests one of them.
+ */
+test('Away is the bus being elsewhere, not a vendor name: each tab holds the right card, and Open keeps the yard', () => {
+  const inYard = card({ id: 'j-yard', busId: 'b1', externalVendor: 'Sharma Auto Electric', outside: false });
+  const elsewhere = card({ id: 'j-away', busId: 'b2', externalVendor: '', outside: true, outsideCity: 'Jaipur' });
+  const l = asRole('u-sup', { cards: [inYard, elsewhere] });
+
+  l.win.Jobs.filter('away');
+  const away = l.win.Jobs.render(model(l, { route: 'jobs', params: null }));
+  assert(/j-away/.test(away), 'a bus that IS away is missing from Away: a vendor name is not a location');
+  assert(!/j-yard/.test(away), 'a bus in our own bay was put in Away because a vendor was named on it');
+
+  l.win.Jobs.filter('open');
+  const open = l.win.Jobs.render(model(l, { route: 'jobs', params: null }));
+  assert(/j-yard/.test(open), 'a bus standing in the yard fell off Open because a vendor was named on it');
+  assert(!/j-away/.test(open), 'a bus away in another town is still counted as standing in the yard');
+});
+
 test('Mechanic workload is three numbers, never one score, and at desk it is a table', () => {
   const l = asRole('u-sup', { cards: [card({ outAt: NOW, enterAt: NOW - 2 * 86400000 }), theirs()] });
   l.win.Jobs.filter('workload');
