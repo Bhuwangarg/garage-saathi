@@ -25,6 +25,7 @@ Usage:  scripts/run-tests.py [-q] [--fast] [name-fragment ...]
 Exit 0 = everything passed. Exit 1 = something failed, named below.
 """
 import concurrent.futures
+import os
 import pathlib
 import subprocess
 import sys
@@ -53,23 +54,67 @@ SLOW_S = 20            # anything over this is reported, so slowness stays visib
 # it; nothing is skipped while this is bare.
 SLOW = {}
 
-# Suites that bind a real TCP port, and therefore cannot run beside each other.
-# Found the hard way: the first parallel run failed with "Address already in
-# use", because test_clist.py and test_agent_key.py both default to 8839. Run
-# sequentially they never meet, so the clash had been latent since both were
-# written -- parallelism did not cause it, it revealed it.
+# Suites that bind a real TCP port. These ran serially until now, because
+# test_clist.py and test_agent_key.py both default to 8839 and the first
+# parallel run failed with "Address already in use" -- the clash had been latent
+# since both were written, so parallelism revealed it rather than caused it.
 #
-# These run serially after the parallel batch. Assigning each a unique port from
-# here would be tidier, since they all read one from the environment, but the
-# variable name differs per file and a wrong guess reads as a passing test that
-# never bound anything.
-PORT_BOUND = {"test_agent_key.py", "test_clist.py", "test_alist.py",
-              "test_thief.py", "test_pin_rotation.py", "test_its_lookup.py",
-              "test_agent_endpoints.py"}
+# Each of them reads its port from the environment, so each now gets one of its
+# own and they run in the parallel batch with everything else. The objection
+# recorded here before was that "the variable name differs per file and a wrong
+# guess reads as a passing test that never bound anything" -- which is true, and
+# is why _unread_port_vars() below exists: a name its suite no longer mentions
+# stops the run instead of quietly falling back to 8839. Every name here was
+# checked by pointing it at port 1 and confirming the suite fails to bind.
+#
+# test_its_lookup.py is deliberately NOT here. It asks for port 0 and reads back
+# whatever the kernel gave it (test_its_lookup.py:104), so it cannot collide with
+# anything and needs no port of its own; it was serialised for a hazard it never
+# had.
+PORT_VARS = {
+    "test_agent_key.py": "AGENT_KEY_PORT",
+    "test_clist.py": "CLIST_PORT",
+    "test_alist.py": "ALIST_PORT",
+    "test_thief.py": "THIEF_PORT",
+    "test_pin_rotation.py": "TEST_PORT",
+    "test_agent_endpoints.py": "AGENT_ENDPOINTS_PORT",
+}
+
+# 9200 up, in a block of its own per process. NOT 8800-8919: that is
+# scripts/predeploy-gate.sh's own range, 8800 + (pid % 120), and the gate runs
+# from the same pre-push hook. GS_TEST_PORT_BASE overrides it, which is how the
+# delivery of these variables is verified -- set it to 1 and every suite in
+# PORT_VARS must fail to bind.
+PORT_BASE = int(os.environ.get("GS_TEST_PORT_BASE", 9200 + (os.getpid() % 150) * 8))
+
+
+def port_env(name):
+    """The environment a port-bound suite runs with; None means inherit."""
+    var = PORT_VARS.get(name)
+    if not var:
+        return None
+    env = dict(os.environ)
+    env[var] = str(PORT_BASE + sorted(PORT_VARS).index(name))
+    return env
+
+
+def _unread_port_vars():
+    """Entries in PORT_VARS whose suite no longer reads that variable.
+
+    Without this a renamed variable is invisible: the suite falls back to 8839,
+    binds it, passes, and two of them meeting is a flake nobody can place.
+    """
+    out = []
+    for name, var in sorted(PORT_VARS.items()):
+        f = HERE / name
+        if f.exists() and var not in f.read_text():
+            out.append((name, var))
+    return out
 
 # Suites whose subject is a DURATION, which eight sibling processes on this pool
-# change. They run in the same serial phase as the port binders, for a different
-# reason, and the reason is measured rather than assumed.
+# change. These are now the ONLY serial suites -- the port binders left for the
+# pool once each had a port of its own -- and the reason they stay is measured
+# rather than assumed.
 #
 # test_outside_cost.py holds contract 8's "< 5 ms added per /push of an outside
 # card". On this machine, same code, same fixture, same day:
@@ -109,6 +154,16 @@ def main(argv):
         print("no test files matched")
         return 1
 
+    # Before anything runs: if a suite stopped reading the variable we hand it,
+    # it would bind 8839 instead and pass, and the next parallel run would flake
+    # somewhere else entirely. Say so and stop.
+    stale = _unread_port_vars()
+    if stale:
+        for name, var in stale:
+            print(f"  BROKEN   {name} no longer reads {var} — it would fall back to 8839")
+        print("\n❌ PORT_VARS in run-tests.py is out of date; fix it before trusting a parallel run")
+        return 1
+
     skipped = []
     if fast:
         keep = []
@@ -124,14 +179,15 @@ def main(argv):
         t = time.time()
         try:
             p = subprocess.run(cmd, cwd=HERE, capture_output=True, text=True,
-                               timeout=TIMEOUT)
+                               timeout=TIMEOUT, env=port_env(f.name))
         except subprocess.TimeoutExpired:
             return f.name, None, "", time.time() - t
         return f.name, p.returncode, p.stdout + p.stderr, time.time() - t
 
-    # Parallel for everything that cannot collide; serial for the port binders
-    # and for the suites that are timing something.
-    serial_names = PORT_BOUND | TIMED
+    # Parallel for everything that cannot collide. Only the timing suites are
+    # serial now: the port binders each got a port of their own above, which is
+    # what kept them out of this pool.
+    serial_names = TIMED
     wide = [j for j in jobs if j[0].name not in serial_names]
     narrow = [j for j in jobs if j[0].name in serial_names]
 
