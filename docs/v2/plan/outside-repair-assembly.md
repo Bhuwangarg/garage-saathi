@@ -191,7 +191,7 @@ All four commands from `PIPELINE.md`, run here, at the tip:
 
 | Command | Result |
 |---|---|
-| `scripts/predeploy-gate.sh` | **392 passed, 0 failed** — unchanged count, and none of its checks is this feature's |
+| `scripts/predeploy-gate.sh` | **392 passed, 0 failed** — unchanged count, and none of its checks is this feature's. Run twice: mid-assembly, and again at the tip (`f653fdc`) |
 | `scripts/run-tests.py` | **90 suites passed, 0 failed; 3,695 counted checks** |
 | `scripts/check-floor.py v2 ui` | within the Chrome 109 floor, 62 files |
 | `scripts/check-v2-isolation.sh` | v1 and v2 isolated, 10 checks |
@@ -324,7 +324,7 @@ the fastest of three differences is still wrong. The suite now runs in
 
 | What | Budget | Measured |
 |---|---|---|
-| 200 dense desk rows, fastest of three | < 250 ms | **74.4 / 72.3 / 71.3 ms** — held with 3.5× margin |
+| 200 dense desk rows, fastest of three | < 250 ms | **74.4 / 72.3 / 71.3 ms** mid-assembly, **51.5 / 52.6 / 58.1 ms** at the tip — held with 3.5× to 4.9× margin. Both runs are this machine's, and the spread between them is the machine, not the code |
 
 Still a developer's Mac. UI §16.2 rule 7 stands: the real number comes from
 `v2/ui/gallery.html` on an office PC, and taking it is an instruction.
