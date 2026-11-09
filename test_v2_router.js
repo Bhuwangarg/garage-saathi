@@ -468,8 +468,9 @@ function main() {
         changes.length === 1 && changes[0] === 'store' && Router.current().id === 'store');
 
   /* ================================================================== *
-   * 9. The table itself: 45 capabilities -- v1's 37 transcribed, the four v2
-   *    names, and closeJob + moveJobBus, with v1's exact role lists.
+   * 9. The table itself: 46 capabilities -- v1's 37 transcribed, the four v2
+   *    names, closeJob + moveJobBus + editFuelFill + writeBusOdometer, and
+   *    gatePass, with v1's exact role lists.
    *
    *    This said 41 until slice W found that `mayCloseJob` and `changeJobBus`
    *    were never capabilities at all: v1's is a role helper (app.js:3887) and
@@ -479,9 +480,17 @@ function main() {
    *    (sync_server.py:1760 and :1702) and gated on the Job card.
    * ================================================================== */
   const caps = Object.keys(Caps.PERMS);
-  check('45 capabilities: v1\'s 37, four v2 names, and the four minted from the '
+  /* 45 until outside-repair added the 46th. `gatePass` is the slip that lets a
+   * unit out of the gate (owner decision 3, outside-repair-contract.md 11), and
+   * it is the one capability in this table that is defined as EQUAL to another:
+   * test_v2_outside.js holds gatePass == manageComponents and reddens when a
+   * role is dropped from either side. The count here is the pin that stops a
+   * 47th arriving unnoticed, so it moves only in a diff that says why. */
+  check('46 capabilities: v1\'s 37, four v2 names, the four minted from the '
         + 'server\'s own rules -- closeJob, moveJobBus, editFuelFill, '
-        + 'writeBusOdometer (got ' + caps.length + ')', caps.length === 45);
+        + 'writeBusOdometer -- and gatePass (got ' + caps.length + ')', caps.length === 46);
+  check('the 46th is gatePass, and nothing else arrived with it',
+        caps.indexOf('gatePass') >= 0);
   /* Each minted one is checked against the server line it came from, not just
    * counted -- a count notices a capability appearing and says nothing about
    * whether its role list is right, which is the half that leaks. */
