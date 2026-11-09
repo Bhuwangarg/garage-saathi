@@ -40,6 +40,9 @@
   var YARD_CAP = 20;                   // rows per block before "20 of 63 shown"
   var PHOTOS_NEEDED = 2;               // this document's number, and what the gate line promises
   var HOUR = 3600000;
+  var BILL_MAX = 4;                    // jobcards.billPhotos is capped at 4 (contract 4.2); a fifth tile is refused
+  var PASS_SHOWN = 3;                  // pass rows in the outside block before "3 of 7 gate passes shown"
+  var REASON_MAX = 500;                // jobcards.closeNoBillReason is <= 500 characters (contract 4.2)
 
   /* Closing and moving are ROLE rules with no capability behind them, and that
    * is not a shortcut. v1's `mayCloseJob` (app.js:3887) is
@@ -119,7 +122,6 @@
     jcGateNone: { en: 'None taken yet. A vendor bill can stand in for them.', hi: '' },
     jcGateReady: { en: 'Ready to close', hi: '' },
     jcGateReadySub: { en: '2 before, 2 after. The photos are on the card.', hi: '' },
-    jcGateVendorSub: { en: 'The vendor bill stands in for the photos.', hi: '' },
 
     jcPrioHigh: { en: 'High priority', hi: '' },
     jcPrioMedium: { en: 'Medium priority', hi: '' },
@@ -175,10 +177,6 @@
     jcPhotoFixed: { en: 'Photos are fixed once the card is closed.', hi: '' },
     jcTakePhoto: { en: 'Take photo', hi: '' },
 
-    jcVendorHead: { en: 'Outside vendor', hi: '' },
-    jcVendorAt: { en: 'In {place}', hi: '' },
-    jcGatePass: { en: 'Gate pass {no}', hi: '' },
-    jcPrintPass: { en: 'Print this pass', hi: '' },
 
     jcMoveBus: { en: 'Move to another bus', hi: '' },
     jcDeleteCard: { en: 'Delete this card', hi: '' },
@@ -204,7 +202,81 @@
     jcQty: { en: 'Quantity', hi: '' },
     jcPartSearch: { en: 'Search a part', hi: '' },
     jcAsking: { en: 'Asking...', hi: '' },
-    jcChoosePart: { en: 'Choose the part', hi: '' }
+    jcChoosePart: { en: 'Choose the part', hi: '' },
+
+    /* ---- OUTSIDE REPAIR (UI 3, 4.1, 4.2, 4.6, 11). The Hindi for every id below is PENDING except the ones
+     * v1 already has, which are copied from i18n-hi.js and never rewritten (UI 11.1). The four ids OR2
+     * holds (jcPassIssuedBy, jcPassReceivedBy, jcPassMaking, jcPassWork) are registered in ui/passes.js
+     * and not here: a word has one home and W.register throws on a second. */
+    jcAwayAction: { en: 'The bus is away for repair', hi: '' },
+    jcBackInYard: { en: 'Back in our yard', hi: '' },
+    jcSendUnitOut: { en: 'Send a unit out on a gate pass', hi: '' },
+    jcAwayHead: { en: 'Away for repair', hi: '' },
+    jcOutsideHead: { en: 'Outside repair', hi: '' },
+    jcAwayAt: { en: 'In {place}', hi: '' },
+    jcAwayNobody: { en: 'Marked away. Nobody from our garage is on it.', hi: '' },
+    jcAwayFor: { en: { one: 'Away for {n} day', other: 'Away for {n} days' }, hi: '' },
+    jcWasAwayFor: { en: { one: 'Was away {n} day', other: 'Was away {n} days' }, hi: '' },
+    jcAwaySince: { en: 'Since {date}', hi: '' },
+    jcAwayNoTime: { en: 'No reached-the-workshop time recorded', hi: '' },
+    jcNextReached: { en: 'Record when it reached the workshop', hi: '' },
+    jcNextReachedWhy: { en: 'Until then nobody can say how many days.', hi: '' },
+    jcNextReachedBtn: { en: 'Record the time', hi: '' },
+    jcNextBill: { en: 'Add the vendor’s bill', hi: '' },
+    jcNextBillWhy: { en: 'A photo of their bill closes this card.', hi: '' },
+    jcNextBillBtn: { en: 'Photograph the bill', hi: '' },
+    jcAwayReadyWhy: { en: 'The bus is still away. Close it when it is back.', hi: '' },
+    jcBillHead: { en: 'Vendor’s bill ({n})', hi: '' },
+    jcBillNeed: { en: 'The vendor’s bill. Needed to close this card.', hi: '' },
+    jcBillTake: { en: 'Photograph the bill', hi: '' },
+    jcGateBillNeed: { en: 'To close: a photo of the vendor’s bill', hi: '' },
+    jcGateBillNone: { en: 'No bill photo yet. You can close without it by typing a reason.', hi: '' },
+    jcGateBillOnCard: { en: 'The vendor’s bill is on the card.', hi: '' },
+    jcGateBillOnPass: { en: 'The vendor’s bill is on gate pass {no}.', hi: '' },
+    jcClosedNoBill: { en: 'Closed with no bill', hi: '' },
+    jcNoBillTitle: { en: 'Close without the bill', hi: '' },
+    jcNoBillState: { en: 'This card has no photo of the vendor’s bill.', hi: '' },
+    jcNoBillWarnRow: { en: 'There is no bill photo on this card', hi: '' },
+    jcNoBillWarnSub: { en: 'You can add the bill, or close it by typing a reason.', hi: '' },
+    jcNoBillAsk: { en: 'Why is it closing without the bill?', hi: '' },
+    jcNoBillPh: { en: 'e.g. Vendor will send the bill next week', hi: '' },
+    jcNoBillKept: { en: 'This reason stays on the card. Anybody who reads the card will see it.', hi: '' },
+    jcNoBillNeed: { en: 'Type the reason. The card cannot close without it.', hi: '' },
+    jcNoBillSave: { en: 'Close the card', hi: '' },
+    jcNoBillDone: { en: 'Card closed. No bill — your reason is on the card.', hi: '' },
+    jcAwayTitle: { en: 'The bus is away', hi: '' },
+    jcAwayWho: { en: 'Who is doing the work (if you know)', hi: '' },
+    jcAwaySave: { en: 'Save', hi: '' },
+    jcAwaySaving: { en: 'Saving...', hi: '' },
+    jcBackTitle: { en: 'Back in our yard', hi: '' },
+    jcBackAsk: { en: { one: 'The bus is back from {vendor}. Away for {n} day.',
+                       other: 'The bus is back from {vendor}. Away for {n} days.' }, hi: '' },
+    jcBackAskNoTime: { en: 'The bus is back from {vendor}. No reached-the-workshop time was recorded, so the days away cannot be counted.', hi: '' },
+    jcBackYes: { en: 'Yes, it is back', hi: '' },
+    jcBackNo: { en: 'Not yet', hi: '' },
+    jcPassRow: { en: 'Gate pass {no}', hi: '' },
+    jcPassOut: { en: { one: '{unit} {serial} · out {n} day', other: '{unit} {serial} · out {n} days' }, hi: '' },
+    jcPassBack: { en: 'Back {date} · serial matched', hi: '' },
+    jcPassBackBad: { en: 'Back {date} · serial did not match', hi: '' },
+    jcPassCap: { en: '{shown} of {total} gate passes shown, newest first.', hi: '' },
+    /* THREE WORDS THE SPEC'S TABLE USES BUT UI 11.2 DOES NOT LIST. A row needs a name and the sheet needs
+     * a month, and a screen may not draw an English literal; reported as PENDING with the rest. */
+    jcOutsideCost: { en: 'Outside cost', hi: '' },
+    jcAwayNoVendor: { en: 'No vendor recorded yet', hi: '' },
+    jcMonths: { en: 'Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec', hi: '' },
+
+    /* REUSED, Hindi copied from i18n-hi.js (UI 11.1): lines 180, 181, 183, 185, 186 and 22. */
+    owHint: { en: 'Turn this on when the bus itself is away \u2014 standing at a workshop in another town, not in our yard.',
+              hi: 'जब बस खुद बाहर खड़ी हो — किसी दूसरे शहर की वर्कशॉप में, अपने यार्ड में नहीं — तब यह चालू कीजिए।' },
+    owCity: { en: 'Town or workshop', hi: 'शहर' },
+    owCityPh: { en: 'e.g. Jaipur', hi: 'जैसे नोएडा' },
+    owAway: { en: 'Away for repair', hi: 'बाहर मरम्मत पर' },
+    owNoCity: { en: 'Which town is the bus in?', hi: 'बस किस शहर में है?' },
+    owReached: { en: 'Reached the workshop', hi: 'वर्कशॉप पहुँचने का समय' },
+    owVendNote: { en: 'The workshop holding the bus. What it charges goes in Outside cost.', hi: 'यही वर्कशॉप बस को रोके हुए है। वह जो लेगी वह “बाहर का खर्च” में डालिए।' },
+    owWhere: { en: 'Where it is', hi: 'कहाँ है' },
+    owAwayFor: { en: 'Away for', hi: 'कितने दिन से बाहर' },
+    addPhotoNote: { en: 'Before AND after photos required to close a job (outside repairs: a bill photo)', hi: 'काम बंद करने के लिए पहले और बाद दोनों की फोटो ज़रूरी हैं (बाहर मरम्मत: बिल की फोटो)' }
   };
 
   var registered = false;
@@ -224,6 +296,9 @@
 
   function say(id, vals, n) {
     register();
+    /* w() takes the count as its second argument and strips a {n} it was not given, so "Before ({n})" drew
+     * "Before ()". A count named in the values is the count. */
+    if ((n === undefined || n === null) && vals && vals.n !== undefined) n = vals.n;
     var s;
     if (registered && typeof root.w === 'function') s = root.w(id, n);
     else {
@@ -249,6 +324,27 @@
       .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
   function fig(v, o) { return typeof root.figure === 'function' ? root.figure(v, o) : ''; }
+  function outside() { return root.Outside || null; }
+  function passesApi() { return root.Passes || null; }
+
+  /* "Is this an outside card" and the close gate are Outside's rules (v2/outside.js), shared by five
+   * screens so they cannot drift. They are asked here, never restated. With Outside absent a card reads
+   * as an INSIDE one, which fails closed: it then needs two photos before and two after. */
+  function isOut(card) { var O = outside(); return !!(O && O.isOutside(card)); }
+
+  /* OUR OWN IDS FROM ui/passes.js (ojAtVendor, ojBack, ojVendorPh, ojNew), read through w(). passes.js
+   * registers its table lazily, on the first word it says, so on a card nobody has sent a unit out from
+   * yet the ids are not registered and w() would throw. slipSheet({}) says a word and so registers the
+   * table, draws nothing here and writes nothing. */
+  var passWordsKicked = false;
+  function pw(id) {
+    var P = passesApi();
+    if (!passWordsKicked && P && typeof P.slipSheet === 'function') {
+      passWordsKicked = true;
+      try { P.slipSheet({}); } catch (e) { /* the table is registered by the first say(), drawn or not */ }
+    }
+    return typeof root.w === 'function' ? root.w(id) : '';
+  }
 
   /* ====================================================================== *
    * THE RULE. One expression, two consumers: this screen's guard and Jobs'
@@ -311,16 +407,20 @@
    * ====================================================================== */
 
   /* The close gate. `photoGateReady` in app.js:9018 is the existing client
-   * mirror of the server's `_has_proof` (sync_server.py:1271), and this is the
-   * same shape with one tightening: the server's rule is "before and after"
-   * without a count, and the gate LINE on this screen promises two of each. A
-   * client that accepted one and then said "Ready to close" would be lying
-   * about its own sentence, so the count is here. The vendor case is the
-   * server's exactly: a bill photo on either side stands in. */
-  function gateReady(card) {
+   * mirror of the server's `_has_proof` (sync_server.py:1271).
+   *
+   * AN INSIDE CARD wants two photos before and two after, which is the one tightening this client
+   * makes over the server (the gate LINE promises two of each, and a client that accepted one and then
+   * said "Ready to close" would be lying about its own sentence).
+   *
+   * AN OUTSIDE CARD WANTS THE VENDOR'S BILL, and a single before photo no longer stands in for it. That
+   * is the owner's decision 1: the bill on the card, or on a returned pass of this card, or a reason
+   * somebody typed. The rule is Outside.gateMet; `passes` are this card's candidates and Outside picks
+   * out the ones that are its own. */
+  function gateReady(card, passes) {
     if (!card) return false;
+    if (isOut(card)) return outside().gateMet(card, passes || []);
     var b = (card.beforePhotos || []).length, a = (card.afterPhotos || []).length;
-    if (card.externalVendor) return b > 0 || a > 0;
     return b >= PHOTOS_NEEDED && a >= PHOTOS_NEEDED;
   }
 
@@ -412,7 +512,7 @@
    * Returned as a descriptor rather than markup so the ORDER is testable
    * without reading HTML out of a string.
    * ====================================================================== */
-  function nextStep(card, me) {
+  function nextStep(card, me, passes) {
     if (!card || !me) return { kind: 'none' };
     var role = String(me.role);
 
@@ -438,11 +538,23 @@
       return (sq && can(role, 'issuePart')) ? { kind: 'issue', req: sq } : { kind: 'none' };
     }
 
+    /* A BUS THAT IS AWAY HAS NO CREW STEP, and this branch sits ABOVE the crew branch for that reason.
+     * Nobody from our garage is in Jaipur: asking for a crew member would tell the person to undo what
+     * the screen just did to them. The order is the UI 3.4 table: when it reached the workshop (the
+     * days cannot be counted until then), then the bill, then the close. */
+    if (card.outside === true) {
+      if (card.enterAt == null) return { kind: 'awayTime' };
+      if (!gateReady(card, passes)) return { kind: 'awayBill' };
+      return mayClose(role) ? { kind: 'awayReady' } : { kind: 'none' };
+    }
+
     if (card.enterAt == null) return { kind: 'enterTime' };
     if (crew(card).length === 0) return { kind: 'crew' };
     var wq = waitingRequest(card);
     if (wq) return { kind: 'waitPart', req: wq };
-    if (!gateReady(card)) return { kind: 'photos' };
+    /* A vendor named on a bus that is in OUR yard is an outside card still (its gate is the bill), so the
+     * photos step would send the person after two after-photos the gate does not want. */
+    if (!gateReady(card, passes)) return { kind: isOut(card) ? 'awayBill' : 'photos' };
     if (mayClose(role)) return { kind: 'close' };
     return { kind: 'none' };
   }
@@ -493,8 +605,22 @@
   // instead, with the badge beside it.
   function blockId(v) {
     return '<p class="jc-id"><span class="jc-reg">' + esc(regOf(v.buses, v.card.busId)) + '</span>'
-      + statusBadge(v.card) + '</p>';
+      + statusBadge(v.card) + '</p>' + closedReason(v);
   }
+
+  /* THE REASON, WHEREVER THE CARD IS READ (UI 3.2, decision 1: "not a silent override"). A card that
+   * closed on a typed reason carries that reason, in the words whoever closed it typed, as a --t6 dim
+   * line under the card's name, which is where the person signing it off is already looking. Block 4
+   * says it again in the card's own state. Absent for a role without `outsideJob`: which vendor holds
+   * a bus is not theirs to know. */
+  function closedReason(v) {
+    var c = v.card;
+    if (!v.mayOutside || !isClosed(c) || !isOut(c)) return '';
+    var g = outside().gateState(c, v.passes);
+    return g.key === 'no-bill-reason' ? '<p class="jc-note jc-nobill">' + esc(g.reason) + '</p>' : '';
+  }
+
+  function isClosed(c) { return c.status === 'done' || c.status === 'verified'; }
 
   function statusBadge(c) {
     if (c.status === 'verified') return badge('ok', 'ok', say('jcBadgeVerified'));
@@ -537,7 +663,24 @@
                           sub: say('jcAddAfterSub'), act: 'jobToPhotos' }));
       case 'close':
         return slot(btn({ act: 'jobClose', cls: 'btn-primary jc-big', mark: 'ok', label: say('jcClose'),
-                          off: !gateReady(c) }));
+                          off: !isOut(c) && !gateReady(c, v.passes) }));
+      /* THE AWAY CARD'S THREE STEPS (UI 3.4). The first is a pressable row that opens the one-time sheet
+       * with its label switched to "Reached the workshop"; the second holds the camera itself, a label
+       * wrapping a file input, so it is a div and not a button (a label inside a button is invalid and
+       * the early return on `label` would swallow the tap); the third is the close, ENABLED, because on
+       * an outside card the close is never a disabled button with a secret. */
+      case 'awayTime':
+        return slot(row({ why: true, tone: 'warn', lead: draw('clock', 20), t: say('jcNextReached'),
+                          sub: say('jcNextReachedWhy'), act: 'jobTime', extra: ' data-field="enterAt"',
+                          trail: '<span class="btn btn-primary">' + esc(say('jcNextReachedBtn')) + '</span>' }));
+      case 'awayBill':
+        return slot(row({ why: true, tone: 'warn', lead: draw('camera', 20), t: say('jcNextBill'),
+                          sub: say('jcNextBillWhy'),
+                          trail: v.mayCapture && billRoom(c) ? billCapture(say('jcNextBillBtn'), true) : '' }));
+      case 'awayReady':
+        return slot(row({ why: true, tone: 'ok', lead: draw('ok', 20), t: say('jcGateReady'),
+                          sub: say('jcAwayReadyWhy'),
+                          trail: btn({ act: 'jobClose', cls: 'btn-primary', mark: 'ok', label: say('jcClose') }) }));
       /* Issuing is Store's (#6) flow — v2-ux.md section 3.1 step 5 writes the
        * ledger, then the stock, then `partsUsed`, in that order, and this
        * screen owns none of those three. So the control HANDS OVER, carrying
@@ -591,19 +734,41 @@
   /* Block 4. The close gate, directly under the one next step, so it is never a
    * surprise at the end: "once the part is off the bus you can never take it
    * again". Unpressable — it is a statement of the requirement, not a control.
-   * Not drawn once the card is closed. */
+   *
+   * An INSIDE card draws it until the card is closed. An OUTSIDE card draws the four states of UI 3.2,
+   * and also draws the one a closed card can be in, "Closed with no bill", because that is the state
+   * that must not be silent. A role without `outsideJob` is told nothing about an outside card's gate. */
   function blockGate(v) {
     var c = v.card;
-    if (c.status === 'done' || c.status === 'verified') return '';
+    if (isOut(c)) return v.mayOutside ? outsideGate(v) : '';
+    if (isClosed(c)) return '';
     var b = (c.beforePhotos || []).length, a = (c.afterPhotos || []).length;
     if (gateReady(c)) {
-      return row({ cls: 'jc-gate', lead: draw('ok', 20), t: say('jcGateReady'),
-                   sub: c.externalVendor ? say('jcGateVendorSub') : say('jcGateReadySub'), tone: 'ok' });
+      return row({ cls: 'jc-gate', lead: draw('ok', 20), t: say('jcGateReady'), sub: say('jcGateReadySub'), tone: 'ok' });
     }
     var sub = (b === 0 && a === 0)
       ? say('jcGateNone')
       : say('jcGateNeedSub', { before: b, after: Math.max(PHOTOS_NEEDED - a, 0) });
     return row({ cls: 'jc-gate', lead: draw('camera', 20), t: say('jcGateNeed'), sub: sub, tone: 'warn' });
+  }
+
+  function outsideGate(v) {
+    var c = v.card, g = outside().gateState(c, v.passes);
+    if (isClosed(c)) {
+      return g.key === 'no-bill-reason'
+        ? row({ cls: 'jc-gate', why: true, tone: 'bad', lead: '<span class="jb-bad">' + draw('warn', 20) + '</span>',
+                t: say('jcClosedNoBill'), sub: g.reason })
+        : '';
+    }
+    if (g.key === 'need-bill') {
+      return row({ cls: 'jc-gate', tone: 'warn', lead: '<span class="jc-warn">' + draw('camera', 20) + '</span>',
+                   t: say('jcGateBillNeed'), sub: say('jcGateBillNone') });
+    }
+    var sub = g.key === 'bill-card' ? say('jcGateBillOnCard')
+      : g.key === 'bill-pass' ? say('jcGateBillOnPass', { no: g.passNo })
+        : g.reason;
+    return row({ cls: 'jc-gate', tone: 'ok', lead: '<span class="jc-ok">' + draw('ok', 20) + '</span>',
+                 t: say('jcGateReady'), sub: sub });
   }
 
   // Block 5. Fault and priority.
@@ -780,7 +945,7 @@
    * requirement, so a control they may not use is not drawn. */
   function blockPhotos(v) {
     var c = v.card;
-    var closed = c.status === 'done' || c.status === 'verified';
+    var closed = isClosed(c);
     var capture = v.mayCapture && !closed;
     var grid = function (list, headId, name) {
       var items = list || [];
@@ -789,27 +954,124 @@
           ? root.photoGrid(items, { capture: capture, label: say('jcTakePhoto'), name: name })
           : '');
     };
+    /* THE THIRD GROUP, on an outside card only and only for a role that holds `outsideJob`: the vendor's
+     * bill, capped at four. Empty is the capture control plus the requirement in words, never an
+     * emptyState(): the gate IS the content. */
+    var bill = '', out = v.mayOutside && isOut(c);
+    if (out) {
+      var tiles = billTiles(c.billPhotos);
+      bill = '<h3 class="jc-subhead">' + esc(say('jcBillHead', { n: tiles.length })) + '</h3>'
+        + (typeof root.photoGrid === 'function'
+          ? root.photoGrid(tiles, { capture: capture, label: say('jcBillTake'), name: 'bill', max: BILL_MAX })
+          : '');
+    }
     var note = closed ? '<p class="jc-note">' + esc(say('jcPhotoFixed')) + '</p>'
-      : (!gateReady(c) ? '<p class="jc-note">' + esc(say('jcPhotoNeed')) + '</p>' : '');
+      : (gateReady(c, v.passes) ? ''
+        : out ? (v.mayCapture ? '<p class="jc-note">' + esc(say('jcBillNeed')) + '</p>' : '')
+          : '<p class="jc-note">' + esc(say('jcPhotoNeed')) + '</p>');
     return card_(esc(say('jcPhotosHead')),
-                 grid(c.beforePhotos, 'jcBefore', 'before') + grid(c.afterPhotos, 'jcAfter', 'after') + note,
+                 grid(c.beforePhotos, 'jcBefore', 'before') + grid(c.afterPhotos, 'jcAfter', 'after') + bill + note,
                  'jc-photos');
   }
 
-  /* Block 13. Outside vendor and the printable gate pass. Absent without
-   * `outsideJob` — the pass was one of the six recorded route bypasses
-   * (`inventory/02 section 6.1` rows 5 and 6: the gate-pass list and a single
-   * pass were reachable by any role), so its absence here is a fix. */
-  function blockVendor(v) {
-    var c = v.card;
-    if (!c.externalVendor || !v.mayOutside) return '';
-    var body = '<p class="jc-fault">' + esc(c.externalVendor) + '</p>'
-      + row({ lead: draw('money', 20), t: '', rawT: true, trail: fig(c.externalCost, { format: root.fmt.rupees }) });
-    if (c.outside) body += row({ lead: draw('map', 20), t: say('jcVendorAt', { place: c.outsidePlace || '' }) });
-    if (c.gatePassNo) {
-      body += btn({ act: 'jobPass', cls: 'jc-wide', mark: 'doc', label: say('jcGatePass', { no: c.gatePassNo }) });
+  /* billPhotos is a list of URL strings (union by URL, contract 4.2); photoGrid wants tiles. A data: URL
+   * is a photo that is still on this phone only, and says so (UI 3.3). */
+  function billTiles(list) {
+    var out = [], i;
+    for (i = 0; i < (list || []).length; i++) {
+      var u = String(list[i] || '');
+      out.push({ url: u, local: /^data:/i.test(u) });
     }
-    return card_(esc(say('jcVendorHead')), body);
+    return out;
+  }
+
+  function billRoom(c) { return (c.billPhotos || []).length < BILL_MAX; }
+
+  /* photoCapture() is the one capture control; this only gives it the primary fill the next-step row
+   * asks for. The input stays .sr-only inside the label, never display:none. */
+  function billCapture(label, primary) {
+    var h = typeof root.photoCapture === 'function' ? root.photoCapture(label, 'bill') : '';
+    return primary ? h.replace('class="btn photo-add"', 'class="btn btn-primary photo-add"') : h;
+  }
+
+  /* Block 13. The outside block (UI 3.1). Absent without `outsideJob` — the pass was one of the six
+   * recorded route bypasses (`inventory/02 section 6.1` rows 5 and 6), so its absence here is a fix.
+   *
+   * DRAWN WHEN THE BUS IS AWAY, OR A VENDOR IS NAMED, OR THE CARD HAS A PASS. It used to be drawn only
+   * when a vendor was typed, which is wrong in the same direction the Away tab was: a bus away in Jaipur
+   * with no vendor typed yet drew nothing at all. The place is `outsideCity` — this block read
+   * `outsidePlace`, which no record has ever carried, so the town was blank even where v1 had saved one.
+   * One place, in words; the map link and the coordinates are dropped (UX 5). */
+  function blockOutside(v) {
+    var c = v.card;
+    if (!v.mayOutside) return '';
+    var passes = outside().passesFor(c, v.passes);
+    var vendor = String(c.externalVendor || '').replace(/^\s+|\s+$/g, '');
+    if (!c.outside && vendor === '' && passes.length === 0) return '';
+
+    var now = Date.now(), body = '';
+    var city = String(c.outsideCity || '').replace(/^\s+|\s+$/g, '');
+    var raw = outside().awayDays(c, now);
+    var days = raw == null ? null : Math.floor(raw);
+    var wasAway = !c.outside && city !== '' && c.enterAt != null && c.outAt != null;
+
+    if (c.outside) {
+      body += row({ lead: '<span class="jc-warn">' + draw('map', 20) + '</span>',
+                    t: city ? say('jcAwayAt', { place: city }) : say('owWhere'), sub: say('jcAwayNobody') });
+    }
+    if (c.outside || wasAway) {
+      var bad = raw != null && c.outside && raw >= outside().OVERDUE_DAYS;
+      var cls = !c.outside ? 'jb-dim' : bad ? 'jb-bad' : 'jc-warn';
+      body += row({ lead: '<span class="' + cls + '">' + draw('clock', 20) + '</span>',
+                    t: days == null ? say('jcAwayNoTime') : say(c.outside ? 'jcAwayFor' : 'jcWasAwayFor', null, days),
+                    sub: c.enterAt != null ? say('jcAwaySince', { date: whenWords(c.enterAt) }) : '',
+                    trail: fig(days, { unit: 'd' }) });
+    }
+    if (vendor !== '' || c.outside) {
+      body += row({ lead: '<span class="jb-dim">' + draw('person', 20) + '</span>',
+                    t: vendor !== '' ? vendor : say('jcAwayNoVendor'), sub: say('owVendNote'),
+                    trail: c.outside && !isClosed(c)
+                      ? '<button type="button" class="btn btn-quiet" data-act="jobAway">' + draw('edit', 14) + ' '
+                        + esc(say('jcChange')) + '</button>' : '' });
+    }
+    body += row({ lead: '<span class="jb-dim">' + draw('money', 20) + '</span>', t: say('jcOutsideCost'),
+                  trail: fig(Number(c.externalCost) > 0 ? c.externalCost : null, { format: root.fmt.rupees }) });
+
+    if (v.passesFailed && typeof root.errorState === 'function') {
+      body += root.errorState('');
+    } else {
+      var shown = passes.slice(0, PASS_SHOWN), i;
+      for (i = 0; i < shown.length; i++) body += passRow(shown[i], now);
+      if (passes.length > PASS_SHOWN) {
+        body += '<p class="jc-out-cap">' + esc(say('jcPassCap', { shown: PASS_SHOWN, total: passes.length })) + '</p>';
+      }
+    }
+    if (isClosed(c)) body += '<p class="jc-note">' + esc(say('jcPhotoFixed')) + '</p>';
+    var head = (c.outside ? draw('map', 16) + ' ' : '') + esc(say(c.outside ? 'jcAwayHead' : 'jcOutsideHead'));
+    return card_(head, body, 'jc-out');
+  }
+
+  /* A pass row is a button.v2row and opens the slip. It is the only pressable row in the block, and a
+   * RETURNED pass is still pressable: reading the paper is not an action. */
+  function passRow(p, now) {
+    var back = p.status === 'returned';
+    var n = outside().daysOut(p, now);
+    var sub = back
+      ? say(p.serialMismatch ? 'jcPassBackBad' : 'jcPassBack', { date: whenWords(p.returnedAt) })
+      : say('jcPassOut', { unit: p.unitName || '', serial: p.unitSerial || '' }, n == null ? 0 : Math.floor(n));
+    var mark = back ? badge('ok', 'ok', pw('ojBack')) : badge('warn', 'clock', pw('ojAtVendor'));
+    return row({ act: 'jobPass', extra: ' data-pass="' + esc(p.id) + '"',
+                 lead: '<span class="jb-dim">' + draw('doc', 20) + '</span>',
+                 t: say('jcPassRow', { no: p.no || '' }), sub: sub, trail: mark });
+  }
+
+  // "6 Nov, 09:40": digits and a month word from the table, so the Hindi reader gets the owner's word.
+  function whenWords(ms) {
+    if (ms == null) return '';
+    var d = new Date(Number(ms));
+    if (isNaN(d.getTime())) return '';
+    var mon = String(say('jcMonths')).split(/\s+/)[d.getMonth()] || '';
+    return d.getDate() + ' ' + mon + ', ' + hhmm(ms);
   }
 
   /* Block 14. The card's own actions. Every control ABSENT when not held — and
@@ -819,8 +1081,19 @@
    * 14 has no verify entry at all: no row, no greyed button, nothing. */
   function blockActions(v) {
     var c = v.card, out = '';
-    if (v.mayClose && c.status !== 'done' && c.status !== 'verified') {
-      out += btn({ act: 'jobClose', cls: 'jc-wide', mark: 'ok', label: say('jcClose'), off: !gateReady(c) });
+    /* Away or back first (it is the state of the bus), then the pass, both above "Close this card" and
+     * none of them on a closed or verified card: that record is finished. Each is ABSENT when not held. */
+    if (v.mayOutside && !isClosed(c)) {
+      out += c.outside
+        ? btn({ act: 'jobBack', cls: 'jc-wide', mark: 'ok', label: say('jcBackInYard') })
+        : btn({ act: 'jobAway', cls: 'jc-wide', mark: 'map', label: say('jcAwayAction') });
+    }
+    if (v.mayPass && !isClosed(c)) {
+      out += btn({ act: 'jobSendOut', cls: 'jc-wide', mark: 'doc', label: say('jcSendUnitOut') });
+    }
+    if (v.mayClose && !isClosed(c)) {
+      out += btn({ act: 'jobClose', cls: 'jc-wide', mark: 'ok', label: say('jcClose'),
+                   off: !isOut(c) && !gateReady(c, v.passes) });
     }
     if (v.mayVerify) out += btn({ act: 'jobVerify', cls: 'btn-primary jc-wide', mark: 'ok', label: say('jcSignOff') });
     // The server only lets the owner move a VERIFIED card.
@@ -852,13 +1125,16 @@
 
     var role = String(me.role);
     var isMech = role === 'mechanic';
+    var passes = rows(m, 'gatepasses');
+    var unread = root.Cache && typeof root.Cache.unread === 'function' ? root.Cache.unread() : [];
     return {
       ok: true, card: c, me: me, role: role, isMech: isMech,
       users: rows(m, 'users'), buses: rows(m, 'buses'), parts: rows(m, 'parts'),
       density: (m && m.density) || 'yard',
       offline: !!(m && m.offline), stale: !!(m && m.stale),
       at: lastSyncAt(),
-      step: nextStep(c, me),
+      passes: passes, passesFailed: unread.indexOf('gatepasses') >= 0,
+      step: nextStep(c, me, passes),
       // Every one of these is "absent, not disabled" at the markup level, and
       // each is the ONE place its block's absence is stated.
       mayEditTimes: !isMech && role !== 'store',
@@ -870,6 +1146,7 @@
       mayCores: !isMech,
       mayRequest: isMech || can(role, 'requestPart'),
       mayOutside: can(role, 'outsideJob'),
+      mayPass: can(role, 'outsideJob') && can(role, 'gatePass'),
       mayClose: mayClose(role),
       mayVerify: mayVerify(c, me),
       mayMove: mayMove(role),
@@ -911,7 +1188,7 @@
     var top = blockId(v) + blockFresh(v) + blockNext(v) + (v.mayGate ? blockGate(v) : '');
     var left = blockFault(v) + blockCrew(v) + blockTimes(v) + (v.mayOdo ? blockOdo(v) : '');
     var right = blockParts(v) + blockRequests(v) + (v.mayCores ? blockCores(v) : '')
-      + blockPhotos(v) + blockVendor(v);
+      + blockPhotos(v) + blockOutside(v);
     var actions = blockActions(v);
 
     // One string, one insert. Two columns at desk is CSS's; the markup is one
@@ -966,15 +1243,30 @@
     return c;
   }
 
+  async function storedPasses() {
+    var d = db();
+    if (!d || typeof d.all !== 'function') return [];
+    try { return await d.all('gatepasses') || []; } catch (e) { return []; }
+  }
+
   /* The close. Refused here when the gate is short or the role does not hold
    * it: 36e7eee is the live defect where the close button opened for a
    * mechanic, the phone wrote `done` and the server then refused. `closedBy` is
-   * server truth and is deliberately NOT sent. */
-  async function close(id, me) {
+   * server truth and is deliberately NOT sent.
+   *
+   * `opts.reason` is the one way past an unmet OUTSIDE gate: a reason somebody typed, written to
+   * `closeNoBillReason` in the SAME put as the close (one save, one write), so the card can never be
+   * closed without its reason or carry a reason it is not closed on. It does nothing for an inside card,
+   * whose gate is photos, and nothing for a gate that is already met. */
+  async function close(id, me, opts) {
     var c = await stored(id);
     if (!c || !me || !mayClose(me.role)) return null;
-    if (!gateReady(c)) return null;
     if (c.status === 'done' || c.status === 'verified') return null;
+    if (!gateReady(c, await storedPasses())) {
+      var reason = opts && typeof opts.reason === 'string' ? opts.reason.replace(/^\s+|\s+$/g, '') : '';
+      if (!isOut(c) || reason === '') return null;
+      c.closeNoBillReason = reason.slice(0, REASON_MAX);
+    }
     c.status = 'done';
     c.closedAt = Date.now();
     c.updatedAt = Date.now();
@@ -990,6 +1282,14 @@
    * "Look first" closes without writing. This is a client-only guard on an
    * unreliable clock and screens-work.md section 9.4 item 3 says so. */
   async function saveField(id, field, value, openedAt) {
+    var patch = {};
+    patch[field] = value;
+    return saveFields(id, patch, openedAt);
+  }
+
+  /* The same guard for a sheet that owns SEVERAL fields (the away sheet owns three). Only the keys of
+   * `patch` are set; the rest of the card goes back as it was read. */
+  async function saveFields(id, patch, openedAt) {
     var c = await stored(id);
     if (!c) return null;
     if (openedAt != null && c.updatedAt != null && c.updatedAt !== openedAt) {
@@ -1002,7 +1302,8 @@
       c = await stored(id);
       if (!c) return null;
     }
-    c[field] = value;
+    var k;
+    for (k in patch) if (Object.prototype.hasOwnProperty.call(patch, k)) c[k] = patch[k];
     c.updatedAt = Date.now();
     try { await db().put('jobcards', c); } catch (e) { return null; }
     return c;
@@ -1020,13 +1321,18 @@
    * line of script. The day is read-only text from the card, not a second
    * field: four empty time fields presented as a form is forbidden, and so is
    * two. */
+  // The same one-time sheet; on an away card the enter time is "Reached the workshop", v1's own word.
+  function timeWord(field, card) {
+    return field === 'enterAt' && card && card.outside === true ? say('owReached') : say(TIME_TITLE[field]);
+  }
+
   function timeSheet(field, card) {
     var day = card && card.jobDate ? card.jobDate : (card && card.enterAt ? dayOf(card.enterAt) : '');
     return '<form class="jc-sheet" data-sheet="time" data-field="' + esc(field) + '"'
       + ' data-card="' + esc(card ? card.id : '') + '"'
       + ' data-opened="' + esc(card && card.updatedAt != null ? card.updatedAt : '') + '">'
       + '<p class="jc-note">' + esc(say('jcSheetDay')) + ' ' + esc(day) + '</p>'
-      + '<label class="num"><span class="num-l">' + esc(say(TIME_TITLE[field])) + '</span>'
+      + '<label class="num"><span class="num-l">' + esc(timeWord(field, card)) + '</span>'
       + '<input class="field" type="time" enterkeyhint="done" data-field="' + esc(field) + '"></label>'
       + btn({ act: 'jobTimeSave', cls: 'btn-primary jc-wide', label: say('jcSave') })
       + '</form>';
@@ -1106,6 +1412,86 @@
       + '</form>';
   }
 
+  /* ---------------------------------------------------------------------- *
+   * THE THREE SHEETS THIS SCREEN OWNS for outside repair (UI 4.1, 4.2, 4.6). The other three — a new gate
+   * pass, the slip, and received back — are ui/passes.js's and are only OPENED from here.
+   *
+   * None is a whole-card form. Each reads the stored card at open, writes the fields it names and puts
+   * the rest back as it found it. Each is a div.oj-sheet and not a <form>: a form holding a single text
+   * input submits on Enter, and the page that comes back is not this card.
+   * ---------------------------------------------------------------------- */
+
+  function errLine(field) {
+    return '<span class="oj-err" data-err="' + field + '" role="alert" hidden></span>';
+  }
+
+  function listOf(id, values) {
+    var out = '<datalist id="' + id + '">', i;
+    for (i = 0; i < values.length; i++) out += '<option value="' + esc(values[i]) + '">';
+    return out + '</datalist>';
+  }
+
+  /* "The bus is away": two fields. Where is required, vendor is not. The suggestions are a native
+   * <datalist> — markup, works offline, inside Chrome 109 — and offer without constraining. ctx is
+   * {reg, places, vendors}; they come from the cache and are named by the caller. */
+  function awaySheet(card, ctx) {
+    ctx = ctx || {};
+    var c = card || {};
+    return '<div class="oj-sheet" data-sheet="away" data-card="' + esc(c.id || '') + '"'
+      + ' data-opened="' + esc(c.updatedAt != null ? c.updatedAt : '') + '">'
+      + '<p class="oj-stat">' + draw('bus', 20) + ' ' + esc((ctx.reg || '') + (c.problem ? ' \u2014 ' + c.problem : '')) + '</p>'
+      + '<p class="oj-why">' + esc(say('owHint')) + '</p>'
+      + '<label class="num"><span class="num-l">' + esc(say('owCity')) + '</span>'
+      + '<input class="field" type="text" autocomplete="off" enterkeyhint="next" list="jc-places"'
+      + ' data-field="where" placeholder="' + esc(say('owCityPh')) + '" aria-invalid="false"'
+      + ' value="' + esc(c.outside ? (c.outsideCity || '') : '') + '">' + errLine('where') + '</label>'
+      + '<label class="num"><span class="num-l">' + esc(say('jcAwayWho')) + '</span>'
+      + '<input class="field" type="text" autocomplete="off" enterkeyhint="done" list="jc-vendors"'
+      + ' data-field="vendor" placeholder="' + esc(pw('ojVendorPh')) + '" aria-invalid="false"'
+      + ' value="' + esc(c.outside ? (c.externalVendor || '') : '') + '"></label>'
+      + listOf('jc-places', ctx.places || []) + listOf('jc-vendors', ctx.vendors || [])
+      + btn({ act: 'jobAwaySave', cls: 'btn-primary jc-wide', label: say('jcAwaySave') })
+      + '</div>';
+  }
+
+  /* "Back in our yard" is ONE question and no fields, so it is V2.confirmDialog and this returns the
+   * words for it. "Not yet" is the safe answer and gets focus first from the dialog itself. When the
+   * reached-the-workshop time was never recorded the days cannot be counted, and the text says so instead
+   * of saying 0. */
+  function backConfirm(card) {
+    var c = card || {};
+    var vendor = String(c.externalVendor || '').replace(/^\s+|\s+$/g, '') || String(c.outsideCity || '');
+    var raw = outside() ? outside().awayDays(c, Date.now()) : null;
+    var text = raw == null ? say('jcBackAskNoTime', { vendor: vendor })
+      : say('jcBackAsk', { vendor: vendor }, Math.floor(raw));
+    return { text: text, opts: { title: say('jcBackTitle'), yes: say('jcBackYes'), no: say('jcBackNo') } };
+  }
+
+  /* The ordinary close confirmation, on an outside card whose gate is unmet: one row, and in it the
+   * visible control to the reason sheet. No long press, no hidden gesture. */
+  function closeAskSheet(card) {
+    var c = card || {};
+    return '<div class="oj-sheet" data-sheet="closeask" data-card="' + esc(c.id || '') + '">'
+      + row({ lead: '<span class="jc-warn">' + draw('warn', 20) + '</span>', t: say('jcNoBillWarnRow'),
+              sub: say('jcNoBillWarnSub'),
+              trail: '<button type="button" class="btn btn-quiet" data-act="jobNoBill">' + esc(say('jcNoBillTitle')) + '</button>' })
+      + '</div>';
+  }
+
+  /* "Close without the bill". The reason is required; an empty one fails the FIELD, in words and with
+   * aria-invalid, and the button stays pressable. */
+  function noBillSheet(card) {
+    var c = card || {};
+    return '<div class="oj-sheet" data-sheet="nobill" data-card="' + esc(c.id || '') + '">'
+      + '<p class="oj-stat">' + draw('warn', 20) + ' ' + esc(say('jcNoBillState')) + '</p>'
+      + '<label class="num"><span class="num-l">' + esc(say('jcNoBillAsk')) + '</span>'
+      + '<textarea class="field" rows="3" maxlength="' + REASON_MAX + '" data-field="reason"'
+      + ' placeholder="' + esc(say('jcNoBillPh')) + '" aria-invalid="false"></textarea>' + errLine('reason') + '</label>'
+      + '<p class="oj-why">' + esc(say('jcNoBillKept')) + '</p>'
+      + btn({ act: 'jobNoBillSave', cls: 'btn-primary jc-wide', label: say('jcNoBillSave') })
+      + '</div>';
+  }
+
   /* The ledger behind one part line. The ledger is the source the app uses to
    * heal `partsUsed`, so it is the truth and the card's line is the summary —
    * and the sheet says that in one line rather than leaving the reader to
@@ -1138,7 +1524,7 @@
    * The read happens on every mount even when nothing is missing, for the
    * reason `jobs.js`'s list gives: a rule that holds for all thirteen screens
    * is checkable, and `Cache.load` skips a store that cannot have changed. */
-  var STORES = ['jobcards', 'buses', 'parts', 'users', 'ledger', 'gatepasses'];
+  var STORES = ['jobcards', 'buses', 'parts', 'users', 'ledger', 'gatepasses', 'vendors', 'components'];
 
   var loading = false;
 
@@ -1167,6 +1553,7 @@
     handler = onClick;
     if (root.document && typeof root.document.addEventListener === 'function') {
       root.document.addEventListener('click', handler);
+      root.document.addEventListener('change', onChange);
     }
     return handler;
   }
@@ -1183,6 +1570,7 @@
   function unmount() {
     if (handler && root.document && typeof root.document.removeEventListener === 'function') {
       root.document.removeEventListener('click', handler);
+      root.document.removeEventListener('change', onChange);
     }
     handler = null;
     return true;
@@ -1215,8 +1603,14 @@
     if (act === 'jobAllParts') return openAllParts();
     if (act === 'jobCorePhoto') return openCorePhoto(el);
     if (act === 'jobToPhotos') return toPhotos();
-    if (act === 'jobPass') return openPass();
-    if (act === 'jobPrint') return printPass();
+    if (act === 'jobPass') return openSlip(el);
+    if (act === 'ojReceiveOpen') return openReturn(el);
+    if (act === 'jobAway') return openAway(el);
+    if (act === 'jobBack') return askBack(el);
+    if (act === 'jobSendOut') return openSendOut();
+    if (act === 'jobNoBill') return openNoBill();
+    if (act === 'jobAwaySave') return saveAway(el);
+    if (act === 'jobNoBillSave') return saveNoBill(el);
     if (act === 'jobTimeSave') return saveTime(el);
     if (act === 'jobOdoSave') return saveOdo(el);
     if (act === 'jobRequestSave') return saveRequest(el);
@@ -1236,7 +1630,7 @@
     if (el.getAttribute('aria-disabled') === 'true') return;
     var c = currentCard();
     var f = el.getAttribute('data-field');
-    if (c && f) sheet(say(TIME_TITLE[f]), timeSheet(f, c));
+    if (c && f) sheet(timeWord(f, c), timeSheet(f, c));
   }
 
   // Disabled on a verified card: the server freezes it and the reason is the
@@ -1308,12 +1702,6 @@
     if (el && typeof el.scrollIntoView === 'function') el.scrollIntoView({ block: 'start' });
   }
 
-  // Printing is the browser's, and the @media print block in work.css is what
-  // makes the result an A4 sheet with a number on it.
-  function printPass() {
-    if (typeof root.print === 'function') root.print();
-  }
-
   async function saveCrew(el) {
     if (el.getAttribute('aria-disabled') === 'true') return;
     var v = vals('crew');
@@ -1359,21 +1747,195 @@
           ledgerSheet({ partId: pid }, c, cached('ledger'), cached('parts')));
   }
 
-  /* The gate pass. Printing is a @media print block in v2/ui/work.css, not a
-   * second layout and not a window: the gatekeeper gets an A4 sheet with a
-   * number on it, which is what a gate pass is. It works offline. */
-  function openPass() {
+  /* ---------------------------------------------------------------------- *
+   * OUTSIDE REPAIR: opening the sheets, and the writes behind the three that are this screen's.
+   * ---------------------------------------------------------------------- */
+
+  function distinct(list) {
+    var seen = {}, out = [], i;
+    for (i = 0; i < list.length; i++) {
+      var v = String(list[i] == null ? '' : list[i]).replace(/^\s+|\s+$/g, '');
+      if (v === '' || seen[v]) continue;
+      seen[v] = true;
+      out.push(v);
+    }
+    return out.sort();
+  }
+
+  // The places this garage has used before, and the vendors it knows: the datalists, offered not enforced.
+  function knownPlaces() {
+    return distinct(cached('jobcards').filter(function (j) { return j && !j._deleted; })
+      .map(function (j) { return j.outsideCity; }));
+  }
+  function knownVendors() {
+    return distinct(cached('vendors').map(function (x) { return x && x.name; })
+      .concat(cached('jobcards').map(function (j) { return j && j.externalVendor; }))
+      .concat(cached('gatepasses').map(function (g) { return g && g.vendorName; })));
+  }
+
+  function openAway() {
     var c = currentCard();
-    if (!c) return;
-    var p = byId(cached('gatepasses'), c.gatePassId) || { no: c.gatePassNo };
-    var b = byId(cached('buses'), c.busId) || {};
-    sheet(say('jcGatePass', { no: p.no == null ? '' : p.no }),
-          '<div class="jc-pass">'
-          + row({ lead: draw('bus', 20), t: (b.regNo || '') + (b.chassis ? ' · ' + b.chassis : '') })
-          + row({ lead: draw('doc', 20), t: c.externalVendor || '' })
-          + row({ lead: draw('part', 20), t: p.unit || '' })
-          + btn({ act: 'jobPrint', cls: 'jc-wide', mark: 'doc', label: say('jcPrintPass') })
-          + '</div>');
+    if (!c || !can((who() || {}).role, 'outsideJob') || isClosed(c)) return;
+    sheet(say('jcAwayTitle'), awaySheet(c, { reg: regOf(cached('buses'), c.busId),
+                                             places: knownPlaces(), vendors: knownVendors() }));
+  }
+
+  function sheetNode(kind) {
+    var d = root.document;
+    return d && d.querySelector ? d.querySelector('[data-sheet="' + kind + '"]') : null;
+  }
+
+  /* A field that fails says so in WORDS beside it and with aria-invalid (which draws the --bad border),
+   * never by colour alone, and takes the caret back. The BUTTON is not touched: a disabled button on a
+   * slow machine reads as broken. */
+  function flag(node, field, message) {
+    if (!node || !node.querySelector) return;
+    var inp = node.querySelector('[data-field="' + field + '"]');
+    var er = node.querySelector('[data-err="' + field + '"]');
+    if (inp) {
+      inp.setAttribute('aria-invalid', message ? 'true' : 'false');
+      if (message && typeof inp.focus === 'function') inp.focus();
+    }
+    if (er) {
+      er.textContent = message || '';
+      if (message) er.removeAttribute('hidden'); else er.setAttribute('hidden', '');
+    }
+  }
+
+  function busy(el, word) {
+    el.setAttribute('aria-disabled', 'true');
+    el.setAttribute('data-busy', 'true');
+    if ('textContent' in el) el.textContent = word;
+  }
+  function unbusy(el, word) {
+    el.removeAttribute('aria-disabled');
+    el.removeAttribute('data-busy');
+    if ('textContent' in el) el.textContent = word;
+  }
+
+  /* Writes outside, outsideCity, externalVendor (only if typed) and updatedAt, and nothing else. */
+  async function saveAway(el) {
+    if (el.getAttribute('aria-disabled') === 'true') return;
+    var v = vals('away'), node = sheetNode('away');
+    if (!v || !v._card) return;
+    var where = String(v.where == null ? '' : v.where).replace(/^\s+|\s+$/g, '');
+    var vendor = String(v.vendor == null ? '' : v.vendor).replace(/^\s+|\s+$/g, '');
+    flag(node, 'where', where === '' ? say('owNoCity') : '');
+    if (where === '') return;
+    var patch = { outside: true, outsideCity: where };
+    if (vendor !== '') patch.externalVendor = vendor;
+    busy(el, say('jcAwaySaving'));
+    var out = await saveFields(v._card, patch, v._opened === '' ? null : Number(v._opened));
+    unbusy(el, say('jcAwaySave'));
+    if (!out) return;
+    if (V() && V().closeSheet) V().closeSheet();
+    redraw();
+  }
+
+  /* Writes outside:false and outAt:now. The days away are then fixed by arithmetic and the card returns to
+   * Open on the board. */
+  async function askBack(el) {
+    if (el.getAttribute('aria-disabled') === 'true') return;
+    var ov = V(), c = currentCard();
+    if (!c || !ov || typeof ov.confirmDialog !== 'function') return;
+    var q = backConfirm(c);
+    var yes = await ov.confirmDialog(q.text, q.opts);
+    if (!yes) return;
+    var label = el.textContent;
+    busy(el, say('jcSaving'));
+    var out = await saveFields(c.id, { outside: false, outAt: Date.now() }, null);
+    if (!out) { unbusy(el, label); return; }
+    redraw();
+  }
+
+  /* Send a unit out: the sheet is ui/passes.js's. This only says which bus and which card it is for. */
+  function openSendOut() {
+    var c = currentCard(), P = passesApi(), me = who();
+    if (!c || !P || !me || !can(me.role, 'outsideJob') || !can(me.role, 'gatePass') || isClosed(c)) return;
+    var bus = byId(cached('buses'), c.busId) || { id: c.busId };
+    var pieces = cached('components').filter(function (x) {
+      return x && !x._deleted && x.busId === c.busId && (x.state === 'in-service' || x.state === 'removed');
+    });
+    sheet(pw('ojNew'), P.issueSheet({ bus: bus, pieces: pieces, card: c, piece: null, role: me.role,
+                                     vendors: knownVendors(), me: me, onSaved: redraw }));
+  }
+
+  function openSlip(el) {
+    var c = currentCard(), P = passesApi(), me = who();
+    var pass = byId(cached('gatepasses'), el.getAttribute('data-pass'));
+    if (!c || !P || !pass || !me || !can(me.role, 'outsideJob')) return;
+    sheet(pass.no || '', P.slipSheet({ pass: pass, bus: byId(cached('buses'), c.busId) || {},
+                                      mayReceive: can(me.role, 'gatePass') && pass.status !== 'returned' }));
+  }
+
+  // The slip's "Received back" opens the return sheet (ui/passes.js's) in place of the slip.
+  function openReturn(el) {
+    var c = currentCard(), P = passesApi(), me = who();
+    var pass = byId(cached('gatepasses'), el.getAttribute('data-pid'));
+    if (!c || !P || !pass || !me || !can(me.role, 'gatePass')) return;
+    var piece = pass.componentId ? byId(cached('components'), pass.componentId) : null;
+    sheet(pw('ojReceive'), P.returnSheet({ pass: pass, piece: piece, bus: byId(cached('buses'), c.busId) || null,
+                                          ageWords: ageWords(lastSyncAt()), card: c, me: me, onSaved: redraw }));
+  }
+
+  // "Close this card" on an outside card with no bill opens the ordinary confirmation with its one extra row.
+  function openNoBill() {
+    var c = currentCard();
+    if (c) sheet(say('jcNoBillTitle'), noBillSheet(c));
+  }
+
+  async function saveNoBill(el) {
+    if (el.getAttribute('aria-disabled') === 'true') return;
+    var v = vals('nobill'), node = sheetNode('nobill'), me = who();
+    if (!v || !v._card || !me) return;
+    var reason = String(v.reason == null ? '' : v.reason).replace(/^\s+|\s+$/g, '');
+    flag(node, 'reason', reason === '' ? say('jcNoBillNeed') : '');
+    if (reason === '') return;
+    busy(el, say('jcClosing'));
+    var c = await close(v._card, me, { reason: reason });
+    if (!c) { unbusy(el, say('jcNoBillSave')); return; }
+    if (V() && V().closeSheet) V().closeSheet();
+    toast(say('jcNoBillDone'), 'ok');
+    redraw();
+  }
+
+  /* THE BILL, CAPTURED. The photo is written into the record at once as a data URL (a bus away is often
+   * where there is no signal) and queued for upload; the sync engine swaps the hosted URL in later. The
+   * tile says "On this phone only" until it does, which is the word photoGrid draws for a data: URL.
+   * Capped at four: a fifth is refused, not silently dropped, and the capture control is already absent
+   * at four. */
+  function readFile(file) {
+    return new Promise(function (res) {
+      try {
+        var fr = new root.FileReader();
+        fr.onload = function () { res(String(fr.result || '')); };
+        fr.onerror = function () { res(''); };
+        fr.readAsDataURL(file);
+      } catch (e) { res(''); }
+    });
+  }
+
+  async function onChange(ev) {
+    var t = ev && ev.target;
+    if (!t || typeof t.getAttribute !== 'function' || t.getAttribute('name') !== 'bill') return;
+    var file = t.files && t.files[0];
+    var id = here();
+    if (!file || !id) return;
+    var data = await readFile(file);
+    if (data) await addBill(id, data);
+  }
+
+  async function addBill(id, data) {
+    var c = await stored(id), me = who();
+    if (!c || !me || !can(me.role, 'outsideJob') || isClosed(c)) return null;
+    if (!billRoom(c)) return null;
+    c.billPhotos = (c.billPhotos || []).concat([data]);
+    c.updatedAt = Date.now();
+    try { await db().put('jobcards', c); } catch (e) { return null; }
+    var S = root.Sync;
+    if (S && typeof S.queuePhoto === 'function') S.queuePhoto('jobcards', id, 'billPhotos', data);
+    redraw();
+    return c;
   }
 
   /* One form, read once. Every sheet owns the fields it names and nothing else,
@@ -1519,10 +2081,18 @@
     if (el.getAttribute('aria-disabled') === 'true') return;
     var id = here(), me = who();
     if (!id || !me) return;
+    /* An OUTSIDE card with no bill does not close on this tap and does not refuse it either: it opens the
+     * confirmation that carries the visible way through. The button was never disabled. */
+    var cur = await stored(id);
+    if (cur && isOut(cur) && !isClosed(cur) && !gateReady(cur, await storedPasses())) {
+      sheet(say('jcClose'), closeAskSheet(cur));
+      return;
+    }
+    var label = el.textContent;
     el.setAttribute('aria-disabled', 'true');
     if ('textContent' in el) el.textContent = say('jcClosing');
     var c = await close(id, me);
-    if (!c) { el.removeAttribute('aria-disabled'); return; }
+    if (!c) { el.removeAttribute('aria-disabled'); if ('textContent' in el) el.textContent = label; return; }
     redraw();
   }
 
@@ -1551,7 +2121,9 @@
     nextStep: nextStep, stampedRow: stampedRow, odoError: odoError,
     stamp: stamp, verify: verify, close: close, saveField: saveField,
     timeSheet: timeSheet, odoSheet: odoSheet, requestSheet: requestSheet,
-    crewSheet: crewSheet, moveSheet: moveSheet, ledgerSheet: ledgerSheet
+    crewSheet: crewSheet, moveSheet: moveSheet, ledgerSheet: ledgerSheet,
+    awaySheet: awaySheet, backConfirm: backConfirm, noBillSheet: noBillSheet, closeAskSheet: closeAskSheet,
+    saveFields: saveFields
   };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

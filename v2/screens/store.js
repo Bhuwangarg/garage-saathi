@@ -225,6 +225,9 @@
     stHistSendOut: { en: 'Sent out', hi: '' },
     stHistReturn: { en: 'Came back', hi: '' },
     stHistScrap: { en: 'Scrapped', hi: '' },
+    stHistSendPass: { en: '{vendor} · gate pass {no}', hi: '' },
+    stHistSerialOk: { en: 'Serial matched', hi: '' },
+    stHistSerialBad: { en: 'Serial did not match — went out {a}, came back {b}', hi: '' },
 
     /* ---------------------------------------------------------------------- *
      * RECORD VALUES, not words. These five strings are written into
@@ -495,7 +498,7 @@
    * ---------------------------------------------------------------------- */
 
   var STORES = ['parts', 'ledger', 'jobcards', 'audits', 'purchases', 'vendors',
-                'components', 'buses', 'users'];
+                'components', 'buses', 'users', 'gatepasses'];
 
   function requestRows(cards, buses, users, parts, ledger) {
     var out = [], i, j, c, r;
@@ -1439,6 +1442,56 @@
       + locked + mark + '</div>';
   }
 
+  /* One line of a piece's life. Send-out and return entries are the outside
+   * repair's: they name their pass, and they are the only two that can carry a
+   * vendor's money.
+   *
+   * THE MONEY. A reader without `outsideJob` gets an EMPTY .act on those two,
+   * not a dash: a dash means "unknown" and this is "not for you". With a pass
+   * the money is on the gatepasses record (contract 4.3) and the entry has
+   * none to draw, so both readers see the same row and neither a zero. Only a
+   * legacy entry carries cost itself, and only that is withheld. Whether store
+   * and crewmanager may re-read a bill later is the owner's open question
+   * (UI 17.2); this denies until he says. `h.id` is never read: entries from
+   * before passes have none. */
+  function shortDate(ms) {
+    if (ms == null) return '';
+    var d = new Date(Number(ms));
+    if (isNaN(d.getTime())) return '';
+    try { return d.toLocaleDateString(locale(), { day: 'numeric', month: 'short' }); }
+    catch (e) { return String(ms); }
+  }
+
+  function histRow(e, HIST, passes, money, stillOut) {
+    e = e || {};
+    var outside = e.type === 'send-out' || e.type === 'return';
+    var pass = outside && e.passId ? byId(passes, e.passId) : null;
+    var title = (HIST[e.type] ? say(HIST[e.type]) : String(e.type || ''))
+      + ' · ' + (outside ? shortDate(e.at) : dateName(e.at));
+    var sub = String(e.note || e.vendor || ''), act = '', wrap = false, days;
+    if (e.type === 'send-out' && pass) {
+      sub = say('stHistSendPass', { vendor: pass.vendorName || e.vendor || '', no: pass.no || '' });
+      days = stillOut && pass.status !== 'returned' && root.Outside ? root.Outside.daysOut(pass, Date.now()) : null;
+      if (days != null) act = fig(Math.round(days), { unit: 'd' });
+    } else if (e.type === 'return' && pass && String(pass.unitSerial || '') !== '') {
+      wrap = true;
+      sub = pass.serialMismatch === true
+        ? say('stHistSerialBad', { a: pass.unitSerial, b: pass.returnSerial || '' })
+        : say('stHistSerialOk');
+    } else if (e.type === 'return') {
+      wrap = !!pass;
+    }
+    if (!outside) {
+      act = fig(isNum(Number(e.cost)) && Number(e.cost) > 0 ? Number(e.cost) : null, { format: rupees });
+    } else if (money && !pass && isNum(Number(e.cost)) && Number(e.cost) > 0) {
+      act = fig(Number(e.cost), { format: rupees });
+    }
+    return '<div class="v2row' + (wrap ? ' v2row-why' : '') + '"><span class="lead">' + draw('clock', 20) + '</span>'
+      + '<div class="txt"><div class="t">' + esc(title) + '</div>'
+      + '<div class="sub">' + esc(sub) + '</div></div>'
+      + '<div class="act">' + act + '</div></div>';
+  }
+
   function pieceSheet(m, id) {
     var c = byId(rowsOf(m, 'components'), id);
     if (!c) return '';
@@ -1473,16 +1526,12 @@
       + '</div>';
     var HIST = { install: 'stHistInstall', remove: 'stHistRemove', 'send-out': 'stHistSendOut',
                  'return': 'stHistReturn', scrap: 'stHistScrap' };
-    var h = arr(c.history), i;
+    var h = arr(c.history), passes = rowsOf(m, 'gatepasses'), money = can(m.role, 'outsideJob');
+    var lastOut = -1, i;
+    for (i = 0; i < h.length; i++) if (h[i] && h[i].type === 'send-out') lastOut = i;
     if (h.length) out += '<p class="st-step-h">' + esc(say('stPieceLife')) + '</p>';
     for (i = h.length - 1; i >= 0; i--) {
-      out += '<div class="v2row"><span class="lead">' + draw('clock', 20) + '</span>'
-        + '<div class="txt"><div class="t">'
-        + esc((HIST[h[i].type] ? say(HIST[h[i].type]) : String(h[i].type || ''))
-          + ' · ' + dateName(h[i].at)) + '</div>'
-        + '<div class="sub">' + esc(String(h[i].note || h[i].vendor || '')) + '</div></div>'
-        + '<div class="act">' + fig(isNum(Number(h[i].cost)) && Number(h[i].cost) > 0 ? Number(h[i].cost) : null,
-                                    { format: rupees }) + '</div></div>';
+      out += histRow(h[i], HIST, passes, money, c.state === 'sent-out' && i === lastOut);
     }
     return out + '</div>';
   }

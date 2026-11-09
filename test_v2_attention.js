@@ -427,7 +427,8 @@ const kinds = (index) => index.rows.concat(index.unranked).map((r) => r.kind).fi
 test('there are nine row kinds over TEN capability paths, and kind 3\'s two halves share a mark and no store', () => {
   const l = load({ role: 'owner' });
   const K = l.win.Attention.KINDS;
-  assert.strictEqual(K.length, 10, 'the spec counts ten paths, not nine: a bus paper is fleet and a crew document is manageDrivers');
+  // Eleven since outside repair (OR4) added `outsideUnit` on outsideJob; the ten the spec counts are unchanged.
+  assert.strictEqual(K.length, 11, 'the spec counts ten paths, not nine, plus outsideUnit: a bus paper is fleet and a crew document is manageDrivers');
   const marks = K.map((k) => k.mark).filter((m, i, a) => a.indexOf(m) === i);
   assert.strictEqual(marks.length, 9, 'ten paths over nine marks: exactly one mark is shared');
   const bus = K.filter((k) => k.key === 'busPaper')[0];
@@ -501,7 +502,7 @@ test('Attention.stores(me) is the union over HELD kinds only, so an unheld kind\
   // state unreachable for the two roles who have this screen.
   for (const role of ['owner', 'supervisor']) {
     assert.deepEqual(St(me(role)), ['audits', 'breakdowns', 'buses', 'challans', 'driverreports',
-                                    'drivers', 'dutylog', 'gatechecks', 'jobcards', 'ledger',
+                                    'drivers', 'dutylog', 'gatechecks', 'gatepasses', 'jobcards', 'ledger',
                                     'nightlist', 'parts', 'stockmoves', 'users']);
   }
 });
@@ -803,7 +804,7 @@ test('four bands in §3.3\'s order, each kind in the band the spec gives it', ()
   assert.deepEqual(band, {
     gateDecide: 1, unsafe: 1,                        // somebody standing still or unsafe
     stock: 2, pilferage: 2, challan: 2,              // money is leaving
-    busPaper: 3, crewPaper: 3,                       // a clock ending in a fine or a stopped bus
+    busPaper: 3, crewPaper: 3, outsideUnit: 3,       // a clock ending in a fine or a stopped bus
     verifyJob: 4, breakdown: 4, seat: 4,             // work waiting on a person
   });
   assert.deepEqual(l.win.Attention.BANDS.map((b) => b.band), [1, 2, 3, 4], 'the tabs are not in the bands\' own order');

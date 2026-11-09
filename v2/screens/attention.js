@@ -129,6 +129,7 @@
   function sync() { return (typeof Sync !== 'undefined' && Sync) || (root && root.Sync) || null; }
   function state() { return (typeof S !== 'undefined' && S) || (root && root.S) || null; }
   function money() { return (typeof fmt !== 'undefined' && fmt) || (root && root.fmt) || null; }
+  function outside() { return (typeof Outside !== 'undefined' && Outside) || (root && root.Outside) || null; }
   function doc() { return (root && root.document) || null; }
 
   function has(o, k) { return Object.prototype.hasOwnProperty.call(o, k); }
@@ -235,6 +236,10 @@
     attUnitH: { en: 'h', hi: '' },
     attUnitD: { en: 'd', hi: '' },
     attUnitSeats: { en: 'seats', hi: '' },
+    /* Outside repair (OR4). Named slots, filled by outsideUnitRows: "{unit} {serial} · {vendor}" is
+     * the translator's order to change, and the 14 in the reason is the limit stating itself. */
+    attOutsideUnit: { en: '{unit} {serial} · {vendor}', hi: '' },
+    attOutsideWhy: { en: 'Out {n} days. 14 days is the limit.', hi: '' },
   };
   /* Registered at load when ui/words.js is already on the page, and on first
    * use when it is not — the idiom of `ui/states.js`, and for the same reason:
@@ -327,6 +332,11 @@
       stores: ['breakdowns', 'buses'], build: breakdownRows },
     { key: 'seat', cap: 'assignDriver', band: 4, mark: 'seat', tone: 'warn',
       stores: ['nightlist', 'dutylog', 'buses'], build: seatRows },
+    /* Outside repair: a unit out at a vendor past the limit. Declared on `outsideJob` and NOT on
+     * `gatePass`: a storekeeper may issue and receive a slip and still has no business being told
+     * which vendor is holding a unit. Last in the table so the builders' KINDS[n] indexes hold. */
+    { key: 'outsideUnit', cap: 'outsideJob', band: 3, mark: 'doc', tone: 'warn',
+      stores: ['gatepasses', 'buses'], build: outsideUnitRows },
   ];
 
   // The four bands, in the bands' own order, with the tab that selects each.
@@ -767,6 +777,47 @@
       (made.rank === null ? bad : out).push(made);
     }
     return { rows: out, unranked: bad };
+  }
+
+  /* ---------- kind 3c: a unit out at a vendor past the limit -------------- *
+   * Only a slip with status 'out' and OVERDUE_DAYS or more since issue is a row. A row per unit
+   * out at all would always be there, and a count that can never reach zero is the one thing this
+   * screen may not have: a returned slip, or one out thirteen days, is not a row.
+   *
+   * basis = limit - days, so 20 days out is -6 and sorts above 15 days out at -1. Band 3 has no
+   * sign flip and overdue is negative, so the comparator is unchanged and no cross-unit
+   * comparison is created. `bus` is declared for the same reason as the other kinds: a read the
+   * kind did not declare throws.
+   */
+  function outsideUnitRows(read, me, now) {
+    const O = outside();
+    const passes = live(read('gatepasses'));
+    if (!O) return { rows: [], unranked: [] };         // script order is not this file's to fix
+    const limit = O.OVERDUE_DAYS;
+    const out = [];
+    for (let i = 0; i < passes.length; i++) {
+      const p = passes[i];
+      if (p.status !== 'out') continue;
+      const d = O.daysOut(p, now);
+      if (d === null) continue;                        // no issue date: nothing to count from
+      const days = Math.floor(d);
+      if (days < limit) continue;
+      const tap = p.jobId
+        ? { to: 'jobcard', params: { id: p.jobId, pass: p.id } }
+        : { to: 'store', params: { pieceId: p.componentId } };
+      out.push(row(KINDS[10], {
+        id: p.id,
+        basis: limit - days,
+        t: say('attOutsideUnit').replace('{unit}', String(p.unitName || ''))
+          .replace('{serial}', String(p.unitSerial || '')).replace('{vendor}', String(p.vendorName || ''))
+          .replace(/\s{2,}/g, ' '),
+        sub: say('attOutsideWhy', days),
+        act: figureOf(days, 'attUnitD'),
+        to: tap.to,
+        params: tap.params,
+      }));
+    }
+    return { rows: out, unranked: [] };
   }
 
   /* ---------- kind 8: a breakdown pattern -------------------------------- */

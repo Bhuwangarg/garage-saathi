@@ -163,8 +163,10 @@ function el(tag) {
   return e;
 }
 
+/* outside.js and ui/passes.js are loaded because the card now ASKS them: whether a card is an outside one
+ * and whether its gate is met (Outside), and the slip and the other two gate-pass sheets (Passes). */
 const SRC = ['ui/icons.js', 'ui/words.js', 'ui/states.js', 'ui/photos.js',
-             'fmt.js', 'caps.js', 'router.js', 'screens/jobcard.js', 'screens/jobs.js'];
+             'fmt.js', 'caps.js', 'router.js', 'outside.js', 'ui/passes.js', 'screens/jobcard.js', 'screens/jobs.js'];
 
 /* A fake IndexedDB of one store. The two taps and the sign-off are LOCAL writes,
  * so the assertion that matters is what landed in the record — not that a
@@ -399,7 +401,10 @@ test('Jobcard refuses to render a card a mechanic is not on, and draws no part o
 test('the Mechanic workload tab is ABSENT for a mechanic — not empty, not themselves only', () => {
   const lm = asRole('u-m1');
   const mech = lm.win.Jobs.render(model(lm, { route: 'jobs', params: null, me: U[2] }));
-  assert.strictEqual((mech.match(/role="tab"/g) || []).length, 3, 'a mechanic\'s filter strip is three tabs');
+  /* TWO, not three: the strip used to be FILTERS.slice(0, 3), which is ['open','done','away'] and gave a
+   * mechanic the tab that names which vendor holds a bus. UX 4 forbids it; UI 5 fixes it. */
+  assert.strictEqual((mech.match(/role="tab"/g) || []).length, 2, 'a mechanic\'s filter strip is two tabs');
+  assert(!/data-filter="away"/.test(mech), 'the Away tab was drawn for a mechanic');
   assert(!/data-filter="workload"/.test(mech), 'the workload tab was drawn for a mechanic');
   const ls = asRole('u-sup');
   const sup = ls.win.Jobs.render(model(ls, { route: 'jobs', params: null, me: U[0] }));
@@ -601,9 +606,16 @@ test('Jobcard.gateReady mirrors the server\'s _has_proof exactly, vendor case in
   // Two each is THIS document's number and it is what the gate line promises.
   assert.strictEqual(g(card({ beforePhotos: [1], afterPhotos: [1] })), false,
     'one each was accepted after the line promised two');
-  // A vendor bill stands in, and one photo is enough — the server's own rule.
-  assert.strictEqual(g(card({ externalVendor: 'Sharma', beforePhotos: [1] })), true);
+  /* An OUTSIDE card's gate is the vendor's bill (owner's decision 1), and ONE before photo no longer stands
+   * in for it: that was the loophole this feature closes. The bill on the card, or a typed reason, opens it. */
+  assert.strictEqual(g(card({ externalVendor: 'Sharma', beforePhotos: [1] })), false,
+    'one before photo still satisfies an outside card');
+  assert.strictEqual(g(card({ externalVendor: 'Sharma', beforePhotos: [1, 2], afterPhotos: [1, 2] })), false,
+    'two and two satisfied an outside card with no bill');
   assert.strictEqual(g(card({ externalVendor: 'Sharma' })), false);
+  assert.strictEqual(g(card({ externalVendor: 'Sharma', billPhotos: ['/uploads/a'] })), true);
+  assert.strictEqual(g(card({ externalVendor: 'Sharma', closeNoBillReason: 'vendor lost it' })), true);
+  assert.strictEqual(g(card({ outside: true, outsideCity: 'Jaipur' })), false, 'an away card with no vendor is outside too');
 });
 
 test('the gate is visible from the top: block 4 sits above the fault, the times and the photos', () => {
@@ -929,14 +941,20 @@ test('the parts block carries its own age, because it is the one field the serve
 });
 
 test('the vendor block and its gate pass are absent without outsideJob, and present with it', () => {
+  /* A pass row needs a pass: the block lists the card's gatepasses (jobId === card.id), which is what the
+   * old `gatePassNo` button stood in for. The fixture now carries one, and the card's pointer fields name it
+   * the way Passes.issueWrite leaves them. */
+  const GP = [{ id: 'gp-1', no: 'OJ-261109-AB12', jobId: 'j-mine', busId: 'b1', status: 'out', vendorName: 'Sharma Auto Electric',
+                unitName: 'Alternator', unitSerial: 'ALT-77120', issuedAt: NOW - 3 * 86400000 }];
   const withV = (role) => asRole(role, { cards: [card({ externalVendor: 'Sharma Auto Electric',
-                                                        externalCost: 2100, gatePassNo: 184 })] });
+                                                        externalCost: 2100, gatePassNo: 'OJ-261109-AB12', gatePassId: 'gp-1' })] });
   const sup = withV('u-sup');
-  const h = sup.win.Jobcard.render(model(sup, { params: { id: 'j-mine' } }));
+  const h = sup.win.Jobcard.render(model(sup, { params: { id: 'j-mine' }, cache: { gatepasses: GP } }));
   assert(/Sharma Auto Electric/.test(h));
   assert(/data-act="jobPass"/.test(h));
+  assert(/OJ-261109-AB12/.test(h));
   const st = withV('u-store');
-  const hs = st.win.Jobcard.render(model(st, { params: { id: 'j-mine' } }));
+  const hs = st.win.Jobcard.render(model(st, { params: { id: 'j-mine' }, cache: { gatepasses: GP } }));
   assert(!/data-act="jobPass"/.test(hs), 'the gate pass was reachable without outsideJob — 02 6.1 rows 5 and 6');
   assert(!/Sharma Auto Electric/.test(hs));
 });

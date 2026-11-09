@@ -64,6 +64,10 @@
      * sentence, which is the same defect wearing better manners — so there are
      * two words for the two facts. */
     jbNoConnEver: { en: 'This phone has not sent anything yet', hi: '' },
+    /* THE AWAY ROW'S SUB: the place and the vendor, never "Nobody on it yet". An away card has no
+     * crew by design, so that sentence would be a complaint about a decision the app made. */
+    jbAwayWhere: { en: 'In {place} \u00b7 {vendor}', hi: '' },
+    jbAwayNoVendor: { en: 'In {place} \u00b7 no vendor recorded yet', hi: '' },
     jbHoursShort: { en: '{h} h', hi: '' },
     jbDaysShort: { en: '{d} d', hi: '' },
     jbWorkSub: { en: '{open} open · {rework} rework · {days} days average turnaround', hi: '' },
@@ -225,6 +229,18 @@
     return x - y || String(a.id).localeCompare(String(b.id));
   }
 
+  function out() { return root.Outside || null; }
+
+  /* The days a bus has been away, whole, from the ONE rule (Outside.awayDays: the same fields v1's
+   * jobDownDays reads) and null until the reached-the-workshop time exists. Floored, so the number on
+   * the row can never read 14 before the --bad threshold (OVERDUE_DAYS, tested on the unrounded value)
+   * has been crossed. */
+  function awayDaysOf(c, now) {
+    var O = out();
+    var d = O ? O.awayDays(c, now) : null;
+    return d == null ? null : Math.floor(d);
+  }
+
   function viewRow(c, m, users, buses, now) {
     var started = c.startAt != null;
     var idle = c.enterAt == null ? null : now - c.enterAt;
@@ -233,6 +249,22 @@
     var who = crew.length ? nameOf(users, crew[0].userId) : '';
     var task = crew.length ? crew[0].task : '';
     var sub;
+    /* AN AWAY ROW ANSWERS "WHERE", NOT "HOW LONG IT HAS STOOD IN OUR YARD". Its sub is the place and the
+     * vendor, its days come from the away arithmetic, and its tone is the days' (--warn under the
+     * overdue limit, --bad at it), because the yard-standing tone would colour a bus that is not in the
+     * yard. */
+    if (away(c) && !closed(c)) {
+      var raw = out() ? out().awayDays(c, now) : null;
+      var place = String(c.outsideCity || '').replace(/^\s+|\s+$/g, '');
+      var vendor = String(c.externalVendor || '').replace(/^\s+|\s+$/g, '');
+      sub = !place ? (vendor || say('jbTabAway'))
+        : vendor ? say('jbAwayWhere', { place: place, vendor: vendor })
+          : say('jbAwayNoVendor', { place: place });
+      var limit = out() ? out().OVERDUE_DAYS : 14;
+      return { id: c.id, reg: regOf(buses, c.busId), fault: c.problem || '', who: '', task: '',
+               idle: idle, tone: 'warn', started: started, sub: sub, away: true,
+               days: awayDaysOf(c, now), daysTone: raw != null && raw >= limit ? 'bad' : 'warn' };
+    }
     if (c.enterAt == null) sub = say('jbEnterMissing');
     else if (!who) sub = say('jbNobodyYet');
     else sub = who + (task ? ' — ' + task : '')
@@ -241,12 +273,30 @@
              idle: idle, tone: tone, started: started, sub: sub };
   }
 
+  /* WHICH TABS A ROLE MAY SEE, absent rather than empty. Away needs `outsideJob`: a mechanic has no
+   * business knowing which vendor holds the unit, and this used to be `FILTERS.slice(0, 3)`, which is
+   * ['open','done','away'] and handed the mechanic exactly that. Workload needs the scoreboard and is
+   * never a mechanic's. Owner and supervisor hold both, so for them the strip is still four. */
+  function tabsFor(role) {
+    var out = [], i;
+    for (i = 0; i < FILTERS.length; i++) {
+      var f = FILTERS[i];
+      if (f === 'away' && !can(role, 'outsideJob')) continue;
+      if (f === 'workload' && (role === 'mechanic' || !can(role, 'viewScoreboard'))) continue;
+      out.push(f);
+    }
+    return out;
+  }
+
   function model(m) {
     register();
     var me = (m && m.user) || null;
     var role = me ? String(me.role) : null;
     var loading = !(m && m.cache) || m.cache.jobcards === undefined;
     var which = filter(m && m.filter);
+    /* A tab this role does not have cannot be the current one: the strip remembers its last choice in a
+     * module variable, so a mechanic who signs in on a phone an owner left on Away must not be shown it. */
+    if (tabsFor(role).indexOf(which) < 0) which = filter('open');
     var users = rowsOf(m, 'users'), buses = rowsOf(m, 'buses');
     var now = Date.now();
 
@@ -275,8 +325,7 @@
       // showing only themselves. It answers "who should take this job", which
       // is not a mechanic's question, and one row would read as a list of their
       // colleagues with the colleagues removed.
-      tabs: role === 'mechanic' ? FILTERS.slice(0, 3)
-        : (can(role, 'viewScoreboard') ? FILTERS : FILTERS.slice(0, 3)),
+      tabs: tabsFor(role),
       mayAdd: can(role, 'addJob')
     };
   }
@@ -360,18 +409,20 @@
     var out = '', i;
     for (i = 0; i < v.rows.length; i++) {
       var r = v.rows[i];
-      var act = fig(r.idle, { format: idleWords });
-      if (desk) {
+      var act = r.away ? fig(r.days, { unit: 'd' }) : fig(r.idle, { format: idleWords });
+      if (desk && r.away) {
+        act += '<span class="btn btn-quiet jb-open">' + esc(say('jbOpenBtn')) + '</span>';
+      } else if (desk) {
         act += '<span class="badge badge-' + (r.started ? 'ok' : 'warn') + '">'
           + draw(r.started ? 'ok' : 'clock', 14) + ' '
           + esc(r.started ? say('jbBadgeStarted') : say('jbBadgeNotStarted')) + '</span>'
           + '<span class="btn btn-quiet jb-open">' + esc(say('jbOpenBtn')) + '</span>';
       }
       out += '<button class="v2row" type="button" data-card="' + esc(r.id) + '">'
-        + '<span class="lead jb-' + r.tone + '">' + draw('job', desk ? 16 : 20) + '</span>'
+        + '<span class="lead jb-' + r.tone + '">' + draw(r.away ? 'map' : 'job', desk ? 16 : 20) + '</span>'
         + '<span class="t">' + esc(r.reg + ' — ' + r.fault) + '</span>'
         + (desk ? '' : '<span class="sub">' + esc(r.sub) + '</span>')
-        + '<span class="act">' + act + '</span></button>';
+        + '<span class="act' + (r.away ? ' jb-' + r.daysTone : '') + '">' + act + '</span></button>';
     }
     return out;
   }

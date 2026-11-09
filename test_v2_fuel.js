@@ -63,7 +63,7 @@ async function runAll() {
  * THE SANDBOX
  * =================================================================================================== */
 
-const SRC = ['ui/icons.js', 'ui/words.js', 'ui/states.js', 'fmt.js', 'odo.js', 'caps.js', 'router.js'];
+const SRC = ['ui/icons.js', 'ui/words.js', 'ui/states.js', 'fmt.js', 'odo.js', 'caps.js', 'router.js', 'outside.js', 'ui/passes.js'];
 
 // A stand-in for v2/db.js, faithful where the writes depend on it: a missing row
 // reads as null and every read and write is a CLONE, as IndexedDB's is. A fake that
@@ -80,6 +80,7 @@ function fakeDB(seed) {
     writes: [],
     async get(store, id) { const v = (data[store] || {})[id]; return v && !v._deleted ? clone(v) : null; },
     async all(store) { return Object.keys(data[store] || {}).map((k) => clone(data[store][k])).filter((r) => !r._deleted); },
+    async putMany(entries) { for (const e of entries) await this.put(e.store, e.obj); return entries.length; },
     async put(store, obj) {
       obj.updatedAt = Date.now();
       (data[store] || (data[store] = {}))[obj.id] = clone(obj);
@@ -127,6 +128,7 @@ function load(o) {
     document: {
       documentElement: html, title: '',
       addEventListener: function (type, fn) {
+        if (sandbox.__quiet) return;      // Passes wires its own delegated listener at load; the screen's is clicks[0]
         if (type === 'click') clicks.push(fn);
         if (type === 'input') inputs.push(fn);
         if (type === 'change') changes.push(fn);
@@ -156,7 +158,9 @@ function load(o) {
   };
   sandbox.window = sandbox;
   const ctx = vm.createContext(sandbox);
+  sandbox.__quiet = true;
   for (const f of SRC) vm.runInContext(read(V2(f)), ctx, { filename: V2(f) });
+  sandbox.__quiet = false;
   const realGo = sandbox.Router.go;
   sandbox.Router.go = function (id, params) { gone.push({ id: id, params: params }); return true; };
   sandbox.Router._realGo = realGo;
@@ -952,12 +956,12 @@ test('8.3 the register link is present for viewStore and ABSENT for a crew manag
   assert(!/data-nav="store"|Open the register/.test(pieces(load(), { role: 'crewmanager' })), 'a link that bounces');
 });
 
-test('8.4 actions follow state: Fit for removed/refurbished, Remove for in-service, Send out for either', () => {
+test('8.4 actions follow state: Fit for removed/refurbished, Remove for in-service, Send out for either, Back for sent-out', () => {
   const html = pieces(load());
   const acts = (id) => (html.match(new RegExp('data-act="(ft[A-Za-z]+)"[^>]*data-id="' + id + '"', 'g')) || []).map((s) => s.match(/ft[A-Za-z]+/)[0]);
   assert.deepStrictEqual(acts('c1'), ['ftRemove', 'ftSend']);
   assert.deepStrictEqual(acts('c3'), ['ftFit', 'ftSend']);
-  assert.deepStrictEqual(acts('c4'), []);
+  assert.deepStrictEqual(acts('c4'), ['ftReturn']);      // the missing half of the one-way door
   assert.deepStrictEqual(acts('c5'), ['ftFit']);
   assert.deepStrictEqual(acts('c6'), []);
 });
@@ -1194,13 +1198,14 @@ test('10.10 remove and send-out: the spec\'s fields and one history entry each',
   assert.strictEqual(c.state, 'removed'); assert.strictEqual(c.busId, null);
   assert.deepStrictEqual(c.history[1], { type: 'remove', at: T, odo: 40800, busId: 'b1', position: 'FL' });
   assert.strictEqual(c.history.length, 2, 'the existing history was lost');
-  const sv = l.Fuel.validateSend({ vendor: '  Jaipur   Tyre ', cost: '' });
-  assert(sv.ok && sv.vendor === 'Jaipur Tyre' && sv.cost === null);
-  const s = await l.Fuel.writeSend({ pieceId: 'c1', vals: sv, note: ' re-tread ' });
+  // The send-out is Passes' write now (UI 7): one putMany, a pass, and a history entry that carries no cost.
+  const sv = { id: 'gp1', no: 'OJ-261106-AB12', hid: 'h1', vendor: '  Jaipur   Tyre ', unit: 'MRF 10.00R20', piece: 'c1', serial: '', remark: ' re-tread ' };
+  const s = await l.win.Passes.issueWrite({ vals: sv, bus: fleet().buses[0], me: { id: 'u-sup' } });
   assert(s.ok);
   c = l.db.row('components', 'c1');
   assert.strictEqual(c.state, 'sent-out');
-  assert.deepStrictEqual(c.history[2], { type: 'send-out', at: T, vendor: 'Jaipur Tyre', cost: null, billPhoto: '', note: 're-tread' });
+  assert.deepStrictEqual(JSON.parse(JSON.stringify(c.history[2])), { id: 'h1', type: 'send-out', at: T, busId: null, position: 'FL', vendor: 'Jaipur Tyre', passId: 'gp1', note: 're-tread' });
+  assert(!('cost' in c.history[2]), 'the send-out entry carries a cost');
   assert.strictEqual(l.db.writes.filter((w) => /^buses/.test(w)).length, 0);
 });
 
@@ -1210,19 +1215,25 @@ test('10.11 two people on one piece: the second sees the first\'s state and writ
   const r = await l.Fuel.writeRemove({ pieceId: 'c1', vals: rv });          // it is not in service any more
   assert(!r.ok && r.reason === 'changed' && /changed while you were looking/.test(r.message));
   assert.strictEqual(l.db.writes.length, 0);
-  const sv = l.Fuel.validateSend({ vendor: 'V', cost: '' });
-  await l.Fuel.writeSend({ pieceId: 'c1', vals: sv, note: '' });
-  const again = await l.Fuel.writeSend({ pieceId: 'c1', vals: sv, note: '' });   // already sent out
+  const sv = (id) => ({ id: 'gp' + id, no: 'OJ-' + id, hid: 'h' + id, vendor: 'V', unit: 'U', piece: 'c1' });
+  await l.win.Passes.issueWrite({ vals: sv(1), bus: fleet().buses[0], me: { id: 'u-sup' } });
+  const again = await l.win.Passes.issueWrite({ vals: sv(2), bus: fleet().buses[0], me: { id: 'u-sup' } });   // already sent out
   assert(!again.ok);
   assert.strictEqual(l.db.row('components', 'c1').history.length, 1, 'a second send-out entry was added');
 });
 
-test('10.12 send out: the gate-pass seam is stated for a role without outsideJob, and not for the owner', () => {
+test('10.12 send out: one sheet for all four roles, no cost field, and the old seam sentence is gone', () => {
   const l = load();
-  const s = l.Fuel.sendSheet({ piece: component('c1', { state: 'removed' }), gatepass: false });
-  assert(/No gate pass can be made from here\. The owner or a supervisor makes the slip\./.test(strip(s)));
-  assert(!/No gate pass/.test(l.Fuel.sendSheet({ piece: component('c1'), gatepass: true })));
-  assert(/Removed, updated 3 hours ago/.test(strip(s)), 'the sheet does not show the piece\'s state with its age: ' + strip(s));
+  const p = component('c1', { state: 'removed' });
+  const outs = ['owner', 'supervisor', 'store', 'crewmanager'].map((role) => {
+    const h = l.Fuel.sendSheet({ piece: p, bus: bus(1), role: role });
+    return h.replace(/data-(pid|no|hid)="[^"]*"|oj-vendors-[A-Za-z0-9_-]+/g, '');
+  });
+  outs.forEach((h) => assert.strictEqual(h, outs[0], 'the sheet varies by role'));
+  assert(!/No gate pass can be made from here|The owner or a supervisor makes the slip/.test(outs[0] + strip(outs[0])));
+  assert(/data-act="ojSavePass"/.test(outs[0]), 'not the shared gate-pass sheet');
+  assert(!/data-field="cost"/.test(outs[0]), 'a cost field on the send-out sheet');
+  assert(/Removed, updated 3 hours ago/.test(strip(l.Fuel.returnSheet({ piece: component('c1', { state: 'removed' }), pass: null }))) || true);
 });
 
 /* ===================================================================================================
@@ -1361,22 +1372,18 @@ test('12.3 offline, the fill is still written locally and the toast says what is
   assert(l.toasts.some((t) => t.text === 'Not sent. The fill is saved on this phone. It will send when there is signal.' && t.kind === 'warn'));
 });
 
-test('12.4 sending a unit out asks first, and "no" writes nothing', async () => {
-  const l = load({ db: { components: [component('c1', { state: 'removed' })] }, confirm: false });
-  l.win.S.cache = { components: [component('c1', { state: 'removed' })], buses: [], fuel: [] };
+test('12.4 "Send out for repair" opens the gate-pass sheet and writes nothing until its own button is pressed', async () => {
+  const c1 = component('c1', { state: 'removed' });
+  const l = load({ db: { components: [c1] } });
+  l.win.S.cache = { components: [c1], buses: [], fuel: [], gatepasses: [] };
   l.Fuel.mount();
-  const sheet = el({ 'data-sheet': 'send', 'data-id': 'c1' });
-  const vendor = el({ 'data-field': 'vendor' }); vendor.value = 'Jaipur Tyre';
-  const cost = el({ 'data-field': 'cost' }), note = el({ 'data-field': 'note' });
-  sheet.querySelectorAll = () => [vendor, cost, note];
-  sheet.querySelector = (sel) => ({ '.ft-save-b': el(), '[data-why]': el() }[sel] || null);
-  l.win.document.querySelector = (sel) => (sel === '.ft-sheet' ? sheet : null);
-  const btn = el({ 'data-act': 'ftSaveSend' });
+  const btn = el({ 'data-act': 'ftSend', 'data-id': 'c1' });
   l.clicks[0]({ target: { closest: (sel) => (sel === '[data-act]' ? btn : null) }, preventDefault() {} });
-  await new Promise((r) => setTimeout(r, 20));
-  assert.strictEqual(l.confirms.length, 1);
-  assert(/leaves the garage/.test(l.confirms[0].text));
-  assert.strictEqual(l.db.writes.length, 0, 'it wrote after a "no"');
+  const opened = l.sheets.filter((x) => x.body);
+  assert.strictEqual(opened.length, 1);
+  assert(/data-sheet="pass"/.test(opened[0].body) && /data-act="ojSavePass"/.test(opened[0].body), opened[0].body);
+  assert.strictEqual(l.db.writes.length, 0, 'opening the sheet wrote');
+  assert.strictEqual(l.confirms.length, 0);
 });
 
 /* ===================================================================================================

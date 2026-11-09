@@ -65,7 +65,7 @@
    * the first non-data closest() against the first data-act one. */
   var FIELDS = 'input, select, textarea, label, .num';
 
-  var STORES = ['buses', 'fuel', 'def', 'components', 'users'];
+  var STORES = ['buses', 'fuel', 'def', 'components', 'users', 'gatepasses'];
 
   /* The display caps. Sized against a PLACEHOLDER set on a developer's Mac; the
    * office PC (Windows 7, Chrome 109, Core 2 Duo) has not been measured and
@@ -156,6 +156,9 @@
     ftRegister: { en: 'Open the register in Store', hi: '' },
     ftActFit: { en: 'Fit', hi: '' },
     ftActRemove: { en: 'Remove', hi: '' },
+    ftActReturn: { en: 'Back from the vendor', hi: '' },
+    ftOutOnPass: { en: 'Out {n} days on {no}', hi: '' },
+    ftOutNoPass: { en: 'Out {n} days. No gate pass was made.', hi: '' },
     ftActSend: { en: 'Send out for repair', hi: '' },
 
     ftSheetEdit: { en: 'Edit fill', hi: '' },
@@ -191,14 +194,6 @@
     ftStateAge: { en: '{state}, updated {age}', hi: '' },
     ftFitDone: { en: 'Fitted', hi: '' },
     ftRemoveDone: { en: 'Removed', hi: '' },
-    ftSendDone: { en: 'Sent out', hi: '' },
-    ftVendor: { en: 'Vendor', hi: '' },
-    ftNeedVendor: { en: 'Enter the vendor', hi: '' },
-    ftRepairCost: { en: 'Cost, if known', hi: '' },
-    ftNote: { en: 'Note', hi: '' },
-    ftGateSeam: { en: 'No gate pass can be made from here. The owner or a supervisor makes the slip.', hi: '' },
-    ftSendAsk: { en: 'Send {label} out for repair? The unit leaves the garage.', hi: '' },
-    ftSendYes: { en: 'Send out', hi: '' },
     ftChanged: { en: 'This piece changed while you were looking. Nothing was written.', hi: '' }
   };
 
@@ -213,6 +208,14 @@
     return String(s).replace(/\{([A-Za-z0-9]+)\}/g, function (all, k) {
       return vals && Object.prototype.hasOwnProperty.call(vals, k) ? String(vals[k]) : '';
     });
+  }
+
+  /* The day count rides on w()'s own {n}, which is how every counted word in the app
+   * is filled in; `put` alone would find no {n} in `vals` of a say() call. */
+  function sayN(id, n, vals) {
+    register();
+    var s = registered && typeof root.w === 'function' ? root.w(id, n) : WORDS[id].en.replace('{n}', String(n));
+    return vals ? put(s, vals) : s;
   }
 
   function say(id, vals) {
@@ -498,16 +501,6 @@
     return out;
   }
 
-  function validateSend(v) {
-    var out = { ok: false, reason: '', vendor: '', cost: null };
-    out.vendor = String(v.vendor == null ? '' : v.vendor).replace(/\s+/g, ' ').trim();
-    if (!out.vendor) { out.reason = say('ftNeedVendor'); return out; }
-    var t = String(v.cost == null ? '' : v.cost).trim();
-    out.cost = t === '' ? null : parseDecimal(t);
-    out.ok = true;
-    return out;
-  }
-
   /* ====================================================================== *
    * MILEAGE. Everything here is a call into Odo; the only arithmetic is a
    * subtraction of two readings (run since) and a ratio of two Odo verdicts
@@ -679,7 +672,26 @@
     return best;
   }
 
-  function pieceRows(components, bmap) {
+  /* The slip a sent-out piece is out on: the newest pass of this piece that has
+   * not come back. A piece sent out before gate passes existed has none, and that
+   * is a state the row says in words (UX 7 counts it down to zero). */
+  function openPassOf(c, passes) {
+    var best = null, i, p;
+    for (i = 0; i < (passes || []).length; i++) {
+      p = passes[i];
+      if (!p || p._deleted || p.componentId !== c.id || p.status === 'returned') continue;
+      if (!best || !isNum(best.issuedAt) || (isNum(p.issuedAt) && p.issuedAt >= best.issuedAt)) best = p;
+    }
+    return best;
+  }
+
+  function lastSendAt(c) {
+    var h = (c && c.history) || [], i;
+    for (i = h.length - 1; i >= 0; i--) if (h[i] && h[i].type === 'send-out' && isNum(h[i].at)) return h[i].at;
+    return null;
+  }
+
+  function pieceRows(components, bmap, passes, now) {
     var all = live(components);
     all.sort(function (a, b) {
       var x = STATE_ORDER[a.state], y = STATE_ORDER[b.state];
@@ -689,7 +701,15 @@
     });
     var out = [], i;
     for (i = 0; i < all.length && i < PIECES_CAP; i++) {
-      out.push({ rec: all[i], reg: all[i].busId ? regOf(bmap, all[i].busId) : '', last: lastEvent(all[i]) });
+      var row = { rec: all[i], reg: all[i].busId ? regOf(bmap, all[i].busId) : '', last: lastEvent(all[i]) };
+      if (all[i].state === 'sent-out') {
+        row.pass = openPassOf(all[i], passes);
+        // Outside.daysOut owns the day arithmetic; a piece with no slip is measured from its send-out entry.
+        var slip = row.pass || { issuedAt: lastSendAt(all[i]), status: 'out' };
+        var d = root.Outside && isNum(now) ? root.Outside.daysOut(slip, now) : null;
+        row.days = isNum(d) ? Math.floor(d) : null;
+      }
+      out.push(row);
     }
     return { rows: out, total: all.length };
   }
@@ -703,8 +723,7 @@
       comp: can(role, 'manageComponents'),
       fleet: can(role, 'fleet'),
       store: can(role, 'viewStore'),
-      manager: can(role, EDIT_FILL_CAP),
-      gatepass: can(role, 'outsideJob')
+      manager: can(role, EDIT_FILL_CAP)
     };
     var tabs = tabsFor(c);
     var which = tabs.indexOf(current) >= 0 ? current : tabs[0];
@@ -727,7 +746,7 @@
     } else if (which === 'mileage') {
       v.mileage = mileageIndex(rowsOf(m, 'buses'), rowsOf(m, 'fuel'));
     } else if (which === 'pieces') {
-      v.pieces = pieceRows(rowsOf(m, 'components'), bmap);
+      v.pieces = pieceRows(rowsOf(m, 'components'), bmap, rowsOf(m, 'gatepasses'), nowMs());
     }
     return v;
   }
@@ -960,6 +979,15 @@
       acts += '<button type="button" class="btn" data-act="ftSend" data-id="' + esc(c.id) + '">'
         + esc(say('ftActSend')) + '</button>';
     }
+    if (c.state === 'sent-out') {
+      acts += '<button type="button" class="btn" data-act="ftReturn" data-id="' + esc(c.id) + '">'
+        + esc(say('ftActReturn')) + '</button>';
+      if (row.days != null) {
+        ev += '<div class="sub">' + esc(row.pass
+          ? sayN('ftOutOnPass', row.days, { no: row.pass.no })
+          : sayN('ftOutNoPass', row.days)) + '</div>';
+      }
+    }
     return '<div class="ft-piece">'
       + '<div class="v2row v2row-why ft-pc">'
       + '<span class="lead">' + draw(kindMark(c.kind), 20) + '</span>'
@@ -1173,21 +1201,24 @@
       + saveBar('ftSaveRemove', say('ftActRemove')) + '</div>';
   }
 
+  /* There is one send-out sheet and it is Passes' (UI 7): the same slip for all
+   * four roles, the bus taken from the piece, no cost asked. This screen draws no
+   * sheet of its own for it and no branch varies it by role. */
+  function busOfPiece(c, buses) {
+    var id = c.busId, h = c.history || [], i;
+    for (i = h.length - 1; i >= 0 && !id; i--) if (h[i] && h[i].busId) id = h[i].busId;
+    for (i = 0; i < (buses || []).length; i++) if (buses[i].id === id) return buses[i];
+    return id ? { id: id, regNo: id } : null;
+  }
+
   function sendSheet(o) {
-    var c = o.piece;
-    return '<div class="ft-sheet" data-sheet="send" data-id="' + esc(c.id) + '">'
-      + '<p class="ft-fixed">' + draw(kindMark(c.kind), 20) + ' <b>' + esc(pieceLabel(c)) + '</b></p>'
-      + '<p class="ft-age">' + esc(ageLine(c)) + '</p>'
-      + textField(say('ftVendor'), 'vendor')
-      + numField(say('ftRepairCost'), 'cost', 'decimal', '')
-      + textField(say('ftNote'), 'note')
-      /* The seam this screen cannot close: the gate pass is `gatepasses`, which
-       * only the owner and a supervisor may write (capability outsideJob). So a
-       * crew manager or a storekeeper can record that a piece left and cannot
-       * make the slip. Say so rather than omit it — hiding it would mean a unit
-       * leaves with no paper and nobody told. */
-      + (o.gatepass ? '' : '<p class="ft-dim">' + draw('doc', 14) + ' ' + esc(say('ftGateSeam')) + '</p>')
-      + saveBar('ftSaveSend', say('ftActSend')) + '</div>';
+    return root.Passes.issueSheet({ bus: o.bus || {}, pieces: [o.piece], card: null, piece: o.piece, role: o.role,
+      me: o.me, onSaved: o.onSaved });
+  }
+
+  function returnSheet(o) {
+    return root.Passes.returnSheet({ pass: o.pass || null, piece: o.piece, bus: o.bus || null,
+      ageWords: ageLine(o.piece), me: o.me, onSaved: o.onSaved });
   }
 
   /* ====================================================================== *
@@ -1289,19 +1320,6 @@
     var next = Object.assign({}, c, {
       state: 'removed', busId: null,
       history: (c.history || []).concat([{ type: 'remove', at: at, odo: odoValue, busId: c.busId, position: c.position }])
-    });
-    await db().put('components', next);
-    return { ok: true, rec: next };
-  }
-
-  async function writeSend(o) {
-    var c = await loadPiece(o.pieceId, ['in-service', 'removed']);
-    if (!c) return { ok: false, reason: 'changed', message: say('ftChanged') };
-    var at = nowMs();
-    var next = Object.assign({}, c, {
-      state: 'sent-out',
-      history: (c.history || []).concat([{ type: 'send-out', at: at, vendor: o.vals.vendor, cost: o.vals.cost,
-        billPhoto: '', note: String(o.note == null ? '' : o.note).trim() }])
     });
     await db().put('components', next);
     return { ok: true, rec: next };
@@ -1429,10 +1447,10 @@
     if (act === 'ftFit') return openFit(el.getAttribute('data-kind'), el.getAttribute('data-id'));
     if (act === 'ftRemove') return openRemove(el.getAttribute('data-id'));
     if (act === 'ftSend') return openSend(el.getAttribute('data-id'));
+    if (act === 'ftReturn') return openReturn(el.getAttribute('data-id'));
     if (act === 'ftSaveFill') return saveFill(el);
     if (act === 'ftSaveFit') return saveFit(el);
     if (act === 'ftSaveRemove') return saveRemove(el);
-    if (act === 'ftSaveSend') return saveSend(el);
   }
 
   function onField(ev) {
@@ -1521,8 +1539,6 @@
         { lastKm: lastKmOf(vals.last), broken: brokenNow });
     } else if (kind === 'remove') {
       result = validateRemove({ odometer: vals.odometer }, { lastKm: lastKmOf(sheet.getAttribute('data-last')), broken: brokenNow });
-    } else if (kind === 'send') {
-      result = validateSend({ vendor: vals.vendor, cost: vals.cost });
     } else return;
 
     var odoIn = fieldOf(sheet, 'odometer'), err = sheet.querySelector('[data-err]');
@@ -1584,10 +1600,28 @@
   }
 
   function openSend(id) {
-    var p = pieceById(id), u = me();
+    var p = pieceById(id), u = me(), c = dataNow();
     if (!p) return;
-    openSheet(say('ftActSend'), sendSheet({ piece: p, gatepass: !!(u && can(u.role, 'outsideJob')) }));
-    recheck();
+    openSheet(say('ftActSend'), sendSheet({ piece: p, bus: busOfPiece(p, live(c.buses || [])),
+      role: u ? u.role : null, me: u, onSaved: refresh }));
+  }
+
+  function openReturn(id) {
+    var p = pieceById(id), u = me(), c = dataNow();
+    if (!p) return;
+    var pass = openPassOf(p, live(c.gatepasses || []));
+    openSheet(say('ftActReturn'), returnSheet({ piece: p, pass: pass, bus: busOfPiece(p, live(c.buses || [])),
+      me: u, onSaved: refresh }));
+  }
+
+  /* The Passes sheets close themselves (or turn into the slip); this screen only
+   * has to read the pieces again once a write has landed. */
+  function refresh() {
+    var cc = cache();
+    if (cc && typeof cc.load === 'function') {
+      var pr = cc.load(STORES);
+      if (pr && typeof pr.then === 'function') pr.then(redraw, redraw);
+    }
   }
 
   /* ---- saving ----------------------------------------------------------------- */
@@ -1704,34 +1738,6 @@
     finished();
   }
 
-  /* Sending a unit out of the premises asks first: focus starts on Cancel, so a
-   * reflexive Enter says no (V2.confirmDialog). */
-  async function saveSend(btn) {
-    var sheet = sheetEl();
-    if (!sheet) return;
-    var vals = readSheet(sheet);
-    var v = validateSend({ vendor: vals.vendor, cost: vals.cost });
-    if (!v.ok) { recheck(); return; }
-    var id = sheet.getAttribute('data-id');
-    var p = pieceById(id);
-    var V = ov();
-    if (V && typeof V.confirmDialog === 'function') {
-      var yes = await V.confirmDialog(say('ftSendAsk', { label: p ? pieceLabel(p) : '' }), { yes: say('ftSendYes') });
-      if (yes !== true) return;
-    }
-    busy(btn, true);
-    var res;
-    try { res = await writeSend({ pieceId: id, vals: v, note: vals.note }); } catch (e) {
-      busy(btn, false, say('ftActSend'));
-      toast(say('ftSaveLost'), 'bad');
-      return;
-    }
-    if (!res.ok) { busy(btn, false, say('ftActSend')); toast(res.message, 'bad'); finished(); return; }
-    toast(say('ftSendDone'));
-    if (offlineNow()) toast(say('ftNotSent'), 'warn');
-    finished();
-  }
-
   /* ====================================================================== */
 
   register();
@@ -1749,7 +1755,6 @@
     validateFill: validateFill,
     validateFit: validateFit,
     validateRemove: validateRemove,
-    validateSend: validateSend,
     lastReading: lastReading,
     mileageIndex: mileageIndex,
     spansOf: spansOf,
@@ -1758,10 +1763,10 @@
     fitSheet: fitSheet,
     removeSheet: removeSheet,
     sendSheet: sendSheet,
+    returnSheet: returnSheet,
     writeFill: writeFill,
     writeFit: writeFit,
     writeRemove: writeRemove,
-    writeSend: writeSend,
     FILLS_CAP: FILLS_CAP,
     PIECES_CAP: PIECES_CAP,
     FALL_RATIO: FALL_RATIO,

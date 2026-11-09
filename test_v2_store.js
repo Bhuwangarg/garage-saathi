@@ -395,7 +395,8 @@ function cacheOf(o) {
     vendors: o.vendors || VENDORS,
     components: o.components === undefined ? PIECES : o.components,
     buses: o.buses || BUSES,
-    users: o.users || USERS
+    users: o.users || USERS,
+    gatepasses: o.gatepasses || []
   };
 }
 
@@ -1273,11 +1274,11 @@ test('offline the rows stay, with their freshness in the header and not on every
   assert.strictEqual(countOf(html, /state-offline/g), 0);
 });
 
-test('the screen reads the nine stores it draws from, once, through Cache.load', () => {
+test('the screen reads the ten stores it draws from, once, through Cache.load', () => {
   const l = asRole('u-store');
   assert(l.loaded.length > 0, 'mount() never asked for any data');
   const names = l.loaded[0];
-  for (const n of ['parts', 'ledger', 'jobcards', 'audits', 'purchases', 'vendors', 'components'])
+  for (const n of ['parts', 'ledger', 'jobcards', 'audits', 'purchases', 'vendors', 'components', 'gatepasses'])
     assert(names.indexOf(n) >= 0, n + ' is drawn and never read');
 });
 
