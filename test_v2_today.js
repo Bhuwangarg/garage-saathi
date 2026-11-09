@@ -658,6 +658,39 @@ test("tonight's departures: the count is the checks OUTSTANDING, so a fully rele
   assert(card.indexOf('See all') < 0, 'a count of zero drew a "See all"');
 });
 
+/* "GOING OUT TONIGHT" MUST TELL AN UNREAD STORE FROM AN UNPICKED NIGHT, and it did not.
+ *
+ * `tonight()` answers null to both -- its own comment says so -- and this card tested that answer
+ * first, so a night nobody had ticked read as "the nightlist has not arrived" and the card drew a
+ * LOADING SKELETON that never resolved. Measured in the browser on 9 Nov 2026, signed in as the
+ * supervisor with the only nightlist row dated the 8th: a permanent skeleton on the first screen,
+ * every night, until somebody opened the Duty board. It is the F2 defect in the one card F2 missed,
+ * and the words for the second state were already registered and already drawn by the seats card.
+ *
+ * The two cases differ by ONE THING -- whether the store is there at all -- so they are checked
+ * together here; apart, either one passes while the other is broken. */
+test('a night nobody has picked says so, and an unread nightlist still says it is loading', () => {
+  const l = load({ role: 'supervisor' });
+  const buses = [{ id: 'b1', regNo: 'RJ14 PA 1023' }];
+
+  // The store is THERE, and holds last night's row and nothing for tonight.
+  const lastNight = { id: 'nl-' + dayKeyOf(NOW - DAY), date: dayKeyOf(NOW - DAY), buses: { b1: { running: true } } };
+  const unpicked = l.Today.render(frame('supervisor', { cache: { buses: buses, nightlist: [lastNight], gatechecks: [] } }));
+  const card = /Going out tonight<\/h3>([\s\S]*?)<\/section>/.exec(unpicked);
+  assert(card, 'the tonight card is gone');
+  assert(/not picked yet/.test(card[1]), 'an unpicked night still draws a skeleton: ' + card[1].slice(0, 200));
+  assert(card[1].indexOf('skeleton') < 0, 'it drew the words AND a skeleton');
+
+  /* The store is NOT there: a different sentence, and it is the skeleton. `world()` merges the
+   * override over its defaults, so the store has to be set to `undefined` to be absent -- leaving
+   * the key out keeps the fixture's own nightlist and tests nothing. */
+  const unread = l.Today.render(frame('supervisor', { cache: { buses: buses, gatechecks: [], nightlist: undefined } }));
+  const c2 = /Going out tonight<\/h3>([\s\S]*?)<\/section>/.exec(unread);
+  assert(c2, 'the tonight card is gone when the store is unread');
+  assert(/skeleton/.test(c2[1]), 'an unread nightlist claims the night is unpicked: ' + c2[1].slice(0, 200));
+  assert(c2[1].indexOf('not picked yet') < 0, 'it told a person nothing was picked when it had not looked');
+});
+
 test('seats are counted over TONIGHT\'S buses, and read a dash before tonight is picked', () => {
   const l = load({ role: 'crewmanager' });
   // ba274f6: 67 buses needing a driver against 54 drivers. Fifty buses in the

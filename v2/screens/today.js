@@ -828,8 +828,25 @@
    * screen is what §15 split. */
   function tonightOut(q) {
     if (!can(q.role, 'gateCheck')) return null;
-    var running = tonight(q), gates = gateByBus(q);
-    if (running === null || gates === null) return loading('tonight', say('cardTonight'), q);
+    var gates = gateByBus(q);
+    /* UNREAD AND NOT PICKED ARE TWO THINGS, and `tonight()` answers `null` to both -- it says so in
+     * its own comment. Testing its answer first therefore read "nobody has ticked tonight yet" as
+     * "the store has not arrived", and this card drew a LOADING SKELETON FOR THE WHOLE NIGHT, every
+     * night, until somebody opened the Duty board. Measured on 9 Nov 2026 with the only nightlist row
+     * dated the 8th: "Going out tonight" was a skeleton that never resolved, on the owner's and the
+     * supervisor's first screen.
+     *
+     * So the STORE is tested first and `tonight()`'s answer second -- which is exactly the shape the
+     * seats card below already uses (`if (!q.rows.nightlist || !q.rows.drivers) return loading(...)`),
+     * and the words for the second state were already registered and already drawn there. This is the
+     * same defect as F2 on the crew manager's block 2, in the one card F2 did not cover. */
+    if (!q.rows.nightlist || gates === null) return loading('tonight', say('cardTonight'), q);
+    var running = tonight(q);
+    if (running === null) {
+      return { kind: 'card', id: 'tonight', title: say('cardTonight'), rows: [],
+               state: 'empty', text: say('tonightNotPicked'), hint: say('tonightNotPickedHint'),
+               mark: 'gate', primary: { screen: 'duty', label: say('pickTonight') } };
+    }
     var waiting = [], decided = [], i, id, state;
     running.sort(function (a, b) { return byBusName(q, a, b); });
     for (i = 0; i < running.length; i++) {
