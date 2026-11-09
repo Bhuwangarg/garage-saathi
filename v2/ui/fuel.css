@@ -97,7 +97,9 @@
   padding: var(--s2) var(--pad) var(--s3);
   box-shadow: inset 0 -1px 0 var(--line);
 }
-[data-v2] .ft-pacts .btn { min-height: var(--tap); }
+/* A sent-out piece has a third action. The buttons keep --tap and wrap rather
+ * than shrink: at 360px two fit on a line and the third drops below. */
+[data-v2] .ft-pacts .btn { min-height: var(--tap); flex: 0 1 auto; max-width: 100%; }
 /* The row above carries the hairline between pieces; its actions sit inside it. */
 [data-v2] .ft-piece > .v2row { box-shadow: none; }
 

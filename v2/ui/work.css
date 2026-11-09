@@ -266,6 +266,60 @@
   gap: var(--s2);
 }
 
+[data-v2] .jc-pass-no {
+  margin: 0;
+  font-size: var(--t4);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+[data-v2] .jc-pass-by,
+[data-v2] .jc-out-cap {
+  margin: 0;
+  color: var(--ink-dim);
+  font-size: var(--t6);
+  line-height: var(--lh);
+}
+
+/* ---------- the three shared sheets (new gate pass, the slip, received back) ----
+ * One wrapper for all three: fields run the full width of the panel, and the
+ * words around them are the two sizes the spec names. `.num` sets display:block,
+ * which beats the user agent's [hidden] rule, so an error message waiting to be
+ * shown would be on screen without the last rule here. */
+[data-v2] .oj-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+}
+
+[data-v2] .oj-sheet .field,
+[data-v2] .oj-sheet .select {
+  width: 100%;
+}
+
+[data-v2] .oj-stat {
+  margin: 0;
+  font-size: var(--t5);
+  line-height: var(--lh);
+}
+
+[data-v2] .oj-why {
+  margin: 0;
+  color: var(--ink-dim);
+  font-size: var(--t6);
+  line-height: var(--lh);
+}
+
+[data-v2] .oj-err {
+  display: block;
+  color: var(--bad);
+  font-size: var(--t6);
+}
+
+[data-v2] .oj-sheet [hidden] { display: none; }
+
+[data-v2] .jc-out { display: block; }
+
 /* ---------- desk ----------------------------------------------------------
  * 864px of content on a 1024px screen is two columns with a --s4 gutter, and
  * the office reads a card with a mouse and a keyboard. BOTH clauses of the
@@ -289,6 +343,29 @@
 
   [data-v2][data-density="desk"] .jc-wide {
     width: auto;
+  }
+
+  /* The slip is prose, not a table. */
+  [data-v2][data-density="desk"] .jc-pass {
+    max-width: var(--read-w);
+  }
+
+  /* Block 13 at desk: a row is one line. The .sub that sat under the title on a
+   * phone moves into the column beside the .act, and the .act drops its second
+   * row. */
+  [data-v2][data-density="desk"] .jc-out .v2row {
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
+  }
+
+  [data-v2][data-density="desk"] .jc-out .v2row > .sub {
+    grid-column: 3;
+    grid-row: 1;
+    margin-inline-start: var(--s3);
+  }
+
+  [data-v2][data-density="desk"] .jc-out .v2row > .act {
+    grid-column: 4;
+    grid-row: 1;
   }
 
   /* The four times keep TWO lines at desk, which is the one exception to the
@@ -324,5 +401,13 @@
     position: static;
     max-height: none;
     box-shadow: none;
+  }
+
+  /* The screen hairline is an inset box-shadow, and Chrome drops box-shadows
+   * when "Background graphics" is off, which is the default: the slip would
+   * print with no rules at all. A real border prints either way. */
+  [data-v2] .jc-pass .v2row {
+    box-shadow: none;
+    border-bottom: 1px solid var(--line);
   }
 }
