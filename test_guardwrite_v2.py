@@ -170,10 +170,20 @@ check("  …and nothing of it was stored", stored("jobcards", "j-svc") is None)
 check("v2's shape — stop at `done`, with a photograph  ->  allowed",
       verdict(SUP, "jobcards", dict(SERVICE_V1, id="j-svc2", status="done", **PHOTOS))
       == "allowed")
-check("  …and a vendor's bill photo stands in for both  ->  allowed",
+# Owner's decision 1 (outside-repair contract 7): a vendor on the card no longer
+# lowers the bar to "any one photo". It is the vendor's BILL, or a reason typed in,
+# or a returned gate pass carrying the bill. The old assertion here pinned the
+# looser rule ("a vendor's bill photo stands in for both") and is replaced, not
+# deleted: the same card now needs the bill in billPhotos.
+check("  …a vendor named and only a before photo (the old 'bill stands in')  ->  REFUSED, decision 1",
       verdict(SUP, "jobcards", dict(SERVICE_V1, id="j-svc3", status="done",
                                     externalVendor="Shree Motors",
-                                    beforePhotos=["/uploads/bill.jpg"])) == "allowed")
+                                    beforePhotos=["/uploads/bill.jpg"]))
+      == "a job card needs the vendor's bill, or a reason typed in, to close")
+check("  …and the vendor's bill in billPhotos  ->  allowed",
+      verdict(SUP, "jobcards", dict(SERVICE_V1, id="j-svc4", status="done",
+                                    externalVendor="Shree Motors",
+                                    billPhotos=["/uploads/bill.jpg"])) == "allowed")
 
 print("\n  The row contract §10 flagged is now CLOSED, on the server and in v1")
 # These four asserted the opposite until main was merged into launch-v2, and they
@@ -459,6 +469,7 @@ _ELEM = {
     ("jobcards", "busMoves"): lambda n: {"at": 1000 + ord(n), "by": "u-" + n},
     ("jobcards", "beforePhotos"): lambda n: "/uploads/before-%s.jpg" % n,
     ("jobcards", "afterPhotos"): lambda n: "/uploads/after-%s.jpg" % n,
+    ("jobcards", "billPhotos"): lambda n: "/uploads/bill-%s.jpg" % n,
     ("audits", "lines"): lambda n: {"partId": "p-" + n, "counted": 1},
     ("fuel", "lines"): lambda n: {"partId": "p-" + n, "qty": 1},
     ("def", "lines"): lambda n: {"partId": "p-" + n, "qty": 1},

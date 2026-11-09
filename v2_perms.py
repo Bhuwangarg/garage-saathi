@@ -73,7 +73,7 @@ STORE_READ_ROLES = {
     "trips":         MANAGERS,
     "challans":      MANAGERS,
     "breakdowns":    MANAGERS,
-    "gatepasses":    STOREROOM,
+    # "gatepasses" is assigned from "components" below the table (PAPER_FOLLOWS_UNIT).
     "gatechecks":    frozenset({"owner", "supervisor", "crewmanager"}),
     "dutylog":       frozenset({"owner", "supervisor", "crewmanager"}),
     "nightlist":     frozenset({"owner", "supervisor", "crewmanager"}),   # new, contract §5
@@ -106,6 +106,44 @@ STORE_READ_ROLES = {
     "odometerlogs":  frozenset(),          # not in any client's STORES
     "waconv":        frozenset(),          # keyed by a crew member's phone number
 }
+
+# "Whoever may send a unit out may paper it" -- the owner's decision 3, as one
+# rule rather than as two lists that happen to match. The slip is read by exactly
+# the roles that read the piece it papers, so the second key is the SAME object as
+# the first and the two cannot drift. Before this the slip was storeroom-only and a
+# crew manager, who can send a piece out, could not read the paper for it.
+PAPER_FOLLOWS_UNIT = ("gatepasses", "components")
+STORE_READ_ROLES[PAPER_FOLLOWS_UNIT[0]] = STORE_READ_ROLES[PAPER_FOLLOWS_UNIT[1]]
+
+# The card fields only a manager may change on a job card (contract 6.1).
+# `gatePassNo`/`gatePassId` are deliberately NOT here: the piece door sets them.
+OUTSIDE_CARD_FIELDS = frozenset({
+    "outside", "outsideCity", "outsideLat", "outsideLng", "externalVendor",
+    "externalCost", "enterAt", "outAt", "billPhotos", "closeNoBillReason"})
+
+
+def may_set_outside(role):
+    """THE single place that decides who may mark a bus away or set outside cost.
+
+    The write guard consumes this rather than restating it: two copies of a
+    permission rule are how they drift apart."""
+    return role in MANAGERS
+
+
+def assert_write_roles_follow(write_roles):
+    """Raise if the slip's write roles and the piece's write roles have drifted.
+
+    The read side cannot drift (one object). The write side lives in the server's
+    WRITE_ROLES, so it is checked here, at import, where a failure is loud."""
+    paper, unit = PAPER_FOLLOWS_UNIT
+    if paper not in write_roles or unit not in write_roles:
+        raise RuntimeError("WRITE_ROLES must name both %s and %s" % (paper, unit))
+    a, b = set(write_roles[paper]), set(write_roles[unit])
+    if a != b:
+        raise RuntimeError(
+            "%s write roles differ from %s: only-%s=%s only-%s=%s" % (
+                paper, unit, paper, sorted(a - b), unit, sorted(b - a)))
+
 
 # The rows that exist ONLY because a live v1 screen reads the store. Deleting one
 # closes a hole and costs a screen, so deleting one is the cutover and it is the
@@ -452,3 +490,31 @@ def own_row_ok(store, actor, data):
     if want is None:
         return False
     return str(data.get(field) or "") == want
+
+
+def read_scope_digest(role):
+    """8 lowercase hex characters naming WHAT this role may read (contract 2.3).
+
+    A device stores it from login and rewinds its cursors when it changes, so a
+    widening reaches the one role it affects instead of every device in the fleet.
+    sha256 over a canonical string, NEVER `hash()`: that is salted per process by
+    PYTHONHASHSEED, so every cold start would change it and every device would
+    rewind on every login.
+    """
+    import hashlib
+    parts = []
+    for store in sorted(set(STORE_READ_ROLES) | set(V1_COMPAT_READ)):
+        if role not in read_roles(store):
+            continue
+        own = role in (OWN_ROWS_ONLY.get(store) or (None, ()))[1] \
+            or role in OWN_ROWS_MEMBER.get(store, ())
+        parts.append("%s:%d" % (store, 1 if own else 0))
+    redact = []
+    for store in sorted(FIELD_REDACT):
+        if role not in read_roles(store):
+            continue
+        exempt = META_MONEY_ROLES if store == "meta" else PII
+        if role not in exempt:
+            redact.append(store + "=" + ",".join(sorted(FIELD_REDACT[store])))
+    canon = "|".join(parts) + "#" + "|".join(redact)
+    return hashlib.sha256(canon.encode("utf-8")).hexdigest()[:8]

@@ -279,29 +279,85 @@ def main():
     attack("rename an account with no token", st == 401, "HTTP %s" % st)
 
     # A gate pass is the garage's word that a unit left the premises, and the
-    # serial on it is what the returning unit is checked against. A storekeeper
-    # who could write one could authorise a part out of the gate and then write
-    # the slip that says it was expected; a mechanic likewise.
-    push(store, "gatepasses", "gp-x", {"id": "gp-x", "no": "OJ-FAKE", "status": "out",
-                                       "vendorName": "Ghost", "unitName": "Alternator",
-                                       "unitSerial": "FAKE-1"})
-    attack("write a gate pass as the storekeeper", record("gatepasses", "gp-x", owner) is None)
+    # serial on it is what the returning unit is checked against.
+    #
+    # OWNER'S DECISION 3 (outside-repair contract 3.2, 9a): whoever may send a
+    # unit out may paper it. The storekeeper and the crew manager write and
+    # return a pass now -- the two assertions that said a storekeeper was refused
+    # are flipped to say the opposite, on purpose and by name. The other half of
+    # this block is unchanged and is the point of the file: a mechanic, a driver,
+    # a conductor and the office still cannot write one, so a thief with any of
+    # those logins still cannot authorise a part out of the gate or close a slip.
+    def mint(role):
+        # A throwaway login in this run's tempfile database, with a PIN drawn here
+        # rather than written down: no fixture in the tree should hold one.
+        pin = S.CREW_DEFAULT_PIN
+        while pin == S.CREW_DEFAULT_PIN:        # a crew login refuses the default
+            pin = "%04d" % (int.from_bytes(os.urandom(2), "big") % 9000 + 1000)
+        u = S.create_user("Thief " + role, role, pin)
+        return login(u["id"], pin)
+    crewm = mint("crewmanager")
+    cond = mint("conductor")
+    office = mint("office")
 
-    push(mech, "gatepasses", "gp-y", {"id": "gp-y", "no": "OJ-FAKE2", "status": "out",
-                                      "vendorName": "Ghost", "unitName": "Starter"})
-    attack("write a gate pass as the mechanic", record("gatepasses", "gp-y", owner) is None)
+    def pass_body(rid, **kw):
+        return dict({"id": rid, "no": "OJ-261109-" + rid[-4:].upper(), "status": "out",
+                     "busId": "b1", "vendorName": "Real", "unitName": "Alternator",
+                     "unitSerial": "ALT-1"}, **kw)
+
+    push(store, "gatepasses", "gp-st01", pass_body("gp-st01"))
+    attack("DECISION 3: the storekeeper may now write a gate pass",
+           (record("gatepasses", "gp-st01", owner) or {}).get("status") == "out")
+    push(crewm, "gatepasses", "gp-cm01", pass_body("gp-cm01"))
+    attack("DECISION 3: the crew manager may now write a gate pass",
+           (record("gatepasses", "gp-cm01", owner) or {}).get("status") == "out")
+
+    # The same two may return one -- and the serial the server records is the
+    # server's own comparison, not the body's.
+    push(store, "gatepasses", "gp-st01", pass_body("gp-st01", status="returned",
+                                                   returnSerial="ALT-9", serialMismatch=False))
+    g1 = record("gatepasses", "gp-st01", owner) or {}
+    attack("DECISION 3: the storekeeper may return a pass; the server derives the mismatch",
+           g1.get("status") == "returned" and g1.get("serialMismatch") is True
+           and g1.get("returnedBy") == "u-store", "%r" % g1)
+    push(crewm, "gatepasses", "gp-cm01", pass_body("gp-cm01", status="returned",
+                                                   returnSerial="ALT-1"))
+    attack("DECISION 3: the crew manager may return a pass",
+           (record("gatepasses", "gp-cm01", owner) or {}).get("status") == "returned")
+
+    for who, tok in (("mechanic", mech), ("driver", driver), ("conductor", cond),
+                     ("office", office)):
+        rid = "gp-no-" + who
+        push(tok, "gatepasses", rid, pass_body(rid))
+        attack("write a gate pass as the %s (still refused)" % who,
+               record("gatepasses", rid, owner) is None)
 
     # Closing one out is the same authority as opening it: a pass quietly marked
     # returned is a unit nobody is looking for any more.
-    push(sup, "gatepasses", "gp-z", {"id": "gp-z", "no": "OJ-REAL", "status": "out",
-                                     "vendorName": "Real", "unitName": "Alternator",
-                                     "unitSerial": "ALT-1"})
-    push(store, "gatepasses", "gp-z", {"id": "gp-z", "no": "OJ-REAL", "status": "returned",
-                                       "vendorName": "Real", "unitName": "Alternator",
-                                       "unitSerial": "ALT-1", "returnSerial": "ALT-1"})
-    gz = record("gatepasses", "gp-z", owner) or {}
-    attack("close a gate pass as the storekeeper", gz.get("status") == "out",
-           "status=%r" % gz.get("status"))
+    push(sup, "gatepasses", "gp-z", pass_body("gp-z", no="OJ-261109-REAL"))
+    for who, tok in (("mechanic", mech), ("driver", driver), ("conductor", cond),
+                     ("office", office)):
+        push(tok, "gatepasses", "gp-z", pass_body("gp-z", no="OJ-261109-REAL",
+                                                  status="returned", returnSerial="ALT-1"))
+        gz = record("gatepasses", "gp-z", owner) or {}
+        attack("close a gate pass as the %s (still refused)" % who,
+               gz.get("status") == "out", "status=%r" % gz.get("status"))
+
+    # And what the new roles still may not do: set the vendor's money on a card.
+    push(owner, "jobcards", "j-os", {"id": "j-os", "busId": "b1", "problem": "AC",
+                                     "status": "open", "assignedTo": "u-m1",
+                                     "beforePhotos": [], "afterPhotos": [],
+                                     "partsUsed": []})
+    for who, tok in (("storekeeper", store), ("mechanic", mech)):
+        push(tok, "jobcards", "j-os", {"id": "j-os", "busId": "b1", "problem": "AC",
+                                       "status": "open", "assignedTo": "u-m1",
+                                       "beforePhotos": [], "afterPhotos": [],
+                                       "partsUsed": [], "outside": True,
+                                       "externalVendor": "Ghost", "externalCost": 1})
+        jo = record("jobcards", "j-os", owner) or {}
+        attack("mark a bus away / set the outside cost as the %s" % who,
+               not jo.get("outside") and not jo.get("externalCost"),
+               "outside=%r cost=%r" % (jo.get("outside"), jo.get("externalCost")))
 
     print("\nRound 3 — a mechanic's reach is the cards they are on:")
     mech2 = login("u-m2", "0002")

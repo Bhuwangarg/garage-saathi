@@ -29,7 +29,11 @@ OWNER = {"id": "u-own", "role": "owner"}
 fails = []
 
 
+TOTAL = [0]
+
+
 def check(name, ok, detail=""):
+    TOTAL[0] += 1
     print(("  ok  " if ok else "  FAIL ") + name + ("" if ok else "  -- " + str(detail)))
     if not ok:
         fails.append(name)
@@ -71,9 +75,29 @@ r = push(SUP, "j-sv3", card("j-sv3", afterPhotos=[]))
 check("done here with only a before photo is refused", r.get("applied") == 0,
       "applied=%r" % r.get("applied"))
 
+# Owner's decision 1 (outside-repair contract 7): an outside card closes on the
+# vendor's bill or on a reason somebody typed in -- "not a silent override". It
+# used to close on any one photo on either side, and this check asserted exactly
+# that; it is flipped here, not deleted.
 r = push(SUP, "j-sv4", card("j-sv4", externalVendor="Sharma Auto Works", afterPhotos=[]))
-check("an outside garage with one bill photo is accepted", r.get("applied") == 1,
+check("decision 1: an outside card with no bill and no typed reason is REFUSED at done",
+      r.get("applied") == 0 and (r.get("refused") or [{}])[0].get("reason")
+      == "a job card needs the vendor's bill, or a reason typed in, to close", r.get("refused"))
+
+r = push(SUP, "j-sv4b", card("j-sv4b", externalVendor="Sharma Auto Works", afterPhotos=[],
+                             billPhotos=["/uploads/bill.jpg"]))
+check("decision 1: an outside card with the vendor's bill photo closes", r.get("applied") == 1,
       r.get("refused"))
+
+r = push(SUP, "j-sv4c", card("j-sv4c", externalVendor="Sharma Auto Works", beforePhotos=[],
+                             afterPhotos=[], closeNoBillReason="vendor had no billing counter"))
+check("decision 1: an outside card with a typed reason closes", r.get("applied") == 1,
+      r.get("refused"))
+sv4c = {x["id"]: x["data"] for x in S.pull(0, actor=OWNER).get("records", [])
+        if x["store"] == "jobcards"}.get("j-sv4c") or {}
+check("  ...and the typed reason is on the stored card",
+      sv4c.get("closeNoBillReason") == "vendor had no billing counter",
+      "closeNoBillReason=%r" % sv4c.get("closeNoBillReason"))
 
 print("\nAnd it does not sign itself off")
 
@@ -97,7 +121,7 @@ r = push(OWNER, "j-sv1", dict(sv1, status="verified", updatedAt=2))
 check("the owner can then sign off the supervisor's service", r.get("applied") == 1,
       r.get("refused"))
 
-print("\n%d of %d checks passed." % (9 - len(fails), 9))
+print("\n%d of %d checks passed." % (TOTAL[0] - len(fails), TOTAL[0]))
 if fails:
     print("FAILED: " + "; ".join(fails))
     sys.exit(1)

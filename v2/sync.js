@@ -362,12 +362,24 @@ const PUSH_MAX_BYTES = 1500000;   // ~1.5 MB, well under the 4.5 MB body limit
       const had = ls.getItem('pullScope') || '';
       const widened = had.indexOf('redacted') === 0 && scope.indexOf('full') === 0;
       const entitlementMoved = !!had && had.slice(had.indexOf(':') + 1) !== SCOPE_V;
-      if (widened || entitlementMoved) {
+      /* readScope is the server's digest of what THIS role may read, so a widening
+       * rewinds the one role it affects rather than every device (SCOPE_V stays
+       * put on purpose). Absent => an older server: change nothing and fall back
+       * to the comparison above. A narrowing changes the digest too and also
+       * rewinds; that costs one re-drain and is correct. */
+      const rs = typeof j.readScope === 'string' && j.readScope ? j.readScope : '';
+      const hadRs = ls.getItem('readScope') || '';
+      const readScopeMoved = !!rs && !!hadRs && rs !== hadRs;
+      if (rs) ls.setItem('readScope', rs);
+      if (widened || entitlementMoved || readScopeMoved) {
         lastRev = 0; ls.removeItem('lastRev');
         // Both, always. Rewinding one cursor and not the other is how a login that
         // just gained an entitlement would re-read everything except the stores it
         // gained -- the exact failure this rewind exists to cure.
         lastRevDeferred = 0; ls.removeItem('lastRevDeferred');
+        // Cleared with them (03 9.4): a skip recorded against the old cursor
+        // would otherwise hold back the very stores this rewind re-reads.
+        if (readScopeMoved) { pullSkips = {}; ls.removeItem('pullSkips'); }
       }
       ls.setItem('pullScope', scope);
       tick();

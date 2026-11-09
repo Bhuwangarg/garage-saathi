@@ -39,6 +39,7 @@ import name_ai
 import report_ai
 import review_ai
 import v2_perms
+import v2_outside
 import wa_client
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -1038,7 +1039,17 @@ def do_login(user_id, pin):
             c2.close()
     except Exception:
         pass          # a login must never fail because bookkeeping did
-    return {"token": _make_token(row[0], row[3]), "user": {"id": row[0], "name": row[1], "role": row[2]}}
+    # `readScope` is the digest of WHAT THIS ROLE MAY READ (contract 2.3). The
+    # device stores it and rewinds both cursors when it changes, so a widening
+    # re-drains the one role it affects instead of every device in the fleet --
+    # which is why SCOPE_V stays put. sha256 in v2_perms, never hash(): that is
+    # salted per process and would rewind every device on every cold start.
+    # v1's login reads named keys and ignores an extra one, so the ~100 live
+    # phones are unaffected. Computed here because this is the one place the
+    # login body is built; the field was specified, the digest existed and the
+    # client already read it, and nothing put the two together (assembly).
+    return {"token": _make_token(row[0], row[3]), "user": {"id": row[0], "name": row[1], "role": row[2]},
+            "readScope": v2_perms.read_scope_digest(row[2])}
 
 
 def user_exists(user_id):
@@ -1170,6 +1181,11 @@ def set_pin(user_id, pin):
 # record is rejected, the client quarantines it — it never wedges the outbox).
 # This is the teeth behind the anti-pilferage gate: a driver/conductor/mechanic
 # token can no longer forge a ledger/vendor/fleet row via a crafted request.
+# Whoever may send a unit out may paper it -- the owner's decision 3. The piece and
+# its gate pass share ONE literal below, so the two keys are the same object and
+# cannot drift; v2_perms.assert_write_roles_follow checks it again at import, and
+# /health reports it (permsOk) for anyone who cannot read a traceback.
+_PIECE_WRITERS = {"owner", "supervisor", "store", "crewmanager"}
 WRITE_ROLES = {
     "ledger":        {"owner", "supervisor", "store"},
     "purchases":     {"owner", "supervisor", "store"},
@@ -1179,7 +1195,7 @@ WRITE_ROLES = {
     # of the stock ledger, bills and job cards — and `fuel`/`def` are
     # append-only for everyone but a manager (below), so an entry that shows a
     # mileage drop cannot be edited away by whoever made it.
-    "components":    {"owner", "supervisor", "store", "crewmanager"},
+    "components":    _PIECE_WRITERS,
     "def":           {"owner", "supervisor", "store", "crewmanager"},
     "fuel":          {"owner", "supervisor", "store", "crewmanager"},
     "parts":         {"owner", "supervisor", "store"},
@@ -1199,10 +1215,11 @@ WRITE_ROLES = {
     # through driverreports; this is the record of the failure itself.
     "breakdowns":    {"owner", "supervisor"},
     # The gate pass is the garage's word that a unit left the premises, and the
-    # serial on it is what the returning unit is checked against. Whoever can
-    # write one can authorise a component out of the gate, so it sits with the
-    # people who already sign work out: owner and supervisor.
-    "gatepasses":    {"owner", "supervisor"},
+    # piece it papers is written by exactly these roles, so the slip follows the
+    # unit. What the slip may SAY is not left to the role list: v2_outside holds
+    # the one-way out -> returned machine, the frozen identifiers and the
+    # server-derived serial check.
+    "gatepasses":    _PIECE_WRITERS,
     "users":         {"owner", "supervisor"},
     "jobcards":      {"owner", "supervisor", "store", "mechanic"},
     # Who sat on which bus, from when — written by whoever runs the duty board.
@@ -1242,6 +1259,23 @@ WRITE_ROLES = {
     # real liability, and the data is billable to fetch.
     "challans":      set(),
 }
+
+# Loud at import, in CI and in a test. /health re-asks it per request (perms_ok).
+v2_perms.assert_write_roles_follow(WRITE_ROLES)
+
+
+def perms_ok():
+    """The two derived equalities, as a boolean for /health (contract 2.5): the
+    write roles of the slip and the piece agree, and so do their read roles."""
+    try:
+        v2_perms.assert_write_roles_follow(WRITE_ROLES)
+    except Exception:
+        return False
+    # The TABLE, not read_roles(): `components` also carries the mechanic's v1
+    # compat row (v2_perms.V1_COMPAT_READ), which the slip deliberately does not.
+    paper, unit = v2_perms.PAPER_FOLLOWS_UNIT
+    return v2_perms.STORE_READ_ROLES[paper] == v2_perms.STORE_READ_ROLES[unit]
+
 
 # Stores the server alone writes, from an upstream it controls. Enforced ahead of
 # every role check, owner included — see may_write().
@@ -1286,14 +1320,60 @@ NIGHTLIST_MAX_BUSES = 200
 # `atUnverified`: offline, or a phone clock set back to dodge a late mark.
 ATTENDANCE_TRUST_MS = 10 * 60 * 1000
 
-# Proof that the work happened. Mirrors photoGateReady() in app.js — but that one
-# runs in the browser, which a thief simply does not use.
-def _has_proof(d):
-    before = d.get("beforePhotos") or []
-    after = d.get("afterPhotos") or []
-    if d.get("externalVendor"):
-        return bool(before or after)      # a vendor's bill photo stands in
-    return bool(before and after)
+# Proof that the work happened. Mirrors photoGateReady() in app.js -- but that one
+# runs in the browser, which a thief simply does not use. The rule itself is
+# v2_outside.has_proof (contract 7); this is the part that needs the connection.
+#
+# An outside card closes on the vendor's bill, or a reason typed in, or a returned
+# gate pass that carries the bill (one event, one amount, one photo -- the bill is
+# not photographed twice). The cheap tests run first and the pass lookup runs only
+# when they fail, so an ordinary close pays for no query at all.
+def _passes_of_card(c, card_id, pointer=None):
+    """Gate passes whose `jobId` is this card. `pointer` (the card's gatePassId) is
+    a point read tried first; a full scan of the store is the last resort. Only a
+    pass of THIS card counts, or a card could borrow another's bill."""
+    if c is None or not card_id:
+        return []
+    out = []
+    if pointer:
+        row = c.execute("SELECT data FROM records WHERE store='gatepasses' AND id=?",
+                        (pointer,)).fetchone()
+        try:
+            p = json.loads(row[0]) if row else None
+        except Exception:
+            p = None
+        if isinstance(p, dict) and p.get("jobId") == card_id and not p.get("_deleted"):
+            out.append(p)
+    return out
+
+
+def _all_passes_of_card(c, card_id):
+    """The authoritative list (UI 3.1): every gate pass with `jobId == card.id`.
+    LIKE is only a pre-filter so the JSON of unrelated passes is never parsed; the
+    exact test is the parsed field."""
+    if c is None or not card_id:
+        return []
+    out = []
+    for raw, in c.execute("SELECT data FROM records WHERE store='gatepasses' AND data LIKE ?",
+                          ("%" + str(card_id) + "%",)).fetchall():
+        try:
+            p = json.loads(raw)
+        except Exception:
+            continue
+        if isinstance(p, dict) and p.get("jobId") == card_id and not p.get("_deleted"):
+            out.append(p)
+    return out
+
+
+def _close_gate_met(c, card_id, d):
+    if v2_outside.has_proof(d, []):
+        return True
+    if not v2_outside.is_outside(d):
+        return False
+    pointed = _passes_of_card(c, card_id, d.get("gatePassId"))
+    if v2_outside.has_proof(d, pointed):
+        return True
+    return v2_outside.has_proof(d, _all_passes_of_card(c, card_id))
 
 
 def _job_crew(rec):
@@ -1420,6 +1500,26 @@ def crew_reviews_for(user_id):
             c.close()
     return {"crewId": me.get("id"), "reviews": (_CREW_RV_MEMO["ix"] or {}).get(me.get("id"), [])[:300],
             "days": CREW_REVIEW_DAYS}
+
+
+def _recompute_external_cost(c, rid, data, old):
+    """Contract 5: on an outside card that names a pass, externalCost is the SUM of
+    `cost` over the card's returned passes. Setting, never adding, so a replay
+    cannot double the vendor's charge and two passes returned from two devices
+    cannot clobber each other down to one. It overwrites whatever the body said,
+    after the guard judged what the body said. Nothing is written when no returned
+    pass carries a figure. The scan is the one added cost on /push, and only for a
+    card that is outside AND names a pass (budget in contract 8, measured by OB4)."""
+    if c is None:
+        return
+
+    def eff(f):
+        return data[f] if f in data else old.get(f)
+    if not (eff("outside") or eff("externalVendor")) or not eff("gatePassId"):
+        return
+    total = v2_outside.external_cost_of(_all_passes_of_card(c, rid))
+    if total is not None:
+        data["externalCost"] = total
 
 
 def _guard_write(store, rid, data, actor, existing, c=None):
@@ -1687,15 +1787,24 @@ def _guard_rules(store, rid, data, actor, existing, c=None):
         if actor["role"] != "owner" and data.get("_deleted") and not old.get("_deleted"):
             return "only the owner may delete a job card"
 
+        # The away state and the vendor's money are the owner's and the
+        # supervisor's on EVERY card state (contract 6.1). This used to be frozen
+        # only once a card was verified, so a mechanic's phone could mark a bus
+        # away, or set what the vendor charged, on an open card and the server
+        # accepted it. Values are compared, so a storekeeper attaching a part to
+        # an outside card -- which sends the outside fields back unchanged -- is
+        # not refused. This runs on the payload as SENT; the carry-over of a
+        # field the body omitted (v1's outsideLat/outsideLng) is the merge's.
+        reason = v2_outside.guard_jobcard_outside(data, actor, old)
+        if reason:
+            return reason
+
         # Signed off means paid against. Staff may still attach a part the store
-        # issued afterwards, but hours, outside cost and parts already on the card
-        # are fixed until an owner or supervisor re-opens it.
-        # `outside` is in this list because it decides whether a bus counts as
-        # standing in our yard or away in another city. On a signed-off card
-        # that is a statement about a repair that has been paid for, and it is
-        # not the store login's to rewrite.
+        # issued afterwards, but hours and parts already on the card are fixed
+        # until an owner or supervisor re-opens it. (The outside fields that used
+        # to be listed here are frozen above, on every state, not just this one.)
         if not manager and prev == "verified" and status == "verified":
-            for f in ("labourHours", "externalCost", "externalVendor", "outside", "outsideCity"):
+            for f in ("labourHours",):
                 if data.get(f) != old.get(f):
                     return "a verified job's hours and costs cannot be changed — re-open it first"
             new_lines = {}
@@ -1757,7 +1866,12 @@ def _guard_rules(store, rid, data, actor, existing, c=None):
         # Reaching done/verified without photographs is the whole proof-of-work
         # rule. It has to hold here, not just in the browser.
         if status in ("done", "verified") and prev not in ("done", "verified"):
-            if not _has_proof(data):
+            # Judged on the card as it will STAND: a field the body omits is kept.
+            view = dict(old)
+            view.update(data)
+            if not _close_gate_met(c, rid, view):
+                if v2_outside.is_outside(view):
+                    return v2_outside.R_NEEDS_BILL
                 return "job needs before and after photos (or a vendor bill) to close"
 
         # A verified job is the record a bill was paid against. Re-opening it is
@@ -1830,6 +1944,20 @@ def _guard_rules(store, rid, data, actor, existing, c=None):
             else:
                 data.pop("verifiedBy", None)
                 data.pop("verifiedAt", None)
+        _recompute_external_cost(c, rid, data, old)
+        return None
+
+    if store == "gatepasses":
+        return v2_outside.guard_gatepass(data, actor, old)
+
+    if store == "components":
+        # A piece's history is unioned by entry id (the merge below does it), and
+        # the refurbishment count is DERIVED from it rather than incremented: the
+        # same return pushed twice is one `return` entry and so one count.
+        if not data.get("_deleted") and ("history" in data or "history" in old):
+            merged = v2_outside.merge_history(old.get("history"), data.get("history"))
+            data["history"] = merged
+            data["refurbCount"] = v2_outside.derive_refurb_count(merged)
         return None
 
     return None
@@ -3505,14 +3633,18 @@ def _merge_parts_used(old_lines, new_lines):
 # the element IS its own key (a URL string, a history entry).
 _MERGE_UNION_BY = {
     "jobcards":   {"partRequests": ("id",), "coreReturns": ("id",),
-                   "busMoves": ("at", "by"), "beforePhotos": None, "afterPhotos": None},
+                   "busMoves": ("at", "by"), "beforePhotos": None, "afterPhotos": None,
+                   # The vendor's bill, unioned by URL (contract 4.2). Capped at 4
+                   # again after the union, below -- see _merge_stale_fields.
+                   "billPhotos": None},
     "audits":     {"lines": ("partId",)},
     "fuel":       {"lines": ("partId",)},
     "def":        {"lines": ("partId",)},
     "purchases":  {"lines": ("partId",)},
     "buses":      {"docs": ("type", "number"), "photos": None},
     "routes":     {"stops": ("id",)},
-    "components": {"history": None},
+    # By entry id, and (type, at) for the entries v1 wrote before ids existed.
+    "components": {"history": v2_outside.history_key},
     "trips":      {"expenses": ("id",)},
 }
 # A reading that only ever goes up. The odometer arrives from a fuel fill, a job
@@ -3559,6 +3691,8 @@ _MERGE_STORES = frozenset({
 
 def _elem_key(el, fields):
     """How two array elements are judged to be the same thing."""
+    if callable(fields):
+        return fields(el)
     if fields is None:
         return el if isinstance(el, str) else json.dumps(el, sort_keys=True)
     if not isinstance(el, dict):
@@ -3635,6 +3769,19 @@ def _merge_stale_fields(store, data, old):
     for field, fields in (_MERGE_UNION_BY.get(store) or {}).items():
         if isinstance(old.get(field), list) or isinstance(data.get(field), list):
             data[field] = _union_by(old.get(field), data.get(field), fields)
+    if store == "jobcards":
+        # Two devices each holding 3 bill photos would union to 6, and the next
+        # write of that card would then be refused for carrying more than 4 -- a
+        # refusal nobody can act on. Keep the incoming copy's photos first and cap,
+        # so the worst outcome is a duplicate tile lost, never a stuck card.
+        if isinstance(data.get("billPhotos"), list):
+            data["billPhotos"] = data["billPhotos"][:v2_outside.MAX_BILL_PHOTOS]
+        # A pointer, not the record (contract 4.2): when both are set and differ,
+        # keep the stored one. The authoritative list is every pass whose jobId is
+        # this card, so a pointer one pass behind costs a row's order on one screen.
+        for ptr in ("gatePassNo", "gatePassId"):
+            if old.get(ptr) and data.get(ptr) and old[ptr] != data[ptr]:
+                data[ptr] = old[ptr]
     for field in _MERGE_MAX.get(store, ()):
         a, b = old.get(field), data.get(field)
         if isinstance(a, (int, float)) and isinstance(b, (int, float)):
@@ -5828,7 +5975,11 @@ class Handler(BaseHTTPRequestHandler):
                                                 "R2_PUBLIC_URL": bool(R2_PUBLIC_URL)},
                                      # Whether the bucket answers, not just whether it is configured.
                                      "r2": r2_probe(),
-                                     "gpsIngest": _GPS_TOKEN_OK, "gpsLiveRegs": len(LIVE_GPS)})
+                                     "gpsIngest": _GPS_TOKEN_OK, "gpsLiveRegs": len(LIVE_GPS),
+                                     # Always 200; the truth is in the body. A check that
+                                     # reads only the status has already stayed green
+                                     # through the outage it existed to catch.
+                                     "permsOk": perms_ok()})
         if u.path.startswith("/uploads/"):
             name = os.path.basename(u.path)
             fp = os.path.join(UPLOADS, name)

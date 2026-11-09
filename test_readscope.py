@@ -302,10 +302,20 @@ off_stores = {s for s, _ in drain(OFF)[0]}
 check("an office login receives no jobcards", "jobcards" not in off_stores)
 check("an office login receives no ledger", "ledger" not in off_stores)
 check("an office login receives no purchases", "purchases" not in off_stores)
+check("an office login receives no gate passes", "gatepasses" not in off_stores)
+check("a mechanic receives no gate passes", "gatepasses" not in mech_stores)
 cm_stores = {s for s, _ in drain(CM)[0]}
 check("a crewmanager receives no purchases", "purchases" not in cm_stores)
 check("a crewmanager receives no ledger", "ledger" not in cm_stores)
 check("a crewmanager receives no stockmoves", "stockmoves" not in cm_stores)
+# Decision 3 (outside repair): whoever may send a unit out may paper it, so the
+# slip is read by the crew manager and the storekeeper too. Spelled out as an
+# exact set, in both directions, rather than read off the table.
+check("a crewmanager receives gate passes", "gatepasses" in cm_stores)
+check("gatepasses are read by exactly owner, supervisor, store and crewmanager",
+      set(P.read_roles("gatepasses")) == {"owner", "supervisor", "store", "crewmanager"})
+check("...and not by a mechanic, an office login or a gate-only role",
+      not ({"mechanic", "office", "driver", "conductor"} & set(P.read_roles("gatepasses"))))
 
 print("\nA crew member's emergency and reference numbers are not for every login")
 # They were not in _DRIVER_PRIVATE and so reached every role, conductors
