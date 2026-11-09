@@ -161,6 +161,11 @@
     addFuel: ['owner', 'supervisor', 'store', 'crewmanager'], // log fuel fills; view mileage
     // Tyres and other rotables: fitting, removing and tracking a piece.
     manageComponents: ['owner', 'supervisor', 'store', 'crewmanager'],
+    // The slip that lets a unit out of the gate. Owner decision 3: whoever may
+    // send a unit out may make the slip for it -- so it equals manageComponents
+    // exactly. Deliberately NOT a wider `outsideJob`: that would also hand a
+    // storekeeper "The bus is away for repair" and the vendor's money on the card.
+    gatePass: ['owner', 'supervisor', 'store', 'crewmanager'],
     // The warranty screen rode on addFuel and is parts-and-supplier money, so it
     // keeps the old set rather than following the crew manager in.
     viewWarranty: ['owner', 'supervisor', 'store'],
@@ -297,7 +302,7 @@
       // "who should take this card" (§5.1) and so appears on both Jobs and the
       // card. A mechanic is narrowed to their own cards IN THE QUERY, not in
       // the view, and not by a capability — that rule is W's, per record.
-      gates: ['addJob', 'viewScoreboard'],
+      gates: ['addJob', 'viewScoreboard', 'gatePass'],
     },
     jobcard: {
       title: 'Job card', word: 'scJobcard', order: 4, nav: false, mark: 'job',
@@ -316,7 +321,7 @@
        * belong in this list because the Job card uses them without declaring
        * them -- which is the distinction `gates` exists to carry. */
       gates: ['addJob', 'verifyJob', 'deleteJob', 'closeJob', 'moveJobBus',
-              'outsideJob', 'requestPart', 'issuePart', 'viewScoreboard',
+              'outsideJob', 'gatePass', 'requestPart', 'issuePart', 'viewScoreboard',
               'viewWarranty'],
     },
     buses: {
@@ -378,7 +383,7 @@
        * Correcting a fill somebody else appended, and writing a bus's recorded
        * odometer, are both narrower -- owner and supervisor -- so they are gates
        * here rather than declarations. The screen is reachable without them. */
-      gates: ['editFuelFill', 'writeBusOdometer', 'fleet', 'viewStore', 'outsideJob'],
+      gates: ['editFuelFill', 'writeBusOdometer', 'fleet', 'viewStore', 'outsideJob', 'gatePass'],
     },
     reviews: {
       title: 'Reviews', word: 'scReviews', order: 12, nav: true, mark: 'review',
