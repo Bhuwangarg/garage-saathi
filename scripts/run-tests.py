@@ -67,6 +67,29 @@ PORT_BOUND = {"test_agent_key.py", "test_clist.py", "test_alist.py",
               "test_thief.py", "test_pin_rotation.py", "test_its_lookup.py",
               "test_agent_endpoints.py"}
 
+# Suites whose subject is a DURATION, which eight sibling processes on this pool
+# change. They run in the same serial phase as the port binders, for a different
+# reason, and the reason is measured rather than assumed.
+#
+# test_outside_cost.py holds contract 8's "< 5 ms added per /push of an outside
+# card". On this machine, same code, same fixture, same day:
+#
+#   in this pool, 8 workers   8.69 / 8.50 / 17.17 ms  -> red
+#   in this pool, 8 workers   5.41 /  7.93 /  8.65 ms -> red
+#   run by itself             1.57 /  2.03 /  1.70 ms -> green
+#   the harness, 60 reps      +3.66 ms                -> green
+#
+# The file reasons that "load can only add time to a run, never take it away, so
+# the minimum is the cost and a busy machine does not redden the build". That is
+# true of one timing; it is NOT true of this number, which is a DIFFERENCE of two
+# medians taken at different instants -- load inflates the with-recompute half
+# more than the without half, and the fastest of three differences is still wrong.
+# So the budget is unchanged and the assertion is untouched: what moves is where
+# it is measured. A timing check run beside eight competitors reports the pool,
+# not the code, and a gate that goes red for the machine teaches people to ignore
+# it.
+TIMED = {"test_outside_cost.py"}
+
 HERE = pathlib.Path(__file__).resolve().parent.parent
 
 
@@ -106,9 +129,11 @@ def main(argv):
             return f.name, None, "", time.time() - t
         return f.name, p.returncode, p.stdout + p.stderr, time.time() - t
 
-    # Parallel for everything that cannot collide; serial for the port binders.
-    wide = [j for j in jobs if j[0].name not in PORT_BOUND]
-    narrow = [j for j in jobs if j[0].name in PORT_BOUND]
+    # Parallel for everything that cannot collide; serial for the port binders
+    # and for the suites that are timing something.
+    serial_names = PORT_BOUND | TIMED
+    wide = [j for j in jobs if j[0].name not in serial_names]
+    narrow = [j for j in jobs if j[0].name in serial_names]
 
     def results():
         with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
