@@ -69,6 +69,9 @@ const needEnv = (env) => {
  * loaded machine is not the duration they exist to check. Output stays in declaration order whatever finishes first. */
 const queue = [];
 let fails = 0, skipped = 0, selfSkipped = 0, unmeasured = 0;
+// The one reason a whole run can observe nothing: the browser never came up.
+// Held so the summary can name it once instead of 53 times.
+const browserDown = [null];
 function test(name, fn, o) { queue.push({ name, fn, browser: !!(o && o.browser), solo: !!(o && o.solo), selfTest: /\b(goes|go) red\b/.test(name) }); }
 const NO_BROWSER = process.env.OVERLAY_NO_BROWSER === '1';
 const LANES = Math.max(1, Number(process.env.OVERLAY_LANES || 4));
@@ -144,7 +147,44 @@ function browser() {
   if (!browserPromise) browserPromise = launch();
   return browserPromise;
 }
+/* A BROWSER THAT NEVER STARTED HAS NOT OBSERVED A DEFECT.
+ *
+ * Every failure in here used to be a plain Error, so all 53 browser checks
+ * reported FAIL. A GitHub runner did exactly that:
+ *
+ *   FAIL confirmDialog resolves exactly true ...
+ *     Chrome did not start: ERROR:dbus/bus.cc:405 Failed to connect to the
+ *     bus: Could not parse server address: Unknown address type
+ *
+ *   53 FAILED
+ *
+ * 53 red checks, one absent dbus, and nothing whatever learned about
+ * ui/overlay.js. The same commit passed on another runner twenty minutes
+ * earlier, so it is the box, not the code.
+ *
+ * unmeasurable() already exists for this, and the comment above it already
+ * decided the case: "it must not read as a FAILURE, because this suite gates
+ * every push and a gate that blocks for something that is not a defect is how
+ * a gate ends up bypassed with --no-verify. So: loud, counted, and exit 0."
+ * The wall-clock checks were routed through it; the launch was not. It is now.
+ *
+ * This does NOT soften any check. Chrome up and the behaviour wrong is still a
+ * FAIL -- the suite's own self-tests, which break ui/overlay.js thirty-odd ways
+ * and require each to redden, run in the same browser and would go NOT MEASURED
+ * with it, which is what makes a silent green impossible to mistake for a pass:
+ * the summary says how many were not measured and why, and exits 0 saying it
+ * was not a full pass. */
 async function launch() {
+  try {
+    return await launchChrome();
+  } catch (e) {
+    if (e && e.unmeasurable) throw e;
+    const why = String((e && e.message) || e);
+    if (!browserDown[0]) browserDown[0] = why;
+    throw unmeasurable('the browser never started, so nothing on the page was observed: ' + why);
+  }
+}
+async function launchChrome() {
   const exe = chromePath();
   if (!exe) throw new Error('no Chrome found (set CHROME_BIN, or OVERLAY_NO_BROWSER=1 to skip the browser tests and say so)');
   if (typeof WebSocket !== 'function') throw new Error('this node has no built-in WebSocket (needs node 22+)');
@@ -2130,7 +2170,13 @@ test('the static checks go red for a stylesheet with scale(0) or an animation, a
   await closeBrowser();
   if (selfSkipped) console.log('\n' + selfSkipped + ' self-test(s) of the checkers were left out (the suite was pointed at another copy of the files, or OVERLAY_SKIP_SELFTESTS=1)');
   if (skipped) console.log('\n' + skipped + ' browser test(s) were SKIPPED (OVERLAY_NO_BROWSER=1): this is not a full pass');
-  if (unmeasured) console.log('\n' + unmeasured + ' check(s) were NOT MEASURED: this machine would not keep time well enough (see NOT MEASURED above).'
+  if (unmeasured && browserDown[0]) console.log('\n' + unmeasured + ' check(s) were NOT MEASURED, and the reason is the same for all of them:'
+    + '\n  THE BROWSER NEVER STARTED -- ' + browserDown[0]
+    + '\nSo this run says NOTHING about ui/overlay.js, in either direction. That is not a defect in'
+    + '\nthis code and it is not a pass either: every browser check here, including the self-tests that'
+    + '\nbreak ui/overlay.js on purpose and require it to redden, needs a working headless Chrome.'
+    + '\nFix the browser on this machine (CHROME_BIN, or a runner with a dbus) and run it again.');
+  else if (unmeasured) console.log('\n' + unmeasured + ' check(s) were NOT MEASURED: this machine would not keep time well enough (see NOT MEASURED above).'
     + '\nThis is not a full pass. Nothing here says ui/overlay.js is wrong, and nothing here says it is right either;'
     + '\nrun it again on a quieter machine, or read the CI run, which does the same checks with the box to itself.');
   if (fails) { console.log('\n' + fails + ' FAILED'); process.exit(1); }
