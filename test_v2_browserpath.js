@@ -443,15 +443,21 @@ test('no screen installs a listener at load — only the login, which is not a r
    * its `onClick` is scoped to `[data-screen="login"]`, so they are inert
    * behind a signed-in screen. Every OTHER listener on the document must have
    * arrived through `Shell.mount`. */
-  /* FIVE, and each one is named: `ui/photos.js:192` installs the photo viewer's
-   * one click handler at load, and the login's four go on at load because the
-   * login is not a route and the frame has no lifecycle hook to call on it
-   * (`shell.js` resolves it by name). Both are foundation, both are permanent,
-   * and neither is a screen. Every other listener on the document must have
-   * arrived through `Shell.mount`. */
-  assert.strictEqual(p.adds(), 5,
-    'expected the photo viewer\'s one and the login\'s four at load, got ' + p.adds()
-    + ': ' + p.listeners.map((l) => l.type).join(', '));
+  /* SEVEN, and each one is named: `ui/photos.js:192` installs the photo viewer's
+   * one click handler at load; `ui/passes.js`'s `wire()` installs a click and a
+   * change, both of which return immediately unless the event came from inside
+   * an open `.oj-sheet`; and the login's four go on at load because the login
+   * is not a route and the frame has no lifecycle hook to call on it
+   * (`shell.js` resolves it by name). All three files are foundation, all of
+   * them permanent, and none of them is a screen — a gate-pass sheet is drawn
+   * into the overlay from two different screens, so there is no one screen
+   * whose mount could own it. Every other listener on the document must have
+   * arrived through `Shell.mount`, which is what the count is here to pin: it
+   * reddens the moment a screen adds one at load, which is the defect this
+   * whole file was written for. */
+  assert.strictEqual(p.adds(), 7,
+    'expected the photo viewer\'s one, the gate-pass sheets\' two and the login\'s four at load, got '
+    + p.adds() + ': ' + p.listeners.map((l) => l.type).join(', '));
   assert.strictEqual(p.win.Shell._mounted(), null, 'a screen was live before anybody signed in');
   p.close();
 });
@@ -1560,7 +1566,14 @@ test('F8 …and the headline never says "0 parts" over a shelf it has not read',
   // And a shelf that really IS empty still reads as a real zero, so the two do
   // not blur the other way round.
   const emptyShelf = {};
-  ['parts', 'ledger', 'jobcards', 'audits', 'purchases', 'vendors', 'components', 'buses', 'users']
+  /* Every store the screen reads, present and empty: that is what makes this
+   * "read, and found empty" rather than "not read yet", and the screen decides
+   * between the two by looking for `undefined` in each one. The list is
+   * store.js's STORES and must stay equal to it — `gatepasses` is the tenth,
+   * added by outside repair so a piece's timeline can name its gate pass. Miss
+   * one and this case silently becomes a second loading-state check. */
+  ['parts', 'ledger', 'jobcards', 'audits', 'purchases', 'vendors', 'components', 'buses', 'users',
+   'gatepasses']
     .forEach((n) => { emptyShelf[n] = []; });
   const emptyHtml = p.win.Store.render({ role: 'store', cache: emptyShelf, params: null,
                                          user: STOREMAN, replica: { behind: 0, complete: true },

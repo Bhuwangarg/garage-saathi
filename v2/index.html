@@ -88,6 +88,12 @@
 <script src="ui/states.js"></script>
 <script src="ui/overlay.js"></script>
 <script src="ui/photos.js"></script>
+<!-- The gate-pass sheets: markup around an icon and a word, with a photo
+     capture cell in it, handed to V2.openSheet — so they follow all four.
+     Reached from the Job card and from a piece on Fuel & tyres, which is why
+     they are a ui/ file and not part of either screen. `Outside` is resolved
+     at call time, so outside.js may load after this. -->
+<script src="ui/passes.js"></script>
 <script src="ui/nav.js"></script>
 
 <!-- The data layer. db.js declares DB; sync.js, pullapply.js and night.js all
@@ -101,6 +107,10 @@
 <script src="fmt.js"></script>
 <script src="odo.js"></script>
 <script src="cost.js"></script>
+<!-- outside.js is pure like the three above it: rows and `now` go in, a number
+     or a boolean comes out. The away days, the close gate, the pass number and
+     the 14-day threshold, each one expression in one place. -->
+<script src="outside.js"></script>
 
 <!-- caps.js is the capability table; router.js enforces it; cache.js reads the
      stores; boot.js is last and is the only script that calls anything. -->

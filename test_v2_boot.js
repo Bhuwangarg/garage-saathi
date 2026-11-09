@@ -53,9 +53,18 @@ const DAY = 86400000;
  * mount is a blank body.) */
 const SCREENS_SLOT = '<screens>';
 const ORDER = [
-  'ui/icons.js', 'ui/words.js', 'ui/states.js', 'ui/overlay.js', 'ui/photos.js', 'ui/nav.js',
+  'ui/icons.js', 'ui/words.js', 'ui/states.js', 'ui/overlay.js', 'ui/photos.js',
+  /* The outside-repair gate-pass sheets: markup around an icon, a word, a photo
+   * capture and a sheet, so they follow all four. Reached from the Job card AND
+   * from a piece on Fuel & tyres, which is why they are a ui/ builder and not
+   * jobcard.js (docs/v2/plan/outside-repair-frontend-slices.md, slice OR2). */
+  'ui/passes.js',
+  'ui/nav.js',
   'db.js', 'sync.js', 'pullapply.js', 'night.js',
-  'fmt.js', 'odo.js', 'cost.js',
+  /* outside.js is pure, like the three above it: rows and `now` go in, a number
+   * or a boolean comes out. The away days, the close gate, the pass number and
+   * the 14-day threshold, each one expression in one place (slice OR1). */
+  'fmt.js', 'odo.js', 'cost.js', 'outside.js',
   'caps.js', 'router.js', 'cache.js', 'shell.js',
   /* The login, which is NOT a screen and is deliberately not in screens/: it
    * must be reachable holding no capability, so it can never appear in
@@ -93,6 +102,18 @@ const DEPS = {
   'ui/states.js': ['ui/icons.js'],
   'ui/overlay.js': ['ui/icons.js'],
   'ui/photos.js': ['ui/icons.js'],
+  /* `ui/passes.js` has NO entry here, deliberately. It builds markup around an
+   * icon and a word, puts a photo capture cell in it and hands the result to
+   * V2.openSheet — but every one of those, `Outside` included, is resolved at
+   * CALL time (`root.icon`, `root.w`, `root.photoGrid`, `root.V2`), the way
+   * night.js resolves `DB`. At LOAD it declares `Passes` and adds two document
+   * listeners, and nothing else, so no load order can break it and a swap of it
+   * against a neighbour cannot be caught by the mutation check below. Claiming
+   * the dependency anyway made that check red with nothing wrong in the code,
+   * which is a check asserting a falsehood rather than a bug. Its PLACE in the
+   * document is still pinned, by ORDER above and the entry-for-entry comparison
+   * against index.html — not by this table.
+   */
   'ui/nav.js': ['ui/icons.js', 'ui/words.js'],
   'sync.js': ['db.js'],
   'pullapply.js': ['db.js'],
