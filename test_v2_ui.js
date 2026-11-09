@@ -603,14 +603,34 @@ test('a driver and a conductor get no nav, no More and no back arrow: Me is the 
   }
 });
 
-test('at a desk the supervisor and the owner get all twelve slots and no More at all', () => {
+test('at a desk the owner gets all twelve slots and no More at all', () => {
   const { win } = load();
-  for (const role of ['supervisor', 'owner']) {
-    const got = Caps.navFor(role, 'desk');
-    assert.strictEqual(got.items.length, 12, role + ' should hold twelve desk slots');
-    const html = win.nav(got.items, 'today');
-    assert(!html.includes('data-nav="more"'), role + ': More is still in the rail at a desk');
-    assert.strictEqual(win.navMore(got.more), '', role + ': the desk More sheet should be empty');
+  const got = Caps.navFor('owner', 'desk');
+  assert.strictEqual(got.items.length, 12, 'the owner should hold twelve desk slots');
+  const html = win.nav(got.items, 'today');
+  assert(!html.includes('data-nav="more"'), 'More is still in the owner\'s rail at a desk');
+  assert.strictEqual(win.navMore(got.more), '', "the owner's desk More sheet should be empty");
+});
+
+/* The owner's decision of 9 Nov 2026 (DECISIONS.md §22). The supervisor's desk
+ * rail was the full twelve and he said three of them are clutter: Money,
+ * People and Reviews go behind More. He chose "stop showing them", not "take
+ * them away" — so they must be DRAWN in the More sheet, not absent from it. A
+ * rail that simply dropped them would pass a length check and strand three
+ * screens he still holds. */
+test("at a desk the supervisor's rail is nine screens and More draws the other three", () => {
+  const { win } = load();
+  const got = Caps.navFor('supervisor', 'desk');
+  assert.strictEqual(got.items.length, 10, 'nine screens plus More');
+  const html = win.nav(got.items, 'today');
+  assert(html.includes('data-nav="more"'), 'the supervisor has no way to reach the three');
+  for (const id of ['money', 'people', 'reviews']) {
+    assert(!html.includes('data-nav="' + id + '"'), id + ' is still on the rail');
+  }
+  const sheet = win.navMore(got.more);
+  for (const id of ['money', 'people', 'reviews']) {
+    assert(sheet.includes('data-nav="' + id + '"'),
+           id + ' is not drawn in the More sheet: ' + sheet);
   }
 });
 

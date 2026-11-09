@@ -432,6 +432,26 @@
    *
    * `driver` and `conductor` are absent on purpose: one destination means no
    * nav at all (§1.4.1), not a list of one. */
+  /* SCREENS A ROLE KEEPS BUT DOES NOT CARRY ON THE DESK RAIL.
+   *
+   * The owner's decision, 2026-11-09: the supervisor was being SHOWN all thirteen screens on an
+   * office PC -- the same rail as the owner's -- and he wanted him back to the shape v1 had, where
+   * five things were in front of him and the rest sat behind a menu.
+   *
+   * It is deliberately NOT a permission change, and the measurement is why. By capability v2's
+   * supervisor is already tighter than v1's: v1 denied him two things (`deleteJob`,
+   * `bulkArchiveCrew`) and v2 denies those plus `moveJobBus` and `viewAdoption`. What grew was not
+   * what he may do, it was what is on screen at once. So these three stay REACHABLE -- Money in
+   * particular, because `DECISIONS.md` section 5 gave it to him on purpose: he does the cash
+   * reconciliation, and a supervisor who cannot open Money cannot do that job. They move behind
+   * More, which is where a phone has always put them: `NAV_SLOTS.supervisor` below has never
+   * carried them, so at yard density nothing changes at all.
+   *
+   * An empty or missing list leaves a role's rail exactly as it was, which is every other role. */
+  const RAIL_OFF = {
+    supervisor: ['money', 'people', 'reviews'],
+  };
+
   const NAV_SLOTS = {
     owner: ['today', 'attention', 'money', 'buses', 'me'],
     supervisor: ['today', 'attention', 'jobs', 'buses', 'me'],
@@ -529,12 +549,13 @@
     }
     const rest = dests.filter(function (id) { return !inBar[id]; });
     if (!rest.length) return { items: items, more: [] };
-    /* At desk the rail holds every destination and there is no More AT ALL
-     * (screens-shell.md §1.3) — twelve items is 12 x --tap 32px = 384px of a
-     * 768px column, which is why the overflow sheet is a phone-width answer
-     * only. The rail is in rail order, which is the order the two desks say to
-     * each other. */
-    if (density === 'desk') return { items: dests.map(item), more: [] };
+    /* At desk the rail holds every destination the role is SHOWN, and for
+     * most roles that is all of them with no More AT ALL (screens-shell.md
+     * §1.3) — twelve items is 12 x --tap 32px = 384px of a 768px column,
+     * which is why the overflow sheet is a phone-width answer only. The one
+     * exception is RAIL_OFF, below: the supervisor's three. The rail is in
+     * rail order, which is the order the two desks say to each other. */
+    if (density === 'desk') return deskBar(role, dests);
     const more = rest.map(item);
 
     /* More sits immediately before Me, which is where both of §1.3's lists put
@@ -550,8 +571,30 @@
     return { items: items, more: more };
   }
 
+  /* The desk rail. It held EVERY destination and had no More at all
+   * (screens-shell.md 1.3) -- twelve items is 12 x --tap 32px = 384px of a 768px column, so the
+   * overflow sheet was a phone-width answer only. That still holds for every role whose RAIL_OFF
+   * is empty, and this returns the identical shape for them.
+   *
+   * For a role that has one, the named screens come off the rail and into More, and More is
+   * inserted immediately before Me -- the same place, by the same rule, as the yard bar below, so
+   * the two densities do not teach a person two different maps of the same app. */
+  function deskBar(role, dests) {
+    const off = RAIL_OFF[role] || [];
+    const hidden = dests.filter(function (id) { return off.indexOf(id) !== -1; });
+    if (!hidden.length) return { items: dests.map(item), more: [] };
+    const items = dests.filter(function (id) { return off.indexOf(id) === -1; }).map(item);
+    let at = items.length;
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].id === 'me') { at = i; break; }
+    }
+    items.splice(at, 0, { id: MORE.id, label: MORE.title, word: MORE.word, mark: MORE.mark });
+    return { items: items, more: hidden.map(item) };
+  }
+
   const api = {
     PERMS: PERMS,
+    RAIL_OFF: RAIL_OFF,
     SCREENS: SCREENS,
     OPEN_BY_DESIGN: OPEN_BY_DESIGN,
     MORE: MORE,
