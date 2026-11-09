@@ -175,11 +175,17 @@
       + (errId ? '<span class="oj-err" data-err="' + errId + '" role="alert" hidden></span>' : '') + '</label>';
   }
 
+  /* The "Will print:" line on the issue sheet, so he can see what the vendor
+   * will get BEFORE he commits -- contract 4.1 freezes the three identifiers
+   * at issue, so this line is his only chance to notice one missing. Reads
+   * `chassis`/`engine`, the buses store's own field names (db.js:706); the
+   * `chassisNo`/`engineNo` here were the pass's names, so this line silently
+   * showed the registration alone for every bus in the fleet. */
   function regLine(bus) {
     if (!bus) return '';
     var out = str(bus.regNo || bus.id);
-    if (bus.chassisNo) out += ' · ' + say('ojChassis') + ' ' + bus.chassisNo;
-    if (bus.engineNo) out += ' · ' + say('ojEngine') + ' ' + bus.engineNo;
+    if (bus.chassis) out += ' · ' + say('ojChassis') + ' ' + bus.chassis;
+    if (bus.engine) out += ' · ' + say('ojEngine') + ' ' + bus.engine;
     return out;
   }
 
@@ -352,7 +358,15 @@
     var pass = {
       id: v.id, no: v.no, status: 'out', vendorName: vendor, busId: o.bus.id,
       jobId: o.card ? o.card.id : null, componentId: v.piece ? v.piece : null,
-      regNo: str(o.bus.regNo), engineNo: str(o.bus.engineNo), chassisNo: str(o.bus.chassisNo),
+      /* `engine` and `chassis` are what a bus record actually holds -- db.js:706
+       * seeds them, buses.js reads and writes them, and sync_server.py:3670
+       * lists the store's text fields as regNo, company, model, chassis, engine.
+       * This read was `engineNo`/`chassisNo`, which no bus has ever had, so
+       * every slip printed with two of our three identifiers blank -- and
+       * contract 4.1 freezes them at issue, so no pass could be repaired after.
+       * v1's app.js:4903 had it right. Keep the pass's OWN field names: they
+       * are the printed slip's vocabulary and the server reads them. */
+      regNo: str(o.bus.regNo), engineNo: str(o.bus.engine), chassisNo: str(o.bus.chassis),
       unitName: unit, unitSerial: trim(v.serial), remark: trim(v.remark),
       issuedBy: me.id || '', issuedAt: at
     };
@@ -431,7 +445,21 @@
       piece.history = (piece.history || []).concat([entry]);
     }
     if (piece) entries.push({ store: 'components', obj: piece });
-    if (pass && pass.jobId && !replay) {
+    /* THE CARD ENTRY IS FOR `outsideJob` ROLES ONLY. Decision 3 let a
+     * storekeeper and a crew manager receive a unit, and a pass issued from a
+     * job card reaches them on Fuel & tyres. Contract 6.1 freezes
+     * `externalCost` to owner and supervisor on every card state, so the push
+     * they built here was refused by the server -- one quarantined record on
+     * their device, with a Retry that can never succeed and a reason naming
+     * something they did not do. Nothing is lost by dropping it: the money is
+     * on the pass, and `_recompute_external_cost` (sync_server.py:1505) derives
+     * the card's figure from the card's returned passes. Not a widened
+     * capability: UX 8 says what else `outsideJob` would hand over. */
+    var mayCost = (function () {
+      var C = root.Caps;
+      return !!(C && typeof C.can === 'function' && C.can(me.role, 'outsideJob'));
+    }());
+    if (pass && pass.jobId && !replay && mayCost) {
       card = await D.get('jobcards', pass.jobId);
       if (card && cost != null) {
         card = clone(card);

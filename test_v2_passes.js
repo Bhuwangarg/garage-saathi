@@ -49,14 +49,22 @@ function load(seed, file) {
   };
   sb.window = sb;
   const ctx = vm.createContext(sb);
-  ['ui/icons.js', 'ui/words.js', 'ui/states.js', 'ui/photos.js', 'fmt.js', 'outside.js'].forEach((f) => {
+  /* The REAL caps.js, not a stub: `returnWrite` asks it whether the actor may
+   * set an outside cost, and a stub would let the two role lists drift. */
+  ['caps.js', 'ui/icons.js', 'ui/words.js', 'ui/states.js', 'ui/photos.js', 'fmt.js', 'outside.js'].forEach((f) => {
     vm.runInContext(read('v2', f), ctx, { filename: f });
   });
   vm.runInContext(file || read('v2', 'ui', 'passes.js'), ctx, { filename: 'ui/passes.js' });
   return { P: sb.Passes, db, win: sb };
 }
 
-const BUS = { id: 'b1', regNo: 'RJ14 PA 1023', engineNo: 'ENG88231', chassisNo: 'MAT4470' };
+/* A BUS AS THE buses STORE ACTUALLY HOLDS ONE: `engine` and `chassis`, which is
+ * what db.js:706 seeds and sync_server.py:3670 lists. This fixture used to
+ * carry `engineNo`/`chassisNo` -- the pass's field names, not the bus's -- so
+ * the identifier check below was green against the only bus in the world
+ * shaped that way, while every real slip printed both of them blank. The
+ * fixture was the decoration, not the check. */
+const BUS = { id: 'b1', regNo: 'RJ14 PA 1023', engine: 'ENG88231', chassis: 'MAT4470' };
 const ME = { id: 'u-sup', name: 'Mohan', role: 'supervisor' };
 const alt = (o) => Object.assign({ id: 'c1', label: 'Alternator', serial: 'ALT-77120', kind: 'part', state: 'in-service',
   busId: 'b1', position: 'engine', history: [], refurbCount: 0 }, o || {});
@@ -130,6 +138,72 @@ test('a return with no pass writes, and carries cost and billPhoto; with a pass 
   assert.strictEqual(e2.passId, 'gp-1');
   assert(!('cost' in e2) && !('billPhoto' in e2), 'money on the piece entry as well as the pass');
   assert.strictEqual(b.db.stores.gatepasses[0].cost, 800);
+});
+
+/* THE "WILL PRINT" LINE, which is the only place he can notice a missing
+ * identifier: contract 4.1 freezes all three at issue. It read `chassisNo` /
+ * `engineNo` -- the PASS's field names on a BUS object -- so it showed the
+ * registration alone for every bus in the fleet, and the slip that followed
+ * was blank in the same two places. Not the same line as the write: both had
+ * to be fixed, and a check that only covered the write let this one stand.
+ *
+ * Red when you: read either field by the pass's name again. */
+test('the issue sheet promises the chassis and engine it will actually print', () => {
+  const { P } = load({});
+  const h = P.issueSheet({ bus: BUS, card: { id: 'j1' }, me: ME });
+  assert(h.indexOf('MAT4470') > -1, 'the chassis is not in the Will-print line: ' + h.slice(0, 400));
+  assert(h.indexOf('ENG88231') > -1, 'the engine number is not in the Will-print line');
+
+  // And the slip draws them from the pass, which is where they are frozen.
+  const slip = P.slipSheet({
+    pass: { id: 'gp-1', no: 'OJ-261109-AB12', status: 'out', vendorName: 'Sharma',
+            regNo: BUS.regNo, chassisNo: 'MAT4470', engineNo: 'ENG88231',
+            unitName: 'Alternator', unitSerial: 'ALT-77120', issuedBy: 'u-sup', issuedAt: 1 },
+    bus: BUS
+  });
+  assert(slip.indexOf('MAT4470') > -1, 'the printed slip has no chassis: ' + slip.slice(0, 400));
+  assert(slip.indexOf('ENG88231') > -1, 'the printed slip has no engine number');
+});
+
+/* THE CARD ENTRY IS FOR `outsideJob` ROLES ONLY -- the reconciliation UX 8 and
+ * contract 6.1 never had. Decision 3 let a storekeeper and a crew manager
+ * receive a unit, and `openPassOf` hands them a pass issued from a job card,
+ * so the return built a `jobcards` write the server refuses (v2_outside.py:81
+ * for store, the store list itself for crewmanager): one quarantined record
+ * per return, with a Retry that can never succeed. The money is on the pass
+ * and the server derives the card's figure from the card's returned passes
+ * (sync_server.py:1505), so dropping the entry loses nothing.
+ *
+ * Red when you: drop the capability test, or widen it to a role without
+ * `outsideJob`. Both directions are asserted, because a guard that refuses
+ * EVERYONE would also stop the supervisor's figure reaching his own card. */
+test('only a role holding outsideJob writes the card on return; store and crewmanager do not', async () => {
+  const seedWithCard = () => ({
+    components: [sentOut()],
+    gatepasses: [pass({ jobId: 'j1' })],
+    jobcards: [{ id: 'j1', busId: 'b1', outside: true }]
+  });
+  const vals = { serial: 'ALT-77120', cost: '3200', hid: 'h-7', fit: 'back', bill: 'data:z' };
+
+  const sup = load(seedWithCard());
+  const rs = await sup.P.returnWrite({ vals: vals, pass: pass({ jobId: 'j1' }), piece: sentOut(), me: ME });
+  assert(rs.ok, JSON.stringify(rs));
+  assert.strictEqual(sup.db.stores.jobcards[0].externalCost, 3200,
+    "the supervisor's own card did not get the figure");
+
+  for (const role of ['store', 'crewmanager']) {
+    const h = load(seedWithCard());
+    const r = await h.P.returnWrite({ vals: vals, pass: pass({ jobId: 'j1' }), piece: sentOut(),
+      me: { id: 'u-x', role: role } });
+    assert(r.ok, role + ' could not receive the unit at all: ' + JSON.stringify(r));
+    assert(!('externalCost' in h.db.stores.jobcards[0]),
+      role + ' wrote the card, which the server refuses: ' + JSON.stringify(h.db.stores.jobcards[0]));
+    assert.strictEqual(r.card, null, role + ': returnWrite still reports a card it did not write');
+    // The return itself must be whole: the money is on the pass, the piece is back.
+    assert.strictEqual(h.db.stores.gatepasses[0].status, 'returned', role + ': the pass did not return');
+    assert.strictEqual(h.db.stores.gatepasses[0].cost, 3200, role + ": the vendor's charge was dropped too");
+    assert.strictEqual(h.db.stores.components[0].state, 'in-service', role + ': the piece did not go back');
+  }
 });
 
 test('the return sheet with no pass says so and still has a serial field', () => {

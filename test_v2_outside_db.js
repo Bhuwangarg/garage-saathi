@@ -231,7 +231,8 @@ async function checkPasses(passesPath) {
     vm.runInContext(fs.readFileSync(passesPath, 'utf8'), h.ctx, { filename: passesPath });
   } catch (e) { check('4. v2/ui/passes.js loads', false); console.log('     ' + e.message); return; }
   const P = vm.runInContext('Passes', h.ctx);
-  const bus = { id: 'b1', regNo: 'RJ14 PA 1023', engineNo: 'E1', chassisNo: 'C1' };
+  // `engine`/`chassis` are the buses store's own field names (db.js:706).
+  const bus = { id: 'b1', regNo: 'RJ14 PA 1023', engine: 'E1', chassis: 'C1' };
   const me = { id: 'u-sup' };
   await h.DB.putRaw('components', { id: 'c1', label: 'Alternator', serial: 'ALT-1', busId: 'b1', state: 'in-service', history: [] });
   await h.DB.putRaw('components', { id: 'c2', label: 'Old unit', serial: 'OLD-1', busId: 'b1', state: 'sent-out', refurbCount: 0,

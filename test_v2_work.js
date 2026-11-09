@@ -1121,6 +1121,103 @@ test('a save whose card changed under it asks once, in words, and never shows a 
   assert.strictEqual(l.db.puts.length, 0, '"Look first" still wrote');
 });
 
+/* =====================================================================================================
+ * 11b. A WRITE ON THE CARD MUST BE VISIBLE ON THE CARD
+ *
+ * `redraw()` is `Shell.mount(ID, ...)`, and a same-screen re-mount returns
+ * early from both `leave()` and `enter()` (shell.js:790, :800), so the mount
+ * hook never fires, `Cache.load` is never called, and the body is drawn again
+ * from the pre-write `S.cache` row. Every write on this card looked like it
+ * had done nothing: the away save showed no away block and no toast, and the
+ * gate-pass issue showed no pass row -- so the obvious next move was to issue
+ * a second slip, and two numbered passes went out for one starter motor.
+ *
+ * `refresh()` is the fix and `fuel.js:refresh()` is the precedent: re-read,
+ * THEN redraw. Both halves are pinned, because either alone is reversible
+ * without a red check.
+ * ===================================================================================================== */
+
+test('refresh() re-reads the card before it redraws, and still redraws when there is no cache', async () => {
+  const l = asRole('u-sup');
+  const order = [];
+  const asked = [];
+  /* The read is held OPEN and settles only when this check lets it. Recording
+   * 'read' when `load` was *called* would let a redraw that beat the resolve
+   * still look ordered -- which is the whole defect: `Shell.mount` draws from
+   * `S.cache`, so what matters is whether the cache had been refilled, not
+   * whether a read had been started. A mutant that drew first passed the
+   * first version of this check. */
+  let settle = null;
+  l.win.Cache.load = function (names) {
+    asked.push(names);
+    return new Promise(function (res) {
+      settle = function () { order.push('read'); res({}); };
+    });
+  };
+  l.win.Shell.mount = function (id) { order.push('draw'); l.win.S.route = id; return true; };
+  l.win.S.route = 'jobcard';
+  l.win.Router = l.win.Router || {};
+  l.win.Router.current = function () { return { id: 'jobcard', params: { id: 'j-mine' } }; };
+
+  l.win.Jobcard.refresh();
+  await Promise.resolve();
+  assert.deepStrictEqual(order, [],
+    'the card redrew while the re-read was still in flight, from the pre-write cache: ' + order.join(','));
+  if (settle) settle();
+  await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+
+  assert(asked.length === 1, 'refresh() read the stores ' + asked.length + ' times');
+  assert(asked[0].indexOf('jobcards') > -1,
+         'the card\'s own store was not re-read: ' + JSON.stringify(asked[0]));
+  assert.deepStrictEqual(order, ['read', 'draw'],
+    'the redraw did not wait for the re-read, so it drew the pre-write row: ' + order.join(','));
+
+  // Degraded device: no Cache at all. It must still draw, not swallow the write.
+  const m = asRole('u-sup');
+  const drawn = [];
+  m.win.Cache = null;
+  m.win.Shell.mount = function (id) { drawn.push(id); return true; };
+  m.win.Router = m.win.Router || {};
+  m.win.Router.current = function () { return { id: 'jobcard', params: { id: 'j-mine' } }; };
+  m.win.S.route = 'jobcard';
+  await m.win.Jobcard.refresh();
+  assert.strictEqual(drawn.length, 1, 'with no Cache the card did not redraw at all');
+});
+
+test('every write path on the card calls refresh(), never a bare redraw(), and the two silent saves now speak', () => {
+  const src = stripComments(read(V2('screens', 'jobcard.js')));
+  /* The ONLY two legitimate bare `redraw()` calls: inside `reread()`, which
+   * runs after a load has already happened, and `refresh()`'s own no-Cache
+   * fallback. Every other one is a write path that would draw a stale row. */
+  const bare = (src.match(/(?<!function )\bredraw\(\)/g) || []).length;
+  assert.strictEqual(bare, 2,
+    'jobcard.js has ' + bare + ' bare redraw() calls; exactly 2 are legitimate '
+    + '(reread() and refresh()\'s no-Cache fallback). A write path that calls '
+    + 'redraw() draws the row as it was before the write.');
+  assert(/function refresh\(\)/.test(src), 'refresh() is gone');
+  /* AND `redraw` handed over as a CALLBACK, which the count above cannot see:
+   * `onSaved: redraw` on the send-out and receive sheets is how the gate-pass
+   * issue stayed invisible on the card after the away save was already fixed,
+   * and it is how two numbered passes went out for one starter motor.
+   * `fuel.js` passes `refresh` at both of its doors, which is exactly why the
+   * piece rows never had this defect. */
+  assert(!/onSaved:\s*redraw\b/.test(src),
+    'a sheet hands `redraw` back as its onSaved callback: the card will draw the row as it was '
+    + 'before the write, and the obvious next move is to issue a second gate pass');
+  assert((src.match(/onSaved:\s*refresh\b/g) || []).length === 2,
+    'both the send-out and the receive sheet must re-read on save');
+
+  /* The away save and Back in our yard were the two writes with no
+   * acknowledgement at all. Pin the CALL SITE, not the id: the first version
+   * of this check matched the words table, so deleting the toast left it
+   * green while the save went silent again. */
+  for (const id of ['jcAwaySaved', 'jcBackDone']) {
+    assert(src.indexOf("toast(say('" + id + "'") > -1,
+           id + ' is registered but nothing toasts it: that save is silent again');
+    assert(new RegExp(id + ":\\s*\\{ en:").test(src), id + ' is used but not registered');
+  }
+});
+
 test('no screen in this slice asks a person to adjudicate a clock', () => {
   for (const f of ['jobs.js', 'jobcard.js']) {
     const src = stripComments(read(V2('screens', f)));

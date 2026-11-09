@@ -248,6 +248,8 @@
     jcAwayWho: { en: 'Who is doing the work (if you know)', hi: '' },
     jcAwaySave: { en: 'Save', hi: '' },
     jcAwaySaving: { en: 'Saving...', hi: '' },
+    jcAwaySaved: { en: 'Marked away, in {place}', hi: '' },
+    jcBackDone: { en: 'Back in our yard', hi: '' },
     jcBackTitle: { en: 'Back in our yard', hi: '' },
     jcBackAsk: { en: { one: 'The bus is back from {vendor}. Away for {n} day.',
                        other: 'The bus is back from {vendor}. Away for {n} days.' }, hi: '' },
@@ -1715,7 +1717,7 @@
     c.updatedAt = Date.now();
     try { await db().put('jobcards', c); } catch (e) { el.removeAttribute('aria-disabled'); return; }
     if (V() && V().closeSheet) V().closeSheet();
-    redraw();
+    refresh();
   }
 
   /* Behind a confirmation naming BOTH buses, because the cost of a repair moves
@@ -1737,7 +1739,7 @@
     c.updatedAt = Date.now();
     try { await db().put('jobcards', c); } catch (e) { return; }
     if (ov && ov.closeSheet) ov.closeSheet();
-    redraw();
+    refresh();
   }
 
   function openLedger(el) {
@@ -1829,7 +1831,12 @@
     unbusy(el, say('jcAwaySave'));
     if (!out) return;
     if (V() && V().closeSheet) V().closeSheet();
-    redraw();
+    /* The flagship action of this feature was the one write on the card with
+     * no acknowledgement of any kind: the sheet shut and the button settled
+     * back to the same label. Re-opening the sheet then showed both fields
+     * empty, which reads as "it did not save". */
+    toast(say('jcAwaySaved', { place: where }), 'ok');
+    refresh();
   }
 
   /* Writes outside:false and outAt:now. The days away are then fixed by arithmetic and the card returns to
@@ -1845,7 +1852,9 @@
     busy(el, say('jcSaving'));
     var out = await saveFields(c.id, { outside: false, outAt: Date.now() }, null);
     if (!out) { unbusy(el, label); return; }
-    redraw();
+    // Silent too, and a second confirm re-stamped outAt because nothing said the first one took.
+    toast(say('jcBackDone'), 'ok');
+    refresh();
   }
 
   /* Send a unit out: the sheet is ui/passes.js's. This only says which bus and which card it is for. */
@@ -1857,7 +1866,7 @@
       return x && !x._deleted && x.busId === c.busId && (x.state === 'in-service' || x.state === 'removed');
     });
     sheet(pw('ojNew'), P.issueSheet({ bus: bus, pieces: pieces, card: c, piece: null, role: me.role,
-                                     vendors: knownVendors(), me: me, onSaved: redraw }));
+                                     vendors: knownVendors(), me: me, onSaved: refresh }));
   }
 
   function openSlip(el) {
@@ -1875,7 +1884,7 @@
     if (!c || !P || !pass || !me || !can(me.role, 'gatePass')) return;
     var piece = pass.componentId ? byId(cached('components'), pass.componentId) : null;
     sheet(pw('ojReceive'), P.returnSheet({ pass: pass, piece: piece, bus: byId(cached('buses'), c.busId) || null,
-                                          ageWords: ageWords(lastSyncAt()), card: c, me: me, onSaved: redraw }));
+                                          ageWords: ageWords(lastSyncAt()), card: c, me: me, onSaved: refresh }));
   }
 
   // "Close this card" on an outside card with no bill opens the ordinary confirmation with its one extra row.
@@ -1896,7 +1905,7 @@
     if (!c) { unbusy(el, say('jcNoBillSave')); return; }
     if (V() && V().closeSheet) V().closeSheet();
     toast(say('jcNoBillDone'), 'ok');
-    redraw();
+    refresh();
   }
 
   /* THE BILL, CAPTURED. The photo is written into the record at once as a data URL (a bus away is often
@@ -1934,7 +1943,7 @@
     try { await db().put('jobcards', c); } catch (e) { return null; }
     var S = root.Sync;
     if (S && typeof S.queuePhoto === 'function') S.queuePhoto('jobcards', id, 'billPhotos', data);
-    redraw();
+    refresh();
     return c;
   }
 
@@ -1981,7 +1990,7 @@
     el.removeAttribute('aria-disabled');
     if (!out) return;
     if (V() && V().closeSheet) V().closeSheet();
-    redraw();
+    refresh();
   }
 
   async function saveOdo(el) {
@@ -1999,7 +2008,7 @@
     el.removeAttribute('aria-disabled');
     if (!out) return;
     if (V() && V().closeSheet) V().closeSheet();
-    redraw();
+    refresh();
   }
 
   /* `partRequests` only — which the server permits a mechanic to do and has no
@@ -2022,7 +2031,7 @@
     c.updatedAt = Date.now();
     try { await db().put('jobcards', c); } catch (e) { el.removeAttribute('aria-disabled'); return; }
     if (V() && V().closeSheet) V().closeSheet();
-    redraw();
+    refresh();
   }
 
   function here() {
@@ -2037,6 +2046,30 @@
   }
   function redraw() {
     if (root.Shell && typeof root.Shell.mount === 'function') root.Shell.mount(ID, { id: here() });
+  }
+
+  /* WHAT EVERY WRITE ON THIS CARD CALLS, and `redraw()` alone is not enough.
+   * `redraw()` is `Shell.mount(ID, ...)`, and a same-screen re-mount returns
+   * early from both `leave()` and `enter()` (shell.js:790, :800), so the
+   * screen's `mount` hook never fires, `load()` never runs, `Cache.load` is
+   * never called, and the body is drawn again from the `S.cache` row as it
+   * was BEFORE the write. The person sees their save do nothing: no away
+   * block, the action still reading "The bus is away for repair", and -- the
+   * case that cost a duplicate gate pass -- no pass row, so the obvious next
+   * move is to issue a second slip for the same unit.
+   *
+   * The store is dirty after a local write, so `Cache.load` re-reads it
+   * (cache.js:441) and the redraw that follows has the new row. This is
+   * `fuel.js:refresh()` exactly, which is why the piece rows on Fuel & tyres
+   * never had this defect.
+   *
+   * No `loading` guard, unlike `load()`: a guard that swallows the redraw
+   * after a write is the defect again, one race away. */
+  function refresh() {
+    var c = root.Cache;
+    if (!c || typeof c.load !== 'function') { redraw(); return; }
+    var pr = c.load(STORES);
+    if (pr && typeof pr.then === 'function') pr.then(reread, reread); else reread();
   }
 
   /* The mechanic's tap, end to end and inside the 100 ms tap-to-response
@@ -2062,7 +2095,7 @@
     else if ('outerHTML' in el) el.outerHTML = replacement;
     toast(field === 'startAt' ? say('jobStartedAt', { time: hhmm(c[field]) })
       : say('jobDoneAt', { time: hhmm(c[field]) }), 'ok');
-    redraw();
+    refresh();
   }
 
   async function signOff(el) {
@@ -2074,7 +2107,7 @@
     var c = await verify(id, me);
     // The close itself is already saved, so the message says what is still true.
     if (!c) { toast(say('jcNotSignedOff'), 'bad'); el.removeAttribute('aria-disabled'); return; }
-    redraw();
+    refresh();
   }
 
   async function closeCard(el) {
@@ -2093,7 +2126,7 @@
     if ('textContent' in el) el.textContent = say('jcClosing');
     var c = await close(id, me);
     if (!c) { el.removeAttribute('aria-disabled'); if ('textContent' in el) el.textContent = label; return; }
-    redraw();
+    refresh();
   }
 
   async function askDelete() {
@@ -2123,7 +2156,10 @@
     timeSheet: timeSheet, odoSheet: odoSheet, requestSheet: requestSheet,
     crewSheet: crewSheet, moveSheet: moveSheet, ledgerSheet: ledgerSheet,
     awaySheet: awaySheet, backConfirm: backConfirm, noBillSheet: noBillSheet, closeAskSheet: closeAskSheet,
-    saveFields: saveFields
+    saveFields: saveFields,
+    // Exported for the same reason `saveFields` is: so the re-read after a
+    // write is a thing a check can drive, not a thing only a tap can reach.
+    refresh: refresh
   };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
