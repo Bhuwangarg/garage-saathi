@@ -769,7 +769,47 @@ async function checkConfirmRoute(env, route) {
     if (!pre.pending) f.push('the promise was already settled before anyone answered');
     if (!pre.modal) f.push('the confirmation is not a modal <dialog>');
     await route.act(p);
-    if (!(await p.until('window.__r !== undefined', 3000))) { f.push('the promise never settled after ' + route.name + ' (a dialog that cannot be dismissed by this route hangs the caller)'); return f; }
+    /* THE SETTLE WAIT, WHICH WAS 1000ms AND SAID 3000, AND WHOSE EXPIRY WAS
+     * REPORTED AS A HANGING PROMISE.
+     *
+     * It was `p.until('window.__r !== undefined', 3000)`, and p.until divides
+     * by MOTION_SCALE (10) with a 1000ms floor -- so the real budget was ONE
+     * second. H.until's own comment says why that is the wrong helper here:
+     * "A wait that is NOT for motion - a toast's own ms, a frame arriving -
+     * belongs on an unscaled page or in untilAbs." A promise settling is not
+     * motion. So untilAbs, and the 3s the call site always claimed.
+     *
+     * That alone would have been enough for the GitHub runner that failed this
+     * check on main, on a run where three sibling checks in this suite had
+     * already said NOT MEASURED for timing. But a budget is still a budget, so
+     * its expiry is now read rather than assumed, cheapest reading first:
+     *
+     *   the frame rate: a page drawing fewer than 6 frames in 400ms is not
+     *     being scheduled, and nothing about a promise can be concluded on it.
+     *   then one more absolute second: if it settles in that, it was LATE, and
+     *     this check cannot tell a late settle from a breached budget.
+     *
+     * Only a scheduled page that has produced nothing after 4s is a hang, and
+     * that still FAILS -- proven by pointing the suite at a copy whose close()
+     * never decides (OVERLAY_JS, the external mode): 3 red, "the page was
+     * drawing 27 frames in 400ms, so it was being scheduled". The cost to the
+     * two self-test routes that mutate in a real hang is 1.4s each, not a long
+     * re-wait, because run-tests.py's cap is 300s and this suite runs 148s. */
+    if (!(await p.eval(`H.untilAbs(function () { return window.__r !== undefined; }, 3000)`))) {
+      const frames = await p.eval(`new Promise(function (res) { var n = 0, t0 = performance.now();
+        (function f() { n++; if (performance.now() - t0 < 400) requestAnimationFrame(f); else res(n); })(); })`);
+      if (frames < 6) {
+        throw unmeasurable('nothing settled after ' + route.name + ' in 3s, and this page drew only ' + frames
+          + ' frames in 400ms: it is not being scheduled, so whether the promise would have settled cannot be read here');
+      }
+      if (await p.eval(`H.untilAbs(function () { return window.__r !== undefined; }, 1000)`)) {
+        throw unmeasurable('the confirmation settled after ' + route.name + ' but took over 3s, on a page drawing '
+          + frames + ' frames in 400ms: a late settle cannot be told from a breached budget here');
+      }
+      f.push('the promise never settled after ' + route.name + ' (a dialog that cannot be dismissed by this route hangs the caller)'
+        + ' -- and the page was drawing ' + frames + ' frames in 400ms, so it was being scheduled');
+      return f;
+    }
     await p.eval('H.settled()');
     const r = await p.eval('({ v: window.__r.v, t: window.__r.t, gone: !H.confirm(), active: document.activeElement.id })');
     if (r.t !== 'boolean') f.push('after ' + route.name + ' the promise resolved with a ' + r.t + ', not a boolean');
