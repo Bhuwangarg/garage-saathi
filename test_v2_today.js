@@ -89,6 +89,19 @@ const HOUR = 3600000;
 const dayKeyOf = (ms) => new Date(ms + 19800000).toISOString().slice(0, 10);
 const NIGHT = 'nl-' + dayKeyOf(NOW);
 
+/* THE SAME MOVE AGAIN, FOR THE WEEK. `thisWeek` draws the digest only when its `week` equals
+ * `weekKey(now)` -- the Monday of the garage's current week -- and the fixture wrote that week as the
+ * literal '2026-11-02', which is the Monday it happened to be authored in. It aged out at midnight on
+ * Sunday the 8th, and from the 9th onwards the digest never matched, `thisWeek` returned null, and the
+ * owner lost a block. Measured on d855793, untouched: the suite passes with the clock wound back a day
+ * and fails on every day after. Four MUTANT checks ride on the owner's block count, so they stopped
+ * being able to fail -- the same way, and for the same reason, as the day key above.
+ *
+ * Monday = 0 in IST, which is what today.js's weekKey() computes; this is that formula, not a second
+ * opinion about it. */
+const weekKeyOf = (ms) => dayKeyOf(ms - ((new Date(dayKeyOf(ms) + 'T00:00:00Z').getUTCDay() + 6) % 7) * DAY);
+const WEEK = weekKeyOf(NOW);
+
 /* load(o) -> {win, Today, logs, sheets}
  *   o.lang     'en' | 'hi'
  *   o.role     the signed-in role
@@ -172,9 +185,9 @@ function world(over) {
       { id: 'd2', name: 'Kiran', busId: 'b1', crewRole: 'conductor', status: 'active' },
       { id: 'd3', name: 'Free', busId: null, crewRole: 'driver', status: 'active' }
     ],
-    coachai: [{ id: 'c1', crewId: 'd1', status: 'draft', week: '2026-11-02', at: NOW - 2 * DAY,
+    coachai: [{ id: 'c1', crewId: 'd1', status: 'draft', week: WEEK, at: NOW - 2 * DAY,
                 en: { good: 'a', fix: 'b', tip: 'c' } }],
-    digest: [{ id: 'dg1', week: '2026-11-02', headline: 'A quiet week', at: NOW - 3 * DAY,
+    digest: [{ id: 'dg1', week: WEEK, headline: 'A quiet week', at: NOW - 3 * DAY,
                sections: [{ title: 'Money', lines: ['one', 'two', 'three', 'four'] }] }],
     rbreviews: [{ id: 'rv1', stars: 1, at: NOW - 3 * DAY, busId: 'b4' },
                 { id: 'rv2', stars: 5, at: NOW - 4 * DAY, busId: 'b1' }],
@@ -1011,6 +1024,26 @@ function mutant(name, src, run) {
     assert(threw, 'the check stayed green with ' + name);
   });
 }
+
+/* LAST WEEK'S DIGEST IS NOT THIS WEEK'S, and nothing said so. `thisWeek` compares the digest's `week`
+ * to `weekKey(now)` for exactly this reason -- a card headed "This week" carrying last Monday's
+ * summary is a wrong answer delivered confidently, which is the failure mode this screen is built
+ * against. Removing that comparison left every check green, so the rule was decoration.
+ *
+ * It could not have been written before now: the fixture pinned `week` to a literal Monday, so "this
+ * week" and "a stale week" were the same string for one week and then neither of them matched. With
+ * the fixture on the clock, both cases are reachable on any day. */
+test('the digest is drawn only for the week it is FOR: last week\'s is not shown as this week\'s', () => {
+  const l = load({ role: 'owner' });
+  const head = 'A quiet week';
+  const current = l.Today.render(frame('owner'));
+  assert(current.includes(head), 'this week\'s digest was not drawn at all, so the case below proves nothing');
+
+  const stale = { digest: [{ id: 'dg1', week: weekKeyOf(NOW - 7 * DAY), headline: head, at: NOW - 3 * DAY,
+                             sections: [{ lines: ['x'] }] }] };
+  const out = l.Today.render(frame('owner', { cache: stale }));
+  assert(!out.includes(head), 'last week\'s digest was drawn under "This week"');
+});
 
 mutant('a fifth block on the owner', swap(
   'owner: [kpiOwner, needsYou, thisWeek],',
