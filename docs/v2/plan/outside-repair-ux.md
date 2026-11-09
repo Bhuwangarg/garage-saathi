@@ -10,6 +10,26 @@ The original status line read "not ready for stage 2" and is superseded: the flo
 was complete and buildable then too, but three of its decisions were the owner's
 and two changed what is on a screen.
 
+**Propagation pass, 2026-11-09 (same day).** The decisions arrived after §4 and
+§5 were written, and three rows in them still said the pre-decision thing: the
+Fuel & tyres row forbade a storekeeper's pass (decision 3 grants it), the §5 row
+on storekeeper passes was still listed as a seam left standing, and there was no
+screen home for the typed reason that decision 1 requires. Those three rows are
+corrected below and marked `[decision N]`. Nothing else in the flow changed, and
+no decision was re-opened. §8 is new and records one consequence of decision 3
+that stage 2 would otherwise have to guess at.
+
+**Landed since this was written, 2026-11-09 (additive note; no decision re-opened).**
+§0(c) has shipped: `v2/screens/jobs.js`'s `away()` now reads `!!c.outside`, with a
+check in `test_v2_work.js` covering both directions and both tabs (commit 93a32a5).
+So where §2, §4 and §7 say the Away tab keys on `externalVendor`, read that as what
+was true when this was written, not as what is on disk now — `outside` is the field
+this feature writes and the tab is already reading it. **Nothing else in this
+document has landed.** The live map that §0 and §5 name as "its own feature" now
+has its own stage-1 document, `docs/v2/plan/live-map-ux.md`; it does not change
+anything here, and §5's drop of the away card's latitude, longitude and map link
+stands.
+
 ---
 
 ## 0. Scope decided here, before anything else
@@ -205,6 +225,13 @@ v1's.
 
 **7 taps with a tracked piece chosen, 9 with a unit typed by hand.** (v1: ~12.)
 
+**The other two people who do this** `[decision 3]`**.** The storekeeper and the
+crew manager reach the same sheet from the piece itself on Fuel & tyres, where
+they already record a send-out (`fuel.js:1431`). Same questions, same slip, same
+number; the only difference is the door they came in by, and the piece fills the
+bus in instead of the card. They do not reach it from a job card, because they do
+not mark a bus away — see §8.
+
 ### 3.3 "It came back" — the supervisor, three days later
 
 1. **He finds it** one of three ways, each answering its own question: the card
@@ -253,15 +280,16 @@ are sheets by `v2-foundation-ui.md §3.2`, not destinations.
 
 | Screen | The job it serves | Role that does that job | What must be on it | What must NOT be on it |
 |---|---|---|---|---|
-| **Job card** (#4) | "What is the state of this one repair, and what is the one next step?" | **supervisor** keeps it; owner reads and signs off; mechanic never writes here | The away state in words — the place and how many days; the vendor and what they charged; the pass number, opening the printable slip; the two actions **"The bus is away for repair"** and **"Send a unit out on a gate pass"**, and **"Back in our yard"** while away. For an away card the one next step is the reached-the-workshop time, then the bill — never "put somebody on this job" | Any of those actions, or the vendor block at all, without `outsideJob` — it is absent, not disabled (`screens-work.md §3.12`, and this was one of the six route bypasses, `inventory/02 §6.1` rows 5-6). A city **and** a map link **and** coordinates — one place, in words. "Ready to close" on an outside card that has no bill (see §6) |
+| **Job card** (#4) | "What is the state of this one repair, and what is the one next step?" | **supervisor** keeps it; owner reads and signs off; mechanic never writes here | The away state in words — the place and how many days; the vendor and what they charged; the pass number, opening the printable slip; the two actions **"The bus is away for repair"** and **"Send a unit out on a gate pass"**, and **"Back in our yard"** while away. For an away card the one next step is the reached-the-workshop time, then the bill — never "put somebody on this job". **If the card was closed without a bill, the typed reason, in words, wherever the card is read** `[decision 1]` — the card's own state, the Money read and the owner's sign-off view, not only the close moment | Any of those actions, or the vendor block at all, without `outsideJob` — it is absent, not disabled (`screens-work.md §3.12`, and this was one of the six route bypasses, `inventory/02 §6.1` rows 5-6). A city **and** a map link **and** coordinates — one place, in words. "Ready to close" on an outside card that has no bill (see §6) |
 | *sheet:* **Bus is away** | "Where is this bus, and who has it?" | supervisor, owner | Two fields: the place in words, the vendor (optional) | A third field. A date picker — it is today unless the card says otherwise |
-| *sheet:* **New gate pass** | "What is leaving, on whose authority, with which number?" | supervisor, owner | Vendor, the tracked piece if there is one, unit name, serial, the work asked for, and the one sentence about why the serial matters. The bus's identifiers shown as what will print | A cost. Nobody knows it yet, and asking invites a guess that becomes a figure on Money |
-| *sheet:* **The slip** | "The paper that goes with the unit." | supervisor, owner | The number, the vendor, the bus and its copied registration / engine / chassis, the unit and serial, the remark, who issued it and when; after return, the returned serial, whether it matched, the cost and the bill photo; and Print | A signature box drawn on screen. Signatures stay on paper (`v2-ux.md:677`) |
-| *sheet:* **Back from the vendor** | "Is what came back what went out, and what did it cost?" | supervisor, owner | What went out (unit and serial, as a statement), the serial read off the unit, the charge, the bill photo, a remark, and — only if it came off a bus — back on that bus or onto the shelf | A pre-filled serial. Pre-filling it is the same as not asking, and the whole record exists to catch the case where they differ |
+| *sheet:* **New gate pass** | "What is leaving, on whose authority, with which number?" | supervisor, owner, **store, crewmanager** `[decision 3]` | Vendor, the tracked piece if there is one, unit name, serial, the work asked for, and the one sentence about why the serial matters. The bus's identifiers shown as what will print | A cost. Nobody knows it yet, and asking invites a guess that becomes a figure on Money |
+| *sheet:* **The slip** | "The paper that goes with the unit." | supervisor, owner, **store, crewmanager** `[decision 3]` | The number, the vendor, the bus and its copied registration / engine / chassis, the unit and serial, the remark, who issued it and when; after return, the returned serial, whether it matched, the cost and the bill photo; and Print | A signature box drawn on screen. Signatures stay on paper (`v2-ux.md:677`) |
+| *sheet:* **Close without the bill** `[decision 1]` | "Why is this card closing with no vendor bill?" | **supervisor**, owner — the only roles that may close (`caps.js:closeJob`) | One field: the reason, typed, required — the card cannot close on this path with it empty. The sentence that the reason stays on the card and is read by whoever reads the card. New word ids, `hi: ''` (PENDING) | A list of canned reasons. A tap-to-pick list is a shrug, and the owner asked for a reason somebody wrote. A way to reach this sheet that is not a visible control on the close path — no long press, no hidden gesture |
+| *sheet:* **Back from the vendor** | "Is what came back what went out, and what did it cost?" | supervisor, owner, **store, crewmanager** `[decision 3]` — whoever issued it receives it | What went out (unit and serial, as a statement), the serial read off the unit, the charge, the bill photo, a remark, and — only if it came off a bus — back on that bus or onto the shelf | A pre-filled serial. Pre-filling it is the same as not asking, and the whole record exists to catch the case where they differ |
 | **Jobs** (#3) | "What is standing in the yard, for how long, and has it been started?" | supervisor, owner, store (read), mechanic (own only) | The Away tab filtered on **the bus being away**, with days away per row | A vendor name deciding which tab a card is in (`jobs.js:178` today). An Away tab for a role without `outsideJob`: a mechanic has no business knowing which vendor holds the unit |
 | **Attention** (#2) | "What is wrong across the business, ranked by money and safety?" | owner, supervisor | One row per unit out 14 days or more: the unit, the vendor, the days. Declared on `outsideJob`, so it is invisible to everybody else, and ranked below a gate hold and below money | A row per unit out at all — most come back inside a week and a row that is always there is a row nobody reads (`v2-ux.md §4.1` #2: no count that can never reach zero) |
-| **Fuel & tyres** (#10) | "Record what went into or onto a bus away from the workshop." | crewmanager, store, owner, supervisor | **"Back from the vendor"** on a sent-out piece — the missing half of the one-way door at `fuel.js:1431`. The existing "Send out for repair" keeps its honest line about not being able to make the slip (`fuel.js:1189`) | A gate pass made from here by a role without `outsideJob`. The slip is owner/supervisor; the seam stays stated, not hidden (`screens-assets.md §3.7`) |
-| **Store** piece register (#6) | "What is this piece, where is it, and what has it cost?" | store, owner, supervisor | On a sent-out piece: the pass number and how many days out, in its timeline | The pass's bill photo for a role that may not see vendor money — see Owner must decide (3) |
+| **Fuel & tyres** (#10) | "Record what went into or onto a bus away from the workshop." | crewmanager, store, owner, supervisor | **"Back from the vendor"** on a sent-out piece — the missing half of the one-way door at `fuel.js:1431`. **And the slip itself: "Make the gate pass" is present for all four roles** `[decision 3]` — whoever may send it out may paper it | The seam sentence `ftGateSeam` (`fuel.js:1189`), which says this role cannot make the slip. It is now false for all four roles that reach this screen, and a screen that explains a restriction it no longer has is worse than silence — it is dropped, see §5 |
+| **Store** piece register (#6) | "What is this piece, where is it, and what has it cost?" | store, owner, supervisor | On a sent-out piece: the pass number and how many days out, in its timeline | The pass's bill photo and the amount, as a browsable history, for a role the owner has not said may read vendor money. Decision 3 settled who may *issue and receive*, not who may *re-read a bill later*, and the old cross-reference to it here was dangling. Until the owner says otherwise: the amount and the photo are on the **return sheet** of whoever is receiving the unit (they are typing them) and are **not** on the register's timeline for `store` or `crewmanager`. Deny by default |
 
 ---
 
@@ -281,8 +309,9 @@ Everything v1 did here that this does not carry forward.
 | **"Life after rewind (km)"** on the return (`app.js:5574`) | A number the supervisor is guessing at the counter, which then silently governs the wear bar. The refurbish count is recorded and is the honest figure. If the owner wants a re-rated life it belongs in the piece register, deliberately, not in a doorway |
 | **The emoji on the mismatch and success toasts** (`app.js:5049`: `⚠️`, `✅`) | Windows 7 renders them as boxes — `CLAUDE.md` hardware floor, enforced by `scripts/check-floor.py` |
 | **The browser `confirm()` on a serial mismatch** (`app.js:5046`) | The mismatch question is the most important sentence in the flow and it is currently a native dialog with no control over wording or focus. It becomes the app's own confirmation (`V2.confirmDialog`, used by the send-out already) |
-| **A free-floating pass** — v1 let a pass be issued with no bus and no piece (`app.js:4900`, `busId` may be empty) | A pass is issued against a bus's job card, or against a tracked piece. A slip attached to nothing has no home among twelve screens and could only be found by searching the register that is being dropped. **This is the drop I am least sure of** — see Owner must decide (2) |
-| **A gate pass issued by the storekeeper or the crew manager** | Not dropped by me — it is not v1's behaviour either (`gatepasses` has been owner/supervisor at the server since v1: `sync_server.py:1205`). The seam stays, stated on screen (`fuel.js:1189`). Owner must decide (3) asks whether to close it |
+| **A free-floating pass** — v1 let a pass be issued with no bus and no piece (`app.js:4900`, `busId` may be empty) | A pass is issued against a bus's job card, or against a tracked piece. A slip attached to nothing has no home among twelve screens and could only be found by searching the register that is being dropped. This was the drop I was least sure of; **the owner confirmed it** `[decision 2]`. A pass with no bus is a state the UI never has to draw |
+| ~~**A gate pass issued by the storekeeper or the crew manager**~~ — **no longer dropped** `[decision 3]` | It was listed here as a seam left standing. The owner closed it the other way: whoever may send a unit out may make the slip for it. The send-out is not narrowed; the pass widens to match. This row stays, struck through, so nobody reading an old copy builds the restriction |
+| **`ftGateSeam`** — the Fuel & tyres sentence explaining that this role may record a send-out but not make the slip (`fuel.js:1189`, the word id and the `o.gatepass` branch at `fuel.js:707` and `:1589`) | The restriction it describes is gone `[decision 3]`, so the sentence is now a lie about our own screen. The branch goes with it: one send-out sheet, the same for all four roles, with the slip on it |
 | **`jbMoveWarn`** — "parts, labour, outside work move with the card" (`app.js:108`) | **Not dropped.** It is already true in v2's move (the whole record moves) and the sentence exists in Hindi (`i18n-hi.js:100`). Named here so nobody drops it as decoration |
 
 ---
@@ -397,7 +426,65 @@ Read after one week, then after one month.
 | Cards in the Away tab whose bus is in our yard | Unknown and non-zero: the tab keys on `externalVendor` (`jobs.js:178`) | 0. Measurable before and after on the fixture: count cards with a vendor and `outside` false |
 | Screens added | — | **0.** v2 stays at twelve. If stage 2 needs a thirteenth, this document was wrong |
 | Old screens emptied | `outsidejobs` and `gatepass` are already gone from v2's routes | They stay gone, with the jobs they carried now reachable — which is the honest version of "47 became 12" |
-| Who used it | — | The per-person-per-day `usage` counter (`inventory/01 §2`). Expect **two people**: the two supervisors. If the owner is the only one who ever taps it, the flow is in the wrong place and that is the finding |
+| Who used it | — | The per-person-per-day `usage` counter (`inventory/01 §2`). Expect **two people** issuing passes before decision 3 and **up to four** after it: the two supervisors, the storekeeper, the crew manager. If the storekeeper and the crew manager never once make a slip, decision 3 bought nothing and that is the finding |
+| Outside cards closed with no bill `[decision 1]` | Today: unknown, and **allowed in one photo** | Readable as a count of closed outside cards carrying a typed reason. The number itself is not the test — the test is that it is **not most of them**. If every outside card closes on a typed reason, the bill gate is theatre and the owner should hear that |
+| Units that left the premises with no slip `[decision 3]` | Unknown and, by the seam the screen admitted to (`fuel.js:1189`), non-zero | Countable on the fixture as pieces at `sent-out` with no pass id. Target 0 for anything sent out after this ships |
+| Pieces returned by the new return, with a serial recorded | 0 — there is no return (`fuel.js:1421-1435`) | Every piece that comes back. And the mismatch count, separately: a mismatch rate of exactly 0 after a month means the serial is being copied off the pass instead of read off the unit, which is the failure this whole record exists to catch |
+
+---
+
+## 8. One consequence of decision 3 that stage 2 must not guess at
+
+Written in the propagation pass, after reading the two files the decision names.
+
+**There is no `gatepasses` key in `v2/caps.js`.** The server has one
+(`sync_server.py:1205`, today `{owner, supervisor}`). The client's mirror of it
+is **`outsideJob`** (`caps.js:107`, today `['owner', 'supervisor']`), and that one
+capability is doing four different jobs at once:
+
+| What `outsideJob` gates today | Where |
+|---|---|
+| Making the slip | `fuel.js:707`, `fuel.js:1589` (`o.gatepass`) |
+| Signing off what comes back against it | the same capability, per its own comment at `caps.js:105-106` |
+| Marking a bus away, and the two actions on the card | `jobcard.js:872` (`mayOutside`), `jobcard.js:800` |
+| Showing the vendor and the outside cost on a job card | the same `mayOutside` |
+
+Decision 3 opens exactly one of those four: *"they may already send a unit out of
+the premises; they may now make the slip for it."* Widening `outsideJob` itself
+would also hand the storekeeper and the crew manager **"The bus is away for
+repair"** and **the vendor's money on the card** — and the server would accept the
+away write, because `jobcards` already includes `store` (`sync_server.py:1207`).
+That is more than was decided and more than anyone asked for.
+
+**So the pass is its own capability on the client**, carrying the four roles, and
+`outsideJob` stays at `{owner, supervisor}` for the away state and the vendor
+block. This is not a re-reading of the decision; it is the only way to express it
+without granting three things nobody mentioned. Deny by default says the narrow
+reading wins when a capability bundles questions.
+
+The equality check decision 3 asks for then has two clean halves, each with a real
+pair of lists to compare:
+
+- server: `WRITE_ROLES["gatepasses"]` (`sync_server.py:1205`) **==**
+  `WRITE_ROLES["components"]` (`sync_server.py:1182`, already
+  `{owner, supervisor, store, crewmanager}`)
+- client: the new gate-pass capability **==** `manageComponents` (`caps.js:163`,
+  already the same four)
+
+Break it by removing one role from either side and confirm it goes red.
+
+**A second consequence, stated because it follows whether we like it or not.**
+Opening the pass opens the return, and the return sheet asks for **what the
+vendor charged and a photo of their bill** (§3.3). So a storekeeper and a crew
+manager will now type vendor money. That is inside decision 3 and stage 2 builds
+it. What is *not* inside decision 3 is whether they may then browse those bills
+afterwards in the piece register — see the Store row in §4, where the default is
+no.
+
+**UNKNOWN: did the owner mean the away marking to open as well?** Stage 2 builds
+the narrow reading above — slip and return only — and one sentence from the owner
+settles it either way. It does not block: the narrow reading is the smaller change
+and can be widened later without redrawing a screen.
 
 ---
 
@@ -441,8 +528,12 @@ hold those two lists equal so they cannot drift apart again. This is a
 permission change at `sync_server.py:1205` and in `v2/caps.js`; the server half
 is the owner's deploy.
 
-**Still open and smaller** — neither blocks stage 2, both are one sentence when
-the owner has a moment: who physically hands the printed slip to the vendor's
+**Still open and smaller** — none of these blocks stage 2, each is one sentence
+when the owner has a moment. Two were added by the propagation pass (§8): whether
+decision 3 also opens **marking a bus away** to the storekeeper and crew manager
+(stage 2 says no), and whether those two roles may **re-read a vendor's bill** in
+the piece register after the return (stage 2 says no). And the two from the
+original list: who physically hands the printed slip to the vendor's
 man (there is no gatekeeper among the eight roles, so the paper is the only
 handover), and whether 14 days is still the right overdue threshold
 (`app.js:4789`) now that it surfaces on Attention rather than a tile nobody
