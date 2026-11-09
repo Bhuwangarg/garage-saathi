@@ -43,8 +43,27 @@ const path = require('path');
 const vm = require('vm');
 const { spawn } = require('child_process');
 
-const JS_FILE = process.env.OVERLAY_JS || path.join(__dirname, 'ui', 'overlay.js');
-const CSS_FILE = process.env.COMPONENTS_CSS || path.join(__dirname, 'ui', 'components.css');
+/* THE FILE THE APP SERVES, which until now was not the file this suite read.
+ *
+ * It read <root>/ui/overlay.js -- the design-system gallery's copy, loaded by
+ * ui/gallery.html. The app loads v2/ui/overlay.js: v2/index.html:89 and
+ * v2/sw.js:79 both resolve relative to v2/. Two files, 59 diff lines apart
+ * since 39de055, "v2 takes its own copy of the data layer and the design
+ * system", and the suite was never repointed -- so for every commit since,
+ * 100 checks and the slowest thing in the run have been reading a file nobody
+ * serves. Demonstrated by dropping the scroll-lock release from the shipped
+ * file and watching the suite stay green.
+ *
+ * Why the shipped pair is now the primary and not a second pass: 88 of the 100
+ * checks need the browser, and this suite already timed out at run-tests.py's
+ * 300s cap on a GitHub runner with ONE pass (ede4af2 on main, 300s; the same
+ * suite took 146s on another runner twenty minutes earlier). A second browser
+ * pass would make that timeout the normal outcome. So the browser work happens
+ * once, against the file the office runs, and the gallery copy gets the twelve
+ * checks that need no browser -- a 0.17s pass at the end. The gate stops
+ * covering a demo page and starts covering the app. */
+const JS_FILE = process.env.OVERLAY_JS || path.join(__dirname, 'v2', 'ui', 'overlay.js');
+const CSS_FILE = process.env.COMPONENTS_CSS || path.join(__dirname, 'v2', 'ui', 'components.css');
 const read = (f) => (fs.existsSync(f) ? fs.readFileSync(f, 'utf8') : null);
 const TOKENS = fs.readFileSync(path.join(__dirname, 'ui', 'tokens.css'), 'utf8');
 const ICONS = fs.readFileSync(path.join(__dirname, 'ui', 'icons.js'), 'utf8');
@@ -54,6 +73,26 @@ const REAL = { js: read(JS_FILE), css: read(CSS_FILE) };
 // The self-tests (a checker fed a mutant of the REAL files) mean nothing then, and their mutations would not apply to a
 // file that is already broken, so they are left out of such a run and the summary says how many.
 const EXTERNAL = !!(process.env.OVERLAY_JS || process.env.COMPONENTS_CSS);
+
+/* THE SECOND TARGET: THE GALLERY COPY, WITHOUT THE BROWSER.
+ *
+ * <root>/ui/overlay.js is what ui/gallery.html loads. It is not what the office
+ * runs, and it is not worth a second 70-300s browser pass (see JS_FILE above
+ * for the 300s cap this suite already hit with one). It does get the twelve
+ * checks that need no browser -- the ASCII pin, the static CSS and JS rules --
+ * which cost 0.17s and are the ones that catch a copy drifting out of the
+ * hardware floor.
+ *
+ * So: the shipped file is checked completely, the gallery file is checked
+ * cheaply, and neither is unchecked. If the gallery copy ever needs the full
+ * browser run, OVERLAY_JS=ui/overlay.js COMPONENTS_CSS=ui/components.css gives
+ * it, which is how the two were compared in the first place.
+ *
+ * Not added when the run is already aimed at one file by hand (EXTERNAL: that
+ * is someone watching a broken copy go red) and not in the child itself. */
+const SECOND_JS = path.join(__dirname, 'ui', 'overlay.js');
+const SECOND_CSS = path.join(__dirname, 'ui', 'components.css');
+const WANT_SECOND = !EXTERNAL && process.env.OVERLAY_CHILD !== '1';
 const needCss = () => { if (REAL.css === null) throw new Error(path.relative(__dirname, CSS_FILE) + ' does not exist'); return REAL.css; };
 const needEnv = (env) => {
   if (env.js === null) throw new Error(path.relative(__dirname, JS_FILE) + ' does not exist');
@@ -467,7 +506,10 @@ test('the ASCII detector sees an emoji, an arrow and a curly quote and spares pl
   assert(nonAscii('x \u{1F68C} y') && nonAscii('a \u2192 b') && nonAscii('\u201cquoted\u201d') && !nonAscii('plain: a{b:c}'));
 });
 test('ui/overlay.js is pure ASCII, comments included, so no emoji or other font-dependent glyph can be in it (Windows 7 lacks them)', () => {
-  assert(!/[^\x00-\x7F]/.test(needEnv(REAL).js), 'a non-ASCII character is in ui/overlay.js');
+  // Names the file it actually read: two copies of overlay.js exist (see JS_FILE),
+  // and "a non-ASCII character is in ui/overlay.js" told you nothing about which.
+  assert(!/[^\x00-\x7F]/.test(needEnv(REAL).js),
+         'a non-ASCII character is in ' + path.relative(__dirname, JS_FILE));
 });
 
 /* =====================================================================================================
@@ -1759,7 +1801,7 @@ test('the modal-sheet checker goes red for a non-modal show(), a title inserted 
     SHEET_SHOW,
     ['title as markup', mJs("esc(title == null ? '' : title)", "(title == null ? '' : title)")],
     ['no aria-labelledby', mJs("dlg.setAttribute('aria-labelledby', id);", '')],
-    ['Close says nothing', mJs('ov-close">Close</button>', 'ov-close"></button>')],
+    ['Close says nothing', mJs("ov-close\">' + esc(w('close')) + '</button>", "ov-close\">' + '' + '</button>")],
     ['not a dialog', mJs("doc().createElement('dialog');\n    dlg.className = 'ov-modal '", "doc().createElement('div');\n    dlg.className = 'ov-modal '")],
     ['markup dropped', mJs("+ '<div class=\"ov-body\">' + (html == null ? '' : String(html)) + '</div></div>');", "+ '<div class=\"ov-body\"></div></div>');")],
   ]);
@@ -1852,7 +1894,7 @@ test('the confirmation-markup checker goes red for text inserted as markup, a mi
     ['no description', mJs("dlg.setAttribute('aria-describedby', qid);", '')],
     ['no accessible name', mJs("dlg.setAttribute('aria-labelledby', hasTitle ? tid : qid);", '')],
     ['danger ignored', mJs("(opts.danger ? 'btn-danger' : 'btn-primary')", "'btn-primary'")],
-    ['the answers have no labels', mJs("var yes = opts.yes == null || String(opts.yes) === '' ? 'Confirm' : String(opts.yes);", "var yes = opts.yes == null || String(opts.yes) === '' ? '' : String(opts.yes);")],
+    ['the answers have no labels', mJs("? w('confirm') : String(opts.yes);", "? '' : String(opts.yes);")],
   ]);
 }, { browser: true });
 
@@ -1865,9 +1907,9 @@ test('the confirmation-over-sheet checker goes red when Escape also closes the s
 
 test('the toast-words checker goes red when the kind word is gone, hidden from a screen reader, the same for every kind, or when the drawing is not hidden', async () => {
   await redAll(checkToastWords, [
-    ['no kind word', mJs("+ draw(k.icon, 18) + '<span>' + k.word + '</span></span>'", "+ draw(k.icon, 18) + '</span>'")],
+    ['no kind word', mJs("+ draw(k.icon, 18) + '<span>' + esc(w(k.word)) + '</span></span>'", "+ draw(k.icon, 18) + '</span>'")],
     ['kind word hidden from a screen reader', mJs("'<span class=\"ov-toast-kind\">'", "'<span class=\"ov-toast-kind\" aria-hidden=\"true\">'")],
-    ['one word for every kind', mJs("+ draw(k.icon, 18) + '<span>' + k.word + '</span></span>'", "+ draw(k.icon, 18) + '<span>Note</span></span>'")],
+    ['one word for every kind', mJs("+ draw(k.icon, 18) + '<span>' + esc(w(k.word)) + '</span></span>'", "+ draw(k.icon, 18) + '<span>Note</span></span>'")],
     ['message missing', mJs("+ '<span class=\"ov-toast-text\">' + esc(message) + '</span></div>'", "+ '<span class=\"ov-toast-text\"></span></div>'")],
     ['no drawing', mJs(/\+ draw\(k\.icon, 18\) /, '')],
   ]);
@@ -1916,7 +1958,7 @@ test('the toast-timing checker goes red when ms is ignored, when 0 does not mean
     ['ms is ignored and the toast goes at once', mJs("var ms = typeof opts.ms === 'number' && isFinite(opts.ms) && opts.ms >= 0 ? opts.ms : k.ms;", 'var ms = 1;')],
     ['0 means "right now"', mJs('if (t.ms > 0) t.timer', 'if (true) t.timer')],
     ['a nonsense ms vanishes', { js: mutate(mutate(REAL.js, ' && opts.ms >= 0', ''), 'if (t.ms > 0)', 'if (t.ms !== 0)'), css: REAL.css }],
-    ['the default is 300ms', mJs('ok:   { word: \'Done\',    icon: \'ok\',   ms: 4000 }', 'ok:   { word: \'Done\',    icon: \'ok\',   ms: 300 }')],
+    ['the default is 300ms', mJs("ok:   { word: 'toastOk',   icon: 'ok',   ms: 4000 }", "ok:   { word: 'toastOk',   icon: 'ok',   ms: 300 }")],
     ['Close does nothing', mJs("el.querySelector('.ov-toast-close').addEventListener('click', function () { leave(t); });", '')],
   ], undefined, 1);
 }, { browser: true, solo: true });
@@ -2179,7 +2221,50 @@ test('the static checks go red for a stylesheet with scale(0) or an animation, a
   else if (unmeasured) console.log('\n' + unmeasured + ' check(s) were NOT MEASURED: this machine would not keep time well enough (see NOT MEASURED above).'
     + '\nThis is not a full pass. Nothing here says ui/overlay.js is wrong, and nothing here says it is right either;'
     + '\nrun it again on a quieter machine, or read the CI run, which does the same checks with the box to itself.');
-  if (fails) { console.log('\n' + fails + ' FAILED'); process.exit(1); }
+  let secondFailed = false, secondRan = false;
+  if (WANT_SECOND && !fs.existsSync(SECOND_JS)) {
+    console.log('\nthe gallery copy was not checked: ' + path.relative(__dirname, SECOND_JS)
+      + ' does not exist (ui/gallery.html loads it).');
+    skipped++;
+  } else if (WANT_SECOND) {
+    secondRan = true;
+    console.log('\n──── the gallery copy, static checks only (no browser): '
+      + path.relative(__dirname, SECOND_JS) + ' + ' + path.relative(__dirname, SECOND_CSS) + ' ────');
+    const r = require('child_process').spawnSync(process.execPath, [__filename], {
+      cwd: __dirname,
+      encoding: 'utf8',
+      env: Object.assign({}, process.env, {
+        OVERLAY_JS: SECOND_JS, COMPONENTS_CSS: SECOND_CSS,
+        OVERLAY_CHILD: '1', OVERLAY_NO_BROWSER: '1'
+      })
+    });
+    const out = String(r.stdout || '') + String(r.stderr || '');
+    // Only what a reader acts on: the reds, the not-measured, and the verdict.
+    const keep = [];
+    const lines = out.split('\n');
+    for (let i = 0; i < lines.length; i++) {
+      if (/^ FAIL /.test(lines[i])) {
+        keep.push(lines[i]);
+        while (i + 1 < lines.length && /^ {6,}/.test(lines[i + 1])) keep.push(lines[++i]);
+      }
+    }
+    if (keep.length) console.log(keep.join('\n'));
+    const okN = (out.match(/^  ok /gm) || []).length;
+    console.log('  ' + okN + ' static check(s) ran against the gallery copy'
+      + (keep.length ? '' : ', and nothing was red'));
+    if (r.status !== 0) {
+      secondFailed = true;
+      console.log('  THE GALLERY COPY FAILED. The lines above are about '
+        + path.relative(__dirname, SECOND_JS) + ', not the file the app serves.');
+    }
+    if (r.error) { secondFailed = true; console.log('  the second pass could not run: ' + r.error.message); }
+  }
+
+  if (fails || secondFailed) {
+    if (fails) console.log('\n' + fails + ' FAILED' + (secondRan ? ' in ' + path.relative(__dirname, JS_FILE) : ''));
+    process.exit(1);
+  }
   const caveat = [skipped ? skipped + ' skipped' : '', unmeasured ? unmeasured + ' not measured' : ''].filter(Boolean).join(', ');
-  console.log('\n' + (caveat ? 'no check failed (' + caveat + ') -- NOT a full pass' : 'all passed'));
+  console.log('\n' + (caveat ? 'no check failed (' + caveat + ') -- NOT a full pass' : 'all passed')
+    + (secondRan ? ' (both copies)' : ''));
 })();
