@@ -34,7 +34,11 @@ const STORES = {
   users: 'id',
   buses: 'id',
   parts: 'id',
-  jobcards: 'id',
+  jobcards: 'id',        // outside-repair delta (contract 4.2), four NEW fields on top of v1's outside/
+                        //   outsideCity/externalVendor/externalCost/enterAt/outAt:
+                        //   billPhotos [string] MAX 4, union by URL; closeNoBillReason string <= 500;
+                        //   gatePassNo / gatePassId string, the MOST RECENT pass -- a pointer, not the
+                        //   record: the authoritative list is every gatepasses row with jobId == card.id.
   ledger: 'id',      // stock movement ledger (in/out) — the anti-pilferage trail
   attendance: 'id',
   purchases: 'id',
@@ -47,6 +51,14 @@ const STORES = {
   gpsevents: 'id',       // auto safety/misuse events from live GPS (overspeed/harshbrake/night/idle)
   audits: 'id',          // physical stock counts → shrinkage reconciliation + store scorecard
   components: 'id',      // rotable/refurbishable units (tyres, alternators…) — per-unit life + send-out-for-repair history
+                        // history[] entries (outside-repair contract 4.3):
+                        //   id 'h-…' minted on the device WITH the entry (a replay unions by id; entries
+                        //   from before this feature, and v1's, have none and union by (type, at));
+                        //   passId string|null, the gate pass the entry belongs to. The money lives in ONE
+                        //   place: with a pass, cost/billPhoto are on the pass and the entry carries
+                        //   passId and no money; with NO pass (the piece that left before passes were
+                        //   kept, which must stay returnable) the entry carries cost and billPhoto itself.
+                        //   state is an R field (db.js R_FIELDS): a stale refusal re-applies it.
   def: 'id',            // AdBlue / DEF (diesel exhaust fluid) top-ups for BS6/Volvo SCR buses → consumption + cost
   vendors: 'id',        // supplier registry — maps bills/invoices (incl. emailed ones) to a known vendor
   trips: 'id',          // a driver's trip = cash session (₹ allowance + categorised expenses) → per-bus accounting
@@ -59,6 +71,16 @@ const STORES = {
                         // and whether a ledger row justified it. Clients pull it and never push it.
   gatepasses: 'id',     // outside-job gate pass: the printed slip a unit leaves the garage on,
                         // and the record the returning unit's serial is checked against.
+                        // Shape (outside-repair contract 4.1). Nobody deletes a pass.
+                        //   id 'gp-…' and no 'OJ-YYMMDD-XXXX' are minted when the sheet OPENS, never
+                        //   at save, so a second save is an upsert of the same row; no is never a counter.
+                        //   status 'out' | 'returned' (one way); vendorName; busId (required);
+                        //   jobId string|null (the card it came from; null from the piece door);
+                        //   componentId string|null; regNo/engineNo/chassisNo COPIED at issue and frozen;
+                        //   unitName; unitSerial (may be ''); remark; issuedBy (server truth); issuedAt.
+                        //   Added on return only: returnedAt, returnedBy, returnSerial,
+                        //   serialMismatch (server truth, derived), cost (null, never 0, when unknown),
+                        //   returnRemark, billPhoto (ONE photo: a URL, or a data: URL while it uploads).
   rbservices: 'id',    // redPro: services (id = redBus service id, routeIds, start time, last bus)
   rbreviews: 'id',     // redPro: reviews — no passenger name/phone (server-written)
   rbcomplaints: 'id',  // redPro: complaint cases (server-written)
@@ -235,6 +257,67 @@ const DB = {
     // settings could never enter the outbox even once the store was synced.
     if (typeof DB.onChange === 'function') DB.onChange(store, obj[STORES[store] || 'id']);
     return obj;
+  },
+  /* Several records across several stores in ONE readwrite transaction.
+   *
+   *   entries: [{ store, obj }, ...]
+   *
+   * A return writes the pass, the piece and the card. Three put() calls are three
+   * transactions, and a per-row cursor is an event-loop turn each; both shapes
+   * shipped in this repo and both had to be undone. So: one transaction over the
+   * stores named (plus outboxbase when one of them is an R store), every read the
+   * rebase needs issued up front and every write issued together after, awaited
+   * once at the transaction. Nothing here awaits between a request and the next.
+   *
+   * One outbox entry per RECORD (onChange takes a store and an id, so a record
+   * that skipped it would never be pushed) and one DIRTY mark per STORE: load()
+   * re-reads a dirty store whole, and marking per row or marking everything is the
+   * 884ms-per-tap shape. Marks go on after the commit, so a load() that runs
+   * mid-write cannot clear a mark for rows that had not landed yet.
+   *
+   * The base snapshot is taken exactly as _rebase does for a local write: the row
+   * as it stood before this write, and only when the key holds none already. */
+  async putMany(entries) {
+    const list = (entries || []).filter((e) => e && e.store && e.obj);
+    if (!list.length) return;
+    for (const e of list) if (!STORES[e.store]) throw new Error('putMany: no store ' + e.store);
+    const names = [];
+    list.forEach((e) => { if (names.indexOf(e.store) < 0) names.push(e.store); });
+    const needsBase = names.some((n) => R_FIELDS[n]);
+    const db = await openDB();
+    const now = Date.now();
+    list.forEach((e) => { e.obj.updatedAt = now; });
+    await new Promise((res, rej) => {
+      const t = db.transaction(needsBase ? names.concat(BASE_STORE) : names, 'readwrite');
+      t.oncomplete = () => res();
+      t.onerror = () => rej(t.error);
+      t.onabort = () => rej(t.error || new Error('putMany aborted'));
+      const writeAll = (prev, held) => {
+        list.forEach((e, i) => {
+          const id = e.obj[STORES[e.store]];
+          if (R_FIELDS[e.store] && id != null && !held[i]) {
+            const row = _baseRow(e.store, id, prev[i]);
+            if (row) t.objectStore(BASE_STORE).put(row);
+          }
+          t.objectStore(e.store).put(e.obj);
+        });
+      };
+      const prev = [], held = [];
+      let left = 0;
+      list.forEach((e, i) => {
+        const id = e.obj[STORES[e.store]];
+        if (!R_FIELDS[e.store] || id == null) return;
+        left += 2;
+        const done = () => { if (--left === 0) writeAll(prev, held); };
+        const a = t.objectStore(e.store).get(id);
+        a.onsuccess = () => { prev[i] = a.result; done(); };
+        const b = t.objectStore(BASE_STORE).get(baseKey(e.store, id));
+        b.onsuccess = () => { held[i] = b.result; done(); };
+      });
+      if (left === 0) writeAll(prev, held);
+    });
+    names.forEach(_markDirty);
+    if (typeof DB.onChange === 'function') list.forEach((e) => DB.onChange(e.store, e.obj[STORES[e.store]]));
   },
   // Bulk insert/update in ONE transaction — for Excel/master imports (thousands
   // of rows). Stamps updatedAt and notifies onChange per record so they still sync.
@@ -749,6 +832,39 @@ async function seedIfEmpty(demo) {
     { id: 'def-3', busId: 'b1', litres: 11, cost: 680, odometer: 183900, at: now - 3*day, by: 'u-store' },
   ];
 
+  // Outside-repair fixtures (contract 10). Ids are contract. The pass number is the
+  // same scheme as Outside.passNo: YYMMDD of issuedAt, then 4 chars off the id.
+  const passNo = (id, at) => {
+    const d = new Date(at), p = (n) => (n < 10 ? '0' : '') + n;
+    let tail = id.replace(/[^a-z0-9]/gi, '').slice(-4).toUpperCase();
+    while (tail.length < 4) tail = '0' + tail;
+    return 'OJ-' + String(d.getFullYear()).slice(2) + p(d.getMonth() + 1) + p(d.getDate()) + '-' + tail;
+  };
+  const gp1At = now - 21*day, gp0At = now - 26*day;
+  const gatepasses = [
+    // Out for three weeks: the Attention row has never been drawn without a record like this.
+    { id: 'gp-1', no: passNo('gp-1', gp1At), status: 'out', vendorName: 'CoolAir Jaipur', busId: 'b3', jobId: 'j3',
+      componentId: null, regNo: 'RJ45 CC 8890', engineNo: 'ENG10093', chassisNo: 'EIC5567',
+      unitName: 'AC compressor', unitSerial: 'ACC-5512', remark: '', issuedBy: 'u-sup', issuedAt: gp1At },
+    // Back, from a piece (no card), serial matched, one bill photo.
+    { id: 'gp-0', no: passNo('gp-0', gp0At), status: 'returned', vendorName: 'Jaipur Tyre Remould', busId: 'b1', jobId: null,
+      componentId: 'c-t2', regNo: 'RJ14 PA 1023', engineNo: 'ENG88231', chassisNo: 'MAT4470',
+      unitName: 'Tyre FL', unitSerial: 'MRF-9922', remark: '', issuedBy: 'u-sup', issuedAt: gp0At,
+      returnedAt: now - 20*day, returnedBy: 'u-sup', returnSerial: 'MRF-9922', serialMismatch: false,
+      cost: 4200, returnRemark: 'Remoulded, refitted', billPhoto: 'bill-gp-0.jpg' },
+  ];
+  // j3 points at its pass but stays outside:false (vendor typed, bus in our yard); j4 is away, no vendor yet.
+  jobcards[2].gatePassNo = gatepasses[0].no;
+  jobcards[2].gatePassId = 'gp-1';
+  jobcards[2].outside = false;
+  jobcards[2].billPhotos = [];
+  jobcards.push({ id: 'j4', busId: 'b2', problem: 'Gearbox rebuild at outside workshop', priority: 'medium',
+    status: 'open', reportedBy: 'u-sup', assignedTo: 'u-m2',
+    beforePhotos: [], afterPhotos: [], partsUsed: [], labourHours: 0, notes: '',
+    outside: true, outsideCity: 'Jaipur', enterAt: now - 2*day, outAt: null,
+    externalVendor: '', externalCost: 0, billPhotos: [],
+    createdAt: now - 2*day, closedAt: null, verifiedBy: null });
+
   for (const u of users) await DB.put('users', u);   // staff roster — bootstraps the login screen (always)
   if (demo) {                                          // demo operational data — local/dev only
     for (const b of buses) await DB.put('buses', b);
@@ -756,7 +872,8 @@ async function seedIfEmpty(demo) {
     for (const d of def) await DB.put('def', d);
     for (const vn of vendors) await DB.put('vendors', vn);
     for (const p of parts) await DB.put('parts', p);
-    for (const j of jobcards) await DB.put('jobcards', j);
+    await DB.bulkPut('jobcards', jobcards);
+    await DB.bulkPut('gatepasses', gatepasses);
     for (const l of ledger) await DB.put('ledger', l);
     for (const a of attendance) await DB.put('attendance', a);
     for (const pu of purchases) await DB.put('purchases', pu);
