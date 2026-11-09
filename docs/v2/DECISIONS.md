@@ -731,3 +731,48 @@ thing withholding a passenger's date of journey from the office is that slice RV
 would receive it. If the intent is that the office never holds it, it belongs in
 the tuple above rather than in one screen's discipline — a field withheld by a
 screen's good manners is not withheld.
+
+## 24. Decided by the owner, 9 Nov 2026: the supervisor's desk rail loses three
+
+**His words: "make the supervisor do his work only what he was doing in v1
+theres a lot of extra things which get showed to him now."** Asked whether to
+take the screens away or stop showing them, he chose **stop showing them**, and
+named the three: **Money, People, Reviews.**
+
+**What changed, exactly.** `RAIL_OFF` in `v2/caps.js` is a per-role list of
+destinations that do not go on the desk rail. The supervisor's desk rail was
+twelve screens; it is now nine plus **More**, which sits immediately before Me
+and holds Money, People and Reviews. Every other role is untouched — the owner
+still gets all twelve with no More, and the supervisor's **yard** rail, which
+was already five slots plus More, did not change at all.
+
+**What did NOT change, and this is the point of the decision.** He still
+**holds** all three. `Caps.holds('supervisor', 'money' | 'people' |
+'reviews')` is true, the routes still resolve, and the server-side permissions
+are not touched. Two taps instead of one. This is a drawing decision.
+
+Three things made that the right reading rather than a cautious one:
+
+- He picked *"just stop showing them"* over *"remove them"* when both were on
+  the table.
+- §5 of this document gave the supervisor Money **on purpose**: he does the
+  cash reconciliation. Taking it away would undo a decision made for a reason
+  he has not contradicted.
+- Nothing he said is about permission. "Extra things which get showed to him"
+  is a complaint about a crowded rail.
+
+**The check that holds it.** `test_v2_router.js` §5 now asserts the two desks
+separately, and the last of the supervisor's four assertions is the one that
+matters: *"supervisor still HOLDS Money, People and Reviews — hidden, not taken
+away."* Taking `crewReviews` off the supervisor in `PERMS` — hiding the screen
+AND removing it — turns that check red while the three rail checks stay green,
+which is exactly the distinction the decision rests on. Reverting `deskBar`, or
+making it drop the three instead of moving them behind More, each reddens the
+rail checks in both `test_v2_router.js` and `test_v2_ui.js`. All three mutations
+were run.
+
+**Still open, and the owner should look at it.** His desk rail is **nine**
+items, not the five v1 showed him. Store, Duty board, Gate round and Fuel &
+tyres are still on it, because only the three he named were moved. If v1's five
+is the target, those four are the next candidates — but each is a screen he
+works in daily, so it is his call, not an inference from this sentence.

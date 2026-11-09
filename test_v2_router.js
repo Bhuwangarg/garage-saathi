@@ -342,11 +342,17 @@ function main() {
 
   /* ================================================================== *
    * 5. Owner and supervisor: 5 yard slots + 7 More rows = 12
-   *    destinations, no duplicate, no aria-current on More; at desk 12
-   *    items and NO More at all.
+   *    destinations, no duplicate, no aria-current on More.
    *
-   *    Red when you: add a thirteenth destination, or leave More in the
-   *    rail.
+   *    At a desk the two roles differ, and that is the owner's decision
+   *    of 9 Nov 2026 (DECISIONS.md §22): the owner's rail carries all 12
+   *    screens, the supervisor's carries nine and puts Money, People and
+   *    Reviews behind More. He still HOLDS all three — this narrows what
+   *    he is shown, not what he may open.
+   *
+   *    Red when you: add a thirteenth destination, leave More in the
+   *    owner's rail, drop More from the supervisor's, move one of the
+   *    three onto his rail, or take one off him altogether.
    * ================================================================== */
   ['owner', 'supervisor'].forEach(function (role) {
     signIn(role);
@@ -360,12 +366,33 @@ function main() {
       .concat(ids(yard.more));
     check(role + ' yard: 5 slots + 7 More = 12 destinations, no duplicate',
           dests.length === 12 && new Set(dests).size === 12);
-    check(role + ' desk: all 12 items in rail order and no More at all',
-          desk.more.length === 0 && desk.items.length === 12
-          && ids(desk.items).indexOf('more') === -1
-          && same(ids(desk.items), ['today', 'attention', 'jobs', 'buses', 'store',
-                                    'money', 'people', 'duty', 'gate', 'fuel',
-                                    'reviews', 'me']));
+    if (role === 'owner') {
+      check('owner desk: all 12 items in rail order and no More at all',
+            desk.more.length === 0 && desk.items.length === 12
+            && ids(desk.items).indexOf('more') === -1
+            && same(ids(desk.items), ['today', 'attention', 'jobs', 'buses', 'store',
+                                      'money', 'people', 'duty', 'gate', 'fuel',
+                                      'reviews', 'me']));
+    } else {
+      check('supervisor desk: nine screens on the rail, More before Me',
+            same(ids(desk.items), ['today', 'attention', 'jobs', 'buses', 'store',
+                                   'duty', 'gate', 'fuel', 'more', 'me']));
+      check('supervisor desk: Money, People and Reviews sit behind More',
+            same(ids(desk.more), ['money', 'people', 'reviews']));
+      check('supervisor desk: the 12 destinations are all still there, once each',
+            (function () {
+              const d = ids(desk.items).filter(function (i) { return i !== 'more'; })
+                .concat(ids(desk.more));
+              return d.length === 12 && new Set(d).size === 12;
+            }()));
+      /* The narrowing is a drawing decision. Holding is what decides whether
+       * he may open the screen at all, and the owner left that alone — so the
+       * three behind More must still answer true to Caps.holds. */
+      check('supervisor still HOLDS Money, People and Reviews — hidden, not taken away',
+            ['money', 'people', 'reviews'].every(function (id) {
+              return Caps.holds('supervisor', id);
+            }));
+    }
     /* More is never a destination (screens-shell.md §1.3): it is not a screen,
      * so `aria-current` can never land on it — nav() sets that from the active
      * route id, and no route is ever 'more'. Asserted at the source of that
