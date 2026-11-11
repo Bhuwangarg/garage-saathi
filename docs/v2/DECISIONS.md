@@ -776,3 +776,109 @@ items, not the five v1 showed him. Store, Duty board, Gate round and Fuel &
 tyres are still on it, because only the three he named were moved. If v1's five
 is the target, those four are the next candidates — but each is a screen he
 works in daily, so it is his call, not an inference from this sentence.
+
+## 25. Decided by the owner, 10-11 Nov 2026: WhatsApp is a surface. This reverses half of §8
+
+§8 above, at line 161, says *"No WhatsApp integration and no file import. Neither was
+asked for."* That text stays where it is — a reversal reads as a reversal only if the
+thing it reverses is still legible. As of 10 November 2026 WhatsApp **is** asked for, by
+the owner, in these words: *"i want to build this software on whatsapp fully… like a
+store does in whatsapp."* **File import is not reversed. The other half of §8 stands.**
+
+The UX doc is `plan/whatsapp-ux.md`. What is settled:
+
+1. **Scope split.** The chat does the daily field jobs — attendance, odometer, fuel,
+   problem reports, job-card updates, part issue and return. Reports, the live map, full
+   store counts, people and money are reached by a signed one-tap deep link into the v2
+   web app. Each job stays in the surface that suits it.
+2. **Identity.** An enrolled phone number identifies the person. Cash, stock and gate
+   passes ask for the existing 4-digit PIN, once per day. **An unenrolled number gets no
+   reply at all** — which removes today's *"Yeh number kisi bus se linked nahi hai…"*,
+   and also means the read receipt must not be sent before the sender is known
+   (`sync_server.py:5393` sends it first today; a blue tick is a reply).
+3. **Attendance proof is location plus photo**, both stored, with no liveness check. The
+   integrity drop against today's camera-and-GPS gate is **accepted, not mitigated away**
+   (`plan/whatsapp-ux.md §9.1`). Buddy-punching gets easier in a business that handles
+   cash; the trade is that the surface reaches people the app does not reach at all.
+4. **Buttons and lists are the primary path; AI free text and Hindi voice notes are a
+   first-class alternative.** The "no AI, no voice notes" wording of 10 November was a
+   mis-click by the owner and is withdrawn — *"i want to use ai wherever possible. by
+   mistake would hsve written it."* Typed digits are allowed **only immediately after the
+   bot asks for exactly one number** (a PIN, a reading, a quantity). Anything that routes
+   to nothing gets a menu, never an error.
+5. **AI reads and proposes; the person confirms with a tap; the server still validates
+   through its existing ladders. No AI output writes to a record unconfirmed.** This
+   mirrors `odometer_submit`, where vision reads a number and six holds stand between it
+   and the fleet record. `bill_ai.py` is the existing proof the shape works on these
+   users.
+6. **Two cost lines, and AI is the larger.**
+   **(a) Meta messages.** Since **1 October 2026** every message the bot *sends* is
+   charged beyond 1,000 free per business number per month, and utility templates inside
+   the open 24-hour window stopped being free on that date. Inbound stays free. Verified
+   against Meta's own pricing page, not vendor blogs. **≈₹1,760/month**, range
+   ₹1,150–₹2,900, on an India utility rate of ~₹0.115 that is a **secondary-source
+   estimate the owner must confirm against Meta's rate card.** The free tier is 1.7
+   working days of this surface: a trial, not a cost control.
+   **(b) AI inference. ≈₹4,760/month**, decided below. Round-trips are the cost unit, so
+   minimising bot messages per flow is a design constraint rather than polish — this is
+   why attendance was designed down to **one** bot message.
+7. **Decided 11 Nov: the 18 Oct "every AI call uses Opus" decision is narrowed for this
+   surface.** Intent routing and speech-to-text run on a **small, fast model**; vision
+   (meter and slip photos) and the owner's advisor **keep the capable model**. Routing a
+   few words to an intent is not work Opus is for. **This is worth ≈₹17,700/month —
+   ₹4,760 against ₹25,500, about ₹2.1 lakh a year** — and it changes nothing about how
+   the surface behaves. `AI_MODEL` at `sync_server.py:5055` carries the October default
+   and its comment; the October decision is otherwise untouched.
+8. **Crew need an AI budget that does not exist yet.** `ai_allowed`
+   (`sync_server.py:5062`) returns `forbidden` for every role except owner and
+   supervisor, so the existing `AI_DAILY_LIMIT` of 60 **cannot simply be widened** —
+   110 crew × 60 would buy a 6,600-call/day ceiling. Decided: **10 AI-assisted
+   interactions per crew member per day, counted per phone number as well as per user**
+   (handsets are shared), falling back to buttons with one explanatory line, **never to
+   silence**. The sync rate limiter *"fails open, deliberately"* (`sync_server.py:5076`);
+   a spend cap must fail **closed**.
+9. **Every inference call must be counted, including the ones that are not today.**
+   `ai_allowed` is called at exactly two sites, both HTTP routes (`:6573`, `:6610`).
+   `vision_read_odometer` (`:5558`, inside `odometer_submit`) goes through neither, so a
+   meter photo is an uncounted, uncapped, capable-model call. Unreachable in practice
+   today because the webhook has never run live — and an unbounded hole the moment it
+   does.
+10. **Four bot-initiated templates and no more:** enrolment welcome, shift-end odometer,
+   missed checkout, Monday summary. Document expiries, challans, low stock, gate holds
+   and pilferage are **refused** — a finding with no same-day deadline belongs on
+   Attention, and paying per push for each is how a bot gets muted.
+11. **One new store.** WhatsApp enrolment, keyed by the last 10 digits, server-ingest-
+   only, readable by nobody on a device. No existing record shape changes, so §2 stands.
+   `users` is `{id, name, role}` and holds no phone number today; `bus_by_phone` resolves
+   a number to a **bus**, and when two active crew share a number it returns whichever
+   the loop reaches first (`sync_server.py:5444`), silently crediting one person's work
+   to another.
+12. **Attendance photo retention: 90 days, as one configurable setting** so changing it
+   is config and not a migration. The **R2 object** is deleted, not merely the field —
+   `/uploads/<32hex>` has no auth, so clearing a reference leaves a public image. Object
+   first, then reference, so no orphan survives. The record, its time, its location and
+   any late or flagged marks are kept permanently. The job runs on **GitHub Actions**,
+   not the office laptop's Chrome extension, because a deletion guarantee must not depend
+   on one pinned signed-in tab. `/health` reports the **age of the oldest surviving
+   image** (≤90 always) plus the last run's timestamp and delete count, and a gate check
+   with a 91-day fixture must be broken and confirmed red before it is trusted. The first
+   live run clears 90 days of backlog and is a production write — the owner's to run.
+   Meta holds its own copy on its own schedule.
+13. **Three more decided 11 Nov, each overrulable.** An AI-read number **never** writes
+   without a tap. A mechanic's intent router may read part **names** in order to match
+   one, and **never** stock levels or prices. Voice transcripts are **not retained**
+   beyond the conversation that used them.
+
+**The sequencing fact that governs all of it:** `inventory/04-server-and-integrations.md`
+§3.7 and §7 record the live WhatsApp account as **not approved** and its status
+**UNDETERMINED** — the integration has most likely never run in production. Meta business
+verification, a WhatsApp Business Account and a dedicated number are therefore **on the
+critical path, not a parallel track**, and nothing downstream is verifiable until they
+exist. That includes the odometer capture already built and paid for.
+
+**Still open and recorded as open:** who may enrol and revoke a number; whether a
+supervisor may do PIN-gated money or stock work over a surface with no device enrolment;
+both rate cards; whether a WhatsApp attendance record should be marked as a different
+grade of proof if attendance settles wages; and whether the 165 crew logins go once chat
+attendance works — which should not be answered before the measures in
+`plan/whatsapp-ux.md §12` return a number. That section is the list.
