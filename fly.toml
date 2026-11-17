@@ -1,0 +1,93 @@
+# Garage Saathi — always-on, Mumbai.
+#
+# Every value below that is not a Fly default is here for a reason stated beside
+# it. The ones that matter most are min_machines_running, TRUSTED_PROXY_HOPS and
+# the volume; getting any of those wrong is a production incident, not a
+# misconfiguration.
+
+app = "garage-saathi"
+
+# bom is Mumbai. Supabase Postgres is in Mumbai (ap-south-1, transaction pooler
+# on 6543) and this server makes many small queries per request, including one in
+# token validation on every authenticated call. Hosting anywhere further trades a
+# one-time cold start for per-query latency on every request forever, which is
+# the wrong way round.
+primary_region = "bom"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  # Must match the Dockerfile's EXPOSE and internal_port below. sync_server.py
+  # reads $PORT and defaults to 8766.
+  PORT = "8766"
+
+  # THE IMPORTANT ONE. Fly's proxy sits in front, so handler.client_address is
+  # Fly's internal address for every request on earth. The login lockout is
+  # per-IP (LOGIN_LOCK_SEC, reserve_attempt), so leaving this at 0 would make all
+  # ~100 staff share one address: the first person to fat-finger a PIN five times
+  # locks out the entire garage. With 1 hop the address is read from the
+  # right-hand end of X-Forwarded-For, which Fly wrote. See sync_server.py:885-899.
+  TRUSTED_PROXY_HOPS = "1"
+
+  # Photo storage is Cloudflare R2 and stays R2. This path is only the FALLBACK
+  # taken when an R2 put fails (sync_server.py:5177-5196), and on a container
+  # without a volume that fallback writes to a disk that disappears at the next
+  # restart — losing exactly the photos saved during an outage, silently. Pointed
+  # at the mounted volume so the fallback is actually a fallback.
+  UPLOADS_DIR = "/data/uploads"
+
+  # Unused in production: with DATABASE_URL set, the server refuses to fall back
+  # to SQLite and raises DatabaseUnavailable instead. Pointed at the volume
+  # anyway so that if it is ever used, it is not on an ephemeral layer.
+  DB_PATH = "/data/sync.db"
+
+[http_service]
+  internal_port = 8766
+  force_https = true
+
+  # This is the whole point of the migration. auto_stop_machines = false and
+  # min_machines_running = 1 mean the process is never suspended, so:
+  #   - the 10s typical / 30-36s worst cold start stops existing, which is the
+  #     30-second manager login at 6.40am (05-user-needs.md need 9);
+  #   - bootstrap() runs once at startup instead of a per-request flag check;
+  #   - the WhatsApp webhook's daemon thread survives the 200 it answers, which
+  #     04-server-and-integrations.md §3.7 records as UNDETERMINED on serverless;
+  #   - LIVE_GPS is a real in-memory cache again instead of re-reading the whole
+  #     gpslive table per request because containers are stateless.
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+
+  # One machine, because the volume below is attached to one machine and this
+  # server keeps in-memory state (LIVE_GPS, the login-attempt counters, the
+  # bootstrap flag). Going to two is not a number change: it needs the in-memory
+  # state moved to Postgres first, or two machines will disagree about who is
+  # locked out and where buses are.
+  processes = ["app"]
+
+  # Liveness only, and deliberately so. GET /health answers 200 even when the
+  # database is unreachable — it reports dbOk:false and dbMode:
+  # "postgres-unreachable" in the body (04 §7). Fly's HTTP check cannot read
+  # JSON, so it can prove the process is listening and nothing more. The alarm
+  # that actually checks dbOk is .github/workflows/health.yml, every 10 minutes,
+  # and it stays. Do not mistake a green Fly check for a healthy server.
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "10s"
+    grace_period = "40s"     # cold boot plus the first Postgres connect is ~10s, worst measured 30-36s
+    method = "GET"
+    path = "/health"
+
+[[vm]]
+  # 512MB is tight once psycopg, boto3 and cryptography are resident and
+  # ThreadingHTTPServer is holding a thread per in-flight request. 1GB is a few
+  # dollars and removes the failure mode where the OOM killer restarts the
+  # process under load, which would read as a cold start returning.
+  memory = "1gb"
+  cpu_kind = "shared"
+  cpus = 1
+
+[[mounts]]
+  source = "garage_data"
+  destination = "/data"

@@ -1,0 +1,50 @@
+# Mirrors .vercelignore, for the same reasons, plus the things only a Docker
+# build has to exclude. The image serves the PWA, so the frontend is NOT
+# excluded here: index.html, export.html, app.js, v2/, ui/, icons/ and assets/
+# all ship.
+
+# Git history and CI config: megabytes of layer for nothing.
+.git/
+.github/
+.githooks/
+
+# QA probes and harnesses — every one is a page that boots the app.
+probe_*.html
+.gstack/
+.octogent/
+
+# Native app projects; built by their own workflows.
+mobile/
+
+# Server-side tooling and tests. The running server needs neither.
+scripts/
+test_*.py
+__pycache__/
+*.pyc
+
+# Docs. No reason to put them in a container.
+docs/
+*.md
+
+# The Chrome extension is installed on the office laptop, not served.
+redpro-extension/
+
+# Local state and secrets. All git-ignored already; listed again so a stray file
+# on a developer machine can never reach a production image. Secrets reach Fly
+# through `fly secrets set`, never through a layer.
+sync.db
+uploads/
+.vapid_private.pem
+crew-backup-*.json
+.contact_salt
+.env*
+.vercel
+.gps_ingest_token
+.redpro_ingest_token
+.ai_cron_token
+.public_url
+.DS_Store
+
+# Build artefacts of this migration itself.
+Dockerfile
+.dockerignore
